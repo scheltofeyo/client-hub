@@ -1,0 +1,106 @@
+"use client";
+
+import Link from "next/link";
+import { useSearchParams, usePathname } from "next/navigation";
+import { LayoutDashboard, Briefcase, Paperclip, StickyNote, ChevronRight } from "lucide-react";
+import type { Client, Project } from "@/types";
+
+const tabItems = [
+  { tab: "overview", label: "Overview", icon: LayoutDashboard },
+  { tab: "projects", label: "Projects", icon: Briefcase },
+  { tab: "files", label: "Files", icon: Paperclip },
+  { tab: "notes", label: "Notes", icon: StickyNote },
+];
+
+export default function ClientPanelNav({
+  client,
+  projects = [],
+}: {
+  client: Client;
+  projects?: Pick<Project, "id" | "title">[];
+}) {
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
+
+  const rawTab = searchParams.get("tab")?.toLowerCase() ?? "overview";
+  const activeTab = tabItems.some((t) => t.tab === rawTab) ? rawTab : "overview";
+
+  const isOnProjectDetail = !!pathname.match(new RegExp(`/clients/${client.id}/projects/[^/]+`));
+  const isOnProjectsArea = activeTab === "projects" || isOnProjectDetail;
+
+  // Detect active project id from pathname
+  const projectDetailMatch = pathname.match(
+    new RegExp(`/clients/${client.id}/projects/([^/]+)`)
+  );
+  const activeProjectId = projectDetailMatch?.[1] ?? null;
+
+  return (
+    <aside
+      className="w-56 shrink-0 flex flex-col border-r overflow-y-auto"
+      style={{ borderColor: "var(--border)" }}
+    >
+      {/* Company name header */}
+      <div className="px-4 pt-5 pb-3 shrink-0">
+        <span className="font-semibold text-sm" style={{ color: "var(--text-primary)" }}>
+          {client.company}
+        </span>
+      </div>
+
+      {/* Tab nav */}
+      <div className="px-2 space-y-0.5">
+        {tabItems.map(({ tab, label, icon: Icon }) => {
+          const active = tab === "projects"
+            ? activeTab === "projects" && !isOnProjectDetail
+            : activeTab === tab && !isOnProjectsArea;
+          const isProjects = tab === "projects";
+
+          return (
+            <div key={tab}>
+              <Link
+                href={`/clients/${client.id}?tab=${tab}`}
+                data-active={active}
+                className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm transition-colors nav-panel-item"
+              >
+                <Icon size={14} strokeWidth={1.8} />
+                <span className="flex-1">{label}</span>
+                {isProjects && projects.length > 0 && (
+                  <ChevronRight
+                    size={12}
+                    strokeWidth={2}
+                    className="transition-transform"
+                    style={{
+                      transform: isOnProjectsArea ? "rotate(90deg)" : "rotate(0deg)",
+                      color: "var(--text-muted)",
+                    }}
+                  />
+                )}
+              </Link>
+
+              {/* Project children — shown when in projects area */}
+              {isProjects && isOnProjectsArea && projects.length > 0 && (
+                <div className="mt-0.5 space-y-0.5">
+                  {projects.map((project) => {
+                    const projectActive = activeProjectId === project.id;
+                    return (
+                      <Link
+                        key={project.id}
+                        href={`/clients/${client.id}/projects/${project.id}`}
+                        data-active={projectActive}
+                        className="flex items-center gap-2 pl-8 pr-2 py-1.5 rounded-lg text-sm transition-colors nav-panel-item truncate"
+                      >
+                        <span className="truncate">{project.title}</span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Divider */}
+      <div className="mx-3 my-3 border-t" style={{ borderColor: "var(--border)" }} />
+    </aside>
+  );
+}

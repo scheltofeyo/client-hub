@@ -1,0 +1,143 @@
+@import "tailwindcss";
+
+/* Class-based dark mode for Tailwind v4 */
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --bg-app: #f0eff4;
+  --bg-surface: #ffffff;
+  --bg-sidebar: #f7f6fb;
+  --bg-hover: #e4e2ee;
+  --border: #e6e4ef;
+  --text-primary: #09090b;
+  --text-muted: #8b8a9b;
+  --primary: #7c3aed;
+  --primary-light: #ede9fe;
+  --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 8px 32px rgba(100, 80, 160, 0.08);
+}
+
+.dark {
+  --bg-app: #0e0d12;
+  --bg-surface: #16151d;
+  --bg-sidebar: #1c1b25;
+  --bg-hover: #211f2a;
+  --border: #2a2836;
+  --text-primary: #f4f3f8;
+  --text-muted: #6b697e;
+  --primary: #a78bfa;
+  --primary-light: #2e1065;
+  --card-shadow: none;
+}
+
+* {
+  border-color: var(--border);
+  box-sizing: border-box;
+}
+
+body {
+  background: var(--bg-app);
+  color: var(--text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 14px;
+}
+
+.hover-row:hover {
+  background: var(--bg-sidebar);
+}
+
+.breadcrumb-link {
+  color: var(--text-muted);
+  transition: color 0.15s;
+}
+.breadcrumb-link:hover {
+  color: var(--primary);
+}
+
+/* Icon nav items (IconNav) */
+.nav-icon-item {
+  color: var(--text-muted);
+  background: transparent;
+}
+.nav-icon-item:hover {
+  background: var(--primary-light);
+  color: var(--primary);
+}
+.nav-icon-item[data-active="true"] {
+  background: var(--primary-light);
+  color: var(--primary);
+}
+
+/* Panel nav items (PanelNav, ClientPanelNav) */
+.nav-panel-item {
+  color: var(--text-muted);
+  background: transparent;
+}
+.nav-panel-item:hover {
+  background: var(--primary-light);
+  color: var(--primary);
+}
+.nav-panel-item[data-active="true"] {
+  background: var(--primary-light);
+  color: var(--primary);
+}
+
+/* ── Button variants ──────────────────────────────────────── */
+@layer components {
+  .btn-primary {
+    background: var(--primary);
+    color: #fff;
+    transition: filter 0.15s;
+  }
+  .btn-primary:hover:not(:disabled) {
+    filter: brightness(0.88);
+  }
+
+  .btn-secondary {
+    background: transparent;
+    color: var(--primary);
+    border-color: var(--border);
+    transition: background 0.15s;
+  }
+  .btn-secondary:hover:not(:disabled) {
+    background: var(--primary-light);
+  }
+
+  .btn-danger {
+    background: #ef4444;
+    color: #fff;
+    transition: filter 0.15s;
+  }
+  .btn-danger:hover:not(:disabled) {
+    filter: brightness(0.88);
+  }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--text-muted);
+    transition: background 0.15s, color 0.15s;
+  }
+  .btn-ghost:hover:not(:disabled) {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+  }
+
+  .btn-icon {
+    background: transparent;
+    color: var(--text-muted);
+    transition: background 0.15s, color 0.15s;
+  }
+  .btn-icon:hover:not(:disabled) {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+  }
+
+  .btn-link {
+    background: transparent;
+    color: var(--primary);
+    transition: opacity 0.15s;
+  }
+  .btn-link:hover {
+    opacity: 0.7;
+  }
+
+}
