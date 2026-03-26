@@ -8,6 +8,7 @@ export interface IProject extends Document {
   deliveryDate?: string;
   soldPrice?: number;
   templateId?: string;
+  serviceId?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -25,6 +26,7 @@ const ProjectSchema = new Schema<IProject>(
     deliveryDate: { type: String, trim: true },
     soldPrice: { type: Number },
     templateId: { type: String },
+    serviceId: { type: String },
   },
   { timestamps: true }
 );

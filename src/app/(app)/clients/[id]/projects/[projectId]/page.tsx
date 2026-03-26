@@ -15,6 +15,7 @@ export default async function ProjectOverviewPage({
 
   const details: [string, string | undefined][] = [
     ["Status", undefined],
+    ["Service", project.service],
     ["Delivery date", project.deliveryDate],
     [
       "Sold price",

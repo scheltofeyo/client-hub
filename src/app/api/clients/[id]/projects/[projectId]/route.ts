@@ -21,7 +21,7 @@ export async function PATCH(
   }
 
   const body = await req.json();
-  const { title, description, status, deliveryDate, soldPrice } = body;
+  const { title, description, status, deliveryDate, soldPrice, serviceId } = body;
 
   if (title !== undefined && !title?.trim()) {
     return NextResponse.json({ error: "Title cannot be empty" }, { status: 400 });
@@ -33,6 +33,7 @@ export async function PATCH(
   if (status !== undefined) update.status = status;
   if (deliveryDate !== undefined) update.deliveryDate = deliveryDate?.trim() || null;
   if (soldPrice !== undefined) update.soldPrice = soldPrice ? Number(soldPrice) : null;
+  if (serviceId !== undefined) update.serviceId = serviceId || null;
 
   const doc = await ProjectModel.findByIdAndUpdate(projectId, { $set: update }, { new: true }).lean();
   if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });

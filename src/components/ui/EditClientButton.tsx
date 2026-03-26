@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Pencil } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useRightPanel } from "@/components/layout/RightPanel";
-import type { Client } from "@/types";
+import type { Archetype, Client } from "@/types";
 
 const inputClass =
   "w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-purple-400/40";
@@ -17,7 +17,15 @@ const inputStyle = {
 const labelClass = "block text-xs font-medium mb-1";
 const labelStyle = { color: "var(--text-muted)" };
 
-function EditClientForm({ client, onClose }: { client: Client; onClose: () => void }) {
+function EditClientForm({
+  client,
+  archetypes,
+  onClose,
+}: {
+  client: Client;
+  archetypes: Archetype[];
+  onClose: () => void;
+}) {
   const [form, setForm] = useState({
     company: client.company ?? "",
     status: client.status ?? "",
@@ -26,6 +34,7 @@ function EditClientForm({ client, onClose }: { client: Client; onClose: () => vo
     employees: client.employees != null ? String(client.employees) : "",
     website: client.website ?? "",
     description: client.description ?? "",
+    archetypeId: client.archetypeId ?? "",
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -48,6 +57,7 @@ function EditClientForm({ client, onClose }: { client: Client; onClose: () => vo
       body: JSON.stringify({
         ...form,
         employees: form.employees ? Number(form.employees) : undefined,
+        archetypeId: form.archetypeId || undefined,
       }),
     });
 
@@ -176,6 +186,26 @@ function EditClientForm({ client, onClose }: { client: Client; onClose: () => vo
         </div>
       </div>
 
+      <div>
+        <label htmlFor="ec-archetype" className={labelClass} style={labelStyle}>
+          Archetype
+        </label>
+        <select
+          id="ec-archetype"
+          value={form.archetypeId}
+          onChange={(e) => set("archetypeId", e.target.value)}
+          className={inputClass}
+          style={inputStyle}
+        >
+          <option value="">— None —</option>
+          {archetypes.map((a) => (
+            <option key={a.id} value={a.id}>
+              {a.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
       {error && <p className="text-xs text-red-500">{error}</p>}
 
       <div className="flex justify-end gap-2 pt-1">
@@ -198,13 +228,22 @@ function EditClientForm({ client, onClose }: { client: Client; onClose: () => vo
   );
 }
 
-export default function EditClientButton({ client }: { client: Client }) {
+export default function EditClientButton({
+  client,
+  archetypes,
+}: {
+  client: Client;
+  archetypes: Archetype[];
+}) {
   const { openPanel, closePanel } = useRightPanel();
 
   return (
     <button
       onClick={() =>
-        openPanel("Edit Client", <EditClientForm client={client} onClose={closePanel} />)
+        openPanel(
+          "Edit Client",
+          <EditClientForm client={client} archetypes={archetypes} onClose={closePanel} />
+        )
       }
       className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border btn-secondary"
     >

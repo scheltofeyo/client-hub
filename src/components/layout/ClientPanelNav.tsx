@@ -2,14 +2,14 @@
 
 import Link from "next/link";
 import { useSearchParams, usePathname } from "next/navigation";
-import { LayoutDashboard, Briefcase, Paperclip, StickyNote, ChevronRight } from "lucide-react";
+import { LayoutDashboard, Briefcase, Paperclip, BookOpen, ChevronRight } from "lucide-react";
 import type { Client, Project } from "@/types";
 
 const tabItems = [
   { tab: "overview", label: "Overview", icon: LayoutDashboard },
   { tab: "projects", label: "Projects", icon: Briefcase },
   { tab: "files", label: "Files", icon: Paperclip },
-  { tab: "notes", label: "Notes", icon: StickyNote },
+  { tab: "logbook", label: "Logbook", icon: BookOpen },
 ];
 
 export default function ClientPanelNav({

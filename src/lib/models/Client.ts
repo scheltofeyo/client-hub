@@ -25,6 +25,7 @@ export interface IClient extends Document {
   description?: string;
   contacts?: IContact[];
   leads?: IClientLead[];
+  archetypeId?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -61,6 +62,7 @@ const ClientSchema = new Schema<IClient>(
     description: { type: String, trim: true },
     contacts: { type: [ContactSchema], default: [] },
     leads: { type: [ClientLeadSchema], default: [] },
+    archetypeId: { type: String, trim: true },
   },
   { timestamps: true }
 );

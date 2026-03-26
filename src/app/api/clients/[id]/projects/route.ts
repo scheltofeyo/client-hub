@@ -48,7 +48,7 @@ export async function POST(
   }
 
   const body = await req.json();
-  const { title, description, status, deliveryDate, soldPrice, templateId } = body;
+  const { title, description, status, deliveryDate, soldPrice, templateId, serviceId } = body;
 
   if (!title?.trim()) {
     return NextResponse.json({ error: "Title is required" }, { status: 400 });
@@ -62,6 +62,7 @@ export async function POST(
     deliveryDate: deliveryDate?.trim() || undefined,
     soldPrice: soldPrice ? Number(soldPrice) : undefined,
     templateId: templateId || undefined,
+    serviceId: serviceId || undefined,
   });
 
   return NextResponse.json({

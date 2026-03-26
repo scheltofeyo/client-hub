@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Pencil, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useRightPanel } from "@/components/layout/RightPanel";
-import type { Project } from "@/types";
+import type { Project, Service } from "@/types";
 
 const inputClass =
   "w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-purple-400/40";
@@ -19,10 +19,12 @@ const labelStyle = { color: "var(--text-muted)" };
 function EditProjectForm({
   project,
   clientId,
+  services,
   onClose,
 }: {
   project: Project;
   clientId: string;
+  services: Service[];
   onClose: () => void;
 }) {
   const [form, setForm] = useState({
@@ -31,6 +33,7 @@ function EditProjectForm({
     status: project.status,
     deliveryDate: project.deliveryDate ?? "",
     soldPrice: project.soldPrice != null ? String(project.soldPrice) : "",
+    serviceId: project.serviceId ?? "",
   });
   const [loading, setLoading] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -57,6 +60,7 @@ function EditProjectForm({
         status: form.status,
         deliveryDate: form.deliveryDate || undefined,
         soldPrice: form.soldPrice ? Number(form.soldPrice) : undefined,
+        serviceId: form.serviceId || undefined,
       }),
     });
 
@@ -154,23 +158,44 @@ function EditProjectForm({
         </div>
       </div>
 
-      <div>
-        <label htmlFor="ep-status" className={labelClass} style={labelStyle}>
-          Status
-        </label>
-        <select
-          id="ep-status"
-          value={form.status}
-          onChange={(e) => set("status", e.target.value)}
-          className={inputClass}
-          style={inputStyle}
-        >
-          <option value="planning">Planning</option>
-          <option value="in_progress">In progress</option>
-          <option value="review">Review</option>
-          <option value="completed">Completed</option>
-          <option value="on_hold">On hold</option>
-        </select>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label htmlFor="ep-status" className={labelClass} style={labelStyle}>
+            Status
+          </label>
+          <select
+            id="ep-status"
+            value={form.status}
+            onChange={(e) => set("status", e.target.value)}
+            className={inputClass}
+            style={inputStyle}
+          >
+            <option value="planning">Planning</option>
+            <option value="in_progress">In progress</option>
+            <option value="review">Review</option>
+            <option value="completed">Completed</option>
+            <option value="on_hold">On hold</option>
+          </select>
+        </div>
+        <div>
+          <label htmlFor="ep-service" className={labelClass} style={labelStyle}>
+            Service
+          </label>
+          <select
+            id="ep-service"
+            value={form.serviceId}
+            onChange={(e) => set("serviceId", e.target.value)}
+            className={inputClass}
+            style={inputStyle}
+          >
+            <option value="">— None —</option>
+            {services.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {error && <p className="text-xs text-red-500">{error}</p>}
@@ -217,9 +242,11 @@ function EditProjectForm({
 export default function EditProjectButton({
   project,
   clientId,
+  services,
 }: {
   project: Project;
   clientId: string;
+  services: Service[];
 }) {
   const { openPanel, closePanel } = useRightPanel();
 
@@ -228,7 +255,12 @@ export default function EditProjectButton({
       onClick={() =>
         openPanel(
           "Edit Project",
-          <EditProjectForm project={project} clientId={clientId} onClose={closePanel} />
+          <EditProjectForm
+            project={project}
+            clientId={clientId}
+            services={services}
+            onClose={closePanel}
+          />
         )
       }
       className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border btn-secondary"

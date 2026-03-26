@@ -2,11 +2,14 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Users, LayoutTemplate } from "lucide-react";
+import { Users, LayoutTemplate, Tag, Wrench, Radio } from "lucide-react";
 
 const tabItems = [
   { tab: "users", label: "Users", icon: Users },
   { tab: "templates", label: "Project Templates", icon: LayoutTemplate },
+  { tab: "archetypes", label: "Archetypes", icon: Tag },
+  { tab: "services", label: "Services", icon: Wrench },
+  { tab: "signals", label: "Log Signals", icon: Radio },
 ];
 
 export default function AdminPanelNav() {

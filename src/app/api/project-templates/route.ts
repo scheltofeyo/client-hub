@@ -16,6 +16,7 @@ export async function GET() {
       description: doc.description,
       defaultDescription: doc.defaultDescription,
       defaultSoldPrice: doc.defaultSoldPrice,
+      defaultServiceId: doc.defaultServiceId,
       createdAt: doc.createdAt?.toISOString().split("T")[0],
     }))
   );
@@ -29,7 +30,7 @@ export async function POST(req: NextRequest) {
 
   await connectDB();
   const body = await req.json();
-  const { name, description, defaultDescription, defaultSoldPrice } = body;
+  const { name, description, defaultDescription, defaultSoldPrice, defaultServiceId } = body;
 
   if (!name?.trim()) {
     return NextResponse.json({ error: "Name is required" }, { status: 400 });
@@ -40,6 +41,7 @@ export async function POST(req: NextRequest) {
     description: description?.trim() || undefined,
     defaultDescription: defaultDescription?.trim() || undefined,
     defaultSoldPrice: defaultSoldPrice ? Number(defaultSoldPrice) : undefined,
+    defaultServiceId: defaultServiceId || undefined,
   });
 
   return NextResponse.json({
@@ -48,6 +50,7 @@ export async function POST(req: NextRequest) {
     description: doc.description,
     defaultDescription: doc.defaultDescription,
     defaultSoldPrice: doc.defaultSoldPrice,
+    defaultServiceId: doc.defaultServiceId,
     createdAt: doc.createdAt?.toISOString().split("T")[0],
   }, { status: 201 });
 }

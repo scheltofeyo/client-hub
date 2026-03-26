@@ -1,4 +1,4 @@
-import { getClientById, getProjectsByClientId } from "@/lib/data";
+import { getClientById, getProjectsByClientId, getArchetypes, getLogsByClientId, getLogSignals } from "@/lib/data";
 import { auth } from "@/auth";
 import { connectDB } from "@/lib/mongodb";
 import { UserModel } from "@/lib/models/User";
@@ -10,11 +10,13 @@ import DeleteClientButton from "@/components/ui/DeleteClientButton";
 import ContactsSection from "@/components/ui/ContactsSection";
 import LeadsSection from "@/components/ui/LeadsSection";
 import AddProjectButton from "@/components/ui/AddProjectButton";
+import AddLogButton from "@/components/ui/AddLogButton";
+import LogbookTab from "@/components/ui/LogbookTab";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import type { Client, Project } from "@/types";
+import type { Archetype, Client, Project } from "@/types";
 
-const tabs = ["Overview", "Projects", "Files", "Notes"] as const;
+const tabs = ["Overview", "Projects", "Files", "Logbook"] as const;
 type Tab = (typeof tabs)[number];
 
 export default async function ClientDetailPage({
@@ -26,10 +28,13 @@ export default async function ClientDetailPage({
 }) {
   const { id } = await params;
   const { tab } = await searchParams;
-  const [client, projects, session] = await Promise.all([
+  const [client, projects, session, archetypes, logs, logSignals] = await Promise.all([
     getClientById(id),
     getProjectsByClientId(id),
     auth(),
+    getArchetypes(),
+    getLogsByClientId(id),
+    getLogSignals(),
   ]);
 
   if (!client) notFound();
@@ -85,12 +90,21 @@ export default async function ClientDetailPage({
           <div className="flex items-center gap-2">
             {activeTab === "Overview" && canEdit && (
               <>
-                <EditClientButton client={client} />
+                <EditClientButton client={client} archetypes={archetypes} />
                 {isAdmin && <DeleteClientButton id={client.id} company={client.company} />}
               </>
             )}
             {activeTab === "Projects" && canEdit && (
               <AddProjectButton clientId={client.id} />
+            )}
+            {activeTab === "Logbook" && (
+              <AddLogButton
+                clientId={id}
+                clientName={client.company}
+                contacts={client.contacts ?? []}
+                signals={logSignals}
+                currentUserName={session?.user?.name ?? ""}
+              />
             )}
           </div>
         </div>
@@ -126,11 +140,23 @@ export default async function ClientDetailPage({
             isAdmin={isAdmin}
             canEdit={canEdit}
             allUsers={allUsers}
+            archetypes={archetypes}
           />
         )}
         {activeTab === "Projects" && <ProjectsTab clientId={id} projects={projects} />}
         {activeTab === "Files" && <EmptyTab message="No files uploaded yet." />}
-        {activeTab === "Notes" && <EmptyTab message="No notes yet." />}
+        {activeTab === "Logbook" && (
+          <LogbookTab
+            clientId={id}
+            clientName={client.company}
+            initialLogs={logs}
+            signals={logSignals}
+            contacts={client.contacts ?? []}
+            currentUserId={currentUserId}
+            currentUserName={session?.user?.name ?? ""}
+            isAdmin={isAdmin}
+          />
+        )}
       </div>
     </div>
   );
@@ -148,6 +174,7 @@ function OverviewTab({
   isAdmin: boolean;
   canEdit: boolean;
   allUsers: { id: string; name: string; email: string; image: string | null }[];
+  archetypes: Archetype[];
 }) {
   const platformLabel =
     client.platform === "summ_core" ? "SUMM Core" :
@@ -158,6 +185,7 @@ function OverviewTab({
     ["Website", client.website],
     ["Employees", client.employees != null ? client.employees.toLocaleString() : undefined],
     ["Platform", platformLabel],
+    ["Archetype", client.archetype],
     ["Client since", client.clientSince ?? client.createdAt],
     ["Projects", String(client.projects?.length ?? 0)],
   ];
