@@ -8,7 +8,8 @@ import { ArchetypeModel } from "./models/Archetype";
 import { ServiceModel } from "./models/Service";
 import { LogSignalModel } from "./models/LogSignal";
 import { LogModel } from "./models/Log";
-import type { Archetype, Client, DashboardStats, Log, LogSignal, Project, ProjectTemplate, Service } from "@/types";
+import { SheetModel } from "./models/Sheet";
+import type { Archetype, Client, DashboardStats, Log, LogSignal, Project, ProjectTemplate, Service, Sheet } from "@/types";
 
 function mapClient(doc: ReturnType<typeof Object.assign>, archetypeMap?: Map<string, string>): Client {
   return {
@@ -214,6 +215,31 @@ export async function getLogsByClientId(clientId: string): Promise<Log[]> {
     createdAt: doc.createdAt?.toISOString().split("T")[0],
   }));
 }
+
+export async function getSheetsByClientId(clientId: string): Promise<Sheet[]> {
+  await connectDB();
+  const docs = await SheetModel.find({ clientId }).sort({ createdAt: 1 }).lean();
+  return docs.map((doc) => ({
+    id: doc._id.toString(),
+    clientId: doc.clientId,
+    name: doc.name,
+    url: doc.url,
+    createdAt: doc.createdAt?.toISOString().split("T")[0],
+  }));
+}
+
+export const getSheetById = cache(async (sheetId: string): Promise<Sheet | null> => {
+  await connectDB();
+  const doc = await SheetModel.findById(sheetId).lean();
+  if (!doc) return null;
+  return {
+    id: doc._id.toString(),
+    clientId: doc.clientId,
+    name: doc.name,
+    url: doc.url,
+    createdAt: doc.createdAt?.toISOString().split("T")[0],
+  };
+});
 
 export async function getProjectTemplates(): Promise<ProjectTemplate[]> {
   await connectDB();

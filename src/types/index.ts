@@ -104,3 +104,11 @@ export interface DashboardStats {
   totalProjects: number;
   activeProjects: number;
 }
+
+export interface Sheet {
+  id: string;
+  clientId: string;
+  name: string;
+  url: string;
+  createdAt?: string;
+}

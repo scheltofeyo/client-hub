@@ -1,4 +1,4 @@
-import { getClientById, getProjectsByClientId, getArchetypes, getLogsByClientId, getLogSignals } from "@/lib/data";
+import { getClientById, getProjectsByClientId, getArchetypes, getLogsByClientId, getLogSignals, getSheetsByClientId } from "@/lib/data";
 import { auth } from "@/auth";
 import { connectDB } from "@/lib/mongodb";
 import { UserModel } from "@/lib/models/User";
@@ -12,11 +12,12 @@ import LeadsSection from "@/components/ui/LeadsSection";
 import AddProjectButton from "@/components/ui/AddProjectButton";
 import AddLogButton from "@/components/ui/AddLogButton";
 import LogbookTab from "@/components/ui/LogbookTab";
+import SheetsTab, { ManageSheetsButton } from "@/components/ui/SheetsTab";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Archetype, Client, Project } from "@/types";
 
-const tabs = ["Overview", "Projects", "Files", "Logbook"] as const;
+const tabs = ["Overview", "Projects", "Sheets", "Logbook"] as const;
 type Tab = (typeof tabs)[number];
 
 export default async function ClientDetailPage({
@@ -28,13 +29,14 @@ export default async function ClientDetailPage({
 }) {
   const { id } = await params;
   const { tab } = await searchParams;
-  const [client, projects, session, archetypes, logs, logSignals] = await Promise.all([
+  const [client, projects, session, archetypes, logs, logSignals, sheets] = await Promise.all([
     getClientById(id),
     getProjectsByClientId(id),
     auth(),
     getArchetypes(),
     getLogsByClientId(id),
     getLogSignals(),
+    getSheetsByClientId(id),
   ]);
 
   if (!client) notFound();
@@ -97,6 +99,12 @@ export default async function ClientDetailPage({
             {activeTab === "Projects" && canEdit && (
               <AddProjectButton clientId={client.id} />
             )}
+            {activeTab === "Sheets" && (
+              <ManageSheetsButton
+                clientId={id}
+                initialSheets={sheets}
+              />
+            )}
             {activeTab === "Logbook" && (
               <AddLogButton
                 clientId={id}
@@ -144,7 +152,9 @@ export default async function ClientDetailPage({
           />
         )}
         {activeTab === "Projects" && <ProjectsTab clientId={id} projects={projects} />}
-        {activeTab === "Files" && <EmptyTab message="No files uploaded yet." />}
+        {activeTab === "Sheets" && (
+          <SheetsTab clientId={id} initialSheets={sheets} />
+        )}
         {activeTab === "Logbook" && (
           <LogbookTab
             clientId={id}
