@@ -356,6 +356,7 @@ function LogCard({
   canEdit,
   currentUserName,
   clientId,
+  isActive,
   onEdit,
   onDelete,
   onFollowedUp,
@@ -366,6 +367,7 @@ function LogCard({
   canEdit: boolean;
   currentUserName: string;
   clientId: string;
+  isActive: boolean;
   onEdit: () => void;
   onDelete: () => void;
   onFollowedUp: (updated: Log) => void;
@@ -469,7 +471,11 @@ function LogCard({
             <span
               key={i}
               className="px-2.5 py-0.5 rounded-full text-xs font-medium border"
-              style={{ borderColor: "var(--primary)", color: "var(--primary)" }}
+              style={{
+                borderColor: "var(--primary)",
+                color: "var(--primary)",
+                opacity: isActive ? 1 : 0.35,
+              }}
             >
               {name}
             </span>
@@ -553,6 +559,7 @@ export default function LogbookTab({
       {sortedLogs.map((log, idx) => {
         const isLast = idx === sortedLogs.length - 1;
         const canEdit = isAdmin || log.createdById === currentUserId;
+        const isActive = !!(log.followUp && log.followUpDeadline && !log.followedUpAt);
 
         return (
           <div key={log.id} className="relative" style={{ marginBottom: isLast ? 0 : "24px" }}>
@@ -565,6 +572,7 @@ export default function LogbookTab({
                   top: "8px",
                   bottom: "-32px",
                   background: "var(--primary)",
+                  opacity: 0.2,
                   zIndex: 0,
                 }}
               />
@@ -574,8 +582,13 @@ export default function LogbookTab({
             <div className="flex items-center gap-2.5 mb-2 pl-3">
               <div
                 className="w-3 h-3 rounded-full flex-none relative z-10"
-                style={{ background: "var(--primary)" }}
-              />
+                style={{ background: "var(--bg-surface)" }}
+              >
+                <div
+                  className="absolute inset-0 rounded-full"
+                  style={{ background: "var(--primary)", opacity: isActive ? 1 : 0.25 }}
+                />
+              </div>
               <p className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>
                 {log.date}
                 <span className="mx-1.5">·</span>
@@ -597,6 +610,7 @@ export default function LogbookTab({
               canEdit={canEdit}
               currentUserName={currentUserName}
               clientId={clientId}
+              isActive={isActive}
               onEdit={() => openEditPanel(log)}
               onDelete={() => handleDelete(log)}
               onFollowedUp={(updated) =>

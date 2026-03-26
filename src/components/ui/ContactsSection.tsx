@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Trash2, X } from "lucide-react";
+import { Pencil, Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useRightPanel } from "@/components/layout/RightPanel";
 import type { Contact } from "@/types";
 
 const inputClass =
@@ -16,14 +17,14 @@ const labelClass = "block text-xs font-medium mb-1";
 const labelStyle = { color: "var(--text-muted)" };
 
 const AVATAR_COLORS = [
-  "#7c3aed", // purple
-  "#2563eb", // blue
-  "#0d9488", // teal
-  "#16a34a", // green
-  "#ea580c", // orange
-  "#e11d48", // rose
-  "#4f46e5", // indigo
-  "#d97706", // amber
+  "#7c3aed",
+  "#2563eb",
+  "#0d9488",
+  "#16a34a",
+  "#ea580c",
+  "#e11d48",
+  "#4f46e5",
+  "#d97706",
 ];
 
 function avatarColor(id: string): string {
@@ -36,6 +37,121 @@ function initials(firstName: string, lastName: string): string {
   return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
 }
 
+function ContactForm({
+  initial,
+  onSave,
+}: {
+  initial?: Contact;
+  onSave: (values: Omit<Contact, "id">) => Promise<void>;
+}) {
+  const [form, setForm] = useState({
+    firstName: initial?.firstName ?? "",
+    lastName: initial?.lastName ?? "",
+    role: initial?.role ?? "",
+    email: initial?.email ?? "",
+    phone: initial?.phone ?? "",
+  });
+  const [saving, setSaving] = useState(false);
+
+  function set(field: string, value: string) {
+    setForm((f) => ({ ...f, [field]: value }));
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!form.firstName.trim()) return;
+    setSaving(true);
+    await onSave({
+      firstName: form.firstName.trim(),
+      lastName: form.lastName.trim(),
+      role: form.role.trim() || undefined,
+      email: form.email.trim() || undefined,
+      phone: form.phone.trim() || undefined,
+    });
+    setSaving(false);
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className={labelClass} style={labelStyle}>
+            First name <span className="text-red-400">*</span>
+          </label>
+          <input
+            type="text"
+            value={form.firstName}
+            onChange={(e) => set("firstName", e.target.value)}
+            placeholder="Jane"
+            autoFocus
+            className={inputClass}
+            style={inputStyle}
+          />
+        </div>
+        <div>
+          <label className={labelClass} style={labelStyle}>
+            Last name
+          </label>
+          <input
+            type="text"
+            value={form.lastName}
+            onChange={(e) => set("lastName", e.target.value)}
+            placeholder="Smith"
+            className={inputClass}
+            style={inputStyle}
+          />
+        </div>
+      </div>
+      <div>
+        <label className={labelClass} style={labelStyle}>
+          Role / Title
+        </label>
+        <input
+          type="text"
+          value={form.role}
+          onChange={(e) => set("role", e.target.value)}
+          placeholder="CEO"
+          className={inputClass}
+          style={inputStyle}
+        />
+      </div>
+      <div>
+        <label className={labelClass} style={labelStyle}>
+          Email
+        </label>
+        <input
+          type="email"
+          value={form.email}
+          onChange={(e) => set("email", e.target.value)}
+          placeholder="jane@acme.com"
+          className={inputClass}
+          style={inputStyle}
+        />
+      </div>
+      <div>
+        <label className={labelClass} style={labelStyle}>
+          Phone
+        </label>
+        <input
+          type="text"
+          value={form.phone}
+          onChange={(e) => set("phone", e.target.value)}
+          placeholder="+1 555 000 0000"
+          className={inputClass}
+          style={inputStyle}
+        />
+      </div>
+      <button
+        type="submit"
+        disabled={saving || !form.firstName.trim()}
+        className="w-full px-3 py-2 rounded-lg text-sm font-medium disabled:opacity-50 btn-primary"
+      >
+        {saving ? "Saving…" : initial ? "Save changes" : "Add contact"}
+      </button>
+    </form>
+  );
+}
+
 export default function ContactsSection({
   clientId,
   initialContacts,
@@ -44,15 +160,9 @@ export default function ContactsSection({
   initialContacts: Contact[];
 }) {
   const [contacts, setContacts] = useState(initialContacts);
-  const [adding, setAdding] = useState(false);
-  const [form, setForm] = useState({ firstName: "", lastName: "", role: "", email: "", phone: "" });
-  const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<Contact | null>(null);
+  const { openPanel, closePanel } = useRightPanel();
   const router = useRouter();
-
-  function set(field: string, value: string) {
-    setForm((f) => ({ ...f, [field]: value }));
-  }
 
   async function patch(newContacts: Contact[]) {
     await fetch(`/api/clients/${clientId}`, {
@@ -63,24 +173,36 @@ export default function ContactsSection({
     router.refresh();
   }
 
-  async function handleAdd(e: React.FormEvent) {
-    e.preventDefault();
-    if (!form.firstName.trim()) return;
-    setSaving(true);
-    const newContact: Contact = {
-      id: crypto.randomUUID(),
-      firstName: form.firstName.trim(),
-      lastName: form.lastName.trim(),
-      role: form.role.trim() || undefined,
-      email: form.email.trim() || undefined,
-      phone: form.phone.trim() || undefined,
-    };
-    const updated = [...contacts, newContact];
-    setContacts(updated);
-    await patch(updated);
-    setForm({ firstName: "", lastName: "", role: "", email: "", phone: "" });
-    setAdding(false);
-    setSaving(false);
+  function openAdd() {
+    openPanel(
+      "Add contact",
+      <ContactForm
+        onSave={async (values) => {
+          const newContact: Contact = { id: crypto.randomUUID(), ...values };
+          const updated = [...contacts, newContact];
+          setContacts(updated);
+          closePanel();
+          await patch(updated);
+        }}
+      />
+    );
+  }
+
+  function openEdit(contact: Contact) {
+    openPanel(
+      "Edit contact",
+      <ContactForm
+        initial={contact}
+        onSave={async (values) => {
+          const updated = contacts.map((c) =>
+            c.id === contact.id ? { ...c, ...values } : c
+          );
+          setContacts(updated);
+          closePanel();
+          await patch(updated);
+        }}
+      />
+    );
   }
 
   async function handleConfirmedRemove() {
@@ -100,18 +222,16 @@ export default function ContactsSection({
         >
           Contacts
         </h2>
-        {!adding && (
-          <button
-            onClick={() => setAdding(true)}
-            className="flex items-center gap-1 text-xs font-medium btn-link"
-          >
-            <Plus size={12} />
-            Add contact
-          </button>
-        )}
+        <button
+          onClick={openAdd}
+          className="flex items-center gap-1 text-xs font-medium btn-link"
+        >
+          <Plus size={12} />
+          Add contact
+        </button>
       </div>
 
-      {contacts.length === 0 && !adding && (
+      {contacts.length === 0 && (
         <p className="text-sm" style={{ color: "var(--text-muted)" }}>
           No contacts yet.
         </p>
@@ -155,6 +275,13 @@ export default function ContactsSection({
             </div>
 
             <button
+              onClick={() => openEdit(contact)}
+              className="shrink-0 p-1 rounded btn-icon"
+              title="Edit contact"
+            >
+              <Pencil size={13} />
+            </button>
+            <button
               onClick={() => setConfirmDelete(contact)}
               className="shrink-0 p-1 rounded btn-icon"
               title="Remove contact"
@@ -164,100 +291,6 @@ export default function ContactsSection({
           </div>
         ))}
       </div>
-
-      {adding && (
-        <form onSubmit={handleAdd} className="mt-5 space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className={labelClass} style={labelStyle}>
-                First name <span className="text-red-400">*</span>
-              </label>
-              <input
-                type="text"
-                value={form.firstName}
-                onChange={(e) => set("firstName", e.target.value)}
-                placeholder="Jane"
-                autoFocus
-                className={inputClass}
-                style={inputStyle}
-              />
-            </div>
-            <div>
-              <label className={labelClass} style={labelStyle}>
-                Last name
-              </label>
-              <input
-                type="text"
-                value={form.lastName}
-                onChange={(e) => set("lastName", e.target.value)}
-                placeholder="Smith"
-                className={inputClass}
-                style={inputStyle}
-              />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className={labelClass} style={labelStyle}>
-                Role / Title
-              </label>
-              <input
-                type="text"
-                value={form.role}
-                onChange={(e) => set("role", e.target.value)}
-                placeholder="CEO"
-                className={inputClass}
-                style={inputStyle}
-              />
-            </div>
-            <div>
-              <label className={labelClass} style={labelStyle}>
-                Email
-              </label>
-              <input
-                type="email"
-                value={form.email}
-                onChange={(e) => set("email", e.target.value)}
-                placeholder="jane@acme.com"
-                className={inputClass}
-                style={inputStyle}
-              />
-            </div>
-          </div>
-          <div>
-            <label className={labelClass} style={labelStyle}>
-              Phone
-            </label>
-            <input
-              type="text"
-              value={form.phone}
-              onChange={(e) => set("phone", e.target.value)}
-              placeholder="+1 555 000 0000"
-              className={inputClass}
-              style={inputStyle}
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="submit"
-              disabled={saving || !form.firstName.trim()}
-              className="px-3 py-1.5 rounded-lg text-sm font-medium disabled:opacity-50 btn-primary"
-            >
-              {saving ? "Saving…" : "Save contact"}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setAdding(false);
-                setForm({ firstName: "", lastName: "", role: "", email: "", phone: "" });
-              }}
-              className="p-1.5 rounded-lg btn-icon"
-            >
-              <X size={15} />
-            </button>
-          </div>
-        </form>
-      )}
 
       {confirmDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
