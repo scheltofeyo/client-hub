@@ -55,7 +55,7 @@ export function RightPanelProvider({ children }: { children: ReactNode }) {
       <div
         className="fixed inset-0 z-40 transition-opacity duration-300"
         style={{
-          top: "24px",
+          top: 0,
           background: "rgba(0,0,0,0.2)",
           opacity: panel.isOpen ? 1 : 0,
           pointerEvents: panel.isOpen ? "auto" : "none",
@@ -67,7 +67,7 @@ export function RightPanelProvider({ children }: { children: ReactNode }) {
       <div
         className="fixed z-50 flex flex-col border-l shadow-2xl"
         style={{
-          top: "24px",
+          top: 0,
           right: 0,
           bottom: 0,
           width: "clamp(420px, 33vw, 560px)",
