@@ -21,6 +21,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           image: user.image ?? undefined,
           isAdmin: false,
         });
+      } else {
+        await UserModel.updateOne(
+          { googleId: account.providerAccountId },
+          { $set: { image: user.image ?? undefined } }
+        );
       }
       return true;
     },

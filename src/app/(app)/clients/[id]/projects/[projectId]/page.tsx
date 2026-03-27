@@ -1,6 +1,7 @@
 import { getProjectById } from "@/lib/data";
 import { notFound } from "next/navigation";
 import StatusBadge from "@/components/ui/StatusBadge";
+import { fmtDate } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -16,14 +17,14 @@ export default async function ProjectOverviewPage({
   const details: [string, string | undefined][] = [
     ["Status", undefined],
     ["Service", project.service],
-    ["Delivery date", project.deliveryDate],
+    ["Completed", project.completedDate ? fmtDate(project.completedDate) : undefined],
     [
       "Sold price",
       project.soldPrice != null
         ? `€${project.soldPrice.toLocaleString()}`
         : undefined,
     ],
-    ["Created", project.createdAt],
+    ["Created", project.createdAt ? fmtDate(project.createdAt) : undefined],
   ];
 
   return (

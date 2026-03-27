@@ -1,7 +1,8 @@
-import { getClientById, getProjectsByClientId, getArchetypes, getLogsByClientId, getLogSignals, getSheetsByClientId } from "@/lib/data";
+import { getClientById, getProjectsByClientId, getArchetypes, getLogsByClientId, getLogSignals, getSheetsByClientId, getClientProjectsWithTaskStats } from "@/lib/data";
 import { auth } from "@/auth";
 import { connectDB } from "@/lib/mongodb";
 import { UserModel } from "@/lib/models/User";
+import { Suspense } from "react";
 
 export const dynamic = "force-dynamic";
 import StatusBadge from "@/components/ui/StatusBadge";
@@ -13,11 +14,14 @@ import AddProjectButton from "@/components/ui/AddProjectButton";
 import AddLogButton from "@/components/ui/AddLogButton";
 import LogbookTab from "@/components/ui/LogbookTab";
 import SheetsTab, { ManageSheetsButton } from "@/components/ui/SheetsTab";
+import AboutTertiaryNav from "@/components/layout/AboutTertiaryNav";
+import PageHeader from "@/components/layout/PageHeader";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import type { Archetype, Client, Project } from "@/types";
+import type { Client, Project } from "@/types";
+import { fmtDate } from "@/lib/utils";
 
-const tabs = ["Overview", "Projects", "Sheets", "Logbook"] as const;
+const tabs = ["About", "Projects", "Sheets", "Logbook"] as const;
 type Tab = (typeof tabs)[number];
 
 export default async function ClientDetailPage({
@@ -25,10 +29,10 @@ export default async function ClientDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; section?: string }>;
 }) {
   const { id } = await params;
-  const { tab } = await searchParams;
+  const { tab, section } = await searchParams;
   const [client, projects, session, archetypes, logs, logSignals, sheets] = await Promise.all([
     getClientById(id),
     getProjectsByClientId(id),
@@ -42,7 +46,7 @@ export default async function ClientDetailPage({
   if (!client) notFound();
 
   const activeTab: Tab =
-    tabs.find((t) => t.toLowerCase() === tab?.toLowerCase()) ?? "Overview";
+    tabs.find((t) => t.toLowerCase() === tab?.toLowerCase()) ?? "About";
 
   const isAdmin = session?.user?.isAdmin ?? false;
   const currentUserId = session?.user?.id ?? "";
@@ -66,92 +70,55 @@ export default async function ClientDetailPage({
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {/* Content header */}
-      <div
-        className="px-7 pt-6 pb-5 border-b shrink-0"
-        style={{ borderColor: "var(--border)" }}
-      >
-        {/* Breadcrumbs */}
-        <nav className="flex items-center gap-1.5 mb-2">
-          <Link href="/clients" className="text-xs breadcrumb-link">
-            Clients
-          </Link>
-          <span className="text-xs" style={{ color: "var(--text-muted)" }}>/</span>
-          <Link href={`/clients/${id}`} className="text-xs breadcrumb-link">
-            {client.company}
-          </Link>
-          <span className="text-xs" style={{ color: "var(--text-muted)" }}>/</span>
-          <span className="text-xs" style={{ color: "var(--text-muted)" }}>...</span>
-        </nav>
-
-        {/* Page title + actions */}
-        <div className="flex items-center justify-between">
-          <h1 className="text-xl font-semibold" style={{ color: "var(--text-primary)" }}>
-            {activeTab}
-          </h1>
-          <div className="flex items-center gap-2">
-            {activeTab === "Overview" && canEdit && (
-              <>
-                <EditClientButton client={client} archetypes={archetypes} />
-                {isAdmin && <DeleteClientButton id={client.id} company={client.company} />}
-              </>
-            )}
-            {activeTab === "Projects" && canEdit && (
-              <AddProjectButton clientId={client.id} />
-            )}
-            {activeTab === "Sheets" && (
-              <ManageSheetsButton
-                clientId={id}
-                initialSheets={sheets}
-              />
-            )}
-            {activeTab === "Logbook" && (
-              <AddLogButton
-                clientId={id}
-                clientName={client.company}
-                contacts={client.contacts ?? []}
-                signals={logSignals}
-                currentUserName={session?.user?.name ?? ""}
-              />
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Tab bar — hidden for now, reserved for tertiary subsection nav */}
-      {false && (
-        <div
-          className="flex gap-0 border-b shrink-0 px-7"
-          style={{ borderColor: "var(--border)" }}
-        >
-          {tabs.map((t) => (
-            <Link
-              key={t}
-              href={`/clients/${id}?tab=${t.toLowerCase()}`}
-              className="px-1 py-3 mr-5 text-sm font-medium border-b-2 transition-colors"
-              style={{
-                borderColor: activeTab === t ? "var(--primary)" : "transparent",
-                color: activeTab === t ? "var(--primary)" : "var(--text-muted)",
-              }}
-            >
-              {t}
-            </Link>
-          ))}
-        </div>
-      )}
+      <PageHeader
+        breadcrumbs={[
+          { label: "Clients", href: "/clients" },
+          { label: client.company, href: `/clients/${id}` },
+          { label: "..." },
+        ]}
+        title={activeTab}
+        actions={
+          activeTab === "About" && canEdit ? (
+            <>
+              <EditClientButton client={client} archetypes={archetypes} />
+              {isAdmin && <DeleteClientButton id={client.id} company={client.company} />}
+            </>
+          ) : activeTab === "Projects" && canEdit ? (
+            <AddProjectButton clientId={client.id} />
+          ) : activeTab === "Sheets" ? (
+            <ManageSheetsButton clientId={id} initialSheets={sheets} />
+          ) : activeTab === "Logbook" ? (
+            <AddLogButton
+              clientId={id}
+              clientName={client.company}
+              contacts={client.contacts ?? []}
+              signals={logSignals}
+              currentUserName={session?.user?.name ?? ""}
+            />
+          ) : undefined
+        }
+        tertiaryNav={
+          activeTab === "About" ? (
+            <Suspense fallback={null}>
+              <AboutTertiaryNav clientId={id} />
+            </Suspense>
+          ) : undefined
+        }
+      />
 
       {/* Tab content */}
       <div className="flex-1 overflow-y-auto p-7">
-        {activeTab === "Overview" && (
-          <OverviewTab
+        {activeTab === "About" && (
+          <AboutContent
             client={client}
             isAdmin={isAdmin}
-            canEdit={canEdit}
             allUsers={allUsers}
-            archetypes={archetypes}
+            section={section ?? "about"}
           />
         )}
-        {activeTab === "Projects" && <ProjectsTab clientId={id} projects={projects} />}
+        {activeTab === "Projects" && (
+          <ProjectsTabWrapper clientId={id} projects={projects} currentUserId={currentUserId} />
+        )}
         {activeTab === "Sheets" && (
           <SheetsTab clientId={id} initialSheets={sheets} />
         )}
@@ -174,18 +141,45 @@ export default async function ClientDetailPage({
 
 // ── Tab panels ──────────────────────────────────────────────
 
-function OverviewTab({
+function AboutContent({
   client,
   isAdmin,
-  canEdit,
   allUsers,
+  section,
 }: {
   client: Client;
   isAdmin: boolean;
-  canEdit: boolean;
   allUsers: { id: string; name: string; email: string; image: string | null }[];
-  archetypes: Archetype[];
+  section: string;
 }) {
+  if (section === "leads") {
+    return (
+      <div className="max-w-2xl space-y-8">
+        <LeadsSection
+          clientId={client.id}
+          initialLeads={client.leads ?? []}
+          allUsers={allUsers}
+          isAdmin={isAdmin}
+        />
+      </div>
+    );
+  }
+
+  if (section === "contacts") {
+    return (
+      <div className="max-w-2xl space-y-8">
+        <ContactsSection
+          clientId={client.id}
+          initialContacts={client.contacts ?? []}
+        />
+      </div>
+    );
+  }
+
+  return <CompanySection client={client} />;
+}
+
+function CompanySection({ client }: { client: Client }) {
   const platformLabel =
     client.platform === "summ_core" ? "SUMM Core" :
     client.platform === "summ_suite" ? "SUMM Suite" :
@@ -196,14 +190,13 @@ function OverviewTab({
     ["Employees", client.employees != null ? client.employees.toLocaleString() : undefined],
     ["Platform", platformLabel],
     ["Archetype", client.archetype],
-    ["Client since", client.clientSince ?? client.createdAt],
+    ["Client since", fmtDate(client.clientSince ?? client.createdAt)],
     ["Projects", String(client.projects?.length ?? 0)],
   ];
   const visibleDetails = details.filter(([, v]) => v !== undefined);
 
   return (
     <div className="max-w-2xl space-y-8">
-      {/* Company section */}
       <div className="space-y-5">
         <h2 className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
           Company
@@ -250,62 +243,235 @@ function OverviewTab({
           </dl>
         )}
       </div>
-
-      <hr style={{ borderColor: "var(--border)" }} />
-
-      {/* Leads section */}
-      <LeadsSection
-        clientId={client.id}
-        initialLeads={client.leads ?? []}
-        allUsers={allUsers}
-        isAdmin={isAdmin}
-      />
-
-      <hr style={{ borderColor: "var(--border)" }} />
-
-      {/* Contacts section */}
-      <ContactsSection
-        clientId={client.id}
-        initialContacts={client.contacts ?? []}
-      />
-
     </div>
   );
 }
 
-function ProjectsTab({ clientId, projects }: { clientId: string; projects: Project[] }) {
-  if (projects.length === 0) {
+async function ProjectsTabWrapper({
+  clientId,
+  projects,
+  currentUserId,
+}: {
+  clientId: string;
+  projects: Project[];
+  currentUserId: string;
+}) {
+  if (projects.length === 0)
     return <EmptyTab message="No projects yet. Click 'Add Project' to get started." />;
-  }
+
+  const { perProject, overduePerProject, myOpenTasks, overdueCount } = await getClientProjectsWithTaskStats(
+    projects.map((p) => p.id),
+    currentUserId
+  );
   return (
-    <div className="max-w-3xl space-y-3">
-      {projects.map((project) => (
-        <Link
-          key={project.id}
-          href={`/clients/${clientId}/projects/${project.id}`}
-          className="rounded-2xl border p-5 flex items-center justify-between hover:border-purple-400 transition-colors block"
-          style={{ borderColor: "var(--border)", background: "var(--bg-sidebar)" }}
-        >
-          <div>
-            <p className="font-medium text-sm" style={{ color: "var(--text-primary)" }}>
-              {project.title}
-            </p>
-            {project.deliveryDate && (
-              <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
-                Due {project.deliveryDate}
-              </p>
-            )}
+    <ProjectsTab
+      clientId={clientId}
+      projects={projects}
+      perProject={perProject}
+      overduePerProject={overduePerProject}
+      myOpenTasks={myOpenTasks}
+      overdueCount={overdueCount}
+    />
+  );
+}
+
+function ProjectsTab({
+  clientId,
+  projects,
+  perProject,
+  overduePerProject,
+  myOpenTasks,
+  overdueCount,
+}: {
+  clientId: string;
+  projects: Project[];
+  perProject: Map<string, { total: number; completed: number }>;
+  overduePerProject: Map<string, number>;
+  myOpenTasks: number;
+  overdueCount: number;
+}) {
+  const completedProjects = projects.filter((p) => p.status === "completed").length;
+  const totalProjects = projects.length;
+  const activeProjects = projects.filter((p) => p.status === "in_progress" || p.status === "not_started").length;
+  const projectPct = totalProjects > 0 ? Math.round((completedProjects / totalProjects) * 100) : null;
+
+  const inProgress = projects.filter((p) => p.status === "in_progress");
+  const notStarted = projects.filter((p) => p.status === "not_started");
+  const completed = projects.filter((p) => p.status === "completed");
+
+  return (
+    <div className="space-y-8">
+      {/* Statistics bar */}
+      <div className="grid grid-cols-3 gap-4 max-w-2xl">
+        <div className="rounded-xl border p-4 space-y-1.5" style={{ borderColor: "var(--border)" }}>
+          <p className="text-xs" style={{ color: "var(--text-muted)" }}>Active projects</p>
+          <p className="text-2xl font-semibold tabular-nums" style={{ color: "var(--text-primary)" }}>
+            {activeProjects}
+          </p>
+          {projectPct !== null && (
+            <div className="flex items-center gap-2 mt-1">
+              <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: "var(--border)" }}>
+                <div className="h-full rounded-full" style={{ width: `${projectPct}%`, background: "var(--primary)" }} />
+              </div>
+              <span className="text-xs tabular-nums" style={{ color: "var(--text-muted)" }}>{completedProjects}/{totalProjects}</span>
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-xl border p-4 space-y-1.5" style={{ borderColor: "var(--border)" }}>
+          <p className="text-xs" style={{ color: "var(--text-muted)" }}>My open tasks</p>
+          <p className="text-2xl font-semibold tabular-nums" style={{ color: "var(--text-primary)" }}>
+            {myOpenTasks}
+          </p>
+        </div>
+
+        <div className="rounded-xl border p-4 space-y-1.5" style={{ borderColor: "var(--border)" }}>
+          <p className="text-xs" style={{ color: "var(--text-muted)" }}>Overdue tasks</p>
+          <p
+            className="text-2xl font-semibold tabular-nums"
+            style={{ color: overdueCount > 0 ? "#dc2626" : "var(--text-primary)" }}
+          >
+            {overdueCount}
+          </p>
+        </div>
+      </div>
+
+      {inProgress.length > 0 && (
+        <ProjectSection title="Currently" projects={inProgress} clientId={clientId} perProject={perProject} overduePerProject={overduePerProject} />
+      )}
+
+      {notStarted.length > 0 && (
+        <ProjectSection title="Upcoming" projects={notStarted} clientId={clientId} perProject={perProject} overduePerProject={overduePerProject} />
+      )}
+
+      {completed.length > 0 && (
+        <CompletedSection projects={completed} clientId={clientId} />
+      )}
+    </div>
+  );
+}
+
+function ProjectSection({
+  title,
+  projects,
+  clientId,
+  perProject,
+  overduePerProject,
+}: {
+  title: string;
+  projects: Project[];
+  clientId: string;
+  perProject: Map<string, { total: number; completed: number }>;
+  overduePerProject: Map<string, number>;
+}) {
+  return (
+    <div className="space-y-3">
+      <h3 className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+        {title}
+      </h3>
+      <div className="grid grid-cols-3 gap-4">
+        {projects.map((p) => (
+          <ProjectCard key={p.id} project={p} clientId={clientId} stats={perProject.get(p.id)} overdue={overduePerProject.get(p.id) ?? 0} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ProjectCard({
+  project,
+  clientId,
+  stats,
+  overdue = 0,
+}: {
+  project: Project;
+  clientId: string;
+  stats?: { total: number; completed: number };
+  overdue?: number;
+}) {
+  const openTasks = stats ? stats.total - stats.completed : null;
+  const pct = stats && stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : null;
+
+  return (
+    <Link
+      href={`/clients/${clientId}/projects/${project.id}/tasks`}
+      className="block relative rounded-xl border p-4 space-y-2.5 bg-white dark:bg-[var(--bg-sidebar)] transition-colors project-card-hover"
+      style={{ boxShadow: "0 1px 3px 0 rgba(0,0,0,0.06), 0 1px 2px -1px rgba(0,0,0,0.04)" }}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <p className="font-medium text-sm leading-snug" style={{ color: "var(--text-primary)" }}>
+          {project.title}
+        </p>
+        <StatusBadge status={project.status} />
+      </div>
+
+      {project.description && (
+        <p className="text-xs leading-snug" style={{ color: "var(--text-muted)" }}>
+          {project.description}
+        </p>
+      )}
+
+      {openTasks !== null && (
+        <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+          {openTasks} open {openTasks === 1 ? "task" : "tasks"}
+          {overdue > 0 && (
+            <span style={{ color: "#dc2626" }}> · {overdue} overdue</span>
+          )}
+        </p>
+      )}
+
+      {stats && stats.total > 0 && (
+        <div className="flex items-center gap-2">
+          <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: "var(--border)" }}>
+            <div className="h-full rounded-full" style={{ width: `${pct}%`, background: "var(--primary)" }} />
           </div>
-          <div className="flex items-center gap-4">
-            {project.soldPrice != null && (
-              <span className="text-sm font-medium" style={{ color: "var(--text-muted)" }}>
-                €{project.soldPrice.toLocaleString()}
-              </span>
-            )}
-            <StatusBadge status={project.status} />
-          </div>
-        </Link>
-      ))}
+          <span className="text-xs tabular-nums" style={{ color: "var(--text-muted)" }}>
+            {stats.completed}/{stats.total}
+          </span>
+        </div>
+      )}
+
+      {project.createdAt && (
+        <p className="text-xs" style={{ color: "var(--text-muted)" }}>Created {fmtDate(project.createdAt)}</p>
+      )}
+    </Link>
+  );
+}
+
+function CompletedSection({
+  projects,
+  clientId,
+}: {
+  projects: Project[];
+  clientId: string;
+}) {
+  return (
+    <div className="space-y-3">
+      <h3 className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+        Completed
+      </h3>
+      <div className="rounded-xl border overflow-hidden" style={{ borderColor: "var(--border)" }}>
+        {/* Header */}
+        <div className="grid grid-cols-4 px-4 py-2.5 text-xs font-medium" style={{ borderBottom: "1px solid var(--border)", background: "var(--bg-surface)", color: "var(--text-muted)" }}>
+          <span>Project</span>
+          <span>Created</span>
+          <span>Completed</span>
+          <span>Status</span>
+        </div>
+        {projects.map((project, idx) => (
+          <Link
+            key={project.id}
+            href={`/clients/${clientId}/projects/${project.id}/tasks`}
+            className="grid grid-cols-4 items-center px-4 py-3 text-sm hover:bg-[var(--bg-hover)] transition-colors"
+            style={idx < projects.length - 1 ? { borderBottom: "1px solid var(--border)" } : undefined}
+          >
+            <span className="font-medium" style={{ color: "var(--text-primary)" }}>{project.title}</span>
+            <span className="text-xs" style={{ color: "var(--text-muted)" }}>{fmtDate(project.createdAt)}</span>
+            <span className="text-xs" style={{ color: "var(--text-muted)" }}>{fmtDate(project.completedDate)}</span>
+            <span><StatusBadge status={project.status} /></span>
+          </Link>
+        ))}
+      </div>
     </div>
   );
 }

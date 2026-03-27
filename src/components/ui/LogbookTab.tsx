@@ -5,6 +5,7 @@ import { Check, X, ChevronDown, ChevronUp, MoreHorizontal, Pencil, Trash2 } from
 import { useRouter } from "next/navigation";
 import { useRightPanel } from "@/components/layout/RightPanel";
 import type { Contact, Log, LogSignal } from "@/types";
+import { fmtDate } from "@/lib/utils";
 
 const inputClass =
   "w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-purple-400/40";
@@ -294,7 +295,7 @@ function LogCardMenu({
           {hasFollowUp && (
             <button
               type="button"
-              onClick={() => { setOpen(false); alreadyFollowedUp ? onUndoFollowUp() : onFollowUp(); }}
+              onClick={() => { setOpen(false); if (alreadyFollowedUp) { onUndoFollowUp(); } else { onFollowUp(); } }}
               className="flex w-full items-center gap-2 px-3 py-2 text-sm transition-colors"
               style={{ color: "var(--text-primary)" }}
               onMouseEnter={(e) => {
@@ -460,7 +461,7 @@ function LogCard({
       {log.followedUpAt && (
         <p className="flex items-center gap-1.5 text-xs" style={{ color: "var(--text-muted)" }}>
           <Check size={11} />
-          Followed-up on {log.followedUpAt}{log.followedUpByName ? ` by ${log.followedUpByName}` : ""}
+          Followed-up on {fmtDate(log.followedUpAt)}{log.followedUpByName ? ` by ${log.followedUpByName}` : ""}
         </p>
       )}
 
@@ -590,13 +591,13 @@ export default function LogbookTab({
                 />
               </div>
               <p className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>
-                {log.date}
+                {fmtDate(log.date)}
                 <span className="mx-1.5">·</span>
                 {log.createdByName}
               </p>
               {log.followUp && !log.followedUpAt && log.followUpDeadline && (
                 <p className="ml-auto text-xs font-medium whitespace-nowrap" style={{ color: "var(--primary)" }}>
-                  Follow-up: {log.followUpDeadline}
+                  Follow-up: {fmtDate(log.followUpDeadline)}
                 </p>
               )}
             </div>

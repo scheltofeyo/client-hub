@@ -9,7 +9,8 @@ import { ServiceModel } from "./models/Service";
 import { LogSignalModel } from "./models/LogSignal";
 import { LogModel } from "./models/Log";
 import { SheetModel } from "./models/Sheet";
-import type { Archetype, Client, DashboardStats, Log, LogSignal, Project, ProjectTemplate, Service, Sheet } from "@/types";
+import { TaskModel } from "./models/Task";
+import type { Archetype, Client, DashboardStats, Log, LogSignal, Project, ProjectTemplate, Service, Sheet, Task } from "@/types";
 
 function mapClient(doc: ReturnType<typeof Object.assign>, archetypeMap?: Map<string, string>): Client {
   return {
@@ -132,7 +133,7 @@ function mapProject(doc: ReturnType<typeof Object.assign>, serviceMap?: Map<stri
     title: doc.title,
     description: doc.description,
     status: doc.status,
-    deliveryDate: doc.deliveryDate,
+    completedDate: doc.completedDate,
     soldPrice: doc.soldPrice,
     templateId: doc.templateId,
     serviceId: doc.serviceId ?? undefined,
@@ -143,11 +144,24 @@ function mapProject(doc: ReturnType<typeof Object.assign>, serviceMap?: Map<stri
 
 export async function getProjectsByClientId(clientId: string): Promise<Project[]> {
   await connectDB();
-  const [docs, serviceMap] = await Promise.all([
+  const [docs, serviceDocs] = await Promise.all([
     ProjectModel.find({ clientId }).sort({ createdAt: -1 }).lean(),
-    buildServiceMap(),
+    fetchServiceDocs(),
   ]);
-  return docs.map((doc) => mapProject(doc, serviceMap));
+  const serviceMap = new Map<string, string>();
+  const serviceRankMap = new Map<string, number>();
+  serviceDocs.forEach((d, i) => {
+    const sid = d._id.toString();
+    serviceMap.set(sid, d.name);
+    serviceRankMap.set(sid, d.rank ?? i);
+  });
+  const projects = docs.map((doc) => mapProject(doc, serviceMap));
+  projects.sort((a, b) => {
+    const ra = a.serviceId ? (serviceRankMap.get(a.serviceId) ?? Infinity) : Infinity;
+    const rb = b.serviceId ? (serviceRankMap.get(b.serviceId) ?? Infinity) : Infinity;
+    return ra - rb;
+  });
+  return projects;
 }
 
 export const getProjectById = cache(async (projectId: string): Promise<Project | null> => {
@@ -240,6 +254,95 @@ export const getSheetById = cache(async (sheetId: string): Promise<Sheet | null>
     createdAt: doc.createdAt?.toISOString().split("T")[0],
   };
 });
+
+function mapTask(doc: ReturnType<typeof Object.assign>): Task {
+  return {
+    id: doc._id.toString(),
+    projectId: doc.projectId,
+    parentTaskId: doc.parentTaskId ?? undefined,
+    title: doc.title,
+    description: doc.description ?? undefined,
+    assignees: (doc.assignees ?? []).map((a: { userId: string; name: string; image?: string }) => ({
+      userId: a.userId,
+      name: a.name,
+      image: a.image ?? undefined,
+    })),
+    completionDate: doc.completionDate ?? undefined,
+    completedAt: doc.completedAt ?? undefined,
+    completedById: doc.completedById ?? undefined,
+    completedByName: doc.completedByName ?? undefined,
+    createdById: doc.createdById,
+    createdByName: doc.createdByName,
+    createdAt: doc.createdAt?.toISOString(),
+  };
+}
+
+export async function getTasksByProjectId(projectId: string): Promise<Task[]> {
+  await connectDB();
+  const docs = await TaskModel.find({ projectId }).sort({ createdAt: 1 }).lean();
+  return docs.map(mapTask);
+}
+
+export async function getTaskStatsByProjectIds(
+  projectIds: string[]
+): Promise<Map<string, { total: number; completed: number }>> {
+  await connectDB();
+  const docs = await TaskModel.find(
+    { projectId: { $in: projectIds } },
+    { projectId: 1, completedAt: 1 }
+  ).lean();
+  const map = new Map<string, { total: number; completed: number }>();
+  for (const doc of docs) {
+    const pid = doc.projectId;
+    const entry = map.get(pid) ?? { total: 0, completed: 0 };
+    entry.total++;
+    if (doc.completedAt) entry.completed++;
+    map.set(pid, entry);
+  }
+  return map;
+}
+
+export async function getClientProjectsWithTaskStats(
+  projectIds: string[],
+  currentUserId: string
+): Promise<{
+  perProject: Map<string, { total: number; completed: number }>;
+  overduePerProject: Map<string, number>;
+  myOpenTasks: number;
+  overdueCount: number;
+}> {
+  if (projectIds.length === 0) return { perProject: new Map(), overduePerProject: new Map(), myOpenTasks: 0, overdueCount: 0 };
+  await connectDB();
+  const today = new Date().toISOString().slice(0, 10);
+  const docs = await TaskModel.find(
+    { projectId: { $in: projectIds } },
+    { projectId: 1, completedAt: 1, completionDate: 1, assignees: 1 }
+  ).lean();
+
+  const perProject = new Map<string, { total: number; completed: number }>();
+  const overduePerProject = new Map<string, number>();
+  let myOpenTasks = 0;
+  let overdueCount = 0;
+
+  for (const doc of docs) {
+    const pid = doc.projectId as string;
+    const isOpen = !doc.completedAt;
+    const entry = perProject.get(pid) ?? { total: 0, completed: 0 };
+    entry.total++;
+    if (!isOpen) entry.completed++;
+    perProject.set(pid, entry);
+    if (isOpen) {
+      const assignees = (doc.assignees ?? []) as { userId: string }[];
+      if (assignees.some((a) => a.userId === currentUserId)) myOpenTasks++;
+      const cd = doc.completionDate as string | undefined;
+      if (cd && cd < today) {
+        overdueCount++;
+        overduePerProject.set(pid, (overduePerProject.get(pid) ?? 0) + 1);
+      }
+    }
+  }
+  return { perProject, overduePerProject, myOpenTasks, overdueCount };
+}
 
 export async function getProjectTemplates(): Promise<ProjectTemplate[]> {
   await connectDB();

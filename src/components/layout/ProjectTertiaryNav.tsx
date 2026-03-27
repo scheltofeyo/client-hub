@@ -18,7 +18,7 @@ export default function ProjectTertiaryNav({
 
   return (
     <div
-      className="flex gap-0 border-b shrink-0 px-7"
+      className="flex gap-0 border-b shrink-0 -mx-7 px-7 mt-2"
       style={{ borderColor: "var(--border)" }}
     >
       {sections.map(({ label, href }) => {

@@ -21,7 +21,7 @@ export async function GET(
       title: doc.title,
       description: doc.description,
       status: doc.status,
-      deliveryDate: doc.deliveryDate,
+      completedDate: doc.completedDate,
       soldPrice: doc.soldPrice,
       templateId: doc.templateId,
       createdAt: doc.createdAt?.toISOString().split("T")[0],
@@ -48,7 +48,7 @@ export async function POST(
   }
 
   const body = await req.json();
-  const { title, description, status, deliveryDate, soldPrice, templateId, serviceId } = body;
+  const { title, description, soldPrice, templateId, serviceId } = body;
 
   if (!title?.trim()) {
     return NextResponse.json({ error: "Title is required" }, { status: 400 });
@@ -58,8 +58,7 @@ export async function POST(
     clientId: id,
     title: title.trim(),
     description: description?.trim() || undefined,
-    status: status || "planning",
-    deliveryDate: deliveryDate?.trim() || undefined,
+    status: "not_started",
     soldPrice: soldPrice ? Number(soldPrice) : undefined,
     templateId: templateId || undefined,
     serviceId: serviceId || undefined,
@@ -71,7 +70,7 @@ export async function POST(
     title: doc.title,
     description: doc.description,
     status: doc.status,
-    deliveryDate: doc.deliveryDate,
+    completedDate: doc.completedDate,
     soldPrice: doc.soldPrice,
     templateId: doc.templateId,
     createdAt: doc.createdAt?.toISOString().split("T")[0],

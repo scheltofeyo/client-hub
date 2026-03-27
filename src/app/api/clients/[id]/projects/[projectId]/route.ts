@@ -21,7 +21,7 @@ export async function PATCH(
   }
 
   const body = await req.json();
-  const { title, description, status, deliveryDate, soldPrice, serviceId } = body;
+  const { title, description, status, completedDate, soldPrice, serviceId } = body;
 
   if (title !== undefined && !title?.trim()) {
     return NextResponse.json({ error: "Title cannot be empty" }, { status: 400 });
@@ -30,10 +30,25 @@ export async function PATCH(
   const update: Record<string, unknown> = {};
   if (title !== undefined) update.title = title.trim();
   if (description !== undefined) update.description = description?.trim() || null;
-  if (status !== undefined) update.status = status;
-  if (deliveryDate !== undefined) update.deliveryDate = deliveryDate?.trim() || null;
   if (soldPrice !== undefined) update.soldPrice = soldPrice ? Number(soldPrice) : null;
   if (serviceId !== undefined) update.serviceId = serviceId || null;
+
+  if (status !== undefined) {
+    update.status = status;
+    if (status === "completed") {
+      // Auto-set completedDate to today if not explicitly provided
+      update.completedDate = completedDate?.trim() || new Date().toISOString().split("T")[0];
+    } else {
+      // Clear completedDate when project is no longer completed
+      update.completedDate = null;
+    }
+  } else if (completedDate !== undefined) {
+    // Manual override of completedDate — only apply if project is currently completed
+    const existing = await ProjectModel.findById(projectId).lean();
+    if (existing?.status === "completed") {
+      update.completedDate = completedDate?.trim() || null;
+    }
+  }
 
   const doc = await ProjectModel.findByIdAndUpdate(projectId, { $set: update }, { new: true }).lean();
   if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -44,7 +59,7 @@ export async function PATCH(
     title: doc.title,
     description: doc.description,
     status: doc.status,
-    deliveryDate: doc.deliveryDate,
+    completedDate: doc.completedDate,
     soldPrice: doc.soldPrice,
   });
 }

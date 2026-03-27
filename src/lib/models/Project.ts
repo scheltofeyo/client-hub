@@ -4,8 +4,8 @@ export interface IProject extends Document {
   clientId: string;
   title: string;
   description?: string;
-  status: "planning" | "in_progress" | "review" | "completed" | "on_hold";
-  deliveryDate?: string;
+  status: "not_started" | "in_progress" | "completed";
+  completedDate?: string;
   soldPrice?: number;
   templateId?: string;
   serviceId?: string;
@@ -20,10 +20,10 @@ const ProjectSchema = new Schema<IProject>(
     description: { type: String, trim: true },
     status: {
       type: String,
-      enum: ["planning", "in_progress", "review", "completed", "on_hold"],
-      default: "planning",
+      enum: ["not_started", "in_progress", "completed"],
+      default: "not_started",
     },
-    deliveryDate: { type: String, trim: true },
+    completedDate: { type: String, trim: true },
     soldPrice: { type: Number },
     templateId: { type: String },
     serviceId: { type: String },

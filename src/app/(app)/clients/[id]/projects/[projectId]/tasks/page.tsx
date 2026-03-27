@@ -1,9 +1,23 @@
-export default function ProjectTasksPage() {
+import { getTasksByProjectId } from "@/lib/data";
+import { auth } from "@/auth";
+import TasksTab from "@/components/ui/TasksTab";
+
+export const dynamic = "force-dynamic";
+
+export default async function ProjectTasksPage({
+  params,
+}: {
+  params: Promise<{ id: string; projectId: string }>;
+}) {
+  const { id, projectId } = await params;
+  const [tasks, session] = await Promise.all([getTasksByProjectId(projectId), auth()]);
+
   return (
-    <div className="flex items-center justify-center h-40">
-      <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-        Tasks coming soon.
-      </p>
-    </div>
+    <TasksTab
+      projectId={projectId}
+      clientId={id}
+      initialTasks={tasks}
+      currentUserId={session?.user?.id ?? ""}
+    />
   );
 }

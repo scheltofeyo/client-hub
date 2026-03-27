@@ -30,8 +30,7 @@ function EditProjectForm({
   const [form, setForm] = useState({
     title: project.title,
     description: project.description ?? "",
-    status: project.status,
-    deliveryDate: project.deliveryDate ?? "",
+    completedDate: project.completedDate ?? "",
     soldPrice: project.soldPrice != null ? String(project.soldPrice) : "",
     serviceId: project.serviceId ?? "",
   });
@@ -57,8 +56,7 @@ function EditProjectForm({
       body: JSON.stringify({
         title: form.title,
         description: form.description || undefined,
-        status: form.status,
-        deliveryDate: form.deliveryDate || undefined,
+        ...(project.status === "completed" ? { completedDate: form.completedDate || undefined } : {}),
         soldPrice: form.soldPrice ? Number(form.soldPrice) : undefined,
         serviceId: form.serviceId || undefined,
       }),
@@ -113,8 +111,29 @@ function EditProjectForm({
       </div>
 
       <div>
+        <label htmlFor="ep-service" className={labelClass} style={labelStyle}>
+          Connect to a service <span className="text-red-400">*</span>
+        </label>
+        <select
+          id="ep-service"
+          value={form.serviceId}
+          onChange={(e) => set("serviceId", e.target.value)}
+          required
+          className={inputClass}
+          style={inputStyle}
+        >
+          <option value="">— Select a service —</option>
+          {services.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div>
         <label htmlFor="ep-description" className={labelClass} style={labelStyle}>
-          Description
+          Short description
         </label>
         <textarea
           id="ep-description"
@@ -126,76 +145,37 @@ function EditProjectForm({
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      {project.status === "completed" && (
         <div>
-          <label htmlFor="ep-delivery" className={labelClass} style={labelStyle}>
-            Delivery date
+          <label htmlFor="ep-completed-date" className={labelClass} style={labelStyle}>
+            Completed date
           </label>
           <input
-            id="ep-delivery"
+            id="ep-completed-date"
             type="date"
-            value={form.deliveryDate}
-            onChange={(e) => set("deliveryDate", e.target.value)}
+            value={form.completedDate}
+            onChange={(e) => set("completedDate", e.target.value)}
             className={inputClass}
             style={inputStyle}
           />
         </div>
-        <div>
-          <label htmlFor="ep-price" className={labelClass} style={labelStyle}>
-            Sold price (€)
-          </label>
-          <input
-            id="ep-price"
-            type="number"
-            min={0}
-            step={1}
-            value={form.soldPrice}
-            onChange={(e) => set("soldPrice", e.target.value)}
-            placeholder="e.g. 5000"
-            className={inputClass}
-            style={inputStyle}
-          />
-        </div>
-      </div>
+      )}
 
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label htmlFor="ep-status" className={labelClass} style={labelStyle}>
-            Status
-          </label>
-          <select
-            id="ep-status"
-            value={form.status}
-            onChange={(e) => set("status", e.target.value)}
-            className={inputClass}
-            style={inputStyle}
-          >
-            <option value="planning">Planning</option>
-            <option value="in_progress">In progress</option>
-            <option value="review">Review</option>
-            <option value="completed">Completed</option>
-            <option value="on_hold">On hold</option>
-          </select>
-        </div>
-        <div>
-          <label htmlFor="ep-service" className={labelClass} style={labelStyle}>
-            Service
-          </label>
-          <select
-            id="ep-service"
-            value={form.serviceId}
-            onChange={(e) => set("serviceId", e.target.value)}
-            className={inputClass}
-            style={inputStyle}
-          >
-            <option value="">— None —</option>
-            {services.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
-        </div>
+      <div>
+        <label htmlFor="ep-price" className={labelClass} style={labelStyle}>
+          Sold price (€)
+        </label>
+        <input
+          id="ep-price"
+          type="number"
+          min={0}
+          step={1}
+          value={form.soldPrice}
+          onChange={(e) => set("soldPrice", e.target.value)}
+          placeholder="e.g. 5000"
+          className={inputClass}
+          style={inputStyle}
+        />
       </div>
 
       {error && <p className="text-xs text-red-500">{error}</p>}
@@ -210,7 +190,7 @@ function EditProjectForm({
         </button>
         <button
           type="submit"
-          disabled={loading || !form.title.trim()}
+          disabled={loading || !form.title.trim() || !form.serviceId}
           className="px-3 py-1.5 rounded-lg text-sm font-medium disabled:opacity-50 btn-primary"
         >
           {loading ? "Saving…" : "Save Changes"}

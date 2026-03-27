@@ -32,8 +32,6 @@ function ProjectForm({
   const [form, setForm] = useState({
     title: template?.name ?? "",
     description: template?.defaultDescription ?? "",
-    status: "planning",
-    deliveryDate: "",
     soldPrice: template?.defaultSoldPrice != null ? String(template.defaultSoldPrice) : "",
     serviceId: template?.defaultServiceId ?? "",
   });
@@ -58,8 +56,6 @@ function ProjectForm({
       body: JSON.stringify({
         title: form.title,
         description: form.description || undefined,
-        status: form.status,
-        deliveryDate: form.deliveryDate || undefined,
         soldPrice: form.soldPrice ? Number(form.soldPrice) : undefined,
         templateId: template?.id,
         serviceId: form.serviceId || undefined,
@@ -118,8 +114,29 @@ function ProjectForm({
       </div>
 
       <div>
+        <label htmlFor="ap-service" className={labelClass} style={labelStyle}>
+          Connect to a service <span className="text-red-400">*</span>
+        </label>
+        <select
+          id="ap-service"
+          value={form.serviceId}
+          onChange={(e) => set("serviceId", e.target.value)}
+          required
+          className={inputClass}
+          style={inputStyle}
+        >
+          <option value="">— Select a service —</option>
+          {services.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div>
         <label htmlFor="ap-description" className={labelClass} style={labelStyle}>
-          Description
+          Short description
         </label>
         <textarea
           id="ap-description"
@@ -132,76 +149,21 @@ function ProjectForm({
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label htmlFor="ap-delivery" className={labelClass} style={labelStyle}>
-            Delivery date
-          </label>
-          <input
-            id="ap-delivery"
-            type="date"
-            value={form.deliveryDate}
-            onChange={(e) => set("deliveryDate", e.target.value)}
-            className={inputClass}
-            style={inputStyle}
-          />
-        </div>
-        <div>
-          <label htmlFor="ap-price" className={labelClass} style={labelStyle}>
-            Sold price (€)
-          </label>
-          <input
-            id="ap-price"
-            type="number"
-            min={0}
-            step={1}
-            value={form.soldPrice}
-            onChange={(e) => set("soldPrice", e.target.value)}
-            placeholder="e.g. 5000"
-            className={inputClass}
-            style={inputStyle}
-          />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label htmlFor="ap-status" className={labelClass} style={labelStyle}>
-            Status
-          </label>
-          <select
-            id="ap-status"
-            value={form.status}
-            onChange={(e) => set("status", e.target.value)}
-            className={inputClass}
-            style={inputStyle}
-          >
-            <option value="planning">Planning</option>
-            <option value="in_progress">In progress</option>
-            <option value="review">Review</option>
-            <option value="completed">Completed</option>
-            <option value="on_hold">On hold</option>
-          </select>
-        </div>
-        <div>
-          <label htmlFor="ap-service" className={labelClass} style={labelStyle}>
-            Service
-          </label>
-          <select
-            id="ap-service"
-            value={form.serviceId}
-            onChange={(e) => set("serviceId", e.target.value)}
-            className={inputClass}
-            style={inputStyle}
-          >
-            <option value="">— None —</option>
-            {services.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
-        </div>
+      <div>
+        <label htmlFor="ap-price" className={labelClass} style={labelStyle}>
+          Sold price (€)
+        </label>
+        <input
+          id="ap-price"
+          type="number"
+          min={0}
+          step={1}
+          value={form.soldPrice}
+          onChange={(e) => set("soldPrice", e.target.value)}
+          placeholder="e.g. 5000"
+          className={inputClass}
+          style={inputStyle}
+        />
       </div>
 
       {error && <p className="text-xs text-red-500">{error}</p>}
@@ -216,7 +178,7 @@ function ProjectForm({
         </button>
         <button
           type="submit"
-          disabled={loading || !form.title.trim()}
+          disabled={loading || !form.title.trim() || !form.serviceId}
           className="px-3 py-1.5 rounded-lg text-sm font-medium disabled:opacity-50 btn-primary"
         >
           {loading ? "Creating…" : "Create Project"}

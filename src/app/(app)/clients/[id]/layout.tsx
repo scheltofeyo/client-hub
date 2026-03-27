@@ -20,7 +20,7 @@ export default async function ClientDetailLayout({
   ]);
   if (!client) notFound();
 
-  const projectSummaries = projects.map((p) => ({ id: p.id, title: p.title }));
+  const projectSummaries = projects.map((p) => ({ id: p.id, title: p.title, status: p.status }));
   const sheetSummaries = sheets.map((s) => ({ id: s.id, name: s.name }));
 
   return (

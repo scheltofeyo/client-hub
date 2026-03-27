@@ -48,7 +48,7 @@ export interface Client {
   archetype?: string;
 }
 
-export type ProjectStatus = "planning" | "in_progress" | "review" | "completed" | "on_hold";
+export type ProjectStatus = "not_started" | "in_progress" | "completed";
 
 export interface Project {
   id: string;
@@ -56,7 +56,7 @@ export interface Project {
   title: string;
   description?: string;
   status: ProjectStatus;
-  deliveryDate?: string;
+  completedDate?: string;
   soldPrice?: number;
   templateId?: string;
   serviceId?: string;
@@ -110,5 +110,27 @@ export interface Sheet {
   clientId: string;
   name: string;
   url: string;
+  createdAt?: string;
+}
+
+export interface TaskAssignee {
+  userId: string;
+  name: string;
+  image?: string;
+}
+
+export interface Task {
+  id: string;
+  projectId: string;
+  parentTaskId?: string;
+  title: string;
+  description?: string;
+  assignees: TaskAssignee[];
+  completionDate?: string;
+  completedAt?: string;
+  completedById?: string;
+  completedByName?: string;
+  createdById: string;
+  createdByName: string;
   createdAt?: string;
 }

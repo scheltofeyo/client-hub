@@ -3,11 +3,11 @@
 import Link from "next/link";
 import { useSearchParams, usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { LayoutDashboard, Briefcase, Sheet, BookOpen, ChevronRight } from "lucide-react";
+import { LayoutDashboard, Briefcase, Sheet, BookOpen, ChevronRight, ChevronDown } from "lucide-react";
 import type { Client, Project, Sheet as SheetType } from "@/types";
 
 const tabItems = [
-  { tab: "overview", label: "Overview", icon: LayoutDashboard },
+  { tab: "about", label: "About", icon: LayoutDashboard },
   { tab: "projects", label: "Projects", icon: Briefcase },
   { tab: "sheets", label: "Sheets", icon: Sheet },
   { tab: "logbook", label: "Logbook", icon: BookOpen },
@@ -19,12 +19,13 @@ export default function ClientPanelNav({
   sheets = [],
 }: {
   client: Client;
-  projects?: Pick<Project, "id" | "title">[];
+  projects?: Pick<Project, "id" | "title" | "status">[];
   sheets?: Pick<SheetType, "id" | "name">[];
 }) {
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const [localSheets, setLocalSheets] = useState(sheets);
+  const [showCompleted, setShowCompleted] = useState(false);
 
   useEffect(() => {
     function fetchSheets() {
@@ -46,8 +47,8 @@ export default function ClientPanelNav({
     return () => window.removeEventListener("sheets-updated", handleSheetsUpdated);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const rawTab = searchParams.get("tab")?.toLowerCase() ?? "overview";
-  const activeTab = tabItems.some((t) => t.tab === rawTab) ? rawTab : "overview";
+  const rawTab = searchParams.get("tab")?.toLowerCase() ?? "about";
+  const activeTab = tabItems.some((t) => t.tab === rawTab) ? rawTab : "about";
 
   const isOnProjectDetail = !!pathname.match(new RegExp(`/clients/${client.id}/projects/[^/]+`));
   const isOnProjectsArea = activeTab === "projects" || isOnProjectDetail;
@@ -124,23 +125,43 @@ export default function ClientPanelNav({
               </Link>
 
               {/* Project children — shown when in projects area */}
-              {isProjects && isOnProjectsArea && projects.length > 0 && (
-                <div className="mt-0.5 space-y-0.5">
-                  {projects.map((project) => {
-                    const projectActive = activeProjectId === project.id;
-                    return (
-                      <Link
-                        key={project.id}
-                        href={`/clients/${client.id}/projects/${project.id}`}
-                        data-active={projectActive}
-                        className="flex items-center gap-2 pl-8 pr-2 py-1.5 rounded-lg text-sm transition-colors nav-panel-item truncate"
+              {isProjects && isOnProjectsArea && projects.length > 0 && (() => {
+                const activeProjects = projects.filter((p) => p.status !== "completed");
+                const completedProjects = projects.filter((p) => p.status === "completed");
+                const visibleProjects = showCompleted ? projects : activeProjects;
+                return (
+                  <div className="mt-0.5 space-y-0.5">
+                    {visibleProjects.map((project) => {
+                      const projectActive = activeProjectId === project.id;
+                      return (
+                        <Link
+                          key={project.id}
+                          href={`/clients/${client.id}/projects/${project.id}`}
+                          data-active={projectActive}
+                          className="flex items-center gap-2 pl-4 pr-2 py-1.5 ml-4 rounded-lg text-sm transition-colors nav-panel-item truncate"
+                        >
+                          <span className="truncate">{project.title}</span>
+                        </Link>
+                      );
+                    })}
+                    {completedProjects.length > 0 && (
+                      <button
+                        onClick={() => setShowCompleted((v) => !v)}
+                        className="flex items-center gap-1.5 pl-4 pr-2 py-1 ml-4 rounded-md text-xs transition-colors cursor-pointer"
+                        style={{ color: "var(--text-muted)" }}
                       >
-                        <span className="truncate">{project.title}</span>
-                      </Link>
-                    );
-                  })}
-                </div>
-              )}
+                        <ChevronDown
+                          size={11}
+                          strokeWidth={2}
+                          className="transition-transform shrink-0"
+                          style={{ transform: showCompleted ? "rotate(180deg)" : "rotate(0deg)" }}
+                        />
+                        <span>{showCompleted ? "Hide completed" : `${completedProjects.length} completed`}</span>
+                      </button>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* Sheet children — shown when in sheets area */}
               {isSheets && isOnSheetsArea && localSheets.length > 0 && (
@@ -152,7 +173,7 @@ export default function ClientPanelNav({
                         key={sheet.id}
                         href={`/clients/${client.id}/sheets/${sheet.id}`}
                         data-active={sheetActive}
-                        className="flex items-center gap-2 pl-8 pr-2 py-1.5 rounded-lg text-sm transition-colors nav-panel-item truncate"
+                        className="flex items-center gap-2 pl-4 pr-2 py-1.5 ml-4 rounded-lg text-sm transition-colors nav-panel-item truncate"
                       >
                         <span className="truncate">{sheet.name}</span>
                       </Link>
