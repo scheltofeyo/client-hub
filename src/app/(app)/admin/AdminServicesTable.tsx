@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { useRightPanel } from "@/components/layout/RightPanel";
 
 const inputClass =
-  "w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-purple-400/40";
+  "w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--primary)]/40";
 const inputStyle = {
   background: "var(--bg-sidebar)",
   borderColor: "var(--border)",

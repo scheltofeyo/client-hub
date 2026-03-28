@@ -3,14 +3,16 @@
 import Link from "next/link";
 import { useSearchParams, usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { LayoutDashboard, Briefcase, Sheet, BookOpen, ChevronRight, ChevronDown } from "lucide-react";
+import { Settings, Briefcase, Sheet, BookOpen, Activity, ChevronRight, ChevronDown, LayoutDashboard } from "lucide-react";
 import type { Client, Project, Sheet as SheetType } from "@/types";
 
 const tabItems = [
-  { tab: "about", label: "About", icon: LayoutDashboard },
+  { tab: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { tab: "projects", label: "Projects", icon: Briefcase },
   { tab: "sheets", label: "Sheets", icon: Sheet },
   { tab: "logbook", label: "Logbook", icon: BookOpen },
+  { tab: "activity", label: "Activity", icon: Activity },
+  { tab: "settings", label: "Settings", icon: Settings },
 ];
 
 export default function ClientPanelNav({
@@ -47,8 +49,8 @@ export default function ClientPanelNav({
     return () => window.removeEventListener("sheets-updated", handleSheetsUpdated);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const rawTab = searchParams.get("tab")?.toLowerCase() ?? "about";
-  const activeTab = tabItems.some((t) => t.tab === rawTab) ? rawTab : "about";
+  const rawTab = searchParams.get("tab")?.toLowerCase() ?? "dashboard";
+  const activeTab = tabItems.some((t) => t.tab === rawTab) ? rawTab : "dashboard";
 
   const isOnProjectDetail = !!pathname.match(new RegExp(`/clients/${client.id}/projects/[^/]+`));
   const isOnProjectsArea = activeTab === "projects" || isOnProjectDetail;
@@ -87,7 +89,7 @@ export default function ClientPanelNav({
             ? activeTab === "projects" && !isOnProjectDetail
             : tab === "sheets"
             ? activeTab === "sheets" && !isOnSheetDetail
-            : activeTab === tab && !isOnProjectsArea && !isOnSheetDetail;
+            : activeTab === tab && !isOnProjectsArea && !isOnSheetDetail && activeTab !== "settings";
           const isProjects = tab === "projects";
           const isSheets = tab === "sheets";
 
@@ -186,8 +188,6 @@ export default function ClientPanelNav({
         })}
       </div>
 
-      {/* Divider */}
-      <div className="mx-3 my-3 border-t" style={{ borderColor: "var(--border)" }} />
     </aside>
   );
 }

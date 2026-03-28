@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { connectDB } from "@/lib/mongodb";
 import { ProjectTemplateModel } from "@/lib/models/ProjectTemplate";
+import { TemplateTaskModel } from "@/lib/models/TemplateTask";
 
 export async function GET() {
   const session = await auth();
@@ -9,6 +10,14 @@ export async function GET() {
 
   await connectDB();
   const docs = await ProjectTemplateModel.find().sort({ createdAt: -1 }).lean();
+
+  const templateIds = docs.map((d) => d._id.toString());
+  const taskCounts = await TemplateTaskModel.aggregate([
+    { $match: { templateId: { $in: templateIds } } },
+    { $group: { _id: "$templateId", count: { $sum: 1 } } },
+  ]);
+  const countMap = Object.fromEntries(taskCounts.map((t) => [t._id, t.count as number]));
+
   return NextResponse.json(
     docs.map((doc) => ({
       id: doc._id.toString(),
@@ -17,6 +26,7 @@ export async function GET() {
       defaultDescription: doc.defaultDescription,
       defaultSoldPrice: doc.defaultSoldPrice,
       defaultServiceId: doc.defaultServiceId,
+      taskCount: countMap[doc._id.toString()] ?? 0,
       createdAt: doc.createdAt?.toISOString().split("T")[0],
     }))
   );

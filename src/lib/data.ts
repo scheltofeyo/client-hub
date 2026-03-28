@@ -10,7 +10,9 @@ import { LogSignalModel } from "./models/LogSignal";
 import { LogModel } from "./models/Log";
 import { SheetModel } from "./models/Sheet";
 import { TaskModel } from "./models/Task";
-import type { Archetype, Client, DashboardStats, Log, LogSignal, Project, ProjectTemplate, Service, Sheet, Task } from "@/types";
+import { TemplateTaskModel } from "./models/TemplateTask";
+import { ActivityEventModel } from "./models/ActivityEvent";
+import type { Archetype, Client, DashboardStats, Log, LogSignal, Project, ProjectTemplate, Service, Sheet, Task, TemplateTask } from "@/types";
 
 function mapClient(doc: ReturnType<typeof Object.assign>, archetypeMap?: Map<string, string>): Client {
   return {
@@ -215,7 +217,7 @@ export async function getLogsByClientId(clientId: string): Promise<Log[]> {
   return docs.map((doc) => ({
     id: doc._id.toString(),
     clientId: doc.clientId,
-    contactId: doc.contactId ?? undefined,
+    contactIds: doc.contactIds?.length ? doc.contactIds : (doc.contactId ? [doc.contactId] : []),
     date: doc.date,
     summary: doc.summary,
     signalIds: doc.signalIds ?? [],
@@ -357,3 +359,46 @@ export async function getProjectTemplates(): Promise<ProjectTemplate[]> {
     createdAt: doc.createdAt?.toISOString().split("T")[0],
   }));
 }
+
+export const getProjectTemplateById = cache(async (id: string): Promise<ProjectTemplate | null> => {
+  await connectDB();
+  const doc = await ProjectTemplateModel.findById(id).lean();
+  if (!doc) return null;
+  return {
+    id: doc._id.toString(),
+    name: doc.name,
+    description: doc.description,
+    defaultDescription: doc.defaultDescription,
+    defaultSoldPrice: doc.defaultSoldPrice,
+    defaultServiceId: doc.defaultServiceId,
+    createdAt: doc.createdAt?.toISOString().split("T")[0],
+  };
+});
+
+export async function getLastActivityByClientId(
+  clientId: string
+): Promise<{ createdAt: string; actorName: string; type: string } | null> {
+  await connectDB();
+  const doc = await ActivityEventModel.findOne({ clientId }).sort({ createdAt: -1 }).lean();
+  if (!doc) return null;
+  return {
+    createdAt: (doc.createdAt as Date).toISOString(),
+    actorName: doc.actorName,
+    type: doc.type,
+  };
+}
+
+export const getTemplateTasksByTemplateId = cache(async (templateId: string): Promise<TemplateTask[]> => {
+  await connectDB();
+  const docs = await TemplateTaskModel.find({ templateId }).sort({ order: 1 }).lean();
+  return docs.map((doc) => ({
+    id: doc._id.toString(),
+    templateId: doc.templateId,
+    parentTaskId: doc.parentTaskId ?? undefined,
+    title: doc.title,
+    description: doc.description ?? undefined,
+    assignToClientLead: doc.assignToClientLead ?? false,
+    order: doc.order ?? 0,
+    createdAt: doc.createdAt?.toISOString(),
+  }));
+});

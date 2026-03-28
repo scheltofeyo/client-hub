@@ -2,7 +2,8 @@ import mongoose, { Schema, Document, Model } from "mongoose";
 
 export interface ILog extends Document {
   clientId: string;
-  contactId?: string;
+  contactId?: string; // legacy — superseded by contactIds
+  contactIds: string[];
   date: string;
   summary: string;
   signalIds: string[];
@@ -19,7 +20,8 @@ export interface ILog extends Document {
 const LogSchema = new Schema<ILog>(
   {
     clientId: { type: String, required: true, index: true },
-    contactId: { type: String },
+    contactId: { type: String }, // legacy
+    contactIds: { type: [String], default: [] },
     date: { type: String, required: true },
     summary: { type: String, required: true, trim: true },
     signalIds: { type: [String], default: [] },

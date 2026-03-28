@@ -7,7 +7,7 @@ import { useRightPanel } from "@/components/layout/RightPanel";
 import type { ProjectTemplate, Service } from "@/types";
 
 const inputClass =
-  "w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-purple-400/40";
+  "w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--primary)]/40";
 const inputStyle = {
   background: "var(--bg-sidebar)",
   borderColor: "var(--border)",
@@ -89,11 +89,18 @@ function ProjectForm({
 
       {template && (
         <div
-          className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm"
+          className="flex items-start gap-2 px-3 py-2.5 rounded-lg text-sm"
           style={{ background: "var(--primary-light)", color: "var(--primary)" }}
         >
-          <FileText size={13} />
-          Using template: <strong>{template.name}</strong>
+          <FileText size={13} className="mt-0.5 shrink-0" />
+          <div>
+            <span>Using template: <strong>{template.name}</strong></span>
+            {(template.taskCount ?? 0) > 0 && (
+              <p className="text-xs mt-0.5 opacity-75">
+                {template.taskCount} task{template.taskCount === 1 ? "" : "s"} will be added automatically
+              </p>
+            )}
+          </div>
         </div>
       )}
 
@@ -243,7 +250,7 @@ function TemplatePicker({
           <button
             type="button"
             onClick={() => { setSelected("clean"); setStarted(true); }}
-            className="w-full text-left px-4 py-3 rounded-xl border text-sm transition-colors hover:border-purple-400"
+            className="w-full text-left px-4 py-3 rounded-xl border text-sm transition-colors hover:border-[var(--primary)]"
             style={{
               borderColor: "var(--border)",
               background: "var(--bg-sidebar)",
@@ -261,7 +268,7 @@ function TemplatePicker({
               key={tpl.id}
               type="button"
               onClick={() => { setSelected(tpl); setStarted(true); }}
-              className="w-full text-left px-4 py-3 rounded-xl border text-sm transition-colors hover:border-purple-400"
+              className="w-full text-left px-4 py-3 rounded-xl border text-sm transition-colors hover:border-[var(--primary)]"
               style={{
                 borderColor: "var(--border)",
                 background: "var(--bg-sidebar)",

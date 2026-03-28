@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { signOut } from "next-auth/react";
 import { LogOut } from "lucide-react";
-import Image from "next/image";
+import UserAvatar from "@/components/ui/UserAvatar";
 
 interface Props {
   name: string;
@@ -12,14 +12,6 @@ interface Props {
   isAdmin: boolean;
 }
 
-function initials(name: string) {
-  return name
-    .split(" ")
-    .map((w) => w[0])
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
-}
 
 export default function UserMenu({ name, email, image, isAdmin }: Props) {
   const [open, setOpen] = useState(false);
@@ -37,15 +29,10 @@ export default function UserMenu({ name, email, image, isAdmin }: Props) {
     <div ref={ref} className="relative mt-1">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center text-[11px] font-semibold text-white ring-2 ring-transparent hover:ring-purple-400 transition-all"
-        style={{ background: "var(--primary)" }}
+        className="rounded-full ring-2 ring-transparent hover:ring-[var(--primary)] transition-all"
         title={name}
       >
-        {image ? (
-          <Image src={image} alt={name} width={32} height={32} className="object-cover" />
-        ) : (
-          initials(name)
-        )}
+        <UserAvatar name={name} image={image} size={32} />
       </button>
 
       {open && (

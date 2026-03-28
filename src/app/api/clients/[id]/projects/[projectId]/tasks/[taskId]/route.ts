@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { connectDB } from "@/lib/mongodb";
 import { TaskModel } from "@/lib/models/Task";
 import { ProjectModel } from "@/lib/models/Project";
+import { recordActivity } from "@/lib/activity";
 
 export async function PATCH(
   req: NextRequest,
@@ -11,7 +12,7 @@ export async function PATCH(
   const session = await auth();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { taskId } = await params;
+  const { id: clientId, projectId, taskId } = await params;
   const body = await req.json();
   const { title, description, assignees, completionDate, completed } = body;
 
@@ -65,6 +66,16 @@ export async function PATCH(
     await ProjectModel.findByIdAndUpdate(doc.projectId, { $set: projectUpdate });
   }
 
+  if (completed === true) {
+    await recordActivity({
+      clientId,
+      actorId: session.user.id,
+      actorName: session.user.name ?? "Unknown",
+      type: "task.completed",
+      metadata: { projectId, title: doc.title },
+    });
+  }
+
   return NextResponse.json({
     id: doc._id.toString(),
     projectId: doc.projectId,
@@ -93,7 +104,7 @@ export async function DELETE(
   const session = await auth();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { taskId } = await params;
+  const { id: clientId, projectId, taskId } = await params;
   await connectDB();
 
   const doc = await TaskModel.findByIdAndDelete(taskId).lean();
@@ -101,6 +112,14 @@ export async function DELETE(
 
   // Delete all subtasks of this task
   await TaskModel.deleteMany({ parentTaskId: taskId });
+
+  await recordActivity({
+    clientId,
+    actorId: session.user.id,
+    actorName: session.user.name ?? "Unknown",
+    type: "task.deleted",
+    metadata: { projectId, title: doc.title },
+  });
 
   return NextResponse.json({ success: true });
 }

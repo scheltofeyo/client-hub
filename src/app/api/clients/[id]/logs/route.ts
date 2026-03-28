@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { connectDB } from "@/lib/mongodb";
 import { LogModel } from "@/lib/models/Log";
+import { recordActivity } from "@/lib/activity";
 
 export async function GET(
   _req: NextRequest,
@@ -19,7 +20,7 @@ export async function GET(
     docs.map((doc) => ({
       id: doc._id.toString(),
       clientId: doc.clientId,
-      contactId: doc.contactId ?? undefined,
+      contactIds: doc.contactIds?.length ? doc.contactIds : (doc.contactId ? [doc.contactId] : []),
       date: doc.date,
       summary: doc.summary,
       signalIds: doc.signalIds ?? [],
@@ -45,7 +46,7 @@ export async function POST(
 
   const { id: clientId } = await params;
   const body = await req.json();
-  const { contactId, date, summary, signalIds, followUp, followUpDeadline } = body;
+  const { contactIds, date, summary, signalIds, followUp, followUpDeadline } = body;
 
   if (!date?.trim()) {
     return NextResponse.json({ error: "Date is required" }, { status: 400 });
@@ -57,7 +58,7 @@ export async function POST(
   await connectDB();
   const doc = await LogModel.create({
     clientId,
-    contactId: contactId || undefined,
+    contactIds: Array.isArray(contactIds) ? contactIds : [],
     date: date.trim(),
     summary: summary.trim(),
     signalIds: Array.isArray(signalIds) ? signalIds : [],
@@ -67,11 +68,19 @@ export async function POST(
     createdByName: session.user.name ?? "Unknown",
   });
 
+  await recordActivity({
+    clientId,
+    actorId: session.user.id,
+    actorName: session.user.name ?? "Unknown",
+    type: "log.created",
+    metadata: { logId: doc._id.toString(), summary: doc.summary.slice(0, 80), followUp: doc.followUp ?? false },
+  });
+
   return NextResponse.json(
     {
       id: doc._id.toString(),
       clientId: doc.clientId,
-      contactId: doc.contactId ?? undefined,
+      contactIds: doc.contactIds ?? [],
       date: doc.date,
       summary: doc.summary,
       signalIds: doc.signalIds ?? [],

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { connectDB } from "@/lib/mongodb";
 import { LogModel } from "@/lib/models/Log";
+import { recordActivity } from "@/lib/activity";
 
 export async function PATCH(
   req: NextRequest,
@@ -12,7 +13,7 @@ export async function PATCH(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { logId } = await params;
+  const { id: clientId, logId } = await params;
   await connectDB();
   const existing = await LogModel.findById(logId).lean();
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -21,9 +22,9 @@ export async function PATCH(
   const isCreator = existing.createdById === session.user.id;
 
   const body = await req.json();
-  const { contactId, date, summary, signalIds, followUp, followUpDeadline, followedUpAt, followedUpByName } = body;
+  const { contactIds, date, summary, signalIds, followUp, followUpDeadline, followedUpAt, followedUpByName } = body;
 
-  const isEditAction = date !== undefined || summary !== undefined || signalIds !== undefined || followUp !== undefined || contactId !== undefined;
+  const isEditAction = date !== undefined || summary !== undefined || signalIds !== undefined || followUp !== undefined || contactIds !== undefined;
   if (isEditAction && !isAdmin && !isCreator) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
@@ -38,7 +39,7 @@ export async function PATCH(
   const update: Record<string, unknown> = {};
   const unset: Record<string, 1> = {};
 
-  if (contactId !== undefined) update.contactId = contactId || undefined;
+  if (contactIds !== undefined) update.contactIds = Array.isArray(contactIds) ? contactIds : [];
   if (date !== undefined) update.date = date.trim();
   if (summary !== undefined) update.summary = summary.trim();
   if (signalIds !== undefined) update.signalIds = Array.isArray(signalIds) ? signalIds : [];
@@ -63,10 +64,28 @@ export async function PATCH(
   const doc = await LogModel.findByIdAndUpdate(logId, mongoUpdate, { new: true }).lean();
   if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+  if (followedUpAt !== undefined && followedUpAt !== null) {
+    await recordActivity({
+      clientId,
+      actorId: session.user.id,
+      actorName: session.user.name ?? "Unknown",
+      type: "log.followedup",
+      metadata: { logId, summary: doc.summary.slice(0, 80) },
+    });
+  } else if (isEditAction) {
+    await recordActivity({
+      clientId,
+      actorId: session.user.id,
+      actorName: session.user.name ?? "Unknown",
+      type: "log.updated",
+      metadata: { logId, summary: doc.summary.slice(0, 80) },
+    });
+  }
+
   return NextResponse.json({
     id: doc._id.toString(),
     clientId: doc.clientId,
-    contactId: doc.contactId ?? undefined,
+    contactIds: doc.contactIds?.length ? doc.contactIds : (doc.contactId ? [doc.contactId] : []),
     date: doc.date,
     summary: doc.summary,
     signalIds: doc.signalIds ?? [],
@@ -89,7 +108,7 @@ export async function DELETE(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { logId } = await params;
+  const { id: clientId, logId } = await params;
   await connectDB();
   const existing = await LogModel.findById(logId).lean();
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -101,5 +120,14 @@ export async function DELETE(
   }
 
   await LogModel.findByIdAndDelete(logId);
+
+  await recordActivity({
+    clientId,
+    actorId: session.user.id,
+    actorName: session.user.name ?? "Unknown",
+    type: "log.deleted",
+    metadata: { logId, summary: existing.summary.slice(0, 80) },
+  });
+
   return new NextResponse(null, { status: 204 });
 }

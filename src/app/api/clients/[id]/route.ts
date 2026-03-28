@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { connectDB } from "@/lib/mongodb";
 import { ClientModel } from "@/lib/models/Client";
+import { recordActivity } from "@/lib/activity";
 
 export async function PATCH(
   req: NextRequest,
@@ -48,6 +49,40 @@ export async function PATCH(
 
   const doc = await ClientModel.findByIdAndUpdate(id, { $set: update }, { new: true }).lean();
   if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  // Emit activity for contact changes
+  if (contacts !== undefined) {
+    type ContactInput = { id?: string; firstName?: string; lastName?: string };
+    const oldIds = new Set((existing.contacts ?? []).map((c) => c.id));
+    const newIds = new Set((contacts as ContactInput[]).map((c) => c.id ?? ""));
+    const added = (contacts as ContactInput[]).filter((c) => c.id && !oldIds.has(c.id));
+    const removed = (existing.contacts ?? []).filter((c) => !newIds.has(c.id));
+    if (added.length > 0 || removed.length > 0) {
+      await recordActivity({
+        clientId: id,
+        actorId: session.user.id,
+        actorName: session.user.name ?? "Unknown",
+        type: "contact.changed",
+        metadata: {
+          added: added.map((c) => [c.firstName, c.lastName].filter(Boolean).join(" ")),
+          removed: removed.map((c) => [c.firstName, c.lastName].filter(Boolean).join(" ")),
+        },
+      });
+    }
+  }
+
+  // Emit activity for company data changes (non-contact fields)
+  const companyFields = ["company", "status", "platform", "clientSince", "employees", "website", "description", "archetypeId"] as const;
+  const changedFields = companyFields.filter((f) => body[f] !== undefined);
+  if (changedFields.length > 0) {
+    await recordActivity({
+      clientId: id,
+      actorId: session.user.id,
+      actorName: session.user.name ?? "Unknown",
+      type: "client.updated",
+      metadata: { fields: changedFields },
+    });
+  }
 
   return NextResponse.json({
     id: doc._id.toString(),

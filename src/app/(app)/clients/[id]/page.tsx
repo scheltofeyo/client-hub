@@ -1,4 +1,4 @@
-import { getClientById, getProjectsByClientId, getArchetypes, getLogsByClientId, getLogSignals, getSheetsByClientId, getClientProjectsWithTaskStats } from "@/lib/data";
+import { getClientById, getProjectsByClientId, getArchetypes, getLogsByClientId, getLogSignals, getSheetsByClientId, getClientProjectsWithTaskStats, getLastActivityByClientId, getServices } from "@/lib/data";
 import { auth } from "@/auth";
 import { connectDB } from "@/lib/mongodb";
 import { UserModel } from "@/lib/models/User";
@@ -11,17 +11,18 @@ import DeleteClientButton from "@/components/ui/DeleteClientButton";
 import ContactsSection from "@/components/ui/ContactsSection";
 import LeadsSection from "@/components/ui/LeadsSection";
 import AddProjectButton from "@/components/ui/AddProjectButton";
-import AddLogButton from "@/components/ui/AddLogButton";
 import LogbookTab from "@/components/ui/LogbookTab";
+import OverviewTab from "@/components/ui/OverviewTab";
 import SheetsTab, { ManageSheetsButton } from "@/components/ui/SheetsTab";
+import ActivityTab from "@/components/ui/ActivityTab";
 import AboutTertiaryNav from "@/components/layout/AboutTertiaryNav";
 import PageHeader from "@/components/layout/PageHeader";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import type { Client, Project } from "@/types";
+import type { Client, Log, LogSignal, Project, Service, Sheet } from "@/types";
 import { fmtDate } from "@/lib/utils";
 
-const tabs = ["About", "Projects", "Sheets", "Logbook"] as const;
+const tabs = ["Dashboard", "Projects", "Sheets", "Logbook", "Activity", "Settings"] as const;
 type Tab = (typeof tabs)[number];
 
 export default async function ClientDetailPage({
@@ -33,7 +34,7 @@ export default async function ClientDetailPage({
 }) {
   const { id } = await params;
   const { tab, section } = await searchParams;
-  const [client, projects, session, archetypes, logs, logSignals, sheets] = await Promise.all([
+  const [client, projects, session, archetypes, logs, logSignals, sheets, services] = await Promise.all([
     getClientById(id),
     getProjectsByClientId(id),
     auth(),
@@ -41,12 +42,13 @@ export default async function ClientDetailPage({
     getLogsByClientId(id),
     getLogSignals(),
     getSheetsByClientId(id),
+    getServices(),
   ]);
 
   if (!client) notFound();
 
   const activeTab: Tab =
-    tabs.find((t) => t.toLowerCase() === tab?.toLowerCase()) ?? "About";
+    tabs.find((t) => t.toLowerCase() === tab?.toLowerCase()) ?? "Dashboard";
 
   const isAdmin = session?.user?.isAdmin ?? false;
   const currentUserId = session?.user?.id ?? "";
@@ -78,7 +80,7 @@ export default async function ClientDetailPage({
         ]}
         title={activeTab}
         actions={
-          activeTab === "About" && canEdit ? (
+          activeTab === "Settings" && canEdit ? (
             <>
               <EditClientButton client={client} archetypes={archetypes} />
               {isAdmin && <DeleteClientButton id={client.id} company={client.company} />}
@@ -87,18 +89,10 @@ export default async function ClientDetailPage({
             <AddProjectButton clientId={client.id} />
           ) : activeTab === "Sheets" ? (
             <ManageSheetsButton clientId={id} initialSheets={sheets} />
-          ) : activeTab === "Logbook" ? (
-            <AddLogButton
-              clientId={id}
-              clientName={client.company}
-              contacts={client.contacts ?? []}
-              signals={logSignals}
-              currentUserName={session?.user?.name ?? ""}
-            />
           ) : undefined
         }
         tertiaryNav={
-          activeTab === "About" ? (
+          activeTab === "Settings" ? (
             <Suspense fallback={null}>
               <AboutTertiaryNav clientId={id} />
             </Suspense>
@@ -108,7 +102,21 @@ export default async function ClientDetailPage({
 
       {/* Tab content */}
       <div className="flex-1 overflow-y-auto p-7">
-        {activeTab === "About" && (
+        {activeTab === "Dashboard" && (
+          <DashboardTabWrapper
+            clientId={id}
+            client={client}
+            projects={projects}
+            logs={logs}
+            logSignals={logSignals}
+            sheets={sheets}
+            services={services}
+            currentUserId={currentUserId}
+            currentUserName={session?.user?.name ?? ""}
+            isAdmin={isAdmin}
+          />
+        )}
+        {activeTab === "Settings" && (
           <AboutContent
             client={client}
             isAdmin={isAdmin}
@@ -133,6 +141,9 @@ export default async function ClientDetailPage({
             currentUserName={session?.user?.name ?? ""}
             isAdmin={isAdmin}
           />
+        )}
+        {activeTab === "Activity" && (
+          <ActivityTab clientId={id} />
         )}
       </div>
     </div>
@@ -473,6 +484,62 @@ function CompletedSection({
         ))}
       </div>
     </div>
+  );
+}
+
+async function DashboardTabWrapper({
+  clientId,
+  client,
+  projects,
+  logs,
+  logSignals,
+  sheets,
+  services,
+  currentUserId,
+  currentUserName,
+  isAdmin,
+}: {
+  clientId: string;
+  client: Client;
+  projects: Project[];
+  logs: Log[];
+  logSignals: LogSignal[];
+  sheets: Sheet[];
+  services: Service[];
+  currentUserId: string;
+  currentUserName: string;
+  isAdmin: boolean;
+}) {
+  const [taskStats, lastActivity] = await Promise.all([
+    getClientProjectsWithTaskStats(projects.map((p) => p.id), currentUserId),
+    getLastActivityByClientId(clientId),
+  ]);
+
+  const totalOpenTasks = [...taskStats.perProject.values()].reduce(
+    (sum, s) => sum + (s.total - s.completed),
+    0
+  );
+
+  return (
+    <OverviewTab
+      clientId={clientId}
+      client={client}
+      projects={projects}
+      initialLogs={logs}
+      signals={logSignals}
+      sheets={sheets}
+      services={services}
+      contacts={client.contacts ?? []}
+      currentUserName={currentUserName}
+      currentUserId={currentUserId}
+      isAdmin={isAdmin}
+      totalOpenTasks={totalOpenTasks}
+      overdueTaskCount={taskStats.overdueCount}
+      myOpenTasks={taskStats.myOpenTasks}
+      lastActivityAt={lastActivity?.createdAt ?? null}
+      lastActivityActorName={lastActivity?.actorName ?? null}
+      lastActivityType={lastActivity?.type ?? null}
+    />
   );
 }
 

@@ -8,7 +8,7 @@ import { useRightPanel } from "@/components/layout/RightPanel";
 import type { Sheet } from "@/types";
 
 const inputClass =
-  "w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-purple-400/40";
+  "w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--primary)]/40";
 const inputStyle = {
   background: "var(--bg-sidebar)",
   borderColor: "var(--border)",
@@ -280,7 +280,7 @@ export default function SheetsTab({
         <Link
           key={sheet.id}
           href={`/clients/${clientId}/sheets/${sheet.id}`}
-          className="rounded-2xl border p-5 flex items-center justify-between hover:border-purple-400 transition-colors block"
+          className="rounded-2xl border p-5 flex items-center justify-between hover:border-[var(--primary)] transition-colors block"
           style={{ borderColor: "var(--border)", background: "var(--bg-sidebar)" }}
         >
           <p className="font-medium text-sm" style={{ color: "var(--text-primary)" }}>

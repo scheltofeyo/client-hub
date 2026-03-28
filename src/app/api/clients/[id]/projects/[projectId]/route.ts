@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { connectDB } from "@/lib/mongodb";
 import { ClientModel } from "@/lib/models/Client";
 import { ProjectModel } from "@/lib/models/Project";
+import { recordActivity } from "@/lib/activity";
 
 export async function PATCH(
   req: NextRequest,
@@ -53,6 +54,16 @@ export async function PATCH(
   const doc = await ProjectModel.findByIdAndUpdate(projectId, { $set: update }, { new: true }).lean();
   if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+  if (status !== undefined) {
+    await recordActivity({
+      clientId: id,
+      actorId: session.user.id,
+      actorName: session.user.name ?? "Unknown",
+      type: "project.status_changed",
+      metadata: { projectId, title: doc.title, status: doc.status },
+    });
+  }
+
   return NextResponse.json({
     id: doc._id.toString(),
     clientId: doc.clientId,
@@ -73,9 +84,18 @@ export async function DELETE(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { projectId } = await params;
+  const { id, projectId } = await params;
   await connectDB();
   const doc = await ProjectModel.findByIdAndDelete(projectId).lean();
   if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  await recordActivity({
+    clientId: id,
+    actorId: session.user.id,
+    actorName: session.user.name ?? "Unknown",
+    type: "project.deleted",
+    metadata: { projectId, title: doc.title },
+  });
+
   return NextResponse.json({ success: true });
 }

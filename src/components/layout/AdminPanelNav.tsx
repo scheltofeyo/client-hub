@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { Users, LayoutTemplate, Tag, Wrench, Radio } from "lucide-react";
 
 const tabItems = [
@@ -14,6 +14,7 @@ const tabItems = [
 
 export default function AdminPanelNav() {
   const searchParams = useSearchParams();
+  const pathname = usePathname();
   const rawTab = searchParams.get("tab")?.toLowerCase() ?? "users";
   const activeTab = tabItems.some((t) => t.tab === rawTab) ? rawTab : "users";
 
@@ -30,7 +31,9 @@ export default function AdminPanelNav() {
 
       <div className="px-2 space-y-0.5">
         {tabItems.map(({ tab, label, icon: Icon }) => {
-          const active = activeTab === tab;
+          const active =
+            activeTab === tab ||
+            (tab === "templates" && pathname.startsWith("/admin/templates"));
           return (
             <Link
               key={tab}

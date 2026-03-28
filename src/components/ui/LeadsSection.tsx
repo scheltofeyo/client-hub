@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { Plus, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
 import type { ClientLead } from "@/types";
+import UserAvatar from "@/components/ui/UserAvatar";
 
 interface UserOption {
   id: string;
@@ -13,9 +13,6 @@ interface UserOption {
   image: string | null;
 }
 
-function initials(name: string) {
-  return name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
-}
 
 export default function LeadsSection({
   clientId,
@@ -95,21 +92,11 @@ export default function LeadsSection({
             style={{ background: "var(--bg-sidebar)", border: "1px solid var(--border)" }}
           >
             {/* Avatar */}
-            {(() => {
-              const user = allUsers.find((u) => u.id === lead.userId);
-              return (
-                <div
-                  className="shrink-0 w-8 h-8 rounded-full overflow-hidden flex items-center justify-center text-xs font-semibold text-white"
-                  style={{ background: "var(--primary)" }}
-                >
-                  {user?.image ? (
-                    <Image src={user.image} alt={lead.name} width={32} height={32} className="object-cover" />
-                  ) : (
-                    initials(lead.name)
-                  )}
-                </div>
-              );
-            })()}
+            <UserAvatar
+              name={lead.name}
+              image={allUsers.find((u) => u.id === lead.userId)?.image}
+              size={32}
+            />
 
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium truncate" style={{ color: "var(--text-primary)" }}>
@@ -156,16 +143,7 @@ export default function LeadsSection({
               className="w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-[var(--bg-hover)] disabled:opacity-50"
               style={{ borderBottom: "1px solid var(--border)" }}
             >
-              <div
-                className="shrink-0 w-7 h-7 rounded-full overflow-hidden flex items-center justify-center text-[11px] font-semibold text-white"
-                style={{ background: "var(--primary)" }}
-              >
-                {user.image ? (
-                  <Image src={user.image} alt={user.name} width={28} height={28} className="object-cover" />
-                ) : (
-                  initials(user.name)
-                )}
-              </div>
+              <UserAvatar name={user.name} image={user.image} size={28} />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate" style={{ color: "var(--text-primary)" }}>
                   {user.name}

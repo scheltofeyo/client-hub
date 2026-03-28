@@ -5,10 +5,10 @@ import { Check, X, ChevronDown, ChevronUp, MoreHorizontal, Pencil, Trash2 } from
 import { useRouter } from "next/navigation";
 import { useRightPanel } from "@/components/layout/RightPanel";
 import type { Contact, Log, LogSignal } from "@/types";
-import { fmtDate } from "@/lib/utils";
+import { fmtDate, daysAgo, timeAgoLabel } from "@/lib/utils";
 
 const inputClass =
-  "w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-purple-400/40";
+  "w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--primary)]/40";
 const inputStyle = {
   background: "var(--bg-sidebar)",
   borderColor: "var(--border)",
@@ -19,6 +19,84 @@ const labelStyle = { color: "var(--text-muted)" };
 
 function today() {
   return new Date().toISOString().split("T")[0];
+}
+
+function LogbookStats({
+  logs,
+  signals,
+  sortedLogs,
+}: {
+  logs: Log[];
+  signals: LogSignal[];
+  sortedLogs: Log[];
+}) {
+  if (logs.length === 0) return null;
+
+  const openFollowUps = logs.filter(
+    (l) => l.followUp && l.followUpDeadline && !l.followedUpAt
+  ).length;
+
+  const overdueFollowUps = logs.filter(
+    (l) => l.followUp && l.followUpDeadline && !l.followedUpAt && l.followUpDeadline < today()
+  ).length;
+
+  const latestDaysAgo = daysAgo(sortedLogs[0].date);
+  const latestIsStale = latestDaysAgo > 90;
+
+  const signalCounts = new Map(signals.map((s) => [s.id, 0]));
+  for (const log of logs) {
+    for (const id of log.signalIds) {
+      signalCounts.set(id, (signalCounts.get(id) ?? 0) + 1);
+    }
+  }
+  const topSignals = [...signals]
+    .sort((a, b) => {
+      const diff = (signalCounts.get(b.id) ?? 0) - (signalCounts.get(a.id) ?? 0);
+      return diff !== 0 ? diff : a.rank - b.rank;
+    })
+    .slice(0, 3);
+
+  return (
+    <div className="grid grid-cols-3 gap-4 max-w-2xl mb-7">
+      {/* Latest log */}
+      <div className="rounded-xl border p-4 space-y-1.5" style={{ background: "#fff", borderColor: "var(--border)" }}>
+        <p className="text-xs" style={{ color: "var(--text-muted)" }}>Latest log</p>
+        <p className="text-2xl font-semibold" style={{ color: latestIsStale ? "#dc2626" : "var(--text-primary)" }}>{timeAgoLabel(latestDaysAgo)}</p>
+        <p className="text-xs" style={{ color: "var(--text-muted)" }}>{fmtDate(sortedLogs[0].date)}</p>
+      </div>
+
+      {/* Open follow-ups */}
+      <div className="rounded-xl border p-4 space-y-1.5" style={{ background: "#fff", borderColor: "var(--border)" }}>
+        <p className="text-xs" style={{ color: "var(--text-muted)" }}>Open follow-ups</p>
+        <p className="text-2xl font-semibold tabular-nums" style={{ color: "var(--text-primary)" }}>
+          {openFollowUps}
+        </p>
+        {overdueFollowUps > 0 && (
+          <p className="text-xs" style={{ color: "#dc2626" }}>{overdueFollowUps} overdue</p>
+        )}
+      </div>
+
+      {/* Top signals */}
+      <div className="rounded-xl border p-4" style={{ background: "#fff", borderColor: "var(--border)" }}>
+        <p className="text-xs mb-3" style={{ color: "var(--text-muted)" }}>Top signals</p>
+        {signals.length === 0 ? (
+          <p className="text-xs" style={{ color: "var(--text-muted)" }}>No signals configured.</p>
+        ) : (
+          <div className="space-y-1.5">
+            {topSignals.map((s) => {
+              const count = signalCounts.get(s.id) ?? 0;
+              return (
+                <div key={s.id} className="flex items-center justify-between gap-2">
+                  <span className="text-xs truncate" style={{ color: "var(--text-primary)" }}>{s.name}</span>
+                  <span className="text-xs tabular-nums shrink-0" style={{ color: "var(--text-muted)" }}>{count}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 export function LogForm({
@@ -41,7 +119,7 @@ export function LogForm({
   onClose: () => void;
 }) {
   const [form, setForm] = useState({
-    contactId: initial?.contactId ?? "",
+    contactIds: initial?.contactIds ?? ([] as string[]),
     date: initial?.date ?? today(),
     summary: initial?.summary ?? "",
     signalIds: initial?.signalIds ?? ([] as string[]),
@@ -51,6 +129,13 @@ export function LogForm({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const router = useRouter();
+
+  function toggleContact(id: string) {
+    setForm((f) => ({
+      ...f,
+      contactIds: f.contactIds.includes(id) ? f.contactIds.filter((c) => c !== id) : [...f.contactIds, id],
+    }));
+  }
 
   function toggleSignal(id: string) {
     setForm((f) => ({
@@ -74,7 +159,7 @@ export function LogForm({
       method,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        contactId: form.contactId || undefined,
+        contactIds: form.contactIds,
         date: form.date,
         summary: form.summary,
         signalIds: form.signalIds,
@@ -100,45 +185,8 @@ export function LogForm({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {error && <p className="text-xs text-red-500">{error}</p>}
-
-      <div>
-        <label className={labelClass} style={labelStyle}>Client</label>
-        <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>{clientName}</p>
-      </div>
-
-      {contacts.length > 0 && (
-        <div>
-          <label className={labelClass} style={labelStyle}>Contact person</label>
-          <select
-            value={form.contactId}
-            onChange={(e) => setForm((f) => ({ ...f, contactId: e.target.value }))}
-            className={inputClass}
-            style={inputStyle}
-          >
-            <option value="">— None —</option>
-            {contacts.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.firstName} {c.lastName}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
-
-      <div>
-        <label className={labelClass} style={labelStyle}>
-          Date <span className="text-red-400">*</span>
-        </label>
-        <input
-          type="date"
-          value={form.date}
-          onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
-          className={inputClass}
-          style={inputStyle}
-        />
-      </div>
 
       <div>
         <label className={labelClass} style={labelStyle}>
@@ -153,6 +201,32 @@ export function LogForm({
           style={inputStyle}
         />
       </div>
+
+      {contacts.length > 0 && (
+        <div>
+          <label className={labelClass} style={labelStyle}>{clientName} contacts</label>
+          <div className="flex flex-wrap gap-2 mt-1">
+            {contacts.map((c) => {
+              const active = form.contactIds.includes(c.id);
+              return (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => toggleContact(c.id)}
+                  className="px-2.5 py-1 rounded-full text-xs font-medium border transition-colors"
+                  style={{
+                    borderColor: active ? "var(--primary)" : "var(--border)",
+                    background: active ? "var(--primary)" : "transparent",
+                    color: active ? "#fff" : "var(--text-muted)",
+                  }}
+                >
+                  {c.firstName} {c.lastName}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {signals.length > 0 && (
         <div>
@@ -182,7 +256,7 @@ export function LogForm({
 
       <div>
         <label className={labelClass} style={labelStyle}>Follow-up needed?</label>
-        <div className="flex items-center gap-3 mt-1">
+        <div className="flex items-center gap-3 mt-1 flex-wrap">
           <button
             type="button"
             onClick={() => setForm((f) => ({ ...f, followUp: !f.followUp }))}
@@ -199,26 +273,35 @@ export function LogForm({
           <span className="text-sm" style={{ color: "var(--text-primary)" }}>
             {form.followUp ? "Yes" : "No"}
           </span>
-        </div>
-        {form.followUp && (
-          <div className="mt-3">
-            <label className={labelClass} style={labelStyle}>Follow-up deadline</label>
+          {form.followUp && (
             <input
               type="date"
               value={form.followUpDeadline}
               onChange={(e) => setForm((f) => ({ ...f, followUpDeadline: e.target.value }))}
-              className={inputClass}
-              style={inputStyle}
+              className="rounded-lg border px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-[var(--primary)]/40"
+              style={{ background: "var(--bg-sidebar)", borderColor: "var(--border)", color: "var(--text-primary)", width: "auto" }}
             />
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
-      <div>
-        <label className={labelClass} style={labelStyle}>Logged by</label>
-        <p className="text-sm" style={{ color: "var(--text-primary)" }}>
-          {initial?.createdByName ?? currentUserName}
-        </p>
+      <div className="flex items-baseline gap-6">
+        <div>
+          <label className={labelClass} style={labelStyle}>Logged by</label>
+          <p className="text-sm" style={{ color: "var(--text-primary)" }}>
+            {initial?.createdByName ?? currentUserName}
+          </p>
+        </div>
+        <div>
+          <label className={labelClass} style={labelStyle}>Date <span className="text-red-400">*</span></label>
+          <input
+            type="date"
+            value={form.date}
+            onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
+            className="rounded-lg border px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-[var(--primary)]/40"
+            style={{ background: "var(--bg-sidebar)", borderColor: "var(--border)", color: "var(--text-primary)", width: "auto" }}
+          />
+        </div>
       </div>
 
       <div className="flex gap-2 pt-2">
@@ -376,12 +459,11 @@ function LogCard({
   const [expanded, setExpanded] = useState(false);
   const router = useRouter();
 
-  const contactName = log.contactId
-    ? contacts.find((c) => c.id === log.contactId)
-    : null;
-  const contactLabel = contactName
-    ? `${contactName.firstName} ${contactName.lastName}`
-    : null;
+  const contactIds = log.contactIds?.length ? log.contactIds : (log.contactId ? [log.contactId] : []);
+  const contactLabels = contactIds
+    .map((id) => contacts.find((c) => c.id === id))
+    .filter(Boolean)
+    .map((c) => `${c!.firstName} ${c!.lastName}`);
 
   const resolvedSignals = (log.signals ?? []).length > 0
     ? log.signals!
@@ -450,10 +532,10 @@ function LogCard({
         </button>
       )}
 
-      {/* Contact */}
-      {contactLabel && (
+      {/* Contacts */}
+      {contactLabels.length > 0 && (
         <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-          Contact: {contactLabel}
+          Contact: {contactLabels.join(", ")}
         </p>
       )}
 
@@ -510,6 +592,56 @@ export default function LogbookTab({
   const router = useRouter();
   const { openPanel, closePanel } = useRightPanel();
 
+  const [inline, setInline] = useState({
+    summary: "",
+    contactIds: [] as string[],
+    signalIds: [] as string[],
+    followUp: false,
+    followUpDeadline: "",
+  });
+  const [inlineSaving, setInlineSaving] = useState(false);
+  const [inlineError, setInlineError] = useState("");
+
+  function resetInline() {
+    setInline({ summary: "", contactIds: [] as string[], signalIds: [] as string[], followUp: false, followUpDeadline: "" });
+    setInlineError("");
+  }
+
+  function toggleInlineSignal(id: string) {
+    setInline((f) => ({
+      ...f,
+      signalIds: f.signalIds.includes(id) ? f.signalIds.filter((s) => s !== id) : [...f.signalIds, id],
+    }));
+  }
+
+  async function handleInlineSave() {
+    setInlineSaving(true);
+    setInlineError("");
+    const res = await fetch(`/api/clients/${clientId}/logs`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        date: today(),
+        summary: inline.summary,
+        contactIds: inline.contactIds,
+        signalIds: inline.signalIds,
+        followUp: inline.followUp,
+        followUpDeadline: inline.followUp ? inline.followUpDeadline || undefined : undefined,
+      }),
+    });
+    setInlineSaving(false);
+    if (!res.ok) {
+      const d = await res.json();
+      setInlineError(d.error ?? "Failed to save");
+      return;
+    }
+    const saved: Log = await res.json();
+    saved.signals = saved.signalIds.map((id) => signals.find((s) => s.id === id)?.name ?? id);
+    setLogs((prev) => [saved, ...prev]);
+    resetInline();
+    router.refresh();
+  }
+
   // Sync with server data after router.refresh() (e.g. after AddLogButton saves)
   useEffect(() => {
     setLogs(initialLogs);
@@ -545,22 +677,174 @@ export default function LogbookTab({
     router.refresh();
   }
 
-  if (sortedLogs.length === 0) {
-    return (
-      <div className="flex items-center justify-center h-32">
-        <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-          No log entries yet.
-        </p>
-      </div>
-    );
-  }
-
   return (
     <div>
+      <LogbookStats logs={logs} signals={signals} sortedLogs={sortedLogs} />
+
+      {/* ── Inline quick-entry ── */}
+      <div className="relative" style={{ marginBottom: sortedLogs.length > 0 ? "64px" : 0 }}>
+        {/* Timeline connector to first real entry */}
+        {sortedLogs.length > 0 && (
+          <div
+            className="absolute w-px"
+            style={{ left: "17px", top: "8px", bottom: "-72px", background: "var(--primary)", opacity: 0.2, zIndex: 0 }}
+          />
+        )}
+
+        {/* Dot + header */}
+        <div className="relative z-20 flex items-center gap-2.5 mb-2 pl-3">
+          <div className="w-3 h-3 rounded-full flex-none relative z-10 bg-white" style={{ border: "1.5px dotted var(--primary)" }} />
+          <p className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>
+            {fmtDate(today())}
+            <span className="mx-1.5">·</span>
+            {currentUserName}
+          </p>
+        </div>
+
+        {/* Card */}
+        <div
+          className="relative rounded-xl border bg-white dark:bg-[var(--bg-sidebar)]"
+          style={{ borderColor: "var(--primary)", boxShadow: "0 1px 3px 0 rgba(0,0,0,0.06), 0 1px 2px -1px rgba(0,0,0,0.04), 0 0 28px 4px color-mix(in srgb, var(--primary) 12%, transparent)", padding: "1rem", zIndex: 1 }}
+        >
+          <textarea
+            placeholder="What happened…"
+            value={inline.summary}
+            onChange={(e) => setInline((f) => ({ ...f, summary: e.target.value }))}
+            rows={3}
+            className="w-full text-sm leading-relaxed resize-none bg-transparent outline-none placeholder:text-[var(--text-muted)]"
+            style={{ color: "var(--text-primary)" }}
+          />
+
+          {inline.summary && (
+            <div className="mt-3 flex flex-col gap-3">
+              {/* Contact */}
+              {contacts.length > 0 && (
+                <div>
+                  <label className={labelClass} style={labelStyle}>Contact person</label>
+                  <div className="flex flex-wrap gap-2 mt-1">
+                    {contacts.map((c) => {
+                      const active = inline.contactIds.includes(c.id);
+                      return (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => setInline((f) => ({
+                            ...f,
+                            contactIds: active ? f.contactIds.filter((id) => id !== c.id) : [...f.contactIds, c.id],
+                          }))}
+                          className="px-2.5 py-1 rounded-full text-xs font-medium border transition-colors"
+                          style={{
+                            borderColor: active ? "var(--primary)" : "var(--border)",
+                            background: active ? "var(--primary)" : "transparent",
+                            color: active ? "#fff" : "var(--text-muted)",
+                          }}
+                        >
+                          {c.firstName} {c.lastName}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Signals */}
+              {signals.length > 0 && (
+                <div>
+                  <label className={labelClass} style={labelStyle}>Signals</label>
+                  <div className="flex flex-wrap gap-2 mt-1">
+                    {signals.map((s) => {
+                      const active = inline.signalIds.includes(s.id);
+                      return (
+                        <button
+                          key={s.id}
+                          type="button"
+                          onClick={() => toggleInlineSignal(s.id)}
+                          className="px-2.5 py-1 rounded-full text-xs font-medium border transition-colors"
+                          style={{
+                            borderColor: active ? "var(--primary)" : "var(--border)",
+                            background: active ? "var(--primary)" : "transparent",
+                            color: active ? "#fff" : "var(--text-muted)",
+                          }}
+                        >
+                          {s.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Follow-up */}
+              <div>
+                <label className={labelClass} style={labelStyle}>Follow-up needed?</label>
+                <div className="flex items-center gap-3 mt-1 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => setInline((f) => ({ ...f, followUp: !f.followUp }))}
+                    className="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors"
+                    style={{ background: inline.followUp ? "var(--primary)" : "var(--border)" }}
+                    role="switch"
+                    aria-checked={inline.followUp}
+                  >
+                    <span
+                      className="pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow transition-transform"
+                      style={{ transform: inline.followUp ? "translateX(16px)" : "translateX(0)" }}
+                    />
+                  </button>
+                  <span className="text-sm" style={{ color: "var(--text-primary)" }}>
+                    {inline.followUp ? "Yes" : "No"}
+                  </span>
+                  {inline.followUp && (
+                    <input
+                      type="date"
+                      value={inline.followUpDeadline}
+                      onChange={(e) => setInline((f) => ({ ...f, followUpDeadline: e.target.value }))}
+                      className="rounded-lg border px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-[var(--primary)]/40"
+                      style={{ background: "var(--bg-sidebar)", borderColor: "var(--border)", color: "var(--text-primary)", width: "auto" }}
+                    />
+                  )}
+                </div>
+              </div>
+
+              {inlineError && <p className="text-xs text-red-500">{inlineError}</p>}
+
+              {/* Actions */}
+              <div className="flex items-center gap-2 pt-1">
+                <button
+                  type="button"
+                  disabled={!inline.summary.trim() || inlineSaving}
+                  onClick={handleInlineSave}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50 btn-primary"
+                >
+                  <Check size={13} />
+                  {inlineSaving ? "Saving…" : "Add log"}
+                </button>
+                <button
+                  type="button"
+                  onClick={resetInline}
+                  className="flex items-center gap-1 px-4 py-2 rounded-lg text-sm btn-ghost"
+                >
+                  <X size={13} />
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Empty state */}
+      {sortedLogs.length === 0 && (
+        <div className="flex items-center justify-center h-16">
+          <p className="text-sm" style={{ color: "var(--text-muted)" }}>No log entries yet.</p>
+        </div>
+      )}
+
       {sortedLogs.map((log, idx) => {
         const isLast = idx === sortedLogs.length - 1;
         const canEdit = isAdmin || log.createdById === currentUserId;
         const isActive = !!(log.followUp && log.followUpDeadline && !log.followedUpAt);
+        const isOverdue = isActive && log.followUpDeadline! < today();
 
         return (
           <div key={log.id} className="relative" style={{ marginBottom: isLast ? 0 : "24px" }}>
@@ -587,7 +871,7 @@ export default function LogbookTab({
               >
                 <div
                   className="absolute inset-0 rounded-full"
-                  style={{ background: "var(--primary)", opacity: isActive ? 1 : 0.25 }}
+                  style={{ background: isOverdue ? "#dc2626" : "var(--primary)", opacity: isActive ? 1 : 0.25 }}
                 />
               </div>
               <p className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>
@@ -596,7 +880,7 @@ export default function LogbookTab({
                 {log.createdByName}
               </p>
               {log.followUp && !log.followedUpAt && log.followUpDeadline && (
-                <p className="ml-auto text-xs font-medium whitespace-nowrap" style={{ color: "var(--primary)" }}>
+                <p className="ml-auto text-xs font-medium whitespace-nowrap" style={{ color: isOverdue ? "#dc2626" : "var(--primary)" }}>
                   Follow-up: {fmtDate(log.followUpDeadline)}
                 </p>
               )}

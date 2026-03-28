@@ -3,6 +3,8 @@ import { auth } from "@/auth";
 import { connectDB } from "@/lib/mongodb";
 import { TaskModel } from "@/lib/models/Task";
 import { ProjectModel } from "@/lib/models/Project";
+import { recordActivity } from "@/lib/activity";
+import { UserModel } from "@/lib/models/User";
 
 export async function GET(
   _req: NextRequest,
@@ -15,6 +17,14 @@ export async function GET(
   await connectDB();
 
   const docs = await TaskModel.find({ projectId }).sort({ createdAt: 1 }).lean();
+
+  // Live lookup of current user images for all assignees
+  const assigneeIds = [...new Set(docs.flatMap((d) => (d.assignees ?? []).map((a) => a.userId)))];
+  const assigneeUsers = assigneeIds.length
+    ? await UserModel.find({ _id: { $in: assigneeIds } }, { _id: 1, image: 1 }).lean()
+    : [];
+  const assigneeImgMap = Object.fromEntries(assigneeUsers.map((u) => [u._id.toString(), u.image ?? null]));
+
   return NextResponse.json(
     docs.map((doc) => ({
       id: doc._id.toString(),
@@ -25,7 +35,7 @@ export async function GET(
       assignees: (doc.assignees ?? []).map((a) => ({
         userId: a.userId,
         name: a.name,
-        image: a.image ?? undefined,
+        image: assigneeImgMap[a.userId] ?? null,
       })),
       completionDate: doc.completionDate ?? undefined,
       completedAt: doc.completedAt ?? undefined,
@@ -45,7 +55,7 @@ export async function POST(
   const session = await auth();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { projectId } = await params;
+  const { id: clientId, projectId } = await params;
   const body = await req.json();
   const { title, description, assignees, completionDate, parentTaskId } = body;
 
@@ -80,6 +90,14 @@ export async function POST(
   const projectUpdate: Record<string, unknown> = { status: projectStatus };
   if (projectStatus !== "completed") projectUpdate.completedDate = null;
   await ProjectModel.findByIdAndUpdate(projectId, { $set: projectUpdate });
+
+  await recordActivity({
+    clientId,
+    actorId: session.user.id,
+    actorName: session.user.name ?? "Unknown",
+    type: "task.created",
+    metadata: { projectId, title: doc.title },
+  });
 
   return NextResponse.json(
     {

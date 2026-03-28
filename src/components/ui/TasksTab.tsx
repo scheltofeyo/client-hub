@@ -5,11 +5,12 @@ import { Plus, ChevronDown, ChevronRight, MoreHorizontal, Check, Trash2, ListPlu
 import { useRouter } from "next/navigation";
 import { useRightPanel } from "@/components/layout/RightPanel";
 import type { Task, TaskAssignee } from "@/types";
+import UserAvatar from "@/components/ui/UserAvatar";
 
 // ── Shared styles ──────────────────────────────────────────────────────────────
 
 const inputClass =
-  "w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-purple-400/40";
+  "w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--primary)]/40";
 const inputStyle = {
   background: "var(--bg-sidebar)",
   borderColor: "var(--border)",
@@ -17,6 +18,12 @@ const inputStyle = {
 };
 const labelClass = "block text-xs font-medium mb-1";
 const labelStyle = { color: "var(--text-muted)" };
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
+function fmtDate(iso: string) {
+  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
 
 // ── Progress bar ───────────────────────────────────────────────────────────────
 
@@ -85,28 +92,15 @@ function AssigneeAvatars({
   const rest = assignees.length - shown.length;
   return (
     <div className="flex items-center -space-x-1.5">
-      {shown.map((a) => {
-        const image = userImages?.[a.userId] ?? a.image;
-        return (
-        <div
-          key={a.userId}
-          className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-semibold ring-1 ring-white dark:ring-gray-900 overflow-hidden"
-          style={{ background: "var(--primary)", color: "#fff" }}
-          title={a.name}
-        >
-          {image ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={image} alt={a.name} className="w-full h-full object-cover" />
-          ) : (
-            a.name.charAt(0).toUpperCase()
-          )}
+      {shown.map((a, i) => (
+        <div key={a.userId} className="rounded-full" style={{ boxShadow: "0 0 0 2px var(--bg-surface)", position: "relative", zIndex: i + 1 }}>
+          <UserAvatar name={a.name} image={userImages?.[a.userId] ?? a.image} size={20} />
         </div>
-        );
-      })}
+      ))}
       {rest > 0 && (
         <div
-          className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-semibold ring-1"
-          style={{ background: "var(--border)", color: "var(--text-muted)" }}
+          className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-semibold"
+          style={{ background: "var(--border)", color: "var(--text-muted)", boxShadow: "0 0 0 2px var(--bg-surface)", position: "relative", zIndex: shown.length + 1 }}
         >
           +{rest}
         </div>
@@ -366,17 +360,7 @@ function TaskForm({
                       style={{ color: "var(--text-primary)" }}
                     >
                       <div className="flex items-center gap-2">
-                        <div
-                          className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-semibold overflow-hidden flex-shrink-0"
-                          style={{ background: "var(--primary)", color: "#fff" }}
-                        >
-                          {u.image ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img src={u.image} alt={u.name} className="w-full h-full object-cover" />
-                          ) : (
-                            firstname.charAt(0).toUpperCase()
-                          )}
-                        </div>
+                        <UserAvatar name={u.name} image={u.image} size={24} />
                         <span>{firstname}</span>
                       </div>
                       {isSelected && <Check size={13} style={{ color: "var(--primary)" }} />}
@@ -435,13 +419,13 @@ function SubtaskRow({
 
   return (
     <div
-      className="flex items-center gap-2 py-2 group cursor-pointer rounded-lg -mx-2 px-2"
+      className="flex items-start gap-2 py-2 group cursor-pointer rounded-lg -mx-2 px-2"
       onClick={() => onEdit(task)}
     >
       <button
         type="button"
         onClick={(e) => { e.stopPropagation(); onToggleComplete(task); }}
-        className="flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors"
+        className="flex-shrink-0 mt-px w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors"
         style={{
           borderColor: isDone ? "var(--primary-light)" : "var(--border)",
           background: isDone ? "var(--primary-light)" : "transparent",
@@ -451,7 +435,7 @@ function SubtaskRow({
       </button>
 
       <span
-        className={`flex-1 text-sm truncate transition-colors ${isDone ? "" : "text-[var(--text-primary)] group-hover:text-[var(--primary)]"}`}
+        className={`flex-1 text-sm transition-colors ${isDone ? "" : "text-[var(--text-primary)] group-hover:text-[var(--primary)]"}`}
         style={{
           color: isDone ? "var(--text-muted)" : undefined,
           textDecoration: "none",
@@ -464,14 +448,37 @@ function SubtaskRow({
         className="flex items-center gap-2 flex-shrink-0"
         onClick={(e) => e.stopPropagation()}
       >
-        <AssigneeAvatars assignees={task.assignees} userImages={userImages} />
-        {task.completionDate && (
-          <span className="text-xs" style={{ color: isOverdue ? "var(--destructive, #ef4444)" : "var(--text-muted)" }}>
-            {task.completionDate}
-          </span>
+        {isDone ? (
+          <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+            {task.completedAt && (
+              <span className="text-xs leading-none" style={{ color: "var(--text-muted)" }}>
+                Completed on {fmtDate(task.completedAt)}
+              </span>
+            )}
+            {task.completedById && (
+              <UserAvatar name={task.completedByName ?? "?"} image={userImages?.[task.completedById]} size={20} />
+            )}
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+              {task.createdAt && (
+                <span className="text-xs leading-none" style={{ color: "var(--text-muted)" }}>
+                  Created on {fmtDate(task.createdAt)}
+                </span>
+              )}
+              <UserAvatar name={task.createdByName} image={userImages?.[task.createdById]} size={20} />
+            </div>
+            <AssigneeAvatars assignees={task.assignees} userImages={userImages} />
+            {task.completionDate && (
+              <span className="text-xs" style={{ color: isOverdue ? "var(--destructive, #ef4444)" : "var(--text-muted)" }}>
+                {task.completionDate}
+              </span>
+            )}
+          </>
         )}
 
-        {!readOnly && (
+        {!readOnly && !isDone && (
           <div className="relative">
             <button
               type="button"
@@ -554,12 +561,12 @@ function TaskRow({
     <div className="border-b" style={{ borderColor: "var(--border)" }}>
       {/* Main task row */}
       <div
-        className="flex items-center gap-2 py-2.5 group cursor-pointer rounded-lg -mx-2 px-2"
+        className="flex items-start gap-2 py-2.5 group cursor-pointer rounded-lg -mx-2 px-2"
         onClick={() => onEdit(task)}
       >
         {/* Chevron / expand slot */}
         <div
-          className="flex-shrink-0 w-4 flex items-center justify-center"
+          className="flex-shrink-0 w-4 mt-px flex items-center justify-center"
           onClick={(e) => e.stopPropagation()}
         >
           {hasSubtasks && (
@@ -577,7 +584,7 @@ function TaskRow({
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); onToggleComplete(task); }}
-          className="flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors"
+          className="flex-shrink-0 mt-px w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors"
           style={{
             borderColor: isDone ? "var(--primary-light)" : "var(--border)",
             background: isDone ? "var(--primary-light)" : "transparent",
@@ -589,9 +596,9 @@ function TaskRow({
 
         {/* Content */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex items-start justify-between gap-2">
             <span
-              className={`text-sm font-medium truncate transition-colors ${isDone ? "" : "text-[var(--text-primary)] group-hover:text-[var(--primary)]"}`}
+              className={`text-sm font-medium transition-colors ${isDone ? "" : "text-[var(--text-primary)] group-hover:text-[var(--primary)]"}`}
               style={{
                 color: isDone ? "var(--text-muted)" : undefined,
                 textDecoration: "none",
@@ -604,22 +611,45 @@ function TaskRow({
               className="flex items-center gap-2 flex-shrink-0"
               onClick={(e) => e.stopPropagation()}
             >
-              <AssigneeAvatars assignees={task.assignees} userImages={userImages} />
-              {hasOverdueSubtask && (
-                <AlertTriangle
-                  size={13}
-                  style={{ color: "var(--destructive, #ef4444)" }}
-                  aria-label="Subtask overdue"
-                />
-              )}
-              {task.completionDate && (
-                <span className="text-xs" style={{ color: isOverdue ? "var(--destructive, #ef4444)" : "var(--text-muted)" }}>
-                  {task.completionDate}
-                </span>
+              {isDone ? (
+                <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  {task.completedAt && (
+                    <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                      Completed on {fmtDate(task.completedAt)}
+                    </span>
+                  )}
+                  {task.completedById && (
+                    <UserAvatar name={task.completedByName ?? "?"} image={userImages?.[task.completedById]} size={20} />
+                  )}
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {task.createdAt && (
+                      <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                        Created on {fmtDate(task.createdAt)}
+                      </span>
+                    )}
+                    <UserAvatar name={task.createdByName} image={userImages?.[task.createdById]} size={20} />
+                  </div>
+                  <AssigneeAvatars assignees={task.assignees} userImages={userImages} />
+                  {hasOverdueSubtask && (
+                    <AlertTriangle
+                      size={13}
+                      style={{ color: "var(--destructive, #ef4444)" }}
+                      aria-label="Subtask overdue"
+                    />
+                  )}
+                  {task.completionDate && (
+                    <span className="text-xs" style={{ color: isOverdue ? "var(--destructive, #ef4444)" : "var(--text-muted)" }}>
+                      {task.completionDate}
+                    </span>
+                  )}
+                </>
               )}
 
               {/* Kebab menu */}
-              <div className="relative">
+              {!isDone && <div className="relative">
                 <button
                   type="button"
                   onClick={() => setMenuOpen((v) => !v)}
@@ -661,7 +691,7 @@ function TaskRow({
                     </div>
                   </>
                 )}
-              </div>
+              </div>}
             </div>
           </div>
 
@@ -874,38 +904,35 @@ export default function TasksTab({
 
   async function handleToggleComplete(task: Task) {
     const completed = !task.completedAt;
-    // Optimistic update
+    // For top-level tasks, cascade to all subtasks
+    const affected = task.parentTaskId ? [task] : [task, ...subtasksOf(task.id)];
+
+    // Optimistic update for all affected tasks
+    const now = new Date().toISOString();
     setTasks((prev) =>
-      prev.map((t) =>
-        t.id === task.id
-          ? {
-              ...t,
-              completedAt: completed ? new Date().toISOString() : undefined,
-              completedById: completed ? undefined : undefined,
-              completedByName: completed ? undefined : undefined,
-            }
-          : t
+      prev.map((t) => {
+        if (!affected.some((a) => a.id === t.id)) return t;
+        return { ...t, completedAt: completed ? now : undefined, completedById: undefined, completedByName: undefined };
+      })
+    );
+
+    const results = await Promise.all(
+      affected.map((t) =>
+        fetch(`/api/clients/${clientId}/projects/${projectId}/tasks/${t.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ completed }),
+        }).then((r) => (r.ok ? r.json() : null))
       )
     );
 
-    const res = await fetch(
-      `/api/clients/${clientId}/projects/${projectId}/tasks/${task.id}`,
-      {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ completed }),
-      }
-    );
-
-    if (res.ok) {
-      const updated = await res.json();
-      setTasks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+    const saved = results.filter(Boolean) as Task[];
+    if (saved.length === affected.length) {
+      setTasks((prev) => prev.map((t) => saved.find((s) => s.id === t.id) ?? t));
       router.refresh();
     } else {
-      // Revert on failure
-      setTasks((prev) =>
-        prev.map((t) => (t.id === task.id ? task : t))
-      );
+      // Revert all on any failure
+      setTasks((prev) => prev.map((t) => affected.find((a) => a.id === t.id) ?? t));
     }
   }
 

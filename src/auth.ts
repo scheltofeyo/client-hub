@@ -38,6 +38,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         if (dbUser) {
           token.userId = dbUser._id.toString();
           token.isAdmin = dbUser.isAdmin;
+          token.image = dbUser.image ?? null;
         }
       }
       return token;
@@ -46,6 +47,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     async session({ session, token }) {
       session.user.id = token.userId as string;
       session.user.isAdmin = (token.isAdmin as boolean) ?? false;
+      session.user.image = (token.image as string | null) ?? undefined;
       return session;
     },
   },

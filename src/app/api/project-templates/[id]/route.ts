@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { connectDB } from "@/lib/mongodb";
 import { ProjectTemplateModel } from "@/lib/models/ProjectTemplate";
+import { TemplateTaskModel } from "@/lib/models/TemplateTask";
 
 export async function PATCH(
   req: NextRequest,
@@ -55,5 +56,6 @@ export async function DELETE(
   await connectDB();
   const doc = await ProjectTemplateModel.findByIdAndDelete(id).lean();
   if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  await TemplateTaskModel.deleteMany({ templateId: id });
   return NextResponse.json({ success: true });
 }

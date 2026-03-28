@@ -71,6 +71,18 @@ export interface ProjectTemplate {
   defaultDescription?: string;
   defaultSoldPrice?: number;
   defaultServiceId?: string;
+  taskCount?: number;
+  createdAt?: string;
+}
+
+export interface TemplateTask {
+  id: string;
+  templateId: string;
+  parentTaskId?: string;
+  title: string;
+  description?: string;
+  assignToClientLead: boolean;
+  order: number;
   createdAt?: string;
 }
 
@@ -84,7 +96,8 @@ export interface LogSignal {
 export interface Log {
   id: string;
   clientId: string;
-  contactId?: string;
+  contactId?: string; // legacy
+  contactIds: string[];
   date: string;
   summary: string;
   signalIds: string[];
