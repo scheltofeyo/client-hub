@@ -16,7 +16,7 @@ export const authConfig: NextAuthConfig = {
   callbacks: {
     authorized({ auth, request }) {
       const { pathname } = request.nextUrl;
-      if (pathname.startsWith("/api/auth") || pathname === "/login") return true;
+      if (pathname.startsWith("/api/auth") || pathname === "/login" || pathname.startsWith("/api/internal/")) return true;
       return !!auth;
     },
     async session({ session, token }) {
