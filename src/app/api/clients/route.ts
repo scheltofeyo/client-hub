@@ -56,8 +56,7 @@ export async function POST(req: NextRequest) {
     const appUrl = process.env.APP_URL;
     if (webhookUrl && secret && appUrl) {
       try {
-        console.log("[folder-webhook] Calling GAS webhook:", webhookUrl);
-        const res = await fetch(webhookUrl, {
+        await fetch(webhookUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -67,8 +66,6 @@ export async function POST(req: NextRequest) {
             secret,
           }),
         });
-        const text = await res.text();
-        console.log("[folder-webhook] GAS response:", res.status, text);
       } catch (err) {
         console.error("[folder-webhook] Failed to call GAS webhook:", err);
       }
