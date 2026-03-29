@@ -2,18 +2,23 @@
 
 import Link from "next/link";
 import { useSearchParams, usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
-import { Settings, Briefcase, Sheet, BookOpen, Activity, ChevronRight, ChevronDown, LayoutDashboard } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { Settings, Briefcase, Sheet, BookOpen, Activity, ChevronRight, ChevronDown, LayoutDashboard, CalendarDays, CheckSquare } from "lucide-react";
 import type { Client, Project, Sheet as SheetType } from "@/types";
 
 const tabItems = [
   { tab: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { tab: "tasks", label: "Tasks", icon: CheckSquare },
   { tab: "projects", label: "Projects", icon: Briefcase },
+  { tab: "divider-1" },
   { tab: "sheets", label: "Sheets", icon: Sheet },
+  { tab: "divider-2" },
+  { tab: "events", label: "Events", icon: CalendarDays },
   { tab: "logbook", label: "Logbook", icon: BookOpen },
   { tab: "activity", label: "Activity", icon: Activity },
+  { tab: "divider-3" },
   { tab: "settings", label: "Settings", icon: Settings },
-];
+] as const;
 
 export default function ClientPanelNav({
   client,
@@ -50,7 +55,8 @@ export default function ClientPanelNav({
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const rawTab = searchParams.get("tab")?.toLowerCase() ?? "dashboard";
-  const activeTab = tabItems.some((t) => t.tab === rawTab) ? rawTab : "dashboard";
+  const navTabs = tabItems.filter((t) => !t.tab.startsWith("divider"));
+  const activeTab = navTabs.some((t) => t.tab === rawTab) ? rawTab : "dashboard";
 
   const isOnProjectDetail = !!pathname.match(new RegExp(`/clients/${client.id}/projects/[^/]+`));
   const isOnProjectsArea = activeTab === "projects" || isOnProjectDetail;
@@ -84,12 +90,23 @@ export default function ClientPanelNav({
 
       {/* Tab nav */}
       <div className="px-2 space-y-0.5">
-        {tabItems.map(({ tab, label, icon: Icon }) => {
+        {tabItems.map((item) => {
+          if (item.tab.startsWith("divider")) {
+            return (
+              <div
+                key={item.tab}
+                className="my-1.5 mx-2"
+                style={{ borderTop: "1px solid var(--border)" }}
+              />
+            );
+          }
+
+          const { tab, label, icon: Icon } = item as { tab: string; label: string; icon: React.ElementType };
           const active = tab === "projects"
             ? activeTab === "projects" && !isOnProjectDetail
             : tab === "sheets"
             ? activeTab === "sheets" && !isOnSheetDetail
-            : activeTab === tab && !isOnProjectsArea && !isOnSheetDetail && activeTab !== "settings";
+            : activeTab === tab && !isOnProjectsArea && !isOnSheetDetail;
           const isProjects = tab === "projects";
           const isSheets = tab === "sheets";
 
@@ -138,7 +155,7 @@ export default function ClientPanelNav({
                       return (
                         <Link
                           key={project.id}
-                          href={`/clients/${client.id}/projects/${project.id}`}
+                          href={`/clients/${client.id}/projects/${project.id}/tasks`}
                           data-active={projectActive}
                           className="flex items-center gap-2 pl-4 pr-2 py-1.5 ml-4 rounded-lg text-sm transition-colors nav-panel-item truncate"
                         >

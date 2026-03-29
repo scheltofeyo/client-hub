@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Plus, FileText, ArrowLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useRightPanel } from "@/components/layout/RightPanel";
-import type { ProjectTemplate, Service } from "@/types";
+import type { ProjectLabel, ProjectTemplate, Service } from "@/types";
 
 const inputClass =
   "w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--primary)]/40";
@@ -20,20 +20,31 @@ function ProjectForm({
   clientId,
   template,
   services,
+  labels,
   onBack,
   onClose,
 }: {
   clientId: string;
   template: ProjectTemplate | null;
   services: Service[];
+  labels: ProjectLabel[];
   onBack: () => void;
   onClose: () => void;
 }) {
+  function defaultDeliveryDate(days?: number): string {
+    if (!days) return "";
+    const d = new Date();
+    d.setDate(d.getDate() + days);
+    return d.toISOString().slice(0, 10);
+  }
+
   const [form, setForm] = useState({
     title: template?.name ?? "",
     description: template?.defaultDescription ?? "",
     soldPrice: template?.defaultSoldPrice != null ? String(template.defaultSoldPrice) : "",
     serviceId: template?.defaultServiceId ?? "",
+    labelId: "",
+    deliveryDate: defaultDeliveryDate(template?.defaultDeliveryDays),
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -59,6 +70,8 @@ function ProjectForm({
         soldPrice: form.soldPrice ? Number(form.soldPrice) : undefined,
         templateId: template?.id,
         serviceId: form.serviceId || undefined,
+        labelId: form.labelId || undefined,
+        deliveryDate: form.deliveryDate || undefined,
       }),
     });
 
@@ -70,8 +83,9 @@ function ProjectForm({
       return;
     }
 
+    const data = await res.json();
     onClose();
-    router.refresh();
+    router.push(`/clients/${clientId}/projects/${data.id}`);
   }
 
   return (
@@ -121,24 +135,37 @@ function ProjectForm({
       </div>
 
       <div>
-        <label htmlFor="ap-service" className={labelClass} style={labelStyle}>
+        <p className={labelClass} style={labelStyle}>
           Connect to a service <span className="text-red-400">*</span>
-        </label>
-        <select
-          id="ap-service"
-          value={form.serviceId}
-          onChange={(e) => set("serviceId", e.target.value)}
-          required
-          className={inputClass}
-          style={inputStyle}
-        >
-          <option value="">— Select a service —</option>
-          {services.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name}
-            </option>
-          ))}
-        </select>
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {services.map((s) => {
+            const selected = form.serviceId === s.id;
+            return (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => set("serviceId", s.id)}
+                className="px-2.5 py-0.5 rounded-full text-xs font-medium border transition-colors"
+                style={
+                  selected
+                    ? {
+                        background: "var(--primary)",
+                        borderColor: "var(--primary)",
+                        color: "#fff",
+                      }
+                    : {
+                        background: "var(--bg-sidebar)",
+                        borderColor: "var(--border)",
+                        color: "var(--text-secondary)",
+                      }
+                }
+              >
+                {s.name}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       <div>
@@ -156,21 +183,64 @@ function ProjectForm({
         />
       </div>
 
-      <div>
-        <label htmlFor="ap-price" className={labelClass} style={labelStyle}>
-          Sold price (€)
+      <div className="!mt-9">
+        <label htmlFor="ap-delivery" className={labelClass} style={labelStyle}>
+          Expected delivery date
         </label>
         <input
-          id="ap-price"
-          type="number"
-          min={0}
-          step={1}
-          value={form.soldPrice}
-          onChange={(e) => set("soldPrice", e.target.value)}
-          placeholder="e.g. 5000"
+          id="ap-delivery"
+          type="date"
+          value={form.deliveryDate}
+          onChange={(e) => set("deliveryDate", e.target.value)}
           className={inputClass}
           style={inputStyle}
         />
+        <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+          Automatically creates an event for this delivery.
+        </p>
+      </div>
+
+      <div className="!mt-9">
+        <p className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: "var(--text-muted)" }}>
+          Financial information
+        </p>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label htmlFor="ap-price" className={labelClass} style={labelStyle}>
+              Sold price (€)
+            </label>
+            <input
+              id="ap-price"
+              type="number"
+              min={0}
+              step={1}
+              value={form.soldPrice}
+              onChange={(e) => set("soldPrice", e.target.value)}
+              placeholder="e.g. 5000"
+              className={inputClass}
+              style={inputStyle}
+            />
+          </div>
+          <div>
+            <label htmlFor="ap-label" className={labelClass} style={labelStyle}>
+              Label
+            </label>
+            <select
+              id="ap-label"
+              value={form.labelId}
+              onChange={(e) => set("labelId", e.target.value)}
+              className={inputClass}
+              style={inputStyle}
+            >
+              <option value="">— No label —</option>
+              {labels.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
       </div>
 
       {error && <p className="text-xs text-red-500">{error}</p>}
@@ -195,7 +265,7 @@ function ProjectForm({
   );
 }
 
-function TemplatePicker({
+export function TemplatePicker({
   clientId,
   onClose,
 }: {
@@ -204,6 +274,7 @@ function TemplatePicker({
 }) {
   const [templates, setTemplates] = useState<ProjectTemplate[]>([]);
   const [services, setServices] = useState<Service[]>([]);
+  const [labels, setLabels] = useState<ProjectLabel[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<ProjectTemplate | null | "clean">(undefined as unknown as ProjectTemplate | null | "clean");
   const [started, setStarted] = useState(false);
@@ -212,10 +283,12 @@ function TemplatePicker({
     Promise.all([
       fetch("/api/project-templates").then((r) => r.json()),
       fetch("/api/services").then((r) => r.json()),
+      fetch("/api/project-labels").then((r) => r.json()),
     ])
-      .then(([tplData, svcData]) => {
+      .then(([tplData, svcData, lblData]) => {
         setTemplates(Array.isArray(tplData) ? tplData : []);
         setServices(Array.isArray(svcData) ? svcData : []);
+        setLabels(Array.isArray(lblData) ? lblData : []);
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -228,6 +301,7 @@ function TemplatePicker({
         clientId={clientId}
         template={template}
         services={services}
+        labels={labels}
         onBack={() => setStarted(false)}
         onClose={onClose}
       />

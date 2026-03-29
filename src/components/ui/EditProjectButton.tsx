@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Pencil, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useRightPanel } from "@/components/layout/RightPanel";
-import type { Project, Service } from "@/types";
+import type { Project, ProjectLabel, Service } from "@/types";
 
 const inputClass =
   "w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--primary)]/40";
@@ -20,19 +20,23 @@ function EditProjectForm({
   project,
   clientId,
   services,
+  labels,
   onClose,
 }: {
   project: Project;
   clientId: string;
   services: Service[];
+  labels: ProjectLabel[];
   onClose: () => void;
 }) {
   const [form, setForm] = useState({
     title: project.title,
     description: project.description ?? "",
     completedDate: project.completedDate ?? "",
+    deliveryDate: project.deliveryDate ?? "",
     soldPrice: project.soldPrice != null ? String(project.soldPrice) : "",
     serviceId: project.serviceId ?? "",
+    labelId: project.labelId ?? "",
   });
   const [loading, setLoading] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -57,8 +61,10 @@ function EditProjectForm({
         title: form.title,
         description: form.description || undefined,
         ...(project.status === "completed" ? { completedDate: form.completedDate || undefined } : {}),
+        deliveryDate: form.deliveryDate || undefined,
         soldPrice: form.soldPrice ? Number(form.soldPrice) : undefined,
         serviceId: form.serviceId || undefined,
+        labelId: form.labelId || undefined,
       }),
     });
 
@@ -94,7 +100,7 @@ function EditProjectForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-5">
       <div>
         <label htmlFor="ep-title" className={labelClass} style={labelStyle}>
           Title <span className="text-red-400">*</span>
@@ -111,24 +117,37 @@ function EditProjectForm({
       </div>
 
       <div>
-        <label htmlFor="ep-service" className={labelClass} style={labelStyle}>
+        <p className={labelClass} style={labelStyle}>
           Connect to a service <span className="text-red-400">*</span>
-        </label>
-        <select
-          id="ep-service"
-          value={form.serviceId}
-          onChange={(e) => set("serviceId", e.target.value)}
-          required
-          className={inputClass}
-          style={inputStyle}
-        >
-          <option value="">— Select a service —</option>
-          {services.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name}
-            </option>
-          ))}
-        </select>
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {services.map((s) => {
+            const selected = form.serviceId === s.id;
+            return (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => set("serviceId", s.id)}
+                className="px-2.5 py-0.5 rounded-full text-xs font-medium border transition-colors"
+                style={
+                  selected
+                    ? {
+                        background: "var(--primary)",
+                        borderColor: "var(--primary)",
+                        color: "#fff",
+                      }
+                    : {
+                        background: "var(--bg-sidebar)",
+                        borderColor: "var(--border)",
+                        color: "var(--text-secondary)",
+                      }
+                }
+              >
+                {s.name}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       <div>
@@ -161,21 +180,64 @@ function EditProjectForm({
         </div>
       )}
 
-      <div>
-        <label htmlFor="ep-price" className={labelClass} style={labelStyle}>
-          Sold price (€)
+      <div className="!mt-9">
+        <label htmlFor="ep-delivery" className={labelClass} style={labelStyle}>
+          Expected delivery date
         </label>
         <input
-          id="ep-price"
-          type="number"
-          min={0}
-          step={1}
-          value={form.soldPrice}
-          onChange={(e) => set("soldPrice", e.target.value)}
-          placeholder="e.g. 5000"
+          id="ep-delivery"
+          type="date"
+          value={form.deliveryDate}
+          onChange={(e) => set("deliveryDate", e.target.value)}
           className={inputClass}
           style={inputStyle}
         />
+        <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+          Automatically creates an event for this delivery.
+        </p>
+      </div>
+
+      <div className="!mt-9">
+        <p className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: "var(--text-muted)" }}>
+          Financial information
+        </p>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label htmlFor="ep-price" className={labelClass} style={labelStyle}>
+              Sold price (€)
+            </label>
+            <input
+              id="ep-price"
+              type="number"
+              min={0}
+              step={1}
+              value={form.soldPrice}
+              onChange={(e) => set("soldPrice", e.target.value)}
+              placeholder="e.g. 5000"
+              className={inputClass}
+              style={inputStyle}
+            />
+          </div>
+          <div>
+            <label htmlFor="ep-label" className={labelClass} style={labelStyle}>
+              Label
+            </label>
+            <select
+              id="ep-label"
+              value={form.labelId}
+              onChange={(e) => set("labelId", e.target.value)}
+              className={inputClass}
+              style={inputStyle}
+            >
+              <option value="">— No label —</option>
+              {labels.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
       </div>
 
       {error && <p className="text-xs text-red-500">{error}</p>}
@@ -223,10 +285,12 @@ export default function EditProjectButton({
   project,
   clientId,
   services,
+  labels,
 }: {
   project: Project;
   clientId: string;
   services: Service[];
+  labels: ProjectLabel[];
 }) {
   const { openPanel, closePanel } = useRightPanel();
 
@@ -239,6 +303,7 @@ export default function EditProjectButton({
             project={project}
             clientId={clientId}
             services={services}
+            labels={labels}
             onClose={closePanel}
           />
         )

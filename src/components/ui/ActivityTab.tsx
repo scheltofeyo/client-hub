@@ -2,10 +2,10 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { NotebookPen, CheckSquare, FolderKanban, UserPlus, Building2, Trash2, CheckCheck, ChevronDown, ChevronRight } from "lucide-react";
+import { NotebookPen, CheckSquare, FolderKanban, UserPlus, Building2, Trash2, CheckCheck, ChevronDown, ChevronRight, CalendarDays } from "lucide-react";
 import UserAvatar from "@/components/ui/UserAvatar";
 
-interface ActivityEvent {
+export interface ActivityEvent {
   id: string;
   clientId: string;
   actorId: string;
@@ -45,6 +45,7 @@ function eventDescription(event: ActivityEvent): React.ReactNode {
   const added = metadata.added as string[] | undefined;
   const removed = metadata.removed as string[] | undefined;
   const followUp = metadata.followUp as boolean | undefined;
+  const followUpAction = metadata.followUpAction as string | undefined;
 
   switch (type) {
     case "log.created":
@@ -56,7 +57,9 @@ function eventDescription(event: ActivityEvent): React.ReactNode {
     case "log.deleted":
       return <><Bold>Log</Bold><Dim> deleted</Dim></>;
     case "log.followedup":
-      return <Dim>Follow-up marked as done</Dim>;
+      return followUpAction
+        ? <><Italic>{followUpAction}</Italic><Dim> marked as done</Dim></>
+        : <Dim>Follow-up marked as done</Dim>;
     case "task.created":
       return title
         ? <><Dim>New </Dim><Bold>task</Bold><Dim> added: </Dim><Italic>{title}</Italic></>
@@ -91,6 +94,18 @@ function eventDescription(event: ActivityEvent): React.ReactNode {
     }
     case "client.updated":
       return <Dim>Company details updated</Dim>;
+    case "event.created":
+      return title
+        ? <><Dim>New </Dim><Bold>event</Bold><Dim> added: </Dim><Italic>{title}</Italic></>
+        : <><Dim>New </Dim><Bold>event</Bold><Dim> added</Dim></>;
+    case "event.updated":
+      return title
+        ? <><Bold>Event</Bold><Dim> updated: </Dim><Italic>{title}</Italic></>
+        : <><Bold>Event</Bold><Dim> updated</Dim></>;
+    case "event.deleted":
+      return title
+        ? <><Bold>Event</Bold><Dim> deleted: </Dim><Italic>{title}</Italic></>
+        : <><Bold>Event</Bold><Dim> deleted</Dim></>;
     default:
       return <Dim>Activity recorded</Dim>;
   }
@@ -112,6 +127,9 @@ function typeSummaryLabel(type: string, count: number): React.ReactNode {
     case "log.followedup":         return <><Bold>{n}</Bold><Dim> follow-up{s} completed</Dim></>;
     case "contact.changed":        return <><Bold>{n}</Bold><Dim> contact change{s}</Dim></>;
     case "client.updated":         return <><Bold>{n}</Bold><Dim> company update{s}</Dim></>;
+    case "event.created":          return <><Bold>{n} event{s}</Bold><Dim> added</Dim></>;
+    case "event.updated":          return <><Bold>{n} event{s}</Bold><Dim> updated</Dim></>;
+    case "event.deleted":          return <><Bold>{n} event{s}</Bold><Dim> deleted</Dim></>;
     default:                       return <><Bold>{n}</Bold><Dim> activit{n > 1 ? "ies" : "y"}</Dim></>;
   }
 }
@@ -124,6 +142,7 @@ function eventIcon(type: string) {
   if (type.startsWith("project.")) return <FolderKanban size={14} />;
   if (type.startsWith("contact.")) return <UserPlus size={14} />;
   if (type.startsWith("client.")) return <Building2 size={14} />;
+  if (type.startsWith("event.")) return <CalendarDays size={14} />;
   return <Building2 size={14} />;
 }
 
@@ -135,6 +154,7 @@ function eventIconBg(type: string): string {
   if (type.startsWith("task.")) return "bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400";
   if (type.startsWith("project.")) return "bg-[var(--primary-light)] text-[var(--primary)]";
   if (type.startsWith("contact.")) return "bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400";
+  if (type.startsWith("event.")) return "bg-teal-100 text-teal-600 dark:bg-teal-900/30 dark:text-teal-400";
   return "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400";
 }
 
@@ -155,52 +175,21 @@ function timeAgo(isoString: string): string {
   return `${Math.floor(days / 365)}y ago`;
 }
 
-function getPeriodKey(isoString: string, now: Date): string {
-  const date = new Date(isoString);
-  const today = new Date(now);
-  today.setHours(0, 0, 0, 0);
-  const dateDay = new Date(date);
-  dateDay.setHours(0, 0, 0, 0);
-  const diffDays = Math.round((today.getTime() - dateDay.getTime()) / 86400000);
-
-  if (diffDays < 7) return dateDay.toISOString().split("T")[0];
-  if (diffDays < 30) {
-    const dow = dateDay.getDay();
-    const monday = new Date(dateDay);
-    monday.setDate(dateDay.getDate() - ((dow + 6) % 7));
-    return `w-${monday.toISOString().split("T")[0]}`;
-  }
-  if (diffDays < 180) {
-    return `m-${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-  }
-  const half = date.getMonth() < 6 ? "h1" : "h2";
-  return `h-${date.getFullYear()}-${half}`;
+export function getPeriodKey(isoString: string, now: Date): string {
+  const diffH = (now.getTime() - new Date(isoString).getTime()) / 3600000;
+  if (diffH < 24) return "last-24h";
+  if (diffH < 168) return "this-week";
+  if (diffH < 720) return "this-month";
+  const d = new Date(isoString);
+  return `m-${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
-function getPeriodLabel(isoString: string, now: Date): string {
-  const date = new Date(isoString);
-  const today = new Date(now);
-  today.setHours(0, 0, 0, 0);
-  const dateDay = new Date(date);
-  dateDay.setHours(0, 0, 0, 0);
-  const diffDays = Math.round((today.getTime() - dateDay.getTime()) / 86400000);
-
-  if (diffDays === 0) return "Today";
-  if (diffDays === 1) return "Yesterday";
-  if (diffDays < 7) {
-    return date.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" });
-  }
-  if (diffDays < 30) {
-    const dow = dateDay.getDay();
-    const monday = new Date(dateDay);
-    monday.setDate(dateDay.getDate() - ((dow + 6) % 7));
-    return `Week of ${monday.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
-  }
-  if (diffDays < 180) {
-    return date.toLocaleDateString("en-US", { month: "long", year: "numeric" });
-  }
-  const year = date.getFullYear();
-  return date.getMonth() < 6 ? `Jan – Jun ${year}` : `Jul – Dec ${year}`;
+export function getPeriodLabel(isoString: string, now: Date): string {
+  const diffH = (now.getTime() - new Date(isoString).getTime()) / 3600000;
+  if (diffH < 24) return "Last 24 hours";
+  if (diffH < 168) return "This week";
+  if (diffH < 720) return "This month";
+  return new Date(isoString).toLocaleDateString("en-US", { month: "long", year: "numeric" });
 }
 
 function eventNavUrl(clientId: string, event: ActivityEvent): string | null {
@@ -219,10 +208,13 @@ function eventNavUrl(clientId: string, event: ActivityEvent): string | null {
   if (type === "contact.changed" || type === "client.updated") {
     return `/clients/${clientId}`;
   }
+  if (type.startsWith("event.")) {
+    return `/clients/${clientId}?tab=Events`;
+  }
   return null;
 }
 
-function CollapsibleTypeGroup({ events, type, clientId }: { events: ActivityEvent[]; type: string; clientId: string }) {
+export function CollapsibleTypeGroup({ events, type, clientId }: { events: ActivityEvent[]; type: string; clientId: string }) {
   const [expanded, setExpanded] = useState(false);
   const router = useRouter();
 

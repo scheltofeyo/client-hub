@@ -2,8 +2,9 @@
 
 import { Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRightPanel } from "@/components/layout/RightPanel";
+import type { ClientStatusOption, ClientPlatformOption } from "@/types";
 
 const inputClass =
   "w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--primary)]/40";
@@ -28,7 +29,14 @@ function AddClientForm({ onClose }: { onClose: () => void }) {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [statusOptions, setStatusOptions] = useState<ClientStatusOption[]>([]);
+  const [platformOptions, setPlatformOptions] = useState<ClientPlatformOption[]>([]);
   const router = useRouter();
+
+  useEffect(() => {
+    fetch("/api/client-statuses").then((r) => r.json()).then(setStatusOptions).catch(() => {});
+    fetch("/api/client-platforms").then((r) => r.json()).then(setPlatformOptions).catch(() => {});
+  }, []);
 
   function set(field: string, value: string) {
     setForm((f) => ({ ...f, [field]: value }));
@@ -154,9 +162,9 @@ function AddClientForm({ onClose }: { onClose: () => void }) {
             style={inputStyle}
           >
             <option value="">— None —</option>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-            <option value="prospect">Prospect</option>
+            {statusOptions.map((s) => (
+              <option key={s.id} value={s.slug}>{s.label}</option>
+            ))}
           </select>
         </div>
         <div>
@@ -171,8 +179,9 @@ function AddClientForm({ onClose }: { onClose: () => void }) {
             style={inputStyle}
           >
             <option value="">Not on platform</option>
-            <option value="summ_core">SUMM Core</option>
-            <option value="summ_suite">SUMM Suite</option>
+            {platformOptions.map((p) => (
+              <option key={p.id} value={p.slug}>{p.label}</option>
+            ))}
           </select>
         </div>
       </div>

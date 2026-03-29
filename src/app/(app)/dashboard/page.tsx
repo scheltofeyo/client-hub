@@ -14,7 +14,7 @@ export default async function DashboardPage() {
   ];
 
   return (
-    <div className="flex-1 overflow-y-auto p-8 space-y-8">
+    <div className="flex-1 overflow-y-auto p-8 space-y-8" style={{ background: "var(--bg-surface)" }}>
       <h1 className="text-xl font-semibold" style={{ color: "var(--text-primary)" }}>
         Dashboard
       </h1>

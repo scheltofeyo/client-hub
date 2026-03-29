@@ -16,7 +16,7 @@ export async function GET(
   const { projectId } = await params;
   await connectDB();
 
-  const docs = await TaskModel.find({ projectId }).sort({ createdAt: 1 }).lean();
+  const docs = await TaskModel.find({ projectId }).sort({ order: 1, createdAt: 1 }).lean();
 
   // Live lookup of current user images for all assignees
   const assigneeIds = [...new Set(docs.flatMap((d) => (d.assignees ?? []).map((a) => a.userId)))];
@@ -41,6 +41,7 @@ export async function GET(
       completedAt: doc.completedAt ?? undefined,
       completedById: doc.completedById ?? undefined,
       completedByName: doc.completedByName ?? undefined,
+      order: doc.order ?? 0,
       createdById: doc.createdById,
       createdByName: doc.createdByName,
       createdAt: doc.createdAt?.toISOString(),
@@ -65,13 +66,26 @@ export async function POST(
 
   await connectDB();
 
+  // Inherit assignees from parent task; auto-increment order for top-level tasks
+  let taskAssignees = assignees ?? [];
+  let taskOrder = 0;
+  if (parentTaskId) {
+    const parent = await TaskModel.findById(parentTaskId).lean();
+    taskAssignees = parent?.assignees ?? [];
+  } else {
+    const last = await TaskModel.findOne({ projectId, parentTaskId: null }).sort({ order: -1 }).lean();
+    taskOrder = last ? (last.order ?? 0) + 1 : 0;
+  }
+
   const doc = await TaskModel.create({
+    clientId,
     projectId,
     parentTaskId: parentTaskId || undefined,
     title: title.trim(),
     description: description?.trim() || undefined,
-    assignees: assignees ?? [],
+    assignees: taskAssignees,
     completionDate: completionDate || undefined,
+    order: taskOrder,
     createdById: session.user.id,
     createdByName: session.user.name ?? "Unknown",
   });
@@ -109,6 +123,7 @@ export async function POST(
       assignees: doc.assignees ?? [],
       completionDate: doc.completionDate ?? undefined,
       completedAt: doc.completedAt ?? undefined,
+      order: doc.order ?? 0,
       createdById: doc.createdById,
       createdByName: doc.createdByName,
       createdAt: doc.createdAt?.toISOString(),

@@ -22,7 +22,7 @@ export async function PATCH(
   }
 
   const body = await req.json();
-  const { title, description, status, completedDate, soldPrice, serviceId } = body;
+  const { title, description, status, completedDate, soldPrice, serviceId, labelId, deliveryDate } = body;
 
   if (title !== undefined && !title?.trim()) {
     return NextResponse.json({ error: "Title cannot be empty" }, { status: 400 });
@@ -33,6 +33,8 @@ export async function PATCH(
   if (description !== undefined) update.description = description?.trim() || null;
   if (soldPrice !== undefined) update.soldPrice = soldPrice ? Number(soldPrice) : null;
   if (serviceId !== undefined) update.serviceId = serviceId || null;
+  if (labelId !== undefined) update.labelId = labelId || null;
+  if (deliveryDate !== undefined) update.deliveryDate = deliveryDate?.trim() || null;
 
   if (status !== undefined) {
     update.status = status;
@@ -71,7 +73,10 @@ export async function PATCH(
     description: doc.description,
     status: doc.status,
     completedDate: doc.completedDate,
+    deliveryDate: doc.deliveryDate,
     soldPrice: doc.soldPrice,
+    serviceId: doc.serviceId,
+    labelId: doc.labelId,
   });
 }
 

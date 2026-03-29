@@ -14,7 +14,7 @@ export async function PATCH(
 
   const { id: clientId, projectId, taskId } = await params;
   const body = await req.json();
-  const { title, description, assignees, completionDate, completed } = body;
+  const { title, description, assignees, completionDate, completed, parentTaskId: newParentTaskId } = body;
 
   if (title !== undefined && !title?.trim()) {
     return NextResponse.json({ error: "Title cannot be empty" }, { status: 400 });
@@ -28,6 +28,17 @@ export async function PATCH(
   if (assignees !== undefined) update.assignees = assignees;
   if (completionDate !== undefined) update.completionDate = completionDate || null;
 
+  // Moving to a new parent: inherit assignees + order at end of new parent's children
+  if (newParentTaskId !== undefined) {
+    update.parentTaskId = newParentTaskId || null;
+    if (newParentTaskId) {
+      const parent = await TaskModel.findById(newParentTaskId).lean();
+      update.assignees = parent?.assignees ?? [];
+      const lastSibling = await TaskModel.findOne({ parentTaskId: newParentTaskId }).sort({ order: -1 }).lean();
+      update.order = lastSibling ? (lastSibling.order ?? 0) + 1 : 0;
+    }
+  }
+
   if (completed === true) {
     update.completedAt = new Date().toISOString();
     update.completedById = session.user.id;
@@ -40,6 +51,11 @@ export async function PATCH(
 
   const doc = await TaskModel.findByIdAndUpdate(taskId, { $set: update }, { new: true }).lean();
   if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  // Cascade assignee changes to all child tasks
+  if (assignees !== undefined) {
+    await TaskModel.updateMany({ parentTaskId: taskId }, { $set: { assignees } });
+  }
 
   // Recalculate project status when task completion changes
   if (completed === true || completed === false) {

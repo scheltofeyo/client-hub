@@ -19,7 +19,7 @@ const labelStyle = { color: "var(--text-muted)" };
 
 // ── Sheet Manager Panel ──────────────────────────────────────
 
-function SheetManagerPanel({
+export function SheetManagerPanel({
   clientId,
   initialSheets,
   onSheetsChange,

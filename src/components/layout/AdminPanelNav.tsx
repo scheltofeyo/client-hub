@@ -2,14 +2,22 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { Users, LayoutTemplate, Tag, Wrench, Radio } from "lucide-react";
+import { Users, LayoutTemplate, Tag, Wrench, Radio, CalendarDays, CircleDot, Monitor, Bookmark, Palette } from "lucide-react";
 
 const tabItems = [
-  { tab: "users", label: "Users", icon: Users },
-  { tab: "templates", label: "Project Templates", icon: LayoutTemplate },
-  { tab: "archetypes", label: "Archetypes", icon: Tag },
-  { tab: "services", label: "Services", icon: Wrench },
-  { tab: "signals", label: "Log Signals", icon: Radio },
+  { tab: "users",             label: "Users",            icon: Users          },
+  { tab: "templates",         label: "Project Templates", icon: LayoutTemplate },
+  { tab: "archetypes",        label: "Archetypes",        icon: Tag            },
+  { tab: "services",          label: "Services",          icon: Wrench         },
+  { tab: "signals",           label: "Log Signals",       icon: Radio          },
+  { tab: "event-types",       label: "Event Types",       icon: CalendarDays   },
+  { tab: "client-statuses",   label: "Client Statuses",   icon: CircleDot      },
+  { tab: "client-platforms",  label: "Client Platforms",  icon: Monitor        },
+  { tab: "project-labels",    label: "Project Labels",    icon: Bookmark       },
+];
+
+const standaloneItems = [
+  { href: "/admin/stylesheet", label: "Stylesheet", icon: Palette },
 ];
 
 export default function AdminPanelNav() {
@@ -49,6 +57,20 @@ export default function AdminPanelNav() {
       </div>
 
       <div className="mx-3 my-3 border-t" style={{ borderColor: "var(--border)" }} />
+
+      <div className="px-2 space-y-0.5">
+        {standaloneItems.map(({ href, label, icon: Icon }) => (
+          <Link
+            key={href}
+            href={href}
+            data-active={pathname === href}
+            className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm transition-colors nav-panel-item"
+          >
+            <Icon size={14} strokeWidth={1.8} />
+            {label}
+          </Link>
+        ))}
+      </div>
     </aside>
   );
 }

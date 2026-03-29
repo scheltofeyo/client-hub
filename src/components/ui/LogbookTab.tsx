@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { Check, X, ChevronDown, ChevronUp, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Check, X, ChevronDown, ChevronUp, MoreHorizontal, Pencil, Trash2, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useRightPanel } from "@/components/layout/RightPanel";
 import type { Contact, Log, LogSignal } from "@/types";
@@ -124,6 +124,7 @@ export function LogForm({
     summary: initial?.summary ?? "",
     signalIds: initial?.signalIds ?? ([] as string[]),
     followUp: initial?.followUp ?? false,
+    followUpAction: initial?.followUpAction ?? "",
     followUpDeadline: initial?.followUpDeadline ?? "",
   });
   const [saving, setSaving] = useState(false);
@@ -147,6 +148,14 @@ export function LogForm({
   }
 
   async function handleSubmit() {
+    if (form.followUp && !form.followUpAction.trim()) {
+      setError("A follow-up action is required when follow-up is enabled.");
+      return;
+    }
+    if (form.followUp && !form.followUpDeadline) {
+      setError("A follow-up date is required when follow-up is enabled.");
+      return;
+    }
     setSaving(true);
     setError("");
 
@@ -164,6 +173,7 @@ export function LogForm({
         summary: form.summary,
         signalIds: form.signalIds,
         followUp: form.followUp,
+        followUpAction: form.followUp ? form.followUpAction || undefined : undefined,
         followUpDeadline: form.followUp ? form.followUpDeadline || undefined : undefined,
       }),
     });
@@ -274,15 +284,34 @@ export function LogForm({
             {form.followUp ? "Yes" : "No"}
           </span>
           {form.followUp && (
-            <input
-              type="date"
-              value={form.followUpDeadline}
-              onChange={(e) => setForm((f) => ({ ...f, followUpDeadline: e.target.value }))}
-              className="rounded-lg border px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-[var(--primary)]/40"
-              style={{ background: "var(--bg-sidebar)", borderColor: "var(--border)", color: "var(--text-primary)", width: "auto" }}
-            />
+            <div className="flex items-center gap-1">
+              <input
+                type="date"
+                value={form.followUpDeadline}
+                onChange={(e) => setForm((f) => ({ ...f, followUpDeadline: e.target.value }))}
+                className="rounded-lg border px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-[var(--primary)]/40"
+                style={{ background: "var(--bg-sidebar)", borderColor: form.followUpDeadline ? "var(--border)" : "#f87171", color: "var(--text-primary)", width: "auto" }}
+                required
+              />
+              <span className="text-red-400 text-xs">*</span>
+            </div>
           )}
         </div>
+        {form.followUp && (
+          <div className="mt-2">
+            <label className={labelClass} style={labelStyle}>
+              Action to follow up on <span className="text-red-400">*</span>
+            </label>
+            <input
+              type="text"
+              value={form.followUpAction}
+              onChange={(e) => setForm((f) => ({ ...f, followUpAction: e.target.value }))}
+              placeholder="What needs to be done…"
+              className={inputClass}
+              style={{ ...inputStyle, borderColor: form.followUpAction ? "var(--border)" : "#f87171" }}
+            />
+          </div>
+        )}
       </div>
 
       <div className="flex items-baseline gap-6">
@@ -307,7 +336,7 @@ export function LogForm({
       <div className="flex gap-2 pt-2">
         <button
           type="button"
-          disabled={saving || !form.date.trim() || !form.summary.trim()}
+          disabled={saving || !form.date.trim() || !form.summary.trim() || (form.followUp && (!form.followUpAction.trim() || !form.followUpDeadline))}
           onClick={handleSubmit}
           className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50 btn-primary"
         >
@@ -539,12 +568,22 @@ function LogCard({
         </p>
       )}
 
-      {/* Followed-up row */}
-      {log.followedUpAt && (
-        <p className="flex items-center gap-1.5 text-xs" style={{ color: "var(--text-muted)" }}>
-          <Check size={11} />
-          Followed-up on {fmtDate(log.followedUpAt)}{log.followedUpByName ? ` by ${log.followedUpByName}` : ""}
-        </p>
+      {/* Follow-up block */}
+      {log.followUp && log.followUpDeadline && log.followUpAction && (
+        <div className="flex flex-col gap-0.5">
+          <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+            Follow-up
+          </span>
+          <p className="text-sm font-medium" style={{ color: log.followedUpAt ? "var(--text-muted)" : "var(--primary)" }}>
+            {log.followUpAction}
+          </p>
+          {log.followedUpAt && (
+            <p className="flex items-center gap-1.5 text-xs" style={{ color: "var(--text-muted)" }}>
+              <Check size={11} />
+              Followed-up on {fmtDate(log.followedUpAt)}{log.followedUpByName ? ` by ${log.followedUpByName}` : ""}
+            </p>
+          )}
+        </div>
       )}
 
       {/* Signal pills */}
@@ -592,18 +631,25 @@ export default function LogbookTab({
   const router = useRouter();
   const { openPanel, closePanel } = useRightPanel();
 
+  const [search, setSearch] = useState("");
+  const [filterContact, setFilterContact] = useState("");
+  const [filterSignal, setFilterSignal] = useState("");
+  const [filterDate, setFilterDate] = useState("all");
+  const [filterCreator, setFilterCreator] = useState("");
+
   const [inline, setInline] = useState({
     summary: "",
     contactIds: [] as string[],
     signalIds: [] as string[],
     followUp: false,
+    followUpAction: "",
     followUpDeadline: "",
   });
   const [inlineSaving, setInlineSaving] = useState(false);
   const [inlineError, setInlineError] = useState("");
 
   function resetInline() {
-    setInline({ summary: "", contactIds: [] as string[], signalIds: [] as string[], followUp: false, followUpDeadline: "" });
+    setInline({ summary: "", contactIds: [] as string[], signalIds: [] as string[], followUp: false, followUpAction: "", followUpDeadline: "" });
     setInlineError("");
   }
 
@@ -615,6 +661,14 @@ export default function LogbookTab({
   }
 
   async function handleInlineSave() {
+    if (inline.followUp && !inline.followUpAction.trim()) {
+      setInlineError("A follow-up action is required when follow-up is enabled.");
+      return;
+    }
+    if (inline.followUp && !inline.followUpDeadline) {
+      setInlineError("A follow-up date is required when follow-up is enabled.");
+      return;
+    }
     setInlineSaving(true);
     setInlineError("");
     const res = await fetch(`/api/clients/${clientId}/logs`, {
@@ -626,6 +680,7 @@ export default function LogbookTab({
         contactIds: inline.contactIds,
         signalIds: inline.signalIds,
         followUp: inline.followUp,
+        followUpAction: inline.followUp ? inline.followUpAction || undefined : undefined,
         followUpDeadline: inline.followUp ? inline.followUpDeadline || undefined : undefined,
       }),
     });
@@ -648,6 +703,62 @@ export default function LogbookTab({
   }, [initialLogs]);
 
   const sortedLogs = [...logs].sort((a, b) => b.date.localeCompare(a.date));
+
+  const uniqueCreators = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const log of logs) {
+      if (!seen.has(log.createdById)) seen.set(log.createdById, log.createdByName);
+    }
+    return Array.from(seen.entries()).map(([id, name]) => ({ id, name }));
+  }, [logs]);
+
+  const filtersActive = search || filterContact || filterSignal || filterDate !== "all" || filterCreator;
+
+  const filteredLogs = useMemo(() => {
+    const now = new Date();
+    const todayStr = today();
+    return sortedLogs.filter((log) => {
+      if (search && !log.summary.toLowerCase().includes(search.toLowerCase())) return false;
+      if (filterContact) {
+        const ids = log.contactIds?.length ? log.contactIds : (log.contactId ? [log.contactId] : []);
+        if (!ids.includes(filterContact)) return false;
+      }
+      if (filterSignal && !log.signalIds.includes(filterSignal)) return false;
+      if (filterCreator && log.createdById !== filterCreator) return false;
+      if (filterDate !== "all") {
+        const logDate = new Date(log.date + "T00:00:00");
+        if (filterDate === "24h") {
+          if (log.date !== todayStr) return false;
+        } else if (filterDate === "week") {
+          const dow = now.getDay();
+          const diff = dow === 0 ? -6 : 1 - dow;
+          const startOfWeek = new Date(now);
+          startOfWeek.setDate(now.getDate() + diff);
+          startOfWeek.setHours(0, 0, 0, 0);
+          if (logDate < startOfWeek) return false;
+        } else if (filterDate === "month") {
+          const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+          if (logDate < startOfMonth) return false;
+        } else if (filterDate === "6months") {
+          const sixMonthsAgo = new Date(now);
+          sixMonthsAgo.setMonth(now.getMonth() - 6);
+          if (logDate < sixMonthsAgo) return false;
+        } else if (filterDate === "year") {
+          const startOfYear = new Date(now.getFullYear(), 0, 1);
+          if (logDate < startOfYear) return false;
+        }
+      }
+      return true;
+    });
+  }, [sortedLogs, search, filterContact, filterSignal, filterDate, filterCreator]);
+
+  function clearFilters() {
+    setSearch("");
+    setFilterContact("");
+    setFilterSignal("");
+    setFilterDate("all");
+    setFilterCreator("");
+  }
 
   function openEditPanel(log: Log) {
     openPanel(
@@ -681,10 +792,111 @@ export default function LogbookTab({
     <div>
       <LogbookStats logs={logs} signals={signals} sortedLogs={sortedLogs} />
 
+      {/* ── Filter bar ── */}
+      {logs.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 mb-6">
+          {/* Search */}
+          <div className="relative w-60">
+            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: "var(--text-muted)" }} />
+            <input
+              type="text"
+              placeholder="Search logs…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full rounded-lg border pl-8 pr-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-[var(--primary)]/40"
+              style={{ background: "var(--bg-sidebar)", borderColor: "var(--border)", color: "var(--text-primary)" }}
+            />
+          </div>
+
+          {/* Date */}
+          <div className="relative">
+            <select
+              value={filterDate}
+              onChange={(e) => setFilterDate(e.target.value)}
+              className="appearance-none rounded-lg border pl-2.5 pr-7 py-1.5 text-sm outline-none focus:ring-2 focus:ring-[var(--primary)]/40 cursor-pointer"
+              style={{ background: "var(--bg-sidebar)", borderColor: filterDate !== "all" ? "var(--primary)" : "var(--border)", color: filterDate !== "all" ? "var(--primary)" : "var(--text-muted)" }}
+            >
+              <option value="all">All time</option>
+              <option value="24h">Last 24 hours</option>
+              <option value="week">This week</option>
+              <option value="month">This month</option>
+              <option value="6months">Last 6 months</option>
+              <option value="year">This year</option>
+            </select>
+            <ChevronDown size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: filterDate !== "all" ? "var(--primary)" : "var(--text-muted)" }} />
+          </div>
+
+          {/* Contact */}
+          {contacts.length > 0 && (
+            <div className="relative">
+              <select
+                value={filterContact}
+                onChange={(e) => setFilterContact(e.target.value)}
+                className="appearance-none rounded-lg border pl-2.5 pr-7 py-1.5 text-sm outline-none focus:ring-2 focus:ring-[var(--primary)]/40 cursor-pointer"
+                style={{ background: "var(--bg-sidebar)", borderColor: filterContact ? "var(--primary)" : "var(--border)", color: filterContact ? "var(--primary)" : "var(--text-muted)" }}
+              >
+                <option value="">Contact</option>
+                {contacts.map((c) => (
+                  <option key={c.id} value={c.id}>{c.firstName} {c.lastName}</option>
+                ))}
+              </select>
+              <ChevronDown size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: filterContact ? "var(--primary)" : "var(--text-muted)" }} />
+            </div>
+          )}
+
+          {/* Signal */}
+          {signals.length > 0 && (
+            <div className="relative">
+              <select
+                value={filterSignal}
+                onChange={(e) => setFilterSignal(e.target.value)}
+                className="appearance-none rounded-lg border pl-2.5 pr-7 py-1.5 text-sm outline-none focus:ring-2 focus:ring-[var(--primary)]/40 cursor-pointer"
+                style={{ background: "var(--bg-sidebar)", borderColor: filterSignal ? "var(--primary)" : "var(--border)", color: filterSignal ? "var(--primary)" : "var(--text-muted)" }}
+              >
+                <option value="">Signal</option>
+                {signals.map((s) => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+              <ChevronDown size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: filterSignal ? "var(--primary)" : "var(--text-muted)" }} />
+            </div>
+          )}
+
+          {/* User */}
+          <div className="relative">
+            <select
+              value={filterCreator}
+              onChange={(e) => setFilterCreator(e.target.value)}
+              className="appearance-none rounded-lg border pl-2.5 pr-7 py-1.5 text-sm outline-none focus:ring-2 focus:ring-[var(--primary)]/40 cursor-pointer"
+              style={{ background: "var(--bg-sidebar)", borderColor: filterCreator ? "var(--primary)" : "var(--border)", color: filterCreator ? "var(--primary)" : "var(--text-muted)" }}
+            >
+              <option value="">User</option>
+              <option value={currentUserId}>Me</option>
+              {uniqueCreators.filter(({ id }) => id !== currentUserId).map(({ id, name }) => (
+                <option key={id} value={id}>{name}</option>
+              ))}
+            </select>
+            <ChevronDown size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: filterCreator ? "var(--primary)" : "var(--text-muted)" }} />
+          </div>
+
+          {/* Clear */}
+          {filtersActive && (
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-sm btn-ghost" style={{ color: "var(--primary)" }}
+            >
+              <X size={12} />
+              Clear
+            </button>
+          )}
+        </div>
+      )}
+
       {/* ── Inline quick-entry ── */}
-      <div className="relative" style={{ marginBottom: sortedLogs.length > 0 ? "64px" : 0 }}>
+      <div className="relative" style={{ marginBottom: filteredLogs.length > 0 ? "64px" : 0 }}>
         {/* Timeline connector to first real entry */}
-        {sortedLogs.length > 0 && (
+        {filteredLogs.length > 0 && (
           <div
             className="absolute w-px"
             style={{ left: "17px", top: "8px", bottom: "-72px", background: "var(--primary)", opacity: 0.2, zIndex: 0 }}
@@ -795,15 +1007,34 @@ export default function LogbookTab({
                     {inline.followUp ? "Yes" : "No"}
                   </span>
                   {inline.followUp && (
-                    <input
-                      type="date"
-                      value={inline.followUpDeadline}
-                      onChange={(e) => setInline((f) => ({ ...f, followUpDeadline: e.target.value }))}
-                      className="rounded-lg border px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-[var(--primary)]/40"
-                      style={{ background: "var(--bg-sidebar)", borderColor: "var(--border)", color: "var(--text-primary)", width: "auto" }}
-                    />
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="date"
+                        value={inline.followUpDeadline}
+                        onChange={(e) => setInline((f) => ({ ...f, followUpDeadline: e.target.value }))}
+                        className="rounded-lg border px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-[var(--primary)]/40"
+                        style={{ background: "var(--bg-sidebar)", borderColor: inline.followUpDeadline ? "var(--border)" : "#f87171", color: "var(--text-primary)", width: "auto" }}
+                        required
+                      />
+                      <span className="text-red-400 text-xs">*</span>
+                    </div>
                   )}
                 </div>
+                {inline.followUp && (
+                  <div className="mt-2">
+                    <label className={labelClass} style={labelStyle}>
+                      Action to follow up on <span className="text-red-400">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={inline.followUpAction}
+                      onChange={(e) => setInline((f) => ({ ...f, followUpAction: e.target.value }))}
+                      placeholder="What needs to be done…"
+                      className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--primary)]/40"
+                      style={{ background: "var(--bg-sidebar)", borderColor: inline.followUpAction ? "var(--border)" : "#f87171", color: "var(--text-primary)" }}
+                    />
+                  </div>
+                )}
               </div>
 
               {inlineError && <p className="text-xs text-red-500">{inlineError}</p>}
@@ -812,7 +1043,7 @@ export default function LogbookTab({
               <div className="flex items-center gap-2 pt-1">
                 <button
                   type="button"
-                  disabled={!inline.summary.trim() || inlineSaving}
+                  disabled={!inline.summary.trim() || (inline.followUp && (!inline.followUpAction.trim() || !inline.followUpDeadline)) || inlineSaving}
                   onClick={handleInlineSave}
                   className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50 btn-primary"
                 >
@@ -839,9 +1070,14 @@ export default function LogbookTab({
           <p className="text-sm" style={{ color: "var(--text-muted)" }}>No log entries yet.</p>
         </div>
       )}
+      {sortedLogs.length > 0 && filteredLogs.length === 0 && (
+        <div className="flex items-center justify-center h-16">
+          <p className="text-sm" style={{ color: "var(--text-muted)" }}>No logs match your filters.</p>
+        </div>
+      )}
 
-      {sortedLogs.map((log, idx) => {
-        const isLast = idx === sortedLogs.length - 1;
+      {filteredLogs.map((log, idx) => {
+        const isLast = idx === filteredLogs.length - 1;
         const canEdit = isAdmin || log.createdById === currentUserId;
         const isActive = !!(log.followUp && log.followUpDeadline && !log.followedUpAt);
         const isOverdue = isActive && log.followUpDeadline! < today();

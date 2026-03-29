@@ -26,6 +26,7 @@ export async function GET() {
       defaultDescription: doc.defaultDescription,
       defaultSoldPrice: doc.defaultSoldPrice,
       defaultServiceId: doc.defaultServiceId,
+      defaultDeliveryDays: doc.defaultDeliveryDays,
       taskCount: countMap[doc._id.toString()] ?? 0,
       createdAt: doc.createdAt?.toISOString().split("T")[0],
     }))
@@ -40,7 +41,7 @@ export async function POST(req: NextRequest) {
 
   await connectDB();
   const body = await req.json();
-  const { name, description, defaultDescription, defaultSoldPrice, defaultServiceId } = body;
+  const { name, description, defaultDescription, defaultSoldPrice, defaultServiceId, defaultDeliveryDays } = body;
 
   if (!name?.trim()) {
     return NextResponse.json({ error: "Name is required" }, { status: 400 });
@@ -52,6 +53,7 @@ export async function POST(req: NextRequest) {
     defaultDescription: defaultDescription?.trim() || undefined,
     defaultSoldPrice: defaultSoldPrice ? Number(defaultSoldPrice) : undefined,
     defaultServiceId: defaultServiceId || undefined,
+    defaultDeliveryDays: defaultDeliveryDays ? Number(defaultDeliveryDays) : undefined,
   });
 
   return NextResponse.json({
@@ -61,6 +63,7 @@ export async function POST(req: NextRequest) {
     defaultDescription: doc.defaultDescription,
     defaultSoldPrice: doc.defaultSoldPrice,
     defaultServiceId: doc.defaultServiceId,
+    defaultDeliveryDays: doc.defaultDeliveryDays,
     createdAt: doc.createdAt?.toISOString().split("T")[0],
   }, { status: 201 });
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { connectDB } from "@/lib/mongodb";
 import { LogModel } from "@/lib/models/Log";
+import { TaskModel } from "@/lib/models/Task";
 import { recordActivity } from "@/lib/activity";
 
 export async function GET(
@@ -25,6 +26,7 @@ export async function GET(
       summary: doc.summary,
       signalIds: doc.signalIds ?? [],
       followUp: doc.followUp ?? false,
+      followUpAction: doc.followUpAction ?? undefined,
       followUpDeadline: doc.followUpDeadline ?? undefined,
       followedUpAt: doc.followedUpAt ?? undefined,
       followedUpByName: doc.followedUpByName ?? undefined,
@@ -46,13 +48,16 @@ export async function POST(
 
   const { id: clientId } = await params;
   const body = await req.json();
-  const { contactIds, date, summary, signalIds, followUp, followUpDeadline } = body;
+  const { contactIds, date, summary, signalIds, followUp, followUpAction, followUpDeadline } = body;
 
   if (!date?.trim()) {
     return NextResponse.json({ error: "Date is required" }, { status: 400 });
   }
   if (!summary?.trim()) {
     return NextResponse.json({ error: "Summary is required" }, { status: 400 });
+  }
+  if (followUp && !followUpAction?.trim()) {
+    return NextResponse.json({ error: "A follow-up action is required when follow-up is enabled." }, { status: 400 });
   }
 
   await connectDB();
@@ -63,17 +68,33 @@ export async function POST(
     summary: summary.trim(),
     signalIds: Array.isArray(signalIds) ? signalIds : [],
     followUp: !!followUp,
+    followUpAction: followUp && followUpAction ? followUpAction.trim() : undefined,
     followUpDeadline: followUp && followUpDeadline ? followUpDeadline : undefined,
     createdById: session.user.id,
     createdByName: session.user.name ?? "Unknown",
   });
+
+  // Create a derived follow-up task in General if this log has a follow-up.
+  // completionDate is stored so the due date is visible in the tasks view, but the events
+  // query excludes tasks with logId so no duplicate deadline event is created.
+  if (doc.followUp && doc.followUpAction) {
+    const task = await TaskModel.create({
+      clientId,
+      logId: doc._id.toString(),
+      title: doc.followUpAction,
+      completionDate: doc.followUpDeadline || undefined,
+      createdById: session.user.id,
+      createdByName: session.user.name ?? "Unknown",
+    });
+    await LogModel.findByIdAndUpdate(doc._id, { $set: { followUpTaskId: task._id.toString() } });
+  }
 
   await recordActivity({
     clientId,
     actorId: session.user.id,
     actorName: session.user.name ?? "Unknown",
     type: "log.created",
-    metadata: { logId: doc._id.toString(), summary: doc.summary.slice(0, 80), followUp: doc.followUp ?? false },
+    metadata: { logId: doc._id.toString(), summary: doc.summary.slice(0, 80), followUp: doc.followUp ?? false, followUpAction: doc.followUpAction },
   });
 
   return NextResponse.json(
@@ -85,6 +106,7 @@ export async function POST(
       summary: doc.summary,
       signalIds: doc.signalIds ?? [],
       followUp: doc.followUp ?? false,
+      followUpAction: doc.followUpAction ?? undefined,
       followUpDeadline: doc.followUpDeadline ?? undefined,
       createdById: doc.createdById,
       createdByName: doc.createdByName,

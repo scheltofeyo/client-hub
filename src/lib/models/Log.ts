@@ -8,7 +8,9 @@ export interface ILog extends Document {
   summary: string;
   signalIds: string[];
   followUp: boolean;
+  followUpAction?: string;
   followUpDeadline?: string;
+  followUpTaskId?: string;
   followedUpAt?: string;
   followedUpByName?: string;
   createdById: string;
@@ -26,7 +28,9 @@ const LogSchema = new Schema<ILog>(
     summary: { type: String, required: true, trim: true },
     signalIds: { type: [String], default: [] },
     followUp: { type: Boolean, default: false },
+    followUpAction: { type: String },
     followUpDeadline: { type: String },
+    followUpTaskId: { type: String },
     followedUpAt: { type: String },
     followedUpByName: { type: String },
     createdById: { type: String, required: true },

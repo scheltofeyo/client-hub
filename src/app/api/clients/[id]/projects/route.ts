@@ -27,8 +27,11 @@ export async function GET(
       description: doc.description,
       status: doc.status,
       completedDate: doc.completedDate,
+      deliveryDate: doc.deliveryDate,
       soldPrice: doc.soldPrice,
       templateId: doc.templateId,
+      serviceId: doc.serviceId,
+      labelId: doc.labelId,
       createdAt: doc.createdAt?.toISOString().split("T")[0],
     }))
   );
@@ -53,7 +56,7 @@ export async function POST(
   }
 
   const body = await req.json();
-  const { title, description, soldPrice, templateId, serviceId } = body;
+  const { title, description, soldPrice, templateId, serviceId, labelId, deliveryDate } = body;
 
   if (!title?.trim()) {
     return NextResponse.json({ error: "Title is required" }, { status: 400 });
@@ -67,6 +70,8 @@ export async function POST(
     soldPrice: soldPrice ? Number(soldPrice) : undefined,
     templateId: templateId || undefined,
     serviceId: serviceId || undefined,
+    labelId: labelId || undefined,
+    deliveryDate: deliveryDate || undefined,
   });
 
   // Bulk-create tasks from template if one was used
@@ -146,8 +151,11 @@ export async function POST(
     description: doc.description,
     status: doc.status,
     completedDate: doc.completedDate,
+    deliveryDate: doc.deliveryDate,
     soldPrice: doc.soldPrice,
     templateId: doc.templateId,
+    serviceId: doc.serviceId,
+    labelId: doc.labelId,
     createdAt: doc.createdAt?.toISOString().split("T")[0],
   }, { status: 201 });
 }

@@ -6,9 +6,11 @@ export interface IProject extends Document {
   description?: string;
   status: "not_started" | "in_progress" | "completed";
   completedDate?: string;
+  deliveryDate?: string;
   soldPrice?: number;
   templateId?: string;
   serviceId?: string;
+  labelId?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -24,9 +26,11 @@ const ProjectSchema = new Schema<IProject>(
       default: "not_started",
     },
     completedDate: { type: String, trim: true },
+    deliveryDate: { type: String, trim: true },
     soldPrice: { type: Number },
     templateId: { type: String },
     serviceId: { type: String },
+    labelId: { type: String },
   },
   { timestamps: true }
 );

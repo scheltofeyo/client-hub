@@ -27,6 +27,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             style={{
               background: "var(--bg-surface)",
               borderColor: "var(--border)",
+              boxShadow: "-4px -4px 24px 0 rgba(0,0,0,0.08)",
             }}
           >
             <PanelNav />

@@ -1,29 +1,18 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { Plus, ChevronDown, ChevronRight, MoreHorizontal, Check, Trash2, ListPlus, AlertTriangle } from "lucide-react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useRightPanel } from "@/components/layout/RightPanel";
-import type { Task, TaskAssignee } from "@/types";
-import UserAvatar from "@/components/ui/UserAvatar";
+import type { Task } from "@/types";
+import {
+  TaskRow,
+  InlineTaskInput,
+  TaskForm,
+  UserOption,
+} from "@/components/ui/task-row";
 
-// ── Shared styles ──────────────────────────────────────────────────────────────
-
-const inputClass =
-  "w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--primary)]/40";
-const inputStyle = {
-  background: "var(--bg-sidebar)",
-  borderColor: "var(--border)",
-  color: "var(--text-primary)",
-};
-const labelClass = "block text-xs font-medium mb-1";
-const labelStyle = { color: "var(--text-muted)" };
-
-// ── Helpers ────────────────────────────────────────────────────────────────────
-
-function fmtDate(iso: string) {
-  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
+export { TaskForm } from "@/components/ui/task-row";
 
 // ── Progress bar ───────────────────────────────────────────────────────────────
 
@@ -78,686 +67,6 @@ function StatCard({
   );
 }
 
-// ── Assignee avatars ───────────────────────────────────────────────────────────
-
-function AssigneeAvatars({
-  assignees,
-  userImages,
-}: {
-  assignees: TaskAssignee[];
-  userImages?: Record<string, string>;
-}) {
-  if (assignees.length === 0) return null;
-  const shown = assignees.slice(0, 3);
-  const rest = assignees.length - shown.length;
-  return (
-    <div className="flex items-center -space-x-1.5">
-      {shown.map((a, i) => (
-        <div key={a.userId} className="rounded-full" style={{ boxShadow: "0 0 0 2px var(--bg-surface)", position: "relative", zIndex: i + 1 }}>
-          <UserAvatar name={a.name} image={userImages?.[a.userId] ?? a.image} size={20} />
-        </div>
-      ))}
-      {rest > 0 && (
-        <div
-          className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-semibold"
-          style={{ background: "var(--border)", color: "var(--text-muted)", boxShadow: "0 0 0 2px var(--bg-surface)", position: "relative", zIndex: shown.length + 1 }}
-        >
-          +{rest}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Inline task input ──────────────────────────────────────────────────────────
-
-function InlineTaskInput({
-  onSave,
-  onCancel,
-  placeholder,
-  spacerClass,
-}: {
-  onSave: (title: string) => Promise<void>;
-  onCancel: () => void;
-  placeholder?: string;
-  spacerClass?: string;
-}) {
-  const [value, setValue] = useState("");
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
-
-  async function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      const title = value.trim();
-      if (!title) return;
-      await onSave(title);
-      setValue(""); // stays open for next entry
-    } else if (e.key === "Escape") {
-      onCancel();
-    }
-  }
-
-  function handleBlur() {
-    if (!value.trim()) onCancel();
-  }
-
-  return (
-    <div className="flex items-center gap-2 py-2 -mx-2 px-2">
-      <div className={`flex-shrink-0 ${spacerClass ?? "w-[3.25rem]"}`} />
-      <input
-        ref={inputRef}
-        type="text"
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        onKeyDown={handleKeyDown}
-        onBlur={handleBlur}
-        placeholder={placeholder ?? "Type a task title…"}
-        className="flex-1 text-sm bg-transparent outline-none border-b pb-1"
-        style={{ color: "var(--text-primary)", borderColor: "var(--border)" }}
-      />
-    </div>
-  );
-}
-
-// ── Task form ──────────────────────────────────────────────────────────────────
-
-type UserOption = { id: string; name: string; image: string | null };
-
-function TaskForm({
-  projectId,
-  clientId,
-  task,
-  parentTaskId,
-  parentTaskTitle,
-  users,
-  onSaved,
-  onClose,
-}: {
-  projectId: string;
-  clientId: string;
-  task?: Task;
-  parentTaskId?: string;
-  parentTaskTitle?: string;
-  users: UserOption[];
-  onSaved: (task: Task) => void;
-  onClose: () => void;
-}) {
-  const isEdit = !!task;
-  const [form, setForm] = useState({
-    title: task?.title ?? "",
-    description: task?.description ?? "",
-    completionDate: task?.completionDate ?? "",
-  });
-  const [selectedAssignees, setSelectedAssignees] = useState<TaskAssignee[]>(
-    task?.assignees ?? []
-  );
-  const [assigneePickerOpen, setAssigneePickerOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  function set(field: string, value: string) {
-    setForm((f) => ({ ...f, [field]: value }));
-  }
-
-  function toggleAssignee(user: UserOption) {
-    setSelectedAssignees((prev) => {
-      const exists = prev.find((a) => a.userId === user.id);
-      if (exists) return prev.filter((a) => a.userId !== user.id);
-      return [...prev, { userId: user.id, name: user.name, ...(user.image ? { image: user.image } : {}) }];
-    });
-  }
-
-  const sortedUsers = [...users].sort((a, b) => a.name.localeCompare(b.name));
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!form.title.trim()) return;
-
-    setLoading(true);
-    setError("");
-
-    const url = isEdit
-      ? `/api/clients/${clientId}/projects/${projectId}/tasks/${task!.id}`
-      : `/api/clients/${clientId}/projects/${projectId}/tasks`;
-
-    const res = await fetch(url, {
-      method: isEdit ? "PATCH" : "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        title: form.title,
-        description: form.description || undefined,
-        assignees: selectedAssignees,
-        completionDate: form.completionDate || undefined,
-        parentTaskId: parentTaskId || undefined,
-      }),
-    });
-
-    setLoading(false);
-
-    if (!res.ok) {
-      const data = await res.json();
-      setError(data.error ?? "Something went wrong");
-      return;
-    }
-
-    const saved = await res.json();
-    onSaved(saved);
-    onClose();
-  }
-
-  return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      {parentTaskTitle && (
-        <div>
-          <label className={labelClass} style={labelStyle}>
-            Parent task
-          </label>
-          <p
-            className="text-sm px-3 py-2 rounded-lg"
-            style={{ background: "var(--bg-sidebar)", color: "var(--text-primary)" }}
-          >
-            {parentTaskTitle}
-          </p>
-        </div>
-      )}
-
-      <div>
-        <label className={labelClass} style={labelStyle}>
-          Title <span className="text-red-400">*</span>
-        </label>
-        <input
-          type="text"
-          value={form.title}
-          onChange={(e) => set("title", e.target.value)}
-          autoFocus
-          placeholder="Task title…"
-          className={inputClass}
-          style={inputStyle}
-        />
-      </div>
-
-      <div>
-        <label className={labelClass} style={labelStyle}>
-          Description
-        </label>
-        <textarea
-          value={form.description}
-          onChange={(e) => set("description", e.target.value)}
-          rows={3}
-          placeholder="Optional details…"
-          className={inputClass + " resize-none"}
-          style={inputStyle}
-        />
-      </div>
-
-      <div>
-        <label className={labelClass} style={labelStyle}>
-          Due date
-        </label>
-        <input
-          type="date"
-          value={form.completionDate}
-          onChange={(e) => set("completionDate", e.target.value)}
-          className={inputClass}
-          style={inputStyle}
-        />
-      </div>
-
-      <div>
-        <label className={labelClass} style={labelStyle}>
-          Assignees
-        </label>
-        {selectedAssignees.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mb-2">
-            {selectedAssignees.map((a) => (
-              <button
-                key={a.userId}
-                type="button"
-                onClick={() => toggleAssignee({ id: a.userId, name: a.name, image: a.image ?? null })}
-                className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium"
-                style={{ background: "var(--primary-light)", color: "var(--primary)" }}
-              >
-                {a.name.split(" ")[0]}
-                <span className="opacity-50">×</span>
-              </button>
-            ))}
-          </div>
-        )}
-        <div className="relative">
-          <button
-            type="button"
-            onClick={() => setAssigneePickerOpen((v) => !v)}
-            className="w-full flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm transition-colors"
-            style={{
-              borderColor: "var(--border)",
-              background: "var(--bg-sidebar)",
-              color: "var(--text-muted)",
-            }}
-          >
-            <Plus size={13} />
-            Add assignee
-          </button>
-          {assigneePickerOpen && (
-            <>
-              <div className="fixed inset-0 z-10" onClick={() => setAssigneePickerOpen(false)} />
-              <div
-                className="absolute top-full left-0 right-0 mt-1 z-20 rounded-xl border shadow-lg overflow-y-auto max-h-52"
-                style={{ background: "var(--bg-sidebar)", borderColor: "var(--border)" }}
-              >
-                {sortedUsers.map((u) => {
-                  const isSelected = selectedAssignees.some((a) => a.userId === u.id);
-                  const firstname = u.name.split(" ")[0];
-                  return (
-                    <button
-                      key={u.id}
-                      type="button"
-                      onClick={() => toggleAssignee(u)}
-                      className="w-full flex items-center justify-between px-3 py-2 text-sm hover:opacity-80 transition-opacity"
-                      style={{ color: "var(--text-primary)" }}
-                    >
-                      <div className="flex items-center gap-2">
-                        <UserAvatar name={u.name} image={u.image} size={24} />
-                        <span>{firstname}</span>
-                      </div>
-                      {isSelected && <Check size={13} style={{ color: "var(--primary)" }} />}
-                    </button>
-                  );
-                })}
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-
-      {error && <p className="text-xs text-red-500">{error}</p>}
-
-      <div className="flex justify-end gap-2 pt-1">
-        <button
-          type="button"
-          onClick={onClose}
-          className="px-3 py-1.5 rounded-lg text-sm font-medium btn-ghost"
-        >
-          Cancel
-        </button>
-        <button
-          type="submit"
-          disabled={loading || !form.title.trim()}
-          className="px-3 py-1.5 rounded-lg text-sm font-medium disabled:opacity-50 btn-primary"
-        >
-          {loading ? "Saving…" : isEdit ? "Save Changes" : "Add Task"}
-        </button>
-      </div>
-    </form>
-  );
-}
-
-// ── Subtask row ────────────────────────────────────────────────────────────────
-
-function SubtaskRow({
-  task,
-  onToggleComplete,
-  onEdit,
-  onDelete,
-  userImages,
-  readOnly,
-}: {
-  task: Task;
-  onToggleComplete: (task: Task) => void;
-  onEdit: (task: Task) => void;
-  onDelete: (taskId: string, hasSubtasks: boolean) => void;
-  userImages?: Record<string, string>;
-  readOnly?: boolean;
-}) {
-  const [menuOpen, setMenuOpen] = useState(false);
-  const isDone = !!task.completedAt;
-  const today = new Date().toISOString().slice(0, 10);
-  const isOverdue = !isDone && !!task.completionDate && task.completionDate < today;
-
-  return (
-    <div
-      className="flex items-start gap-2 py-2 group cursor-pointer rounded-lg -mx-2 px-2"
-      onClick={() => onEdit(task)}
-    >
-      <button
-        type="button"
-        onClick={(e) => { e.stopPropagation(); onToggleComplete(task); }}
-        className="flex-shrink-0 mt-px w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors"
-        style={{
-          borderColor: isDone ? "var(--primary-light)" : "var(--border)",
-          background: isDone ? "var(--primary-light)" : "transparent",
-        }}
-      >
-        {isDone && <Check size={14} color="var(--primary)" strokeWidth={3} />}
-      </button>
-
-      <span
-        className={`flex-1 text-sm transition-colors ${isDone ? "" : "text-[var(--text-primary)] group-hover:text-[var(--primary)]"}`}
-        style={{
-          color: isDone ? "var(--text-muted)" : undefined,
-          textDecoration: "none",
-        }}
-      >
-        {task.title}
-      </span>
-
-      <div
-        className="flex items-center gap-2 flex-shrink-0"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {isDone ? (
-          <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-            {task.completedAt && (
-              <span className="text-xs leading-none" style={{ color: "var(--text-muted)" }}>
-                Completed on {fmtDate(task.completedAt)}
-              </span>
-            )}
-            {task.completedById && (
-              <UserAvatar name={task.completedByName ?? "?"} image={userImages?.[task.completedById]} size={20} />
-            )}
-          </div>
-        ) : (
-          <>
-            <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-              {task.createdAt && (
-                <span className="text-xs leading-none" style={{ color: "var(--text-muted)" }}>
-                  Created on {fmtDate(task.createdAt)}
-                </span>
-              )}
-              <UserAvatar name={task.createdByName} image={userImages?.[task.createdById]} size={20} />
-            </div>
-            <AssigneeAvatars assignees={task.assignees} userImages={userImages} />
-            {task.completionDate && (
-              <span className="text-xs" style={{ color: isOverdue ? "var(--destructive, #ef4444)" : "var(--text-muted)" }}>
-                {task.completionDate}
-              </span>
-            )}
-          </>
-        )}
-
-        {!readOnly && !isDone && (
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setMenuOpen((v) => !v)}
-              className="p-0.5 rounded opacity-0 group-hover:opacity-50 hover:!opacity-100 transition-opacity"
-              style={{ color: "var(--text-muted)" }}
-            >
-              <MoreHorizontal size={13} />
-            </button>
-            {menuOpen && (
-              <>
-                <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
-                <div
-                  className="absolute right-0 top-6 z-20 rounded-xl border shadow-lg overflow-hidden w-36"
-                  style={{ background: "var(--bg-sidebar)", borderColor: "var(--border)" }}
-                >
-                  <button
-                    type="button"
-                    onClick={() => { setMenuOpen(false); onDelete(task.id, false); }}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:opacity-80 transition-opacity text-red-500"
-                  >
-                    <Trash2 size={13} /> Delete
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ── Task row ───────────────────────────────────────────────────────────────────
-
-function TaskRow({
-  task,
-  subtasks,
-  isExpanded,
-  onToggleExpand,
-  onToggleComplete,
-  onEdit,
-  onAddSubtask,
-  onDelete,
-  showInlineSubtask,
-  onInlineSubtaskSave,
-  onInlineSubtaskCancel,
-  userImages,
-  readOnly,
-}: {
-  task: Task;
-  subtasks: Task[];
-  isExpanded: boolean;
-  onToggleExpand: () => void;
-  onToggleComplete: (task: Task) => void;
-  onEdit: (task: Task) => void;
-  onAddSubtask: (parentTaskId: string) => void;
-  onDelete: (taskId: string, hasSubtasks: boolean) => void;
-  showInlineSubtask: boolean;
-  onInlineSubtaskSave: (title: string) => Promise<void>;
-  onInlineSubtaskCancel: () => void;
-  userImages?: Record<string, string>;
-  readOnly?: boolean;
-}) {
-  const [menuOpen, setMenuOpen] = useState(false);
-  const hasSubtasks = subtasks.length > 0;
-  const isDone = !!task.completedAt;
-  const today = new Date().toISOString().slice(0, 10);
-  const isOverdue = !isDone && !!task.completionDate && task.completionDate < today;
-  const hasOverdueSubtask = subtasks.some(
-    (s) => !s.completedAt && !!s.completionDate && s.completionDate < today
-  );
-
-  const openSubtasks = subtasks.filter((s) => !s.completedAt);
-  const completedSubtasks = subtasks.filter((s) => !!s.completedAt);
-
-  const showSubtasksArea = (hasSubtasks && isExpanded) || showInlineSubtask;
-
-  return (
-    <div className="border-b" style={{ borderColor: "var(--border)" }}>
-      {/* Main task row */}
-      <div
-        className="flex items-start gap-2 py-2.5 group cursor-pointer rounded-lg -mx-2 px-2"
-        onClick={() => onEdit(task)}
-      >
-        {/* Chevron / expand slot */}
-        <div
-          className="flex-shrink-0 w-4 mt-px flex items-center justify-center"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {hasSubtasks && (
-            <button
-              type="button"
-              onClick={onToggleExpand}
-              className="flex items-center justify-center transition-colors text-[var(--text-muted)] hover:text-[var(--primary)]"
-            >
-              {isExpanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-            </button>
-          )}
-        </div>
-
-        {/* Checkbox */}
-        <button
-          type="button"
-          onClick={(e) => { e.stopPropagation(); onToggleComplete(task); }}
-          className="flex-shrink-0 mt-px w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors"
-          style={{
-            borderColor: isDone ? "var(--primary-light)" : "var(--border)",
-            background: isDone ? "var(--primary-light)" : "transparent",
-          }}
-          aria-label={isDone ? "Mark incomplete" : "Mark complete"}
-        >
-          {isDone && <Check size={14} color="var(--primary)" strokeWidth={3} />}
-        </button>
-
-        {/* Content */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between gap-2">
-            <span
-              className={`text-sm font-medium transition-colors ${isDone ? "" : "text-[var(--text-primary)] group-hover:text-[var(--primary)]"}`}
-              style={{
-                color: isDone ? "var(--text-muted)" : undefined,
-                textDecoration: "none",
-              }}
-            >
-              {task.title}
-            </span>
-
-            <div
-              className="flex items-center gap-2 flex-shrink-0"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {isDone ? (
-                <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  {task.completedAt && (
-                    <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-                      Completed on {fmtDate(task.completedAt)}
-                    </span>
-                  )}
-                  {task.completedById && (
-                    <UserAvatar name={task.completedByName ?? "?"} image={userImages?.[task.completedById]} size={20} />
-                  )}
-                </div>
-              ) : (
-                <>
-                  <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    {task.createdAt && (
-                      <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-                        Created on {fmtDate(task.createdAt)}
-                      </span>
-                    )}
-                    <UserAvatar name={task.createdByName} image={userImages?.[task.createdById]} size={20} />
-                  </div>
-                  <AssigneeAvatars assignees={task.assignees} userImages={userImages} />
-                  {hasOverdueSubtask && (
-                    <AlertTriangle
-                      size={13}
-                      style={{ color: "var(--destructive, #ef4444)" }}
-                      aria-label="Subtask overdue"
-                    />
-                  )}
-                  {task.completionDate && (
-                    <span className="text-xs" style={{ color: isOverdue ? "var(--destructive, #ef4444)" : "var(--text-muted)" }}>
-                      {task.completionDate}
-                    </span>
-                  )}
-                </>
-              )}
-
-              {/* Kebab menu */}
-              {!isDone && <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setMenuOpen((v) => !v)}
-                  className="p-0.5 rounded opacity-0 group-hover:opacity-50 hover:!opacity-100 transition-opacity"
-                  style={{ color: "var(--text-muted)" }}
-                >
-                  <MoreHorizontal size={15} />
-                </button>
-                {menuOpen && (
-                  <>
-                    <div
-                      className="fixed inset-0 z-10"
-                      onClick={() => setMenuOpen(false)}
-                    />
-                    <div
-                      className="absolute right-0 top-6 z-20 rounded-xl border shadow-lg overflow-hidden w-40"
-                      style={{
-                        background: "var(--bg-sidebar)",
-                        borderColor: "var(--border)",
-                      }}
-                    >
-                      {!readOnly && (
-                        <button
-                          type="button"
-                          onClick={() => { setMenuOpen(false); onAddSubtask(task.id); }}
-                          className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:opacity-80 transition-opacity"
-                          style={{ color: "var(--text-primary)" }}
-                        >
-                          <ListPlus size={13} /> Add subtask
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => { setMenuOpen(false); onDelete(task.id, hasSubtasks); }}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:opacity-80 transition-opacity text-red-500"
-                      >
-                        <Trash2 size={13} /> Delete
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>}
-            </div>
-          </div>
-
-          {task.description && (
-            <p className="text-xs mt-0.5 line-clamp-2" style={{ color: "var(--text-muted)" }}>
-              {task.description}
-            </p>
-          )}
-        </div>
-      </div>
-
-      {/* Subtasks area */}
-      {showSubtasksArea && (
-        <div className="pl-14 pb-1">
-          {/* Open subtasks first */}
-          {isExpanded && openSubtasks.map((sub) => (
-            <SubtaskRow
-              key={sub.id}
-              task={sub}
-              onToggleComplete={onToggleComplete}
-              onEdit={onEdit}
-              onDelete={onDelete}
-              userImages={userImages}
-              readOnly={readOnly}
-            />
-          ))}
-
-          {/* + New subtask button / inline input (open tasks only) */}
-          {!readOnly && (
-            showInlineSubtask ? (
-              <InlineTaskInput
-                placeholder="Type subtask title…"
-                onSave={onInlineSubtaskSave}
-                onCancel={onInlineSubtaskCancel}
-                spacerClass="w-6"
-              />
-            ) : hasSubtasks && isExpanded ? (
-              <button
-                type="button"
-                onClick={() => onAddSubtask(task.id)}
-                className="flex items-center gap-1.5 text-sm py-1.5 px-2 rounded-lg btn-tertiary"
-              >
-                <Plus size={12} />
-                New subtask
-              </button>
-            ) : null
-          )}
-
-          {/* Completed subtasks below the add button */}
-          {isExpanded && completedSubtasks.map((sub) => (
-            <SubtaskRow
-              key={sub.id}
-              task={sub}
-              onToggleComplete={onToggleComplete}
-              onEdit={onEdit}
-              onDelete={onDelete}
-              userImages={userImages}
-              readOnly={readOnly}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ── Section label ──────────────────────────────────────────────────────────────
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
@@ -789,6 +98,8 @@ export default function TasksTab({
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [showInlineAdd, setShowInlineAdd] = useState(false);
   const [inlineSubtaskFor, setInlineSubtaskFor] = useState<string | null>(null);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
   const { openPanel, closePanel } = useRightPanel();
   const router = useRouter();
 
@@ -825,7 +136,9 @@ export default function TasksTab({
     [subtasksOf]
   );
 
-  const openTopLevel = topLevel.filter((t) => !isFullyCompleted(t));
+  const openTopLevel = topLevel
+    .filter((t) => !isFullyCompleted(t))
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   const completedTopLevel = topLevel.filter((t) => isFullyCompleted(t));
 
   function toggleExpand(id: string) {
@@ -865,6 +178,7 @@ export default function TasksTab({
         clientId={clientId}
         task={task}
         parentTaskTitle={parentTitle}
+        isSubtask={!!task.parentTaskId}
         users={users}
         onSaved={handleSaved}
         onClose={closePanel}
@@ -957,6 +271,103 @@ export default function TasksTab({
     }
   }
 
+  async function reorderTopLevel(fromId: string, toId: string) {
+    const reordered = [...openTopLevel];
+    const fromIdx = reordered.findIndex((t) => t.id === fromId);
+    const toIdx = reordered.findIndex((t) => t.id === toId);
+    if (fromIdx === -1 || toIdx === -1) return;
+    const [moved] = reordered.splice(fromIdx, 1);
+    reordered.splice(toIdx, 0, moved);
+    const orderMap = Object.fromEntries(reordered.map((t, i) => [t.id, i]));
+    setTasks((prev) => prev.map((t) => (t.id in orderMap ? { ...t, order: orderMap[t.id] } : t)));
+    await fetch(`/api/clients/${clientId}/projects/${projectId}/tasks/reorder`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids: reordered.map((t) => t.id) }),
+    });
+  }
+
+  async function reorderSubtasks(fromId: string, toId: string, parentId: string) {
+    const siblings = tasks
+      .filter((t) => t.parentTaskId === parentId && !t.completedAt)
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    const fromIdx = siblings.findIndex((t) => t.id === fromId);
+    const toIdx = siblings.findIndex((t) => t.id === toId);
+    if (fromIdx === -1 || toIdx === -1) return;
+    const reordered = [...siblings];
+    const [moved] = reordered.splice(fromIdx, 1);
+    reordered.splice(toIdx, 0, moved);
+    const orderMap = Object.fromEntries(reordered.map((t, i) => [t.id, i]));
+    setTasks((prev) => prev.map((t) => (t.id in orderMap ? { ...t, order: orderMap[t.id] } : t)));
+    await fetch(`/api/clients/${clientId}/projects/${projectId}/tasks/reorder`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids: reordered.map((t) => t.id) }),
+    });
+  }
+
+  async function moveSubtask(subtaskId: string, newParentId: string, insertBeforeId?: string) {
+    const subtask = tasks.find((t) => t.id === subtaskId);
+    const newParent = tasks.find((t) => t.id === newParentId);
+    if (!subtask || !newParent) return;
+
+    // Optimistic: update parentTaskId + inherit assignees from new parent
+    setTasks((prev) =>
+      prev.map((t) =>
+        t.id === subtaskId
+          ? { ...t, parentTaskId: newParentId, assignees: newParent.assignees }
+          : t
+      )
+    );
+    // Auto-expand the new parent
+    setExpandedIds((prev) => new Set([...prev, newParentId]));
+
+    const res = await fetch(`/api/clients/${clientId}/projects/${projectId}/tasks/${subtaskId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ parentTaskId: newParentId }),
+    });
+    if (!res.ok) {
+      // Revert
+      setTasks((prev) => prev.map((t) => (t.id === subtaskId ? subtask : t)));
+      return;
+    }
+    const saved = await res.json();
+    setTasks((prev) => prev.map((t) => (t.id === subtaskId ? saved : t)));
+
+    // If dropped onto a sibling, reorder so the moved subtask is before it
+    if (insertBeforeId) {
+      await reorderSubtasks(subtaskId, insertBeforeId, newParentId);
+    }
+  }
+
+  async function handleDrop(dropTargetId: string) {
+    const fromId = draggingId;
+    if (!fromId || fromId === dropTargetId) return;
+    setDraggingId(null);
+    setDragOverId(null);
+
+    const dragging = tasks.find((t) => t.id === fromId);
+    const target = tasks.find((t) => t.id === dropTargetId);
+    if (!dragging || !target) return;
+
+    if (!dragging.parentTaskId && !target.parentTaskId) {
+      // Top-level → top-level: reorder
+      await reorderTopLevel(fromId, dropTargetId);
+    } else if (dragging.parentTaskId && !target.parentTaskId) {
+      // Subtask dropped on top-level task header: move to that parent (append)
+      await moveSubtask(fromId, dropTargetId);
+    } else if (dragging.parentTaskId && target.parentTaskId) {
+      if (dragging.parentTaskId === target.parentTaskId) {
+        // Same parent: reorder subtasks
+        await reorderSubtasks(fromId, dropTargetId, dragging.parentTaskId);
+      } else {
+        // Different parent: move subtask, insert before the target subtask
+        await moveSubtask(fromId, target.parentTaskId, dropTargetId);
+      }
+    }
+  }
+
   const today = new Date().toISOString().slice(0, 10);
   const allOpen = tasks.filter((t) => !t.completedAt);
   const allCompleted = tasks.filter((t) => t.completedAt);
@@ -1017,6 +428,12 @@ export default function TasksTab({
             onInlineSubtaskSave={(title) => handleInlineSubtaskSave(task.id, title)}
             onInlineSubtaskCancel={() => setInlineSubtaskFor(null)}
             userImages={userImages}
+            isDraggable={true}
+            dragOverId={dragOverId}
+            onDragStart={(id) => setDraggingId(id)}
+            onDragOver={(id) => setDragOverId(id)}
+            onDrop={handleDrop}
+            onDragEnd={() => { setDraggingId(null); setDragOverId(null); }}
           />
         ))}
       </div>

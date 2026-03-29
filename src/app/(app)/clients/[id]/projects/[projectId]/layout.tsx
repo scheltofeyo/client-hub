@@ -1,4 +1,4 @@
-import { getClientById, getProjectById, getServices } from "@/lib/data";
+import { getClientById, getProjectById, getProjectLabels, getServices } from "@/lib/data";
 import { notFound } from "next/navigation";
 import PageHeader from "@/components/layout/PageHeader";
 import ProjectTertiaryNav from "@/components/layout/ProjectTertiaryNav";
@@ -15,10 +15,11 @@ export default async function ProjectDetailLayout({
   params: Promise<{ id: string; projectId: string }>;
 }) {
   const { id, projectId } = await params;
-  const [client, project, services] = await Promise.all([
+  const [client, project, services, labels] = await Promise.all([
     getClientById(id),
     getProjectById(projectId),
     getServices(),
+    getProjectLabels(),
   ]);
 
   if (!client || !project) notFound();
@@ -42,7 +43,7 @@ export default async function ProjectDetailLayout({
               clientId={id}
               isCompleted={project.status === "completed"}
             />
-            <EditProjectButton project={project} clientId={id} services={services} />
+            <EditProjectButton project={project} clientId={id} services={services} labels={labels} />
           </>
         }
         tertiaryNav={<ProjectTertiaryNav basePath={basePath} />}

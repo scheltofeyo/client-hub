@@ -1,5 +1,30 @@
-export type ClientStatus = "active" | "inactive" | "prospect";
-export type ClientPlatform = "summ_core" | "summ_suite";
+export type ClientStatus = string;
+
+export interface ClientStatusOption {
+  id: string;
+  slug: string;
+  label: string;
+  rank: number;
+  createdAt?: string;
+}
+
+export interface EventType {
+  id: string;
+  slug: string;
+  label: string;
+  color: string;
+  icon: string;
+  rank: number;
+}
+export type ClientPlatform = string;
+
+export interface ClientPlatformOption {
+  id: string;
+  slug: string;
+  label: string;
+  rank: number;
+  createdAt?: string;
+}
 
 export interface Archetype {
   id: string;
@@ -43,6 +68,7 @@ export interface Client {
   contacts?: Contact[];
   leads?: ClientLead[];
   platform?: ClientPlatform;
+  platformLabel?: string;
   clientSince?: string;
   archetypeId?: string;
   archetype?: string;
@@ -57,10 +83,13 @@ export interface Project {
   description?: string;
   status: ProjectStatus;
   completedDate?: string;
+  deliveryDate?: string;
   soldPrice?: number;
   templateId?: string;
   serviceId?: string;
   service?: string;
+  labelId?: string;
+  label?: string;
   createdAt?: string;
 }
 
@@ -71,6 +100,7 @@ export interface ProjectTemplate {
   defaultDescription?: string;
   defaultSoldPrice?: number;
   defaultServiceId?: string;
+  defaultDeliveryDays?: number;
   taskCount?: number;
   createdAt?: string;
 }
@@ -93,6 +123,13 @@ export interface LogSignal {
   createdAt?: string;
 }
 
+export interface ProjectLabel {
+  id: string;
+  name: string;
+  rank: number;
+  createdAt?: string;
+}
+
 export interface Log {
   id: string;
   clientId: string;
@@ -103,6 +140,7 @@ export interface Log {
   signalIds: string[];
   signals?: string[];
   followUp: boolean;
+  followUpAction?: string;
   followUpDeadline?: string;
   followedUpAt?: string;
   followedUpByName?: string;
@@ -134,8 +172,10 @@ export interface TaskAssignee {
 
 export interface Task {
   id: string;
-  projectId: string;
+  clientId?: string;
+  projectId?: string;
   parentTaskId?: string;
+  logId?: string;
   title: string;
   description?: string;
   assignees: TaskAssignee[];
@@ -143,7 +183,28 @@ export interface Task {
   completedAt?: string;
   completedById?: string;
   completedByName?: string;
+  order?: number;
   createdById: string;
   createdByName: string;
   createdAt?: string;
+}
+
+export type ClientEventType = string;
+export type TimelineEventSource = "log_followup" | "task" | "project" | "custom";
+export type TimelineEventType = string;
+export type RecurrenceFrequency = "none" | "weekly" | "biweekly" | "monthly" | "quarterly" | "yearly";
+
+export interface TimelineEvent {
+  id: string;
+  date: string;         // occurrence date (may differ from baseDate for recurring events)
+  baseDate?: string;    // the DB start date, only set for recurring custom events
+  title: string;
+  type: TimelineEventType;
+  source: TimelineEventSource;
+  sourceId: string;
+  projectId?: string;
+  notes?: string;
+  deletable: boolean;
+  recurrence?: RecurrenceFrequency;
+  repetitions?: number; // total occurrences; undefined = unlimited
 }

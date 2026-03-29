@@ -17,7 +17,7 @@ export async function PATCH(
   await connectDB();
 
   const body = await req.json();
-  const { name, description, defaultDescription, defaultSoldPrice, defaultServiceId } = body;
+  const { name, description, defaultDescription, defaultSoldPrice, defaultServiceId, defaultDeliveryDays } = body;
 
   if (name !== undefined && !name?.trim()) {
     return NextResponse.json({ error: "Name cannot be empty" }, { status: 400 });
@@ -29,6 +29,7 @@ export async function PATCH(
   if (defaultDescription !== undefined) update.defaultDescription = defaultDescription?.trim() || null;
   if (defaultSoldPrice !== undefined) update.defaultSoldPrice = defaultSoldPrice ? Number(defaultSoldPrice) : null;
   if (defaultServiceId !== undefined) update.defaultServiceId = defaultServiceId || null;
+  if (defaultDeliveryDays !== undefined) update.defaultDeliveryDays = defaultDeliveryDays ? Number(defaultDeliveryDays) : null;
 
   const doc = await ProjectTemplateModel.findByIdAndUpdate(id, { $set: update }, { new: true }).lean();
   if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -40,6 +41,7 @@ export async function PATCH(
     defaultDescription: doc.defaultDescription,
     defaultSoldPrice: doc.defaultSoldPrice,
     defaultServiceId: doc.defaultServiceId,
+    defaultDeliveryDays: doc.defaultDeliveryDays,
   });
 }
 

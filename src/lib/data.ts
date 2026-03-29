@@ -12,14 +12,20 @@ import { SheetModel } from "./models/Sheet";
 import { TaskModel } from "./models/Task";
 import { TemplateTaskModel } from "./models/TemplateTask";
 import { ActivityEventModel } from "./models/ActivityEvent";
-import type { Archetype, Client, DashboardStats, Log, LogSignal, Project, ProjectTemplate, Service, Sheet, Task, TemplateTask } from "@/types";
+import { EventTypeModel, DEFAULT_EVENT_TYPES } from "./models/EventType";
+import { ClientEventModel } from "./models/ClientEvent";
+import { ClientStatusOptionModel, DEFAULT_CLIENT_STATUSES } from "./models/ClientStatusOption";
+import { ClientPlatformOptionModel, DEFAULT_CLIENT_PLATFORMS } from "./models/ClientPlatformOption";
+import { ProjectLabelModel } from "./models/ProjectLabel";
+import type { Archetype, Client, ClientPlatformOption, ClientStatusOption, DashboardStats, EventType, Log, LogSignal, Project, ProjectLabel, ProjectTemplate, RecurrenceFrequency, Service, Sheet, Task, TemplateTask, TimelineEvent } from "@/types";
 
-function mapClient(doc: ReturnType<typeof Object.assign>, archetypeMap?: Map<string, string>): Client {
+function mapClient(doc: ReturnType<typeof Object.assign>, archetypeMap?: Map<string, string>, platformLabelMap?: Map<string, string>): Client {
   return {
     id: doc._id.toString(),
     company: doc.company,
     status: doc.status,
     platform: doc.platform,
+    platformLabel: doc.platform && platformLabelMap ? (platformLabelMap.get(doc.platform) ?? undefined) : undefined,
     clientSince: doc.clientSince,
     employees: doc.employees,
     website: doc.website,
@@ -69,6 +75,33 @@ async function buildServiceMap(): Promise<Map<string, string>> {
   return map;
 }
 
+const fetchClientStatusDocs = cache(async () => {
+  await connectDB();
+  let docs = await ClientStatusOptionModel.find().sort({ rank: 1, createdAt: 1 }).lean();
+  if (docs.length === 0) {
+    await Promise.all(DEFAULT_CLIENT_STATUSES.map((s, i) => ClientStatusOptionModel.create({ ...s, rank: i })));
+    docs = await ClientStatusOptionModel.find().sort({ rank: 1, createdAt: 1 }).lean();
+  }
+  return docs;
+});
+
+const fetchClientPlatformDocs = cache(async () => {
+  await connectDB();
+  let docs = await ClientPlatformOptionModel.find().sort({ rank: 1, createdAt: 1 }).lean();
+  if (docs.length === 0) {
+    await Promise.all(DEFAULT_CLIENT_PLATFORMS.map((p, i) => ClientPlatformOptionModel.create({ ...p, rank: i })));
+    docs = await ClientPlatformOptionModel.find().sort({ rank: 1, createdAt: 1 }).lean();
+  }
+  return docs;
+});
+
+async function buildPlatformLabelMap(): Promise<Map<string, string>> {
+  const docs = await fetchClientPlatformDocs();
+  const map = new Map<string, string>();
+  for (const d of docs) map.set(d.slug, d.label);
+  return map;
+}
+
 async function buildUserImageMap(): Promise<Map<string, string>> {
   const users = await UserModel.find({}, { _id: 1, image: 1 }).lean();
   const map = new Map<string, string>();
@@ -80,13 +113,14 @@ async function buildUserImageMap(): Promise<Map<string, string>> {
 
 export async function getClients(): Promise<Client[]> {
   await connectDB();
-  const [docs, imageMap, archetypeMap] = await Promise.all([
+  const [docs, imageMap, archetypeMap, platformLabelMap] = await Promise.all([
     ClientModel.find().sort({ createdAt: -1 }).lean(),
     buildUserImageMap(),
     buildArchetypeMap(),
+    buildPlatformLabelMap(),
   ]);
   return docs.map((doc) => {
-    const client = mapClient(doc, archetypeMap);
+    const client = mapClient(doc, archetypeMap, platformLabelMap);
     if (client.leads) {
       client.leads = client.leads.map((l) => ({
         ...l,
@@ -99,12 +133,18 @@ export async function getClients(): Promise<Client[]> {
 
 export const getClientById = cache(async (id: string): Promise<Client | undefined> => {
   await connectDB();
-  const [doc, archetypeMap] = await Promise.all([
+  const [doc, archetypeMap, imageMap, platformLabelMap] = await Promise.all([
     ClientModel.findById(id).lean(),
     buildArchetypeMap(),
+    buildUserImageMap(),
+    buildPlatformLabelMap(),
   ]);
   if (!doc) return undefined;
-  return mapClient(doc, archetypeMap);
+  const client = mapClient(doc, archetypeMap, platformLabelMap);
+  if (client.leads) {
+    client.leads = client.leads.map((l) => ({ ...l, image: imageMap.get(l.userId) }));
+  }
+  return client;
 });
 
 export async function getArchetypes(): Promise<Archetype[]> {
@@ -112,6 +152,28 @@ export async function getArchetypes(): Promise<Archetype[]> {
   return docs.map((d) => ({
     id: d._id.toString(),
     name: d.name,
+    rank: d.rank ?? 0,
+    createdAt: d.createdAt?.toISOString().split("T")[0],
+  }));
+}
+
+export async function getClientStatuses(): Promise<ClientStatusOption[]> {
+  const docs = await fetchClientStatusDocs();
+  return docs.map((d) => ({
+    id: d._id.toString(),
+    slug: d.slug,
+    label: d.label,
+    rank: d.rank ?? 0,
+    createdAt: d.createdAt?.toISOString().split("T")[0],
+  }));
+}
+
+export async function getClientPlatforms(): Promise<ClientPlatformOption[]> {
+  const docs = await fetchClientPlatformDocs();
+  return docs.map((d) => ({
+    id: d._id.toString(),
+    slug: d.slug,
+    label: d.label,
     rank: d.rank ?? 0,
     createdAt: d.createdAt?.toISOString().split("T")[0],
   }));
@@ -128,7 +190,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
   return { totalClients, activeClients, totalProjects, activeProjects };
 }
 
-function mapProject(doc: ReturnType<typeof Object.assign>, serviceMap?: Map<string, string>): Project {
+function mapProject(doc: ReturnType<typeof Object.assign>, serviceMap?: Map<string, string>, labelMap?: Map<string, string>): Project {
   return {
     id: doc._id.toString(),
     clientId: doc.clientId,
@@ -140,15 +202,18 @@ function mapProject(doc: ReturnType<typeof Object.assign>, serviceMap?: Map<stri
     templateId: doc.templateId,
     serviceId: doc.serviceId ?? undefined,
     service: doc.serviceId && serviceMap ? serviceMap.get(doc.serviceId) : undefined,
+    labelId: doc.labelId ?? undefined,
+    label: doc.labelId && labelMap ? labelMap.get(doc.labelId) : undefined,
     createdAt: doc.createdAt?.toISOString().split("T")[0],
   };
 }
 
 export async function getProjectsByClientId(clientId: string): Promise<Project[]> {
   await connectDB();
-  const [docs, serviceDocs] = await Promise.all([
+  const [docs, serviceDocs, labelMap] = await Promise.all([
     ProjectModel.find({ clientId }).sort({ createdAt: -1 }).lean(),
     fetchServiceDocs(),
+    buildProjectLabelMap(),
   ]);
   const serviceMap = new Map<string, string>();
   const serviceRankMap = new Map<string, number>();
@@ -157,7 +222,7 @@ export async function getProjectsByClientId(clientId: string): Promise<Project[]
     serviceMap.set(sid, d.name);
     serviceRankMap.set(sid, d.rank ?? i);
   });
-  const projects = docs.map((doc) => mapProject(doc, serviceMap));
+  const projects = docs.map((doc) => mapProject(doc, serviceMap, labelMap));
   projects.sort((a, b) => {
     const ra = a.serviceId ? (serviceRankMap.get(a.serviceId) ?? Infinity) : Infinity;
     const rb = b.serviceId ? (serviceRankMap.get(b.serviceId) ?? Infinity) : Infinity;
@@ -168,12 +233,13 @@ export async function getProjectsByClientId(clientId: string): Promise<Project[]
 
 export const getProjectById = cache(async (projectId: string): Promise<Project | null> => {
   await connectDB();
-  const [doc, serviceMap] = await Promise.all([
+  const [doc, serviceMap, labelMap] = await Promise.all([
     ProjectModel.findById(projectId).lean(),
     buildServiceMap(),
+    buildProjectLabelMap(),
   ]);
   if (!doc) return null;
-  return mapProject(doc, serviceMap);
+  return mapProject(doc, serviceMap, labelMap);
 });
 
 export async function getServices(): Promise<Service[]> {
@@ -184,6 +250,34 @@ export async function getServices(): Promise<Service[]> {
     rank: d.rank ?? 0,
     createdAt: d.createdAt?.toISOString().split("T")[0],
   }));
+}
+
+const fetchProjectLabelDocs = cache(async () => {
+  await connectDB();
+  const DEFAULT_LABELS = ["New Business", "Platform", "Next Business"];
+  let docs = await ProjectLabelModel.find().sort({ rank: 1, createdAt: 1 }).lean();
+  if (docs.length === 0) {
+    await Promise.all(DEFAULT_LABELS.map((name, i) => ProjectLabelModel.create({ name, rank: i })));
+    docs = await ProjectLabelModel.find().sort({ rank: 1, createdAt: 1 }).lean();
+  }
+  return docs;
+});
+
+export async function getProjectLabels(): Promise<ProjectLabel[]> {
+  const docs = await fetchProjectLabelDocs();
+  return docs.map((d) => ({
+    id: d._id.toString(),
+    name: d.name,
+    rank: d.rank ?? 0,
+    createdAt: d.createdAt?.toISOString().split("T")[0],
+  }));
+}
+
+async function buildProjectLabelMap(): Promise<Map<string, string>> {
+  const docs = await fetchProjectLabelDocs();
+  const map = new Map<string, string>();
+  for (const d of docs) map.set(d._id.toString(), d.name);
+  return map;
 }
 
 const fetchLogSignalDocs = cache(async () => {
@@ -223,6 +317,7 @@ export async function getLogsByClientId(clientId: string): Promise<Log[]> {
     signalIds: doc.signalIds ?? [],
     signals: (doc.signalIds ?? []).map((sid: string) => signalMap.get(sid) ?? sid),
     followUp: doc.followUp ?? false,
+    followUpAction: doc.followUpAction ?? undefined,
     followUpDeadline: doc.followUpDeadline ?? undefined,
     followedUpAt: doc.followedUpAt ?? undefined,
     followedUpByName: doc.followedUpByName ?? undefined,
@@ -260,8 +355,10 @@ export const getSheetById = cache(async (sheetId: string): Promise<Sheet | null>
 function mapTask(doc: ReturnType<typeof Object.assign>): Task {
   return {
     id: doc._id.toString(),
-    projectId: doc.projectId,
+    clientId: doc.clientId ?? undefined,
+    projectId: doc.projectId ?? undefined,
     parentTaskId: doc.parentTaskId ?? undefined,
+    logId: doc.logId ?? undefined,
     title: doc.title,
     description: doc.description ?? undefined,
     assignees: (doc.assignees ?? []).map((a: { userId: string; name: string; image?: string }) => ({
@@ -295,7 +392,8 @@ export async function getTaskStatsByProjectIds(
   ).lean();
   const map = new Map<string, { total: number; completed: number }>();
   for (const doc of docs) {
-    const pid = doc.projectId;
+    const pid = doc.projectId as string | undefined;
+    if (!pid) continue;
     const entry = map.get(pid) ?? { total: 0, completed: 0 };
     entry.total++;
     if (doc.completedAt) entry.completed++;
@@ -386,6 +484,250 @@ export async function getLastActivityByClientId(
     actorName: doc.actorName,
     type: doc.type,
   };
+}
+
+export async function getUpcomingTasksForProjects(
+  projectIds: string[],
+  fromDate: string
+): Promise<Task[]> {
+  if (projectIds.length === 0) return [];
+  await connectDB();
+  const docs = await TaskModel.find({
+    projectId: { $in: projectIds },
+    completedAt: null,
+    completionDate: { $gte: fromDate },
+  })
+    .sort({ completionDate: 1 })
+    .lean();
+  return docs.map(mapTask);
+}
+
+export async function getUpcomingGeneralTasksByClientId(
+  clientId: string,
+  fromDate: string
+): Promise<Task[]> {
+  await connectDB();
+  const docs = await TaskModel.find({
+    clientId,
+    projectId: { $exists: false },
+    logId: { $exists: false },
+    completedAt: null,
+    completionDate: { $gte: fromDate },
+  })
+    .sort({ completionDate: 1 })
+    .lean();
+  return docs.map(mapTask);
+}
+
+// ── Shared events builder ─────────────────────────────────────────────────────
+// Single source of truth for upcoming events — used by both the events API and
+// the dashboard. Keeps both in sync automatically.
+
+const RECURRENCE_WINDOW_DAYS = 365;
+
+function nextOccurrenceDate(dateStr: string, recurrence: RecurrenceFrequency): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  let next: Date;
+  switch (recurrence) {
+    case "weekly":    next = new Date(y, m - 1, d + 7);  break;
+    case "biweekly":  next = new Date(y, m - 1, d + 14); break;
+    case "monthly":   next = new Date(y, m,     d);      break;
+    case "quarterly": next = new Date(y, m + 2, d);      break;
+    case "yearly":    next = new Date(y + 1, m - 1, d);  break;
+    default:          return dateStr;
+  }
+  return next.toISOString().slice(0, 10);
+}
+
+function expandOccurrences(
+  baseDate: string,
+  recurrence: RecurrenceFrequency,
+  today: string,
+  windowEnd: string,
+  repetitions?: number | null
+): string[] {
+  const occurrences: string[] = [];
+  let current = baseDate;
+  let totalCount = 0;
+  while (current <= windowEnd) {
+    totalCount++;
+    if (current >= today) occurrences.push(current);
+    if (repetitions != null && totalCount >= repetitions) break;
+    const next = nextOccurrenceDate(current, recurrence);
+    if (next <= current) break;
+    current = next;
+  }
+  return occurrences;
+}
+
+export async function getUpcomingEventsForClient(clientId: string): Promise<TimelineEvent[]> {
+  await connectDB();
+
+  const today = new Date().toISOString().slice(0, 10);
+  const windowEndDate = new Date();
+  windowEndDate.setDate(windowEndDate.getDate() + RECURRENCE_WINDOW_DAYS);
+  const windowEnd = windowEndDate.toISOString().slice(0, 10);
+
+  const activeProjectIds = (
+    await ProjectModel.find({ clientId, status: { $ne: "completed" } }, { _id: 1 }).lean()
+  ).map((p) => p._id.toString());
+
+  const [logs, completionProjects, deliveryProjects, projectTasks, generalTasks, customDocs] =
+    await Promise.all([
+      LogModel.find({
+        clientId,
+        followUp: true,
+        followedUpAt: null,
+        followUpDeadline: { $gte: today },
+      }).lean(),
+      ProjectModel.find({
+        clientId,
+        status: { $ne: "completed" },
+        completedDate: { $gte: today },
+      }).lean(),
+      ProjectModel.find({
+        clientId,
+        status: { $ne: "completed" },
+        deliveryDate: { $gte: today },
+      }).lean(),
+      activeProjectIds.length > 0
+        ? TaskModel.find({
+            projectId: { $in: activeProjectIds },
+            logId: { $exists: false },
+            completedAt: null,
+            completionDate: { $gte: today },
+          }).lean()
+        : Promise.resolve([]),
+      TaskModel.find({
+        clientId,
+        projectId: { $exists: false },
+        logId: { $exists: false },
+        completedAt: null,
+        completionDate: { $gte: today },
+      }).lean(),
+      ClientEventModel.find({ clientId }).sort({ date: 1 }).lean(),
+    ]);
+
+  const tasks = [...projectTasks, ...generalTasks];
+
+  const events: TimelineEvent[] = [
+    ...logs.map((l) => ({
+      id: `log_${l._id.toString()}`,
+      date: l.followUpDeadline!,
+      title: (l.followUpAction as string | undefined)?.trim() || (l.summary as string).slice(0, 60),
+      type: "follow_up" as const,
+      source: "log_followup" as const,
+      sourceId: l._id.toString(),
+      deletable: false,
+    })),
+    ...tasks.map((t) => ({
+      id: `task_${t._id.toString()}`,
+      date: t.completionDate!,
+      title: t.title as string,
+      type: "deadline" as const,
+      source: "task" as const,
+      sourceId: t._id.toString(),
+      projectId: (t.projectId as string | undefined)?.toString(),
+      deletable: false,
+    })),
+    ...completionProjects.map((p) => ({
+      id: `project_${p._id.toString()}`,
+      date: p.completedDate!,
+      title: p.title as string,
+      type: "project_completion" as const,
+      source: "project" as const,
+      sourceId: p._id.toString(),
+      deletable: false,
+    })),
+    ...deliveryProjects.map((p) => ({
+      id: `delivery_${p._id.toString()}`,
+      date: p.deliveryDate!,
+      title: p.title as string,
+      type: "delivery" as const,
+      source: "project" as const,
+      sourceId: p._id.toString(),
+      deletable: false,
+    })),
+    ...customDocs.flatMap((doc) => {
+      const recurrence = (doc.recurrence ?? "none") as RecurrenceFrequency;
+      const docId = doc._id.toString();
+      if (recurrence === "none") {
+        if (doc.date < today) return [] as TimelineEvent[];
+        return [{
+          id: `custom_${docId}`,
+          date: doc.date,
+          title: doc.title as string,
+          type: doc.type as string,
+          source: "custom" as const,
+          sourceId: docId,
+          notes: (doc.notes as string | undefined) ?? undefined,
+          deletable: true,
+          recurrence: "none" as const,
+        }] as TimelineEvent[];
+      }
+      return expandOccurrences(doc.date, recurrence, today, windowEnd, doc.repetitions as number | null).map(
+        (occDate) => ({
+          id: `custom_${docId}_${occDate}`,
+          date: occDate,
+          baseDate: doc.date,
+          title: doc.title as string,
+          type: doc.type as string,
+          source: "custom" as const,
+          sourceId: docId,
+          notes: (doc.notes as string | undefined) ?? undefined,
+          deletable: true,
+          recurrence,
+          repetitions: (doc.repetitions as number | undefined) ?? undefined,
+        })
+      );
+    }),
+  ];
+
+  events.sort((a, b) => a.date.localeCompare(b.date));
+  return events;
+}
+
+export async function getGeneralTasksByClientId(clientId: string): Promise<Task[]> {
+  await connectDB();
+  const docs = await TaskModel.find({ clientId, projectId: { $exists: false } }).sort({ createdAt: 1 }).lean();
+  return docs.map(mapTask);
+}
+
+export async function getTasksByProjectIds(projectIds: string[]): Promise<Map<string, Task[]>> {
+  const map = new Map<string, Task[]>();
+  if (projectIds.length === 0) return map;
+  await connectDB();
+  const docs = await TaskModel.find({ projectId: { $in: projectIds } }).sort({ createdAt: 1 }).lean();
+  for (const doc of docs) {
+    const pid = doc.projectId as string;
+    if (!map.has(pid)) map.set(pid, []);
+    map.get(pid)!.push(mapTask(doc));
+  }
+  return map;
+}
+
+export async function getEventTypes(): Promise<EventType[]> {
+  await connectDB();
+  let docs = await EventTypeModel.find().sort({ rank: 1, createdAt: 1 }).lean();
+
+  // Auto-seed defaults if collection is empty
+  if (docs.length === 0) {
+    await Promise.all(
+      DEFAULT_EVENT_TYPES.map((et, i) =>
+        EventTypeModel.create({ ...et, rank: i })
+      )
+    );
+    docs = await EventTypeModel.find().sort({ rank: 1, createdAt: 1 }).lean();
+  }
+
+  return docs.map((d) => ({
+    id: d._id.toString(),
+    slug: d.slug,
+    label: d.label,
+    color: d.color,
+    icon: d.icon,
+    rank: d.rank ?? 0,
+  }));
 }
 
 export const getTemplateTasksByTemplateId = cache(async (templateId: string): Promise<TemplateTask[]> => {

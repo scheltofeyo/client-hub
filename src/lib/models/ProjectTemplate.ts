@@ -6,6 +6,7 @@ export interface IProjectTemplate extends Document {
   defaultDescription?: string;
   defaultSoldPrice?: number;
   defaultServiceId?: string;
+  defaultDeliveryDays?: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -17,6 +18,7 @@ const ProjectTemplateSchema = new Schema<IProjectTemplate>(
     defaultDescription: { type: String, trim: true },
     defaultSoldPrice: { type: Number },
     defaultServiceId: { type: String },
+    defaultDeliveryDays: { type: Number },
   },
   { timestamps: true }
 );

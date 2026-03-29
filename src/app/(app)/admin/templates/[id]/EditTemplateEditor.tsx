@@ -557,6 +557,8 @@ export default function EditTemplateEditor({
     defaultSoldPrice:
       template.defaultSoldPrice != null ? String(template.defaultSoldPrice) : "",
     defaultServiceId: template.defaultServiceId ?? "",
+    defaultDeliveryDays:
+      template.defaultDeliveryDays != null ? String(template.defaultDeliveryDays) : "",
   });
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
@@ -587,6 +589,7 @@ export default function EditTemplateEditor({
         defaultDescription: form.defaultDescription || undefined,
         defaultSoldPrice: form.defaultSoldPrice ? Number(form.defaultSoldPrice) : undefined,
         defaultServiceId: form.defaultServiceId || undefined,
+        defaultDeliveryDays: form.defaultDeliveryDays ? Number(form.defaultDeliveryDays) : undefined,
       }),
     });
 
@@ -649,20 +652,37 @@ export default function EditTemplateEditor({
           </div>
 
           <div>
-            <label className={labelClass} style={labelStyle}>
+            <p className={labelClass} style={labelStyle}>
               Service <span className="text-red-400">*</span>
-            </label>
-            <select
-              value={form.defaultServiceId}
-              onChange={(e) => set("defaultServiceId", e.target.value)}
-              className={inputClass}
-              style={inputStyle}
-            >
-              <option value="">— Select a service —</option>
-              {services.map((s) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </select>
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {services.map((s) => {
+                const selected = form.defaultServiceId === s.id;
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => set("defaultServiceId", s.id)}
+                    className="px-2.5 py-0.5 rounded-full text-xs font-medium border transition-colors"
+                    style={
+                      selected
+                        ? {
+                            background: "var(--primary)",
+                            borderColor: "var(--primary)",
+                            color: "#fff",
+                          }
+                        : {
+                            background: "var(--bg-sidebar)",
+                            borderColor: "var(--border)",
+                            color: "var(--text-secondary)",
+                          }
+                    }
+                  >
+                    {s.name}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           <div>
@@ -693,7 +713,10 @@ export default function EditTemplateEditor({
             />
           </div>
 
-          <div>
+          <div className="!mt-9">
+            <p className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: "var(--text-muted)" }}>
+              Financial information
+            </p>
             <label className={labelClass} style={labelStyle}>
               Default sold price (€)
             </label>
@@ -704,6 +727,22 @@ export default function EditTemplateEditor({
               value={form.defaultSoldPrice}
               onChange={(e) => set("defaultSoldPrice", e.target.value)}
               placeholder="e.g. 5000"
+              className={inputClass}
+              style={inputStyle}
+            />
+          </div>
+
+          <div>
+            <label className={labelClass} style={labelStyle}>
+              Delivery — days after creation
+            </label>
+            <input
+              type="number"
+              min={1}
+              step={1}
+              value={form.defaultDeliveryDays}
+              onChange={(e) => set("defaultDeliveryDays", e.target.value)}
+              placeholder="e.g. 30"
               className={inputClass}
               style={inputStyle}
             />

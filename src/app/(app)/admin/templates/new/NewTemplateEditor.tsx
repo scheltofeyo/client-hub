@@ -123,20 +123,37 @@ export default function NewTemplateEditor({ services }: { services: Service[] })
           </div>
 
           <div>
-            <label className={labelClass} style={labelStyle}>
+            <p className={labelClass} style={labelStyle}>
               Service <span className="text-red-400">*</span>
-            </label>
-            <select
-              value={form.defaultServiceId}
-              onChange={(e) => set("defaultServiceId", e.target.value)}
-              className={inputClass}
-              style={inputStyle}
-            >
-              <option value="">— Select a service —</option>
-              {services.map((s) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </select>
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {services.map((s) => {
+                const selected = form.defaultServiceId === s.id;
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => set("defaultServiceId", s.id)}
+                    className="px-2.5 py-0.5 rounded-full text-xs font-medium border transition-colors"
+                    style={
+                      selected
+                        ? {
+                            background: "var(--primary)",
+                            borderColor: "var(--primary)",
+                            color: "#fff",
+                          }
+                        : {
+                            background: "var(--bg-sidebar)",
+                            borderColor: "var(--border)",
+                            color: "var(--text-secondary)",
+                          }
+                    }
+                  >
+                    {s.name}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           <div>
@@ -167,7 +184,10 @@ export default function NewTemplateEditor({ services }: { services: Service[] })
             />
           </div>
 
-          <div>
+          <div className="!mt-9">
+            <p className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: "var(--text-muted)" }}>
+              Financial information
+            </p>
             <label className={labelClass} style={labelStyle}>
               Default sold price (€)
             </label>

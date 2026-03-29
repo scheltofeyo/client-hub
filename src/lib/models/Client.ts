@@ -17,8 +17,8 @@ export interface IClientLead {
 
 export interface IClient extends Document {
   company: string;
-  status?: "active" | "inactive" | "prospect";
-  platform?: "summ_core" | "summ_suite";
+  status?: string;
+  platform?: string;
   clientSince?: string;
   employees?: number;
   website?: string;
@@ -54,8 +54,8 @@ const ClientLeadSchema = new Schema<IClientLead>(
 const ClientSchema = new Schema<IClient>(
   {
     company: { type: String, required: true, trim: true },
-    status: { type: String, enum: ["active", "inactive", "prospect"] },
-    platform: { type: String, enum: ["summ_core", "summ_suite"] },
+    status: { type: String, trim: true },
+    platform: { type: String, trim: true },
     clientSince: { type: String, trim: true },
     employees: { type: Number },
     website: { type: String, trim: true },

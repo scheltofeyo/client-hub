@@ -1,8 +1,8 @@
 import { notFound } from "next/navigation";
-import { ExternalLink } from "lucide-react";
 import { getClientById, getSheetById } from "@/lib/data";
 import { toEmbedUrl } from "@/lib/sheets";
 import PageHeader from "@/components/layout/PageHeader";
+import SheetActions from "./SheetActions";
 
 export const dynamic = "force-dynamic";
 
@@ -26,17 +26,7 @@ export default async function SheetDetailPage({
           { label: "..." },
         ]}
         title={sheet.name}
-        actions={
-          <a
-            href={sheet.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm btn-secondary"
-          >
-            <ExternalLink size={14} />
-            Open fullscreen
-          </a>
-        }
+        actions={<SheetActions url={sheet.url} />}
       />
 
       {/* Embedded sheet */}

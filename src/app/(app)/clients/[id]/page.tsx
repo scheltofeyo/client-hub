@@ -1,4 +1,4 @@
-import { getClientById, getProjectsByClientId, getArchetypes, getLogsByClientId, getLogSignals, getSheetsByClientId, getClientProjectsWithTaskStats, getLastActivityByClientId, getServices } from "@/lib/data";
+import { getClientById, getProjectsByClientId, getArchetypes, getLogsByClientId, getLogSignals, getSheetsByClientId, getClientProjectsWithTaskStats, getLastActivityByClientId, getServices, getUpcomingEventsForClient, getEventTypes } from "@/lib/data";
 import { auth } from "@/auth";
 import { connectDB } from "@/lib/mongodb";
 import { UserModel } from "@/lib/models/User";
@@ -11,18 +11,23 @@ import DeleteClientButton from "@/components/ui/DeleteClientButton";
 import ContactsSection from "@/components/ui/ContactsSection";
 import LeadsSection from "@/components/ui/LeadsSection";
 import AddProjectButton from "@/components/ui/AddProjectButton";
+import ClientTasksTab, { AddClientTaskButton } from "@/components/ui/ClientTasksTab";
 import LogbookTab from "@/components/ui/LogbookTab";
 import OverviewTab from "@/components/ui/OverviewTab";
 import SheetsTab, { ManageSheetsButton } from "@/components/ui/SheetsTab";
 import ActivityTab from "@/components/ui/ActivityTab";
+import EventsTab from "@/components/ui/EventsTab";
+import AddEventButton from "@/components/ui/AddEventButton";
 import AboutTertiaryNav from "@/components/layout/AboutTertiaryNav";
 import PageHeader from "@/components/layout/PageHeader";
 import Link from "next/link";
+import { FolderOpen } from "lucide-react";
 import { notFound } from "next/navigation";
-import type { Client, Log, LogSignal, Project, Service, Sheet } from "@/types";
+import type { Client, Log, LogSignal, Project, Service, Sheet, Task } from "@/types";
+import { getGeneralTasksByClientId, getTasksByProjectIds } from "@/lib/data";
 import { fmtDate } from "@/lib/utils";
 
-const tabs = ["Dashboard", "Projects", "Sheets", "Logbook", "Activity", "Settings"] as const;
+const tabs = ["Dashboard", "Projects", "Tasks", "Sheets", "Logbook", "Events", "Activity", "Settings"] as const;
 type Tab = (typeof tabs)[number];
 
 export default async function ClientDetailPage({
@@ -34,7 +39,7 @@ export default async function ClientDetailPage({
 }) {
   const { id } = await params;
   const { tab, section } = await searchParams;
-  const [client, projects, session, archetypes, logs, logSignals, sheets, services] = await Promise.all([
+  const [client, projects, session, archetypes, logs, logSignals, sheets, services, eventTypes] = await Promise.all([
     getClientById(id),
     getProjectsByClientId(id),
     auth(),
@@ -43,6 +48,7 @@ export default async function ClientDetailPage({
     getLogSignals(),
     getSheetsByClientId(id),
     getServices(),
+    getEventTypes(),
   ]);
 
   if (!client) notFound();
@@ -87,8 +93,12 @@ export default async function ClientDetailPage({
             </>
           ) : activeTab === "Projects" && canEdit ? (
             <AddProjectButton clientId={client.id} />
+          ) : activeTab === "Tasks" ? (
+            <AddClientTaskButton clientId={client.id} />
           ) : activeTab === "Sheets" ? (
             <ManageSheetsButton clientId={id} initialSheets={sheets} />
+          ) : activeTab === "Events" ? (
+            <AddEventButton clientId={id} />
           ) : undefined
         }
         tertiaryNav={
@@ -101,18 +111,20 @@ export default async function ClientDetailPage({
       />
 
       {/* Tab content */}
-      <div className="flex-1 overflow-y-auto p-7">
+      <div
+        className={`flex-1 overflow-y-auto px-7 pb-7 ${activeTab === "Dashboard" ? "pt-0" : "pt-7"}`}
+        style={activeTab === "Dashboard" ? { background: "var(--bg-surface)" } : undefined}
+      >
         {activeTab === "Dashboard" && (
           <DashboardTabWrapper
             clientId={id}
             client={client}
             projects={projects}
-            logs={logs}
             logSignals={logSignals}
             sheets={sheets}
             services={services}
+            eventTypes={eventTypes}
             currentUserId={currentUserId}
-            currentUserName={session?.user?.name ?? ""}
             isAdmin={isAdmin}
           />
         )}
@@ -126,6 +138,14 @@ export default async function ClientDetailPage({
         )}
         {activeTab === "Projects" && (
           <ProjectsTabWrapper clientId={id} projects={projects} currentUserId={currentUserId} />
+        )}
+        {activeTab === "Tasks" && (
+          <TasksTabWrapper
+            clientId={id}
+            projects={projects}
+            currentUserId={currentUserId}
+            currentUserName={session?.user?.name ?? ""}
+          />
         )}
         {activeTab === "Sheets" && (
           <SheetsTab clientId={id} initialSheets={sheets} />
@@ -141,6 +161,9 @@ export default async function ClientDetailPage({
             currentUserName={session?.user?.name ?? ""}
             isAdmin={isAdmin}
           />
+        )}
+        {activeTab === "Events" && (
+          <EventsTabWrapper clientId={id} eventTypes={eventTypes} />
         )}
         {activeTab === "Activity" && (
           <ActivityTab clientId={id} />
@@ -406,44 +429,64 @@ function ProjectCard({
   return (
     <Link
       href={`/clients/${clientId}/projects/${project.id}/tasks`}
-      className="block relative rounded-xl border p-4 space-y-2.5 bg-white dark:bg-[var(--bg-sidebar)] transition-colors project-card-hover"
+      className="relative flex flex-col rounded-xl border p-4 bg-white dark:bg-[var(--bg-sidebar)] transition-colors project-card-hover"
       style={{ boxShadow: "0 1px 3px 0 rgba(0,0,0,0.06), 0 1px 2px -1px rgba(0,0,0,0.04)" }}
     >
-      <div className="flex items-start justify-between gap-2">
-        <p className="font-medium text-sm leading-snug" style={{ color: "var(--text-primary)" }}>
-          {project.title}
-        </p>
-        <StatusBadge status={project.status} />
+      {/* Icon + title */}
+      <div className="flex gap-3">
+        <div
+          className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+          style={{ background: "var(--bg-sidebar)", border: "1px solid var(--border)" }}
+        >
+          <FolderOpen size={15} style={{ color: "var(--text-muted)" }} />
+        </div>
+        <div className="flex flex-col justify-center min-w-0">
+          {project.service && (
+            <p className="text-[10px] font-semibold uppercase tracking-wider leading-none mb-1 truncate" style={{ color: "var(--text-muted)" }}>
+              {project.service}
+            </p>
+          )}
+          <p className="font-medium text-sm leading-snug line-clamp-2" style={{ color: "var(--text-primary)" }}>
+            {project.title}
+          </p>
+        </div>
       </div>
 
+      {/* Description — up to 3 lines */}
       {project.description && (
-        <p className="text-xs leading-snug" style={{ color: "var(--text-muted)" }}>
+        <p
+          className="text-xs leading-relaxed mt-3 line-clamp-3"
+          style={{ color: "var(--text-muted)" }}
+        >
           {project.description}
         </p>
       )}
 
-      {openTasks !== null && (
-        <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-          {openTasks} open {openTasks === 1 ? "task" : "tasks"}
-          {overdue > 0 && (
-            <span style={{ color: "#dc2626" }}> · {overdue} overdue</span>
+      {/* Spacer to push footer down */}
+      <div className="flex-1 min-h-[1.25rem]" />
+
+      {/* Tasks + progress bar */}
+      {(openTasks !== null || (stats && stats.total > 0)) && (
+        <div className="flex flex-col gap-1.5 mt-5">
+          {openTasks !== null && (
+            <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+              {openTasks} open {openTasks === 1 ? "task" : "tasks"}
+              {overdue > 0 && (
+                <span style={{ color: "#dc2626" }}> · {overdue} overdue</span>
+              )}
+            </p>
           )}
-        </p>
-      )}
-
-      {stats && stats.total > 0 && (
-        <div className="flex items-center gap-2">
-          <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: "var(--border)" }}>
-            <div className="h-full rounded-full" style={{ width: `${pct}%`, background: "var(--primary)" }} />
-          </div>
-          <span className="text-xs tabular-nums" style={{ color: "var(--text-muted)" }}>
-            {stats.completed}/{stats.total}
-          </span>
+          {stats && stats.total > 0 && (
+            <div className="flex items-center gap-2">
+              <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: "var(--border)" }}>
+                <div className="h-full rounded-full" style={{ width: `${pct}%`, background: "var(--primary)" }} />
+              </div>
+              <span className="text-xs tabular-nums" style={{ color: "var(--text-muted)" }}>
+                {stats.completed}/{stats.total}
+              </span>
+            </div>
+          )}
         </div>
-      )}
-
-      {project.createdAt && (
-        <p className="text-xs" style={{ color: "var(--text-muted)" }}>Created {fmtDate(project.createdAt)}</p>
       )}
     </Link>
   );
@@ -491,28 +534,27 @@ async function DashboardTabWrapper({
   clientId,
   client,
   projects,
-  logs,
   logSignals,
   sheets,
   services,
+  eventTypes,
   currentUserId,
-  currentUserName,
   isAdmin,
 }: {
   clientId: string;
   client: Client;
   projects: Project[];
-  logs: Log[];
   logSignals: LogSignal[];
   sheets: Sheet[];
   services: Service[];
+  eventTypes: import("@/types").EventType[];
   currentUserId: string;
-  currentUserName: string;
   isAdmin: boolean;
 }) {
-  const [taskStats, lastActivity] = await Promise.all([
+  const [taskStats, lastActivity, upcomingEvents] = await Promise.all([
     getClientProjectsWithTaskStats(projects.map((p) => p.id), currentUserId),
     getLastActivityByClientId(clientId),
+    getUpcomingEventsForClient(clientId),
   ]);
 
   const totalOpenTasks = [...taskStats.perProject.values()].reduce(
@@ -525,20 +567,62 @@ async function DashboardTabWrapper({
       clientId={clientId}
       client={client}
       projects={projects}
-      initialLogs={logs}
       signals={logSignals}
       sheets={sheets}
       services={services}
       contacts={client.contacts ?? []}
-      currentUserName={currentUserName}
       currentUserId={currentUserId}
       isAdmin={isAdmin}
       totalOpenTasks={totalOpenTasks}
       overdueTaskCount={taskStats.overdueCount}
       myOpenTasks={taskStats.myOpenTasks}
+      initialEvents={upcomingEvents.slice(0, 2)}
+      eventTypes={eventTypes}
       lastActivityAt={lastActivity?.createdAt ?? null}
-      lastActivityActorName={lastActivity?.actorName ?? null}
-      lastActivityType={lastActivity?.type ?? null}
+    />
+  );
+}
+
+async function EventsTabWrapper({
+  clientId,
+  eventTypes,
+}: {
+  clientId: string;
+  eventTypes: import("@/types").EventType[];
+}) {
+  const initialEvents = await getUpcomingEventsForClient(clientId);
+  return <EventsTab clientId={clientId} initialEvents={initialEvents} initialEventTypes={eventTypes} />;
+}
+
+async function TasksTabWrapper({
+  clientId,
+  projects,
+  currentUserId,
+  currentUserName: _currentUserName,
+}: {
+  clientId: string;
+  projects: Project[];
+  currentUserId: string;
+  currentUserName: string;
+}) {
+  const projectIds = projects.map((p) => p.id);
+  const [generalTasks, projectTasksMap] = await Promise.all([
+    getGeneralTasksByClientId(clientId),
+    getTasksByProjectIds(projectIds),
+  ]);
+
+  const initialProjectTasks: Record<string, Task[]> = {};
+  for (const p of projects) {
+    initialProjectTasks[p.id] = projectTasksMap.get(p.id) ?? [];
+  }
+
+  return (
+    <ClientTasksTab
+      clientId={clientId}
+      projects={projects.map((p) => ({ id: p.id, title: p.title, status: p.status }))}
+      initialGeneralTasks={generalTasks}
+      initialProjectTasks={initialProjectTasks}
+      currentUserId={currentUserId}
     />
   );
 }
