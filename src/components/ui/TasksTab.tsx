@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { Plus } from "lucide-react";
+import { Plus, CheckCircle2, AlertCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useRightPanel } from "@/components/layout/RightPanel";
-import type { Task } from "@/types";
+import type { Project, Task } from "@/types";
 import {
   TaskRow,
   InlineTaskInput,
@@ -44,12 +44,14 @@ function StatCard({
   completed,
   total,
   accent,
+  overdueCount,
 }: {
   label: string;
   count: number;
   completed?: number;
   total?: number;
   accent?: string;
+  overdueCount?: number;
 }) {
   return (
     <div
@@ -57,12 +59,128 @@ function StatCard({
       style={{ borderColor: "var(--border)" }}
     >
       <p className="text-xs" style={{ color: "var(--text-muted)" }}>{label}</p>
-      <p className="text-2xl font-semibold tabular-nums" style={{ color: accent ?? "var(--text-primary)" }}>
-        {count}
-      </p>
+      <div className="flex items-baseline gap-2">
+        <p className="text-2xl font-semibold tabular-nums" style={{ color: accent ?? "var(--text-primary)" }}>
+          {count}
+        </p>
+        {overdueCount !== undefined && overdueCount > 0 && (
+          <span className="text-xs tabular-nums" style={{ color: "var(--destructive, #ef4444)" }}>
+            {overdueCount} overdue
+          </span>
+        )}
+      </div>
       {completed !== undefined && total !== undefined && total > 0 && (
         <ProgressBar completed={completed} total={total} />
       )}
+    </div>
+  );
+}
+
+// ── Delivery stat card ─────────────────────────────────────────────────────────
+
+function DeliveryStatCard({
+  deliveryDate,
+  deliveryTask,
+}: {
+  deliveryDate: string | undefined;
+  deliveryTask: Task | null | undefined; // undefined = still loading
+}) {
+  if (!deliveryDate) {
+    return (
+      <div
+        className="flex flex-col gap-1.5 rounded-xl border p-4"
+        style={{ borderColor: "var(--border)" }}
+      >
+        <p className="text-xs" style={{ color: "var(--text-muted)" }}>Delivery</p>
+        <p className="text-sm" style={{ color: "var(--text-muted)" }}>No date set</p>
+      </div>
+    );
+  }
+
+  // Delivered: task was completed
+  if (deliveryTask?.completedAt) {
+    const deliveredOn = new Date(deliveryTask.completedAt).toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+    return (
+      <div
+        className="flex flex-col gap-1.5 rounded-xl border p-4"
+        style={{
+          borderColor: "var(--border)",
+          background: "color-mix(in srgb, var(--primary) 8%, transparent)",
+        }}
+      >
+        <p className="text-xs" style={{ color: "var(--text-muted)" }}>Delivery</p>
+        <div className="flex items-center gap-1.5">
+          <CheckCircle2 size={18} style={{ color: "var(--primary)" }} />
+          <p className="text-xl font-semibold" style={{ color: "var(--primary)" }}>
+            Delivered
+          </p>
+        </div>
+        <p className="text-xs" style={{ color: "var(--text-muted)" }}>{deliveredOn}</p>
+      </div>
+    );
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  // Use UTC-neutral day diff (date strings only, no TZ issues)
+  const [dy, dm, dd] = deliveryDate.split("-").map(Number);
+  const [ty, tm, td] = today.split("-").map(Number);
+  const deliveryMs = Date.UTC(dy, dm - 1, dd);
+  const todayMs = Date.UTC(ty, tm - 1, td);
+  const daysUntil = Math.round((deliveryMs - todayMs) / (1000 * 60 * 60 * 24));
+
+  const formattedDate = new Date(deliveryDate + "T00:00:00").toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+
+  // Date reached but not yet delivered
+  if (daysUntil <= 0) {
+    const overdueDays = Math.abs(daysUntil);
+    return (
+      <div
+        className="flex flex-col gap-1.5 rounded-xl border p-4"
+        style={{ borderColor: "var(--border)" }}
+      >
+        <p className="text-xs" style={{ color: "var(--text-muted)" }}>Delivery</p>
+        <div className="flex items-center gap-1.5">
+          <AlertCircle size={18} style={{ color: "#f59e0b" }} />
+          <p className="text-xl font-semibold" style={{ color: "#f59e0b" }}>
+            {overdueDays === 0 ? "Due today" : `${overdueDays}d overdue`}
+          </p>
+        </div>
+        <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+          Tick off the delivery task below
+        </p>
+      </div>
+    );
+  }
+
+  // Countdown
+  const isUrgent = daysUntil <= 7;
+
+  return (
+    <div
+      className="flex flex-col gap-1.5 rounded-xl border p-4"
+      style={{ borderColor: "var(--border)" }}
+    >
+      <p className="text-xs" style={{ color: "var(--text-muted)" }}>Delivery</p>
+      <div className="flex items-baseline gap-1.5">
+        <p
+          className="text-2xl font-semibold tabular-nums"
+          style={{ color: isUrgent ? "#f59e0b" : "var(--text-primary)" }}
+        >
+          {daysUntil}
+        </p>
+        <span className="text-sm" style={{ color: "var(--text-muted)" }}>
+          day{daysUntil !== 1 ? "s" : ""} to go
+        </span>
+      </div>
+      <p className="text-xs" style={{ color: "var(--text-muted)" }}>{formattedDate}</p>
     </div>
   );
 }
@@ -87,11 +205,13 @@ export default function TasksTab({
   clientId,
   initialTasks,
   currentUserId,
+  project,
 }: {
   projectId: string;
   clientId: string;
   initialTasks: Task[];
   currentUserId: string;
+  project: Project | null;
 }) {
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
   const [users, setUsers] = useState<UserOption[]>([]);
@@ -100,6 +220,8 @@ export default function TasksTab({
   const [inlineSubtaskFor, setInlineSubtaskFor] = useState<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
+  // undefined = loading, null = no task, Task = found
+  const [deliveryTask, setDeliveryTask] = useState<Task | null | undefined>(undefined);
   const { openPanel, closePanel } = useRightPanel();
   const router = useRouter();
 
@@ -114,6 +236,43 @@ export default function TasksTab({
       .then((data) => setUsers(Array.isArray(data) ? data : []))
       .catch(() => {});
   }, []);
+
+  // Delivery task: fetch general tasks, find or auto-create delivery task when date is reached
+  useEffect(() => {
+    if (!project?.deliveryDate) {
+      setDeliveryTask(null);
+      return;
+    }
+
+    const deliveryTitle = `Deliver ${project.title}`;
+    const today = new Date().toISOString().slice(0, 10);
+
+    fetch(`/api/clients/${clientId}/tasks`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then(async (generalTasks: Task[]) => {
+        const found = generalTasks.find((t) => t.title === deliveryTitle);
+        if (found) {
+          setDeliveryTask(found);
+          return;
+        }
+        // Auto-create when delivery date has been reached
+        if (project.deliveryDate! <= today) {
+          const res = await fetch(`/api/clients/${clientId}/tasks`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ title: deliveryTitle }),
+          });
+          if (res.ok) {
+            setDeliveryTask(await res.json());
+          } else {
+            setDeliveryTask(null);
+          }
+        } else {
+          setDeliveryTask(null);
+        }
+      })
+      .catch(() => setDeliveryTask(null));
+  }, [clientId, project?.deliveryDate, project?.title]);
 
   const userImages = useMemo(
     () => Object.fromEntries(users.filter((u) => u.image).map((u) => [u.id, u.image!])),
@@ -374,7 +533,8 @@ export default function TasksTab({
   const myTasks = tasks.filter((t) => t.assignees.some((a) => a.userId === currentUserId));
   const myOpen = myTasks.filter((t) => !t.completedAt);
   const myCompleted = myTasks.filter((t) => t.completedAt);
-  const overdue = tasks.filter((t) => !t.completedAt && t.completionDate && t.completionDate < today);
+  const overdueAll = allOpen.filter((t) => t.completionDate && t.completionDate < today).length;
+  const overdueMe = myOpen.filter((t) => t.completionDate && t.completionDate < today).length;
 
   return (
     <div className="max-w-3xl">
@@ -385,17 +545,18 @@ export default function TasksTab({
           count={allOpen.length}
           completed={allCompleted.length}
           total={tasks.length}
+          overdueCount={overdueAll}
         />
         <StatCard
           label="Open for you"
           count={myOpen.length}
           completed={myCompleted.length}
           total={myTasks.length}
+          overdueCount={overdueMe}
         />
-        <StatCard
-          label="Overdue"
-          count={overdue.length}
-          accent={overdue.length > 0 ? "var(--destructive, #ef4444)" : undefined}
+        <DeliveryStatCard
+          deliveryDate={project?.deliveryDate}
+          deliveryTask={deliveryTask}
         />
       </div>
 

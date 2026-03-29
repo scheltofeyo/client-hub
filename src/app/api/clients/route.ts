@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
-  const { company, status, platform, clientSince, employees, website, description } = body;
+  const { company, status, platform, clientSince, employees, website, description, createFolder } = body;
 
   if (!company?.trim()) {
     return NextResponse.json({ error: "Company name is required" }, { status: 400 });
@@ -48,6 +48,26 @@ export async function POST(req: NextRequest) {
     contacts: [],
     leads: [],
   });
+
+  if (createFolder) {
+    try {
+      const webhookUrl = process.env.GAS_FOLDER_WEBHOOK_URL;
+      const secret = process.env.GAS_FOLDER_WEBHOOK_SECRET;
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+      if (webhookUrl && secret && appUrl) {
+        fetch(webhookUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            companyName: doc.company,
+            clientId: doc._id.toString(),
+            appCallbackUrl: `${appUrl}/api/internal/folder-callback`,
+            secret,
+          }),
+        }).catch(() => {});
+      }
+    } catch (_) {}
+  }
 
   return NextResponse.json(
     {

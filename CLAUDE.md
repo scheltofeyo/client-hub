@@ -78,6 +78,16 @@ Most pages are server components. These are `"use client"`:
 
 Do not add event handlers to server components — use the `.hover-row` CSS class from `globals.css` instead.
 
+### PageHeader and tertiary nav
+
+`src/components/layout/PageHeader.tsx` is the standard page header used on all pages. Props:
+- `breadcrumbs` — array of `{ label, href? }`. Items without `href` render as unclickable text (last crumb is always unclickable).
+- `title` — h1 text
+- `actions` — optional ReactNode rendered top-right (buttons, etc.)
+- `tertiaryNav` — optional ReactNode rendered below the title row; when provided, the bottom border moves to the nav instead of the header
+
+`ProjectTertiaryNav` and `AboutTertiaryNav` are tab bars that slot into `tertiaryNav`. Pass `basePath` to them so active-state detection works correctly.
+
 ### Shared task row primitives
 
 `src/components/ui/task-row.tsx` is the single source of truth for task list rendering. Both `TasksTab` (project-scoped) and `ClientTasksTab` (client-wide) import from here. It exports:

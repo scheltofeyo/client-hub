@@ -58,7 +58,7 @@ function eventNavUrl(clientId: string, event: TimelineEvent): string | null {
         ? `/clients/${clientId}/projects/${event.projectId}/tasks`
         : null;
     case "project":
-      return `/clients/${clientId}/projects/${event.sourceId}`;
+      return `/clients/${clientId}/projects/${event.sourceId}/tasks`;
     case "custom":
       return null;
   }

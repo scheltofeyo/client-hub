@@ -26,6 +26,7 @@ function AddClientForm({ onClose }: { onClose: () => void }) {
     employees: "",
     website: "",
     description: "",
+    createFolder: false,
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -55,6 +56,7 @@ function AddClientForm({ onClose }: { onClose: () => void }) {
       body: JSON.stringify({
         ...form,
         employees: form.employees ? Number(form.employees) : undefined,
+        createFolder: form.createFolder,
       }),
     });
 
@@ -185,6 +187,18 @@ function AddClientForm({ onClose }: { onClose: () => void }) {
           </select>
         </div>
       </div>
+
+      <label className="flex items-center gap-2 cursor-pointer select-none">
+        <input
+          type="checkbox"
+          checked={form.createFolder}
+          onChange={(e) => setForm((f) => ({ ...f, createFolder: e.target.checked }))}
+          className="rounded accent-[var(--primary)]"
+        />
+        <span className="text-sm" style={{ color: "var(--text-secondary)" }}>
+          Create Google Drive folder
+        </span>
+      </label>
 
       {error && <p className="text-xs text-red-500">{error}</p>}
 

@@ -198,6 +198,7 @@ function mapProject(doc: ReturnType<typeof Object.assign>, serviceMap?: Map<stri
     description: doc.description,
     status: doc.status,
     completedDate: doc.completedDate,
+    deliveryDate: doc.deliveryDate ?? undefined,
     soldPrice: doc.soldPrice,
     templateId: doc.templateId,
     serviceId: doc.serviceId ?? undefined,

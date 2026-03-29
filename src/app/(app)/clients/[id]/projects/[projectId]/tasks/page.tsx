@@ -1,4 +1,4 @@
-import { getTasksByProjectId } from "@/lib/data";
+import { getTasksByProjectId, getProjectById } from "@/lib/data";
 import { auth } from "@/auth";
 import TasksTab from "@/components/ui/TasksTab";
 
@@ -10,7 +10,11 @@ export default async function ProjectTasksPage({
   params: Promise<{ id: string; projectId: string }>;
 }) {
   const { id, projectId } = await params;
-  const [tasks, session] = await Promise.all([getTasksByProjectId(projectId), auth()]);
+  const [tasks, project, session] = await Promise.all([
+    getTasksByProjectId(projectId),
+    getProjectById(projectId),
+    auth(),
+  ]);
 
   return (
     <TasksTab
@@ -18,6 +22,7 @@ export default async function ProjectTasksPage({
       clientId={id}
       initialTasks={tasks}
       currentUserId={session?.user?.id ?? ""}
+      project={project}
     />
   );
 }
