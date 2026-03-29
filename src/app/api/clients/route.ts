@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
     try {
       const webhookUrl = process.env.GAS_FOLDER_WEBHOOK_URL;
       const secret = process.env.GAS_FOLDER_WEBHOOK_SECRET;
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+      const appUrl = process.env.APP_URL;
       if (webhookUrl && secret && appUrl) {
         fetch(webhookUrl, {
           method: "POST",
