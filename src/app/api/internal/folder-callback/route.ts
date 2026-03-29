@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import { SheetModel } from "@/lib/models/Sheet";
+import { ClientModel } from "@/lib/models/Client";
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
@@ -14,11 +15,12 @@ export async function POST(req: NextRequest) {
   }
 
   await connectDB();
-  await Promise.all(
-    body.sheets.map((s: { name: string; url: string }) =>
+  await Promise.all([
+    ...body.sheets.map((s: { name: string; url: string }) =>
       SheetModel.create({ clientId: body.clientId, name: s.name, url: s.url })
-    )
-  );
+    ),
+    ClientModel.findByIdAndUpdate(body.clientId, { folderStatus: "ready" }),
+  ]);
 
   return NextResponse.json({ ok: true }, { status: 201 });
 }

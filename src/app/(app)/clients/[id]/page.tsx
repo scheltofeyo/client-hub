@@ -18,6 +18,7 @@ import SheetsTab, { ManageSheetsButton } from "@/components/ui/SheetsTab";
 import ActivityTab from "@/components/ui/ActivityTab";
 import EventsTab from "@/components/ui/EventsTab";
 import AddEventButton from "@/components/ui/AddEventButton";
+import FolderPendingBanner from "@/components/ui/FolderPendingBanner";
 import AboutTertiaryNav from "@/components/layout/AboutTertiaryNav";
 import PageHeader from "@/components/layout/PageHeader";
 import Link from "next/link";
@@ -109,6 +110,10 @@ export default async function ClientDetailPage({
           ) : undefined
         }
       />
+
+      {client.folderStatus === "pending" && (
+        <FolderPendingBanner clientId={id} />
+      )}
 
       {/* Tab content */}
       <div

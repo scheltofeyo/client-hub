@@ -47,26 +47,29 @@ export async function POST(req: NextRequest) {
     description: description?.trim() || undefined,
     contacts: [],
     leads: [],
+    folderStatus: createFolder ? "pending" : undefined,
   });
 
   if (createFolder) {
-    try {
-      const webhookUrl = process.env.GAS_FOLDER_WEBHOOK_URL;
-      const secret = process.env.GAS_FOLDER_WEBHOOK_SECRET;
-      const appUrl = process.env.APP_URL;
-      if (webhookUrl && secret && appUrl) {
-        fetch(webhookUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            companyName: doc.company,
-            clientId: doc._id.toString(),
-            appCallbackUrl: `${appUrl}/api/internal/folder-callback`,
-            secret,
-          }),
-        }).catch(() => {});
-      }
-    } catch (_) {}
+    const webhookUrl = process.env.GAS_FOLDER_WEBHOOK_URL;
+    const secret = process.env.GAS_FOLDER_WEBHOOK_SECRET;
+    const appUrl = process.env.APP_URL;
+    if (webhookUrl && secret && appUrl) {
+      fetch(webhookUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          companyName: doc.company,
+          clientId: doc._id.toString(),
+          appCallbackUrl: `${appUrl}/api/internal/folder-callback`,
+          secret,
+        }),
+      }).catch((err) => {
+        console.error("[folder-webhook] Failed to call GAS webhook:", err);
+      });
+    } else {
+      console.warn("[folder-webhook] Missing env vars: GAS_FOLDER_WEBHOOK_URL, GAS_FOLDER_WEBHOOK_SECRET, or APP_URL");
+    }
   }
 
   return NextResponse.json(
@@ -79,6 +82,7 @@ export async function POST(req: NextRequest) {
       description: doc.description,
       contacts: [],
       leads: [],
+      folderStatus: doc.folderStatus,
     },
     { status: 201 }
   );

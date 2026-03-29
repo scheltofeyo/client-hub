@@ -33,6 +33,7 @@ function mapClient(doc: ReturnType<typeof Object.assign>, archetypeMap?: Map<str
     createdAt: doc.createdAt?.toISOString().split("T")[0],
     archetypeId: doc.archetypeId ?? undefined,
     archetype: doc.archetypeId && archetypeMap ? archetypeMap.get(doc.archetypeId) : undefined,
+    folderStatus: doc.folderStatus ?? undefined,
     contacts: (doc.contacts ?? []).map((c: { id: string; firstName: string; lastName: string; role?: string; email?: string; phone?: string }) => ({
       id: c.id,
       firstName: c.firstName,

@@ -26,6 +26,7 @@ export interface IClient extends Document {
   contacts?: IContact[];
   leads?: IClientLead[];
   archetypeId?: string;
+  folderStatus?: "pending" | "ready";
   createdAt: Date;
   updatedAt: Date;
 }
@@ -63,6 +64,7 @@ const ClientSchema = new Schema<IClient>(
     contacts: { type: [ContactSchema], default: [] },
     leads: { type: [ClientLeadSchema], default: [] },
     archetypeId: { type: String, trim: true },
+    folderStatus: { type: String, enum: ["pending", "ready"] },
   },
   { timestamps: true }
 );

@@ -72,6 +72,7 @@ export interface Client {
   clientSince?: string;
   archetypeId?: string;
   archetype?: string;
+  folderStatus?: "pending" | "ready";
 }
 
 export type ProjectStatus = "not_started" | "in_progress" | "completed";
