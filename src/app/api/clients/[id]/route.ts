@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { connectDB } from "@/lib/mongodb";
 import { ClientModel } from "@/lib/models/Client";
+import { ProjectModel } from "@/lib/models/Project";
+import { TaskModel } from "@/lib/models/Task";
+import { LogModel } from "@/lib/models/Log";
+import { ClientEventModel } from "@/lib/models/ClientEvent";
+import { SheetModel } from "@/lib/models/Sheet";
+import { ActivityEventModel } from "@/lib/models/ActivityEvent";
 import { recordActivity } from "@/lib/activity";
 
 export async function PATCH(
@@ -109,5 +115,15 @@ export async function DELETE(
   await connectDB();
   const doc = await ClientModel.findByIdAndDelete(id).lean();
   if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  await Promise.all([
+    ProjectModel.deleteMany({ clientId: id }),
+    TaskModel.deleteMany({ clientId: id }),
+    LogModel.deleteMany({ clientId: id }),
+    ClientEventModel.deleteMany({ clientId: id }),
+    SheetModel.deleteMany({ clientId: id }),
+    ActivityEventModel.deleteMany({ clientId: id }),
+  ]);
+
   return NextResponse.json({ success: true });
 }

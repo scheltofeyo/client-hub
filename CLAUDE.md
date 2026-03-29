@@ -28,6 +28,11 @@ Required in `.env.local`:
 - `MONGODB_URI` — MongoDB Atlas connection string
 - `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` — Google OAuth credentials
 - `AUTH_SECRET` — NextAuth secret
+- `GAS_FOLDER_WEBHOOK_URL` — Google Apps Script web app URL (must be `/macros/s/.../exec` format, not `/a/macros/domain/...`)
+- `GAS_FOLDER_WEBHOOK_SECRET` — Shared secret matching `WEBHOOK_SECRET` in GAS Script Properties
+- `APP_URL` — `https://summclients.netlify.app` (HTTPS, no trailing slash) — used as the GAS callback base URL
+
+All six must also be set in Netlify → Site settings → Environment variables.
 
 ## Architecture
 
@@ -107,7 +112,7 @@ All in `src/lib/models/`. Models delete and recompile on hot reload (dev pattern
 | Model | Purpose |
 |---|---|
 | `User` | googleId, name, email, image, isAdmin — synced from Google on every login |
-| `Client` | company, status, platform, contacts[], leads[], archetypeId |
+| `Client` | company, status, platform, contacts[], leads[], archetypeId, folderStatus (`pending`\|`ready`) |
 | `Project` | clientId, title, status, completedDate, soldPrice, templateId, serviceId, labelId |
 | `Task` | clientId?, projectId?, parentTaskId (subtasks), logId (follow-up link), assignees[], completedAt |
 | `Log` | clientId, contactIds[], summary, signalIds[], followUp, followUpDeadline |
@@ -166,6 +171,13 @@ RESTful nesting under `src/app/api/`:
 
 All routes call `auth()` and return 401/403 as appropriate. Admin-only actions check `session.user.isAdmin`.
 
+**Exception:** `/api/internal/` routes are excluded from the auth middleware (`auth.config.ts`) and are secured by shared secret instead. Do not add `auth()` calls to these routes.
+
+```
+/api/internal/folder-callback   POST — called by GAS after Drive folder creation
+/api/clients/[id]/folder-status GET — polled by FolderPendingBanner every 4s
+```
+
 ## Key Patterns
 
 ### User images
@@ -179,6 +191,12 @@ All routes call `auth()` and return 401/403 as appropriate. Admin-only actions c
 
 ### Task completion → project status
 When tasks are completed or deleted, the tasks API recalculates and updates the parent project's status automatically (`not_started` / `in_progress` / `completed`).
+
+### Google Drive folder creation
+
+When a client is created with "Create Google Drive folder" checked, `POST /api/clients` sets `Client.folderStatus: "pending"` and calls the GAS webhook. The GAS script (`gas/folder-webhook.js`, git-ignored) creates the full folder + sheet structure in Drive, then POSTs back to `/api/internal/folder-callback` with the sheet URLs. The callback saves `Sheet` docs and sets `folderStatus: "ready"`. `FolderPendingBanner` polls `/api/clients/[id]/folder-status` every 4s until ready.
+
+The GAS web app must be deployed with **Execute as: Me**, **Who has access: Anyone**. The URL must use the `/macros/s/.../exec` format — the `/a/macros/domain/` format is domain-restricted and returns 401 for unauthenticated server calls.
 
 ### Events timeline
 The Events tab renders a unified `TimelineEvent[]` that merges four sources: `log_followup` (from Log records with followUp=true), `task` (tasks with a completionDate), `project` (project milestones), and `custom` (ClientEvent records). The API assembles these server-side; `EventsTab.tsx` only renders the merged list. Custom events support recurrence (`none | weekly | biweekly | monthly | quarterly | yearly`) with optional `repetitions` cap.
