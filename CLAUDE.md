@@ -30,7 +30,7 @@ Required in `.env.local`:
 - `AUTH_SECRET` — NextAuth secret
 - `GAS_FOLDER_WEBHOOK_URL` — Google Apps Script web app URL (must be `/macros/s/.../exec` format, not `/a/macros/domain/...`)
 - `GAS_FOLDER_WEBHOOK_SECRET` — Shared secret matching `WEBHOOK_SECRET` in GAS Script Properties
-- `APP_URL` — `https://summclients.netlify.app` (HTTPS, no trailing slash) — used as the GAS callback base URL
+- `APP_URL` — Production URL (HTTPS, no trailing slash) — used as the GAS callback base URL
 
 All six must also be set in Netlify → Site settings → Environment variables.
 
