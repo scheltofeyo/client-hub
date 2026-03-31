@@ -509,6 +509,7 @@ export default function EventsTab({
   }, [clientId, router]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     refreshEvents();
     fetch("/api/event-types")
       .then((r) => r.json())

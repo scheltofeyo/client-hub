@@ -57,7 +57,7 @@ export default function UserMenu({ name, email, image, isAdmin }: Props) {
             )}
           </div>
           <button
-            onClick={() => signOut({ callbackUrl: "/login" })}
+            onClick={() => signOut({ redirectTo: "/login" })}
             className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left transition-colors btn-ghost"
           >
             <LogOut size={13} />

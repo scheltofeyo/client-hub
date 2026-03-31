@@ -121,17 +121,19 @@ export default async function ClientDetailPage({
         style={activeTab === "Dashboard" ? { background: "var(--bg-surface)" } : undefined}
       >
         {activeTab === "Dashboard" && (
-          <DashboardTabWrapper
-            clientId={id}
-            client={client}
-            projects={projects}
-            logSignals={logSignals}
-            sheets={sheets}
-            services={services}
-            eventTypes={eventTypes}
-            currentUserId={currentUserId}
-            isAdmin={isAdmin}
-          />
+          <Suspense fallback={<DashboardSkeleton />}>
+            <DashboardTabWrapper
+              clientId={id}
+              client={client}
+              projects={projects}
+              logSignals={logSignals}
+              sheets={sheets}
+              services={services}
+              eventTypes={eventTypes}
+              currentUserId={currentUserId}
+              isAdmin={isAdmin}
+            />
+          </Suspense>
         )}
         {activeTab === "Settings" && (
           <AboutContent
@@ -142,15 +144,19 @@ export default async function ClientDetailPage({
           />
         )}
         {activeTab === "Projects" && (
-          <ProjectsTabWrapper clientId={id} projects={projects} currentUserId={currentUserId} />
+          <Suspense fallback={<ProjectsSkeleton />}>
+            <ProjectsTabWrapper clientId={id} projects={projects} currentUserId={currentUserId} />
+          </Suspense>
         )}
         {activeTab === "Tasks" && (
-          <TasksTabWrapper
-            clientId={id}
-            projects={projects}
-            currentUserId={currentUserId}
-            currentUserName={session?.user?.name ?? ""}
-          />
+          <Suspense fallback={<TasksSkeleton />}>
+            <TasksTabWrapper
+              clientId={id}
+              projects={projects}
+              currentUserId={currentUserId}
+              currentUserName={session?.user?.name ?? ""}
+            />
+          </Suspense>
         )}
         {activeTab === "Sheets" && (
           <SheetsTab clientId={id} initialSheets={sheets} />
@@ -168,7 +174,9 @@ export default async function ClientDetailPage({
           />
         )}
         {activeTab === "Events" && (
-          <EventsTabWrapper clientId={id} eventTypes={eventTypes} />
+          <Suspense fallback={<TasksSkeleton />}>
+            <EventsTabWrapper clientId={id} eventTypes={eventTypes} />
+          </Suspense>
         )}
         {activeTab === "Activity" && (
           <ActivityTab clientId={id} />
@@ -636,6 +644,102 @@ function EmptyTab({ message }: { message: string }) {
   return (
     <div className="flex items-center justify-center h-40">
       <p className="text-sm" style={{ color: "var(--text-muted)" }}>{message}</p>
+    </div>
+  );
+}
+
+function DashboardSkeleton() {
+  return (
+    <div className="animate-pulse space-y-8">
+      {/* Stat cards */}
+      <div className="grid grid-cols-3 gap-4 max-w-2xl">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="rounded-xl border p-4 h-[88px]" style={{ borderColor: "var(--border)" }}>
+            <div className="h-3 w-20 rounded mb-3" style={{ background: "var(--border)" }} />
+            <div className="h-7 w-12 rounded" style={{ background: "var(--border)" }} />
+          </div>
+        ))}
+      </div>
+      {/* Content blocks */}
+      <div className="space-y-3">
+        <div className="h-3 w-16 rounded" style={{ background: "var(--border)" }} />
+        {[75, 60, 68, 50].map((w, i) => (
+          <div key={i} className="flex items-center gap-3">
+            <div className="h-5 w-5 rounded shrink-0" style={{ background: "var(--border)" }} />
+            <div className="h-4 rounded" style={{ background: "var(--border)", width: `${w}%` }} />
+          </div>
+        ))}
+      </div>
+      <div className="space-y-3">
+        <div className="h-3 w-20 rounded" style={{ background: "var(--border)" }} />
+        {[55, 70, 45].map((w, i) => (
+          <div key={i} className="flex items-center gap-3">
+            <div className="h-5 w-5 rounded shrink-0" style={{ background: "var(--border)" }} />
+            <div className="h-4 rounded" style={{ background: "var(--border)", width: `${w}%` }} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ProjectsSkeleton() {
+  return (
+    <div className="animate-pulse space-y-8">
+      {/* Stat cards */}
+      <div className="grid grid-cols-3 gap-4 max-w-2xl">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="rounded-xl border p-4 h-[88px]" style={{ borderColor: "var(--border)" }}>
+            <div className="h-3 w-20 rounded mb-3" style={{ background: "var(--border)" }} />
+            <div className="h-7 w-12 rounded" style={{ background: "var(--border)" }} />
+          </div>
+        ))}
+      </div>
+      {/* Section header */}
+      <div>
+        <div className="h-3 w-16 rounded mb-4" style={{ background: "var(--border)" }} />
+        <div className="grid grid-cols-3 gap-4">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="rounded-xl border p-4 h-[140px] flex flex-col gap-3" style={{ borderColor: "var(--border)" }}>
+              <div className="flex gap-3 items-start">
+                <div className="w-8 h-8 rounded-lg shrink-0" style={{ background: "var(--border)" }} />
+                <div className="flex flex-col gap-1.5 flex-1 min-w-0">
+                  <div className="h-2.5 w-10 rounded" style={{ background: "var(--border)" }} />
+                  <div className="h-3.5 w-full rounded" style={{ background: "var(--border)" }} />
+                </div>
+              </div>
+              <div className="flex-1" />
+              <div className="h-2 w-full rounded-full" style={{ background: "var(--border)" }} />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TasksSkeleton() {
+  return (
+    <div className="animate-pulse space-y-6">
+      {/* Section header */}
+      <div className="h-3 w-20 rounded" style={{ background: "var(--border)" }} />
+      {/* Task rows */}
+      {[85, 70, 78, 60, 72].map((w, i) => (
+        <div key={i} className="flex items-center gap-3 h-8">
+          <div className="w-4 h-4 rounded shrink-0" style={{ background: "var(--border)" }} />
+          <div className="h-4 rounded" style={{ background: "var(--border)", width: `${w}%` }} />
+          <div className="w-6 h-6 rounded-full shrink-0 ml-auto" style={{ background: "var(--border)" }} />
+        </div>
+      ))}
+      {/* Second section */}
+      <div className="h-3 w-24 rounded mt-4" style={{ background: "var(--border)" }} />
+      {[65, 80, 55].map((w, i) => (
+        <div key={i} className="flex items-center gap-3 h-8">
+          <div className="w-4 h-4 rounded shrink-0" style={{ background: "var(--border)" }} />
+          <div className="h-4 rounded" style={{ background: "var(--border)", width: `${w}%` }} />
+          <div className="w-6 h-6 rounded-full shrink-0 ml-auto" style={{ background: "var(--border)" }} />
+        </div>
+      ))}
     </div>
   );
 }

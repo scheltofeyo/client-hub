@@ -76,6 +76,7 @@ function Section({
   clientId,
   projectId,
   users,
+  currentUserId,
   showCompleted,
   onToggleComplete,
   onTaskSaved,
@@ -87,6 +88,7 @@ function Section({
   clientId: string;
   projectId?: string;
   users: UserOption[];
+  currentUserId: string;
   showCompleted: boolean;
   onToggleComplete: (task: Task) => void;
   onTaskSaved: (t: Task) => void;
@@ -137,16 +139,15 @@ function Section({
   }
 
   function openEditTask(task: Task) {
-    const parentTitle = task.parentTaskId
-      ? tasks.find((t) => t.id === task.parentTaskId)?.title
-      : undefined;
+    const parentTask = task.parentTaskId ? tasks.find((t) => t.id === task.parentTaskId) : undefined;
     openPanel("Edit Task", (
       <TaskForm
         clientId={clientId}
         projectId={task.projectId}
         task={task}
-        parentTaskTitle={parentTitle}
+        parentTaskTitle={parentTask?.title}
         isSubtask={!!task.parentTaskId}
+        parentAssignees={parentTask?.assignees}
         users={users}
         onSaved={onTaskSaved}
         onClose={closePanel}
@@ -188,6 +189,10 @@ function Section({
     reordered.splice(toIdx, 0, moved);
     const newLocalOrder = Object.fromEntries(reordered.map((t, i) => [t.id, i]));
     setLocalOrder((prev) => ({ ...prev, ...newLocalOrder }));
+    // Optimistically update task.order in parent state so TaskRow re-sorts subtasks immediately
+    for (const t of reordered) {
+      onTaskSaved({ ...t, order: newLocalOrder[t.id] });
+    }
     await fetch(reorderUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -234,11 +239,14 @@ function Section({
     const target = tasks.find((t) => t.id === dropTargetId);
     if (!dragging || !target) return;
 
+    // Tasks with children may not be nested as subtasks
+    const draggingHasChildren = getSubtasks(fromId).length > 0;
+
     if (!dragging.parentTaskId && !target.parentTaskId) {
       await reorderTopLevel(fromId, dropTargetId);
-    } else if (dragging.parentTaskId && !target.parentTaskId) {
+    } else if (!draggingHasChildren && dragging.parentTaskId && !target.parentTaskId) {
       await moveSubtask(fromId, dropTargetId);
-    } else if (dragging.parentTaskId && target.parentTaskId) {
+    } else if (!draggingHasChildren && dragging.parentTaskId && target.parentTaskId) {
       if (dragging.parentTaskId === target.parentTaskId) {
         await reorderSubtasks(fromId, dropTargetId, dragging.parentTaskId);
       } else {
@@ -251,10 +259,14 @@ function Section({
     const url = projectId
       ? `/api/clients/${clientId}/projects/${projectId}/tasks`
       : `/api/clients/${clientId}/tasks`;
+    const currentUser = users.find((u) => u.id === currentUserId);
+    const assignees = currentUser
+      ? [{ userId: currentUser.id, name: currentUser.name, ...(currentUser.image ? { image: currentUser.image } : {}) }]
+      : [];
     const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title: titleStr }),
+      body: JSON.stringify({ title: titleStr, assignees }),
     });
     if (res.ok) {
       const created = await res.json();
@@ -309,33 +321,42 @@ function Section({
           {topLevelTasks.length === 0 && !showInlineAdd ? (
             <p className="text-sm py-3" style={{ color: "var(--text-muted)" }}>No tasks yet.</p>
           ) : (
-            topLevelTasks.map((task) => (
-              <TaskRow
-                key={task.id}
-                task={task}
-                subtasks={getSubtasks(task.id)}
-                isExpanded={expandedIds.has(task.id)}
-                onToggleExpand={() => toggleExpand(task.id)}
-                onToggleComplete={onToggleComplete}
-                onEdit={openEditTask}
-                onAddSubtask={(parentTaskId) => {
-                  setInlineSubtaskFor(parentTaskId);
-                  if (!expandedIds.has(parentTaskId)) toggleExpand(parentTaskId);
-                }}
-                onDelete={(taskId, _hasSubtasks) => onDelete(taskId)}
-                showInlineSubtask={inlineSubtaskFor === task.id}
-                onInlineSubtaskSave={(title) => createSubtask(task, title)}
-                onInlineSubtaskCancel={() => setInlineSubtaskFor(null)}
-                userImages={userImages}
-                onViewInLogbook={task.logId ? () => router.push(`/clients/${clientId}?tab=Logbook`) : undefined}
-                isDraggable={!task.completedAt}
-                dragOverId={dragOverId}
-                onDragStart={(id) => setDraggingId(id)}
-                onDragOver={(id) => setDragOverId(id)}
-                onDrop={handleDrop}
-                onDragEnd={() => { setDraggingId(null); setDragOverId(null); }}
-              />
-            ))
+            topLevelTasks.map((task) => {
+              const openTasks = topLevelTasks.filter((t) => !t.completedAt);
+              const fromIdx = draggingId ? openTasks.findIndex((t) => t.id === draggingId) : -1;
+              const thisIdx = openTasks.findIndex((t) => t.id === task.id);
+              const isDragOverBottom = dragOverId === task.id && fromIdx !== -1 && fromIdx < thisIdx;
+              return (
+                <TaskRow
+                  key={task.id}
+                  task={task}
+                  subtasks={getSubtasks(task.id)}
+                  isExpanded={expandedIds.has(task.id)}
+                  onToggleExpand={() => toggleExpand(task.id)}
+                  onToggleComplete={onToggleComplete}
+                  onEdit={openEditTask}
+                  onAddSubtask={(parentTaskId) => {
+                    setInlineSubtaskFor(parentTaskId);
+                    if (!expandedIds.has(parentTaskId)) toggleExpand(parentTaskId);
+                  }}
+                  onDelete={(taskId, _hasSubtasks) => onDelete(taskId)}
+                  showInlineSubtask={inlineSubtaskFor === task.id}
+                  onInlineSubtaskSave={(title) => createSubtask(task, title)}
+                  onInlineSubtaskCancel={() => setInlineSubtaskFor(null)}
+                  userImages={userImages}
+                  onViewInLogbook={task.logId ? () => router.push(`/clients/${clientId}?tab=Logbook`) : undefined}
+                  isDraggable={!task.completedAt}
+                  draggingId={draggingId}
+                  draggingHasChildren={!!draggingId && getSubtasks(draggingId).length > 0}
+                  dragOverId={dragOverId}
+                  isDragOverBottom={isDragOverBottom}
+                  onDragStart={(id) => setDraggingId(id)}
+                  onDragOver={(id) => setDragOverId(id)}
+                  onDrop={handleDrop}
+                  onDragEnd={() => { setDraggingId(null); setDragOverId(null); }}
+                />
+              );
+            })
           )}
           {showInlineAdd ? (
             <InlineTaskInput
@@ -411,20 +432,38 @@ export default function ClientTasksTab({
   function upsertTask(task: Task) {
     if (!task.projectId) {
       setGeneralTasks((prev) => {
-        const exists = prev.find((t) => t.id === task.id);
-        if (exists) return prev.map((t) => (t.id === task.id ? task : t));
-        // Could be a subtask of a general task
-        return [...prev, task];
+        let next = prev;
+        const exists = next.find((t) => t.id === task.id);
+        if (exists) {
+          next = next.map((t) => (t.id === task.id ? task : t));
+        } else {
+          next = [...next, task];
+        }
+        // Cascade assignees to child tasks when a parent task is updated
+        if (!task.parentTaskId) {
+          next = next.map((t) =>
+            t.parentTaskId === task.id ? { ...t, assignees: task.assignees } : t
+          );
+        }
+        return next;
       });
     } else {
       setProjectTaskMap((prev) => {
         const pid = task.projectId!;
-        const existing = prev[pid] ?? [];
-        const found = existing.find((t) => t.id === task.id);
+        let next = prev[pid] ?? [];
+        const found = next.find((t) => t.id === task.id);
         if (found) {
-          return { ...prev, [pid]: existing.map((t) => (t.id === task.id ? task : t)) };
+          next = next.map((t) => (t.id === task.id ? task : t));
+        } else {
+          next = [...next, task];
         }
-        return { ...prev, [pid]: [...existing, task] };
+        // Cascade assignees to child tasks when a parent task is updated
+        if (!task.parentTaskId) {
+          next = next.map((t) =>
+            t.parentTaskId === task.id ? { ...t, assignees: task.assignees } : t
+          );
+        }
+        return { ...prev, [pid]: next };
       });
     }
   }
@@ -572,7 +611,7 @@ export default function ClientTasksTab({
               style={{ background: "white", left: showAll ? "calc(100% - 14px)" : "2px" }}
             />
           </div>
-          <span className="font-medium" style={{ color: "var(--text-primary)" }}>Show everyone's tasks</span>
+          <span className="font-medium" style={{ color: "var(--text-primary)" }}>Show everyone&apos;s tasks</span>
         </button>
       </div>
 
@@ -582,6 +621,7 @@ export default function ClientTasksTab({
         tasks={generalTasks}
         clientId={clientId}
         users={users}
+        currentUserId={currentUserId}
         showCompleted={showCompleted}
         onToggleComplete={handleToggleComplete}
         onTaskSaved={upsertTask}
@@ -597,6 +637,7 @@ export default function ClientTasksTab({
           clientId={clientId}
           projectId={project.id}
           users={users}
+          currentUserId={currentUserId}
           showCompleted={showCompleted}
           onToggleComplete={handleToggleComplete}
           onTaskSaved={upsertTask}

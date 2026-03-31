@@ -81,11 +81,13 @@ function StatCard({
 function DeliveryStatCard({
   deliveryDate,
   deliveryTask,
+  projectCompletedDate,
 }: {
   deliveryDate: string | undefined;
   deliveryTask: Task | null | undefined; // undefined = still loading
+  projectCompletedDate?: string;
 }) {
-  if (!deliveryDate) {
+  if (!deliveryDate && !projectCompletedDate) {
     return (
       <div
         className="flex flex-col gap-1.5 rounded-xl border p-4"
@@ -97,9 +99,13 @@ function DeliveryStatCard({
     );
   }
 
-  // Delivered: task was completed
-  if (deliveryTask?.completedAt) {
-    const deliveredOn = new Date(deliveryTask.completedAt).toLocaleDateString("en-GB", {
+  // Delivered: project has a completedDate (user-adjustable) or delivery task was ticked off
+  const deliveredRawDate = projectCompletedDate ?? (deliveryTask?.completedAt ? deliveryTask.completedAt : undefined);
+  if (deliveredRawDate) {
+    const parsedDate = projectCompletedDate
+      ? new Date(projectCompletedDate + "T00:00:00")
+      : new Date(deliveredRawDate);
+    const deliveredOn = parsedDate.toLocaleDateString("en-GB", {
       day: "numeric",
       month: "short",
       year: "numeric",
@@ -327,17 +333,16 @@ export default function TasksTab({
   }
 
   function openEditTask(task: Task) {
-    const parentTitle = task.parentTaskId
-      ? tasks.find((t) => t.id === task.parentTaskId)?.title
-      : undefined;
+    const parentTask = task.parentTaskId ? tasks.find((t) => t.id === task.parentTaskId) : undefined;
     openPanel(
       "Edit Task",
       <TaskForm
         projectId={projectId}
         clientId={clientId}
         task={task}
-        parentTaskTitle={parentTitle}
+        parentTaskTitle={parentTask?.title}
         isSubtask={!!task.parentTaskId}
+        parentAssignees={parentTask?.assignees}
         users={users}
         onSaved={handleSaved}
         onClose={closePanel}
@@ -510,13 +515,16 @@ export default function TasksTab({
     const target = tasks.find((t) => t.id === dropTargetId);
     if (!dragging || !target) return;
 
+    // Tasks with children may not be nested as subtasks
+    const draggingHasChildren = subtasksOf(fromId).length > 0;
+
     if (!dragging.parentTaskId && !target.parentTaskId) {
       // Top-level → top-level: reorder
       await reorderTopLevel(fromId, dropTargetId);
-    } else if (dragging.parentTaskId && !target.parentTaskId) {
+    } else if (!draggingHasChildren && dragging.parentTaskId && !target.parentTaskId) {
       // Subtask dropped on top-level task header: move to that parent (append)
       await moveSubtask(fromId, dropTargetId);
-    } else if (dragging.parentTaskId && target.parentTaskId) {
+    } else if (!draggingHasChildren && dragging.parentTaskId && target.parentTaskId) {
       if (dragging.parentTaskId === target.parentTaskId) {
         // Same parent: reorder subtasks
         await reorderSubtasks(fromId, dropTargetId, dragging.parentTaskId);
@@ -557,6 +565,7 @@ export default function TasksTab({
         <DeliveryStatCard
           deliveryDate={project?.deliveryDate}
           deliveryTask={deliveryTask}
+          projectCompletedDate={project?.completedDate}
         />
       </div>
 
@@ -574,29 +583,36 @@ export default function TasksTab({
 
       {/* Open task list */}
       <div>
-        {openTopLevel.map((task) => (
-          <TaskRow
-            key={task.id}
-            task={task}
-            subtasks={subtasksOf(task.id)}
-            isExpanded={expandedIds.has(task.id)}
-            onToggleExpand={() => toggleExpand(task.id)}
-            onToggleComplete={handleToggleComplete}
-            onEdit={openEditTask}
-            onAddSubtask={handleAddSubtask}
-            onDelete={handleDelete}
-            showInlineSubtask={inlineSubtaskFor === task.id}
-            onInlineSubtaskSave={(title) => handleInlineSubtaskSave(task.id, title)}
-            onInlineSubtaskCancel={() => setInlineSubtaskFor(null)}
-            userImages={userImages}
-            isDraggable={true}
-            dragOverId={dragOverId}
-            onDragStart={(id) => setDraggingId(id)}
-            onDragOver={(id) => setDragOverId(id)}
-            onDrop={handleDrop}
-            onDragEnd={() => { setDraggingId(null); setDragOverId(null); }}
-          />
-        ))}
+        {openTopLevel.map((task, idx) => {
+          const fromIdx = draggingId ? openTopLevel.findIndex((t) => t.id === draggingId) : -1;
+          const isDragOverBottom = dragOverId === task.id && fromIdx !== -1 && fromIdx < idx;
+          return (
+            <TaskRow
+              key={task.id}
+              task={task}
+              subtasks={subtasksOf(task.id)}
+              isExpanded={expandedIds.has(task.id)}
+              onToggleExpand={() => toggleExpand(task.id)}
+              onToggleComplete={handleToggleComplete}
+              onEdit={openEditTask}
+              onAddSubtask={handleAddSubtask}
+              onDelete={handleDelete}
+              showInlineSubtask={inlineSubtaskFor === task.id}
+              onInlineSubtaskSave={(title) => handleInlineSubtaskSave(task.id, title)}
+              onInlineSubtaskCancel={() => setInlineSubtaskFor(null)}
+              userImages={userImages}
+              isDraggable={true}
+              draggingId={draggingId}
+              draggingHasChildren={!!draggingId && subtasksOf(draggingId).length > 0}
+              dragOverId={dragOverId}
+              isDragOverBottom={isDragOverBottom}
+              onDragStart={(id) => setDraggingId(id)}
+              onDragOver={(id) => setDragOverId(id)}
+              onDrop={handleDrop}
+              onDragEnd={() => { setDraggingId(null); setDragOverId(null); }}
+            />
+          );
+        })}
       </div>
 
       {/* + New task */}

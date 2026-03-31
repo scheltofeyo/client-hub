@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, X, ChevronDown, ChevronUp, MoreHorizontal, Pencil, Trash2, Search } from "lucide-react";
+import { Check, X, ChevronDown, MoreHorizontal, Pencil, Trash2, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useRightPanel } from "@/components/layout/RightPanel";
 import type { Contact, Log, LogSignal } from "@/types";
@@ -485,7 +485,6 @@ function LogCard({
   onDelete: () => void;
   onFollowedUp: (updated: Log) => void;
 }) {
-  const [expanded, setExpanded] = useState(false);
   const router = useRouter();
 
   const contactIds = log.contactIds?.length ? log.contactIds : (log.contactId ? [log.contactId] : []);
@@ -498,9 +497,6 @@ function LogCard({
     ? log.signals!
     : log.signalIds.map((id) => signals.find((s) => s.id === id)?.name ?? id);
 
-  const isLong = log.summary.length > 200;
-  const displaySummary =
-    !expanded && isLong ? log.summary.slice(0, 200) + "…" : log.summary;
 
   async function handleMarkFollowedUp() {
     const res = await fetch(`/api/clients/${clientId}/logs/${log.id}`, {
@@ -548,18 +544,8 @@ function LogCard({
 
       {/* Summary */}
       <p className="text-sm leading-relaxed whitespace-pre-wrap pr-8" style={{ color: "var(--text-primary)" }}>
-        {displaySummary}
+        {log.summary}
       </p>
-      {isLong && (
-        <button
-          type="button"
-          onClick={() => setExpanded((v) => !v)}
-          className="flex items-center gap-1 text-xs btn-link"
-        >
-          {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-          {expanded ? "Show less" : "Show more"}
-        </button>
-      )}
 
       {/* Contacts */}
       {contactLabels.length > 0 && (
@@ -789,14 +775,14 @@ export default function LogbookTab({
   }
 
   return (
-    <div>
+    <div className="max-w-3xl">
       <LogbookStats logs={logs} signals={signals} sortedLogs={sortedLogs} />
 
       {/* ── Filter bar ── */}
       {logs.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 mb-6">
-          {/* Search */}
-          <div className="relative w-60">
+        <div className="flex flex-col gap-2 mb-6">
+          {/* Row 1: Search */}
+          <div className="relative">
             <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: "var(--text-muted)" }} />
             <input
               type="text"
@@ -808,88 +794,91 @@ export default function LogbookTab({
             />
           </div>
 
-          {/* Date */}
-          <div className="relative">
-            <select
-              value={filterDate}
-              onChange={(e) => setFilterDate(e.target.value)}
-              className="appearance-none rounded-lg border pl-2.5 pr-7 py-1.5 text-sm outline-none focus:ring-2 focus:ring-[var(--primary)]/40 cursor-pointer"
-              style={{ background: "var(--bg-sidebar)", borderColor: filterDate !== "all" ? "var(--primary)" : "var(--border)", color: filterDate !== "all" ? "var(--primary)" : "var(--text-muted)" }}
-            >
-              <option value="all">All time</option>
-              <option value="24h">Last 24 hours</option>
-              <option value="week">This week</option>
-              <option value="month">This month</option>
-              <option value="6months">Last 6 months</option>
-              <option value="year">This year</option>
-            </select>
-            <ChevronDown size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: filterDate !== "all" ? "var(--primary)" : "var(--text-muted)" }} />
-          </div>
-
-          {/* Contact */}
-          {contacts.length > 0 && (
-            <div className="relative">
+          {/* Row 2: Filters */}
+          <div className="flex items-center gap-2">
+            {/* Date */}
+            <div className="relative flex-1">
               <select
-                value={filterContact}
-                onChange={(e) => setFilterContact(e.target.value)}
-                className="appearance-none rounded-lg border pl-2.5 pr-7 py-1.5 text-sm outline-none focus:ring-2 focus:ring-[var(--primary)]/40 cursor-pointer"
-                style={{ background: "var(--bg-sidebar)", borderColor: filterContact ? "var(--primary)" : "var(--border)", color: filterContact ? "var(--primary)" : "var(--text-muted)" }}
+                value={filterDate}
+                onChange={(e) => setFilterDate(e.target.value)}
+                className="appearance-none w-full rounded-lg border pl-2.5 pr-7 py-1.5 text-sm outline-none focus:ring-2 focus:ring-[var(--primary)]/40 cursor-pointer"
+                style={{ background: "var(--bg-sidebar)", borderColor: filterDate !== "all" ? "var(--primary)" : "var(--border)", color: filterDate !== "all" ? "var(--primary)" : "var(--text-muted)" }}
               >
-                <option value="">Contact</option>
-                {contacts.map((c) => (
-                  <option key={c.id} value={c.id}>{c.firstName} {c.lastName}</option>
+                <option value="all">All time</option>
+                <option value="24h">Last 24 hours</option>
+                <option value="week">This week</option>
+                <option value="month">This month</option>
+                <option value="6months">Last 6 months</option>
+                <option value="year">This year</option>
+              </select>
+              <ChevronDown size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: filterDate !== "all" ? "var(--primary)" : "var(--text-muted)" }} />
+            </div>
+
+            {/* Contact */}
+            {contacts.length > 0 && (
+              <div className="relative flex-1">
+                <select
+                  value={filterContact}
+                  onChange={(e) => setFilterContact(e.target.value)}
+                  className="appearance-none w-full rounded-lg border pl-2.5 pr-7 py-1.5 text-sm outline-none focus:ring-2 focus:ring-[var(--primary)]/40 cursor-pointer"
+                  style={{ background: "var(--bg-sidebar)", borderColor: filterContact ? "var(--primary)" : "var(--border)", color: filterContact ? "var(--primary)" : "var(--text-muted)" }}
+                >
+                  <option value="">Contact</option>
+                  {contacts.map((c) => (
+                    <option key={c.id} value={c.id}>{c.firstName} {c.lastName}</option>
+                  ))}
+                </select>
+                <ChevronDown size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: filterContact ? "var(--primary)" : "var(--text-muted)" }} />
+              </div>
+            )}
+
+            {/* Signal */}
+            {signals.length > 0 && (
+              <div className="relative flex-1">
+                <select
+                  value={filterSignal}
+                  onChange={(e) => setFilterSignal(e.target.value)}
+                  className="appearance-none w-full rounded-lg border pl-2.5 pr-7 py-1.5 text-sm outline-none focus:ring-2 focus:ring-[var(--primary)]/40 cursor-pointer"
+                  style={{ background: "var(--bg-sidebar)", borderColor: filterSignal ? "var(--primary)" : "var(--border)", color: filterSignal ? "var(--primary)" : "var(--text-muted)" }}
+                >
+                  <option value="">Signal</option>
+                  {signals.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+                <ChevronDown size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: filterSignal ? "var(--primary)" : "var(--text-muted)" }} />
+              </div>
+            )}
+
+            {/* User */}
+            <div className="relative flex-1">
+              <select
+                value={filterCreator}
+                onChange={(e) => setFilterCreator(e.target.value)}
+                className="appearance-none w-full rounded-lg border pl-2.5 pr-7 py-1.5 text-sm outline-none focus:ring-2 focus:ring-[var(--primary)]/40 cursor-pointer"
+                style={{ background: "var(--bg-sidebar)", borderColor: filterCreator ? "var(--primary)" : "var(--border)", color: filterCreator ? "var(--primary)" : "var(--text-muted)" }}
+              >
+                <option value="">User</option>
+                <option value={currentUserId}>Me</option>
+                {uniqueCreators.filter(({ id }) => id !== currentUserId).map(({ id, name }) => (
+                  <option key={id} value={id}>{name}</option>
                 ))}
               </select>
-              <ChevronDown size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: filterContact ? "var(--primary)" : "var(--text-muted)" }} />
+              <ChevronDown size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: filterCreator ? "var(--primary)" : "var(--text-muted)" }} />
             </div>
-          )}
 
-          {/* Signal */}
-          {signals.length > 0 && (
-            <div className="relative">
-              <select
-                value={filterSignal}
-                onChange={(e) => setFilterSignal(e.target.value)}
-                className="appearance-none rounded-lg border pl-2.5 pr-7 py-1.5 text-sm outline-none focus:ring-2 focus:ring-[var(--primary)]/40 cursor-pointer"
-                style={{ background: "var(--bg-sidebar)", borderColor: filterSignal ? "var(--primary)" : "var(--border)", color: filterSignal ? "var(--primary)" : "var(--text-muted)" }}
+            {/* Clear */}
+            {filtersActive && (
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-sm btn-ghost shrink-0" style={{ color: "var(--primary)" }}
               >
-                <option value="">Signal</option>
-                {signals.map((s) => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
-              </select>
-              <ChevronDown size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: filterSignal ? "var(--primary)" : "var(--text-muted)" }} />
-            </div>
-          )}
-
-          {/* User */}
-          <div className="relative">
-            <select
-              value={filterCreator}
-              onChange={(e) => setFilterCreator(e.target.value)}
-              className="appearance-none rounded-lg border pl-2.5 pr-7 py-1.5 text-sm outline-none focus:ring-2 focus:ring-[var(--primary)]/40 cursor-pointer"
-              style={{ background: "var(--bg-sidebar)", borderColor: filterCreator ? "var(--primary)" : "var(--border)", color: filterCreator ? "var(--primary)" : "var(--text-muted)" }}
-            >
-              <option value="">User</option>
-              <option value={currentUserId}>Me</option>
-              {uniqueCreators.filter(({ id }) => id !== currentUserId).map(({ id, name }) => (
-                <option key={id} value={id}>{name}</option>
-              ))}
-            </select>
-            <ChevronDown size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: filterCreator ? "var(--primary)" : "var(--text-muted)" }} />
+                <X size={12} />
+                Clear
+              </button>
+            )}
           </div>
-
-          {/* Clear */}
-          {filtersActive && (
-            <button
-              type="button"
-              onClick={clearFilters}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-sm btn-ghost" style={{ color: "var(--primary)" }}
-            >
-              <X size={12} />
-              Clear
-            </button>
-          )}
         </div>
       )}
 

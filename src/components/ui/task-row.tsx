@@ -125,6 +125,8 @@ export function InlineTaskInput({
 
 // ── TaskForm ───────────────────────────────────────────────────────────────────
 // projectId is optional — omit it for client-level tasks (no project scope).
+// parentAssignees — assignees of the parent task (for subtasks). These are shown
+// as locked and cannot be removed; additional assignees can still be added.
 
 export function TaskForm({
   clientId,
@@ -133,6 +135,7 @@ export function TaskForm({
   parentTaskId,
   parentTaskTitle,
   isSubtask,
+  parentAssignees,
   users,
   onSaved,
   onClose,
@@ -143,6 +146,7 @@ export function TaskForm({
   parentTaskId?: string;
   parentTaskTitle?: string;
   isSubtask?: boolean;
+  parentAssignees?: TaskAssignee[];
   users: UserOption[];
   onSaved: (task: Task) => void;
   onClose: () => void;
@@ -153,7 +157,10 @@ export function TaskForm({
     description: task?.description ?? "",
     completionDate: task?.completionDate ?? "",
   });
-  const [selectedAssignees, setSelectedAssignees] = useState<TaskAssignee[]>(task?.assignees ?? []);
+  // Pre-populate with task assignees if editing, or parent assignees if creating a subtask
+  const [selectedAssignees, setSelectedAssignees] = useState<TaskAssignee[]>(
+    task?.assignees ?? parentAssignees ?? []
+  );
   const [assigneePickerOpen, setAssigneePickerOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -163,6 +170,8 @@ export function TaskForm({
   }
 
   function toggleAssignee(user: UserOption) {
+    // Parent-inherited assignees cannot be removed from a subtask
+    if (isSubtask && (parentAssignees ?? []).some((a) => a.userId === user.id)) return;
     setSelectedAssignees((prev) => {
       const exists = prev.find((a) => a.userId === user.id);
       if (exists) return prev.filter((a) => a.userId !== user.id);
@@ -197,8 +206,7 @@ export function TaskForm({
       body: JSON.stringify({
         title: form.title,
         description: form.description || undefined,
-        // Subtask assignees are controlled by the parent — never send from UI
-        ...(isSubtask ? {} : { assignees: selectedAssignees }),
+        assignees: selectedAssignees,
         completionDate: form.completionDate || undefined,
         parentTaskId: parentTaskId || undefined,
       }),
@@ -270,84 +278,102 @@ export function TaskForm({
 
       <div>
         <label className={labelClass} style={labelStyle}>Assignees</label>
-        {isSubtask ? (
-          <div>
-            {selectedAssignees.length > 0 ? (
-              <div className="flex flex-wrap gap-1.5 mb-2">
-                {selectedAssignees.map((a) => (
-                  <span
-                    key={a.userId}
-                    className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium"
-                    style={{ background: "var(--border)", color: "var(--text-muted)" }}
-                  >
-                    {a.name.split(" ")[0]}
-                  </span>
-                ))}
-              </div>
-            ) : null}
-            <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
-              Assignees are set on the parent task.
-            </p>
-          </div>
-        ) : (
-          <>
-            {selectedAssignees.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mb-2">
-                {selectedAssignees.map((a) => (
-                  <button
-                    key={a.userId}
-                    type="button"
-                    onClick={() => toggleAssignee({ id: a.userId, name: a.name, image: a.image ?? null })}
-                    className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium"
-                    style={{ background: "var(--primary-light)", color: "var(--primary)" }}
-                  >
-                    {a.name.split(" ")[0]}
-                    <span className="opacity-50">×</span>
-                  </button>
-                ))}
-              </div>
-            )}
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setAssigneePickerOpen((v) => !v)}
-                className="w-full flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm transition-colors"
-                style={{ borderColor: "var(--border)", background: "var(--bg-sidebar)", color: "var(--text-muted)" }}
+
+        {/* Locked parent-inherited assignees */}
+        {isSubtask && (parentAssignees ?? []).length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mb-2">
+            {(parentAssignees ?? []).map((a) => (
+              <span
+                key={a.userId}
+                className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium"
+                style={{ background: "var(--border)", color: "var(--text-muted)" }}
+                title="Inherited from parent task — remove from parent to unassign"
               >
-                <Plus size={13} />
-                Add assignee
-              </button>
-              {assigneePickerOpen && (
-                <>
-                  <div className="fixed inset-0 z-10" onClick={() => setAssigneePickerOpen(false)} />
-                  <div
-                    className="absolute top-full left-0 right-0 mt-1 z-20 rounded-xl border shadow-lg overflow-y-auto max-h-52"
-                    style={{ background: "var(--bg-sidebar)", borderColor: "var(--border)" }}
-                  >
-                    {sortedUsers.map((u) => {
-                      const isSelected = selectedAssignees.some((a) => a.userId === u.id);
-                      return (
-                        <button
-                          key={u.id}
-                          type="button"
-                          onClick={() => toggleAssignee(u)}
-                          className="w-full flex items-center justify-between px-3 py-2 text-sm hover:opacity-80 transition-opacity"
-                          style={{ color: "var(--text-primary)" }}
-                        >
-                          <div className="flex items-center gap-2">
-                            <UserAvatar name={u.name} image={u.image} size={24} />
-                            <span>{u.name.split(" ")[0]}</span>
-                          </div>
-                          {isSelected && <Check size={13} style={{ color: "var(--primary)" }} />}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </>
-              )}
-            </div>
-          </>
+                {a.name.split(" ")[0]}
+              </span>
+            ))}
+          </div>
         )}
+
+        {/* Subtask: removable non-parent-inherited assignees */}
+        {isSubtask && selectedAssignees.filter((a) => !(parentAssignees ?? []).some((p) => p.userId === a.userId)).length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mb-2">
+            {selectedAssignees
+              .filter((a) => !(parentAssignees ?? []).some((p) => p.userId === a.userId))
+              .map((a) => (
+                <button
+                  key={a.userId}
+                  type="button"
+                  onClick={() => toggleAssignee({ id: a.userId, name: a.name, image: a.image ?? null })}
+                  className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium"
+                  style={{ background: "var(--primary-light)", color: "var(--primary)" }}
+                >
+                  {a.name.split(" ")[0]}
+                  <span className="opacity-50">×</span>
+                </button>
+              ))}
+          </div>
+        )}
+
+        {/* Non-subtask: all removable assignees */}
+        {!isSubtask && selectedAssignees.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mb-2">
+            {selectedAssignees.map((a) => (
+              <button
+                key={a.userId}
+                type="button"
+                onClick={() => toggleAssignee({ id: a.userId, name: a.name, image: a.image ?? null })}
+                className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium"
+                style={{ background: "var(--primary-light)", color: "var(--primary)" }}
+              >
+                {a.name.split(" ")[0]}
+                <span className="opacity-50">×</span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setAssigneePickerOpen((v) => !v)}
+            className="w-full flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm transition-colors"
+            style={{ borderColor: "var(--border)", background: "var(--bg-sidebar)", color: "var(--text-muted)" }}
+          >
+            <Plus size={13} />
+            Add assignee
+          </button>
+          {assigneePickerOpen && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setAssigneePickerOpen(false)} />
+              <div
+                className="absolute top-full left-0 right-0 mt-1 z-20 rounded-xl border shadow-lg overflow-y-auto max-h-52"
+                style={{ background: "var(--bg-sidebar)", borderColor: "var(--border)" }}
+              >
+                {sortedUsers.map((u) => {
+                  const isLockedByParent = isSubtask && (parentAssignees ?? []).some((a) => a.userId === u.id);
+                  const isSelected = selectedAssignees.some((a) => a.userId === u.id);
+                  return (
+                    <button
+                      key={u.id}
+                      type="button"
+                      onClick={() => !isLockedByParent && toggleAssignee(u)}
+                      disabled={isLockedByParent}
+                      className="w-full flex items-center justify-between px-3 py-2 text-sm hover:opacity-80 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+                      style={{ color: "var(--text-primary)" }}
+                    >
+                      <div className="flex items-center gap-2">
+                        <UserAvatar name={u.name} image={u.image} size={24} />
+                        <span>{u.name.split(" ")[0]}</span>
+                      </div>
+                      {isSelected && <Check size={13} style={{ color: isLockedByParent ? "var(--text-muted)" : "var(--primary)" }} />}
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       {error && <p className="text-xs text-red-500">{error}</p>}
@@ -432,6 +458,8 @@ export function SubtaskRow({
   readOnly,
   isDraggable,
   isDragOver,
+  isDragOverBottom,
+  isDragInvalid,
   onDragStart,
   onDragOver,
   onDrop,
@@ -445,6 +473,10 @@ export function SubtaskRow({
   readOnly?: boolean;
   isDraggable?: boolean;
   isDragOver?: boolean;
+  /** When true, the drop indicator renders at the bottom (item will be placed after this one) */
+  isDragOverBottom?: boolean;
+  /** When true, hovering here is an invalid drop target — shows red indicator */
+  isDragInvalid?: boolean;
   onDragStart?: (taskId: string) => void;
   onDragOver?: (taskId: string) => void;
   onDrop?: (taskId: string) => void;
@@ -452,25 +484,44 @@ export function SubtaskRow({
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const ghostRef = useRef<HTMLDivElement>(null);
+  const dragFromHandle = useRef(false);
   const isDone = !!task.completedAt;
   const today = new Date().toISOString().slice(0, 10);
   const isOverdue = !isDone && !!task.completionDate && task.completionDate < today;
 
   const handleDragStart = useCallback((e: React.DragEvent) => {
+    if (!dragFromHandle.current) {
+      e.preventDefault();
+      return;
+    }
     e.stopPropagation();
     if (ghostRef.current) e.dataTransfer.setDragImage(ghostRef.current, 14, 14);
     onDragStart?.(task.id);
   }, [task.id, onDragStart]);
 
+  const dragBorderStyle = isDragOver
+    ? isDragInvalid
+      ? { borderTop: "2px solid var(--destructive, #ef4444)" }
+      : isDragOverBottom
+        ? { borderBottom: "2px solid var(--primary)" }
+        : { borderTop: "2px solid var(--primary)" }
+    : undefined;
+
   return (
     <div
       className="flex items-center gap-2 py-2 group cursor-pointer rounded-lg -mx-2 px-2"
-      style={{ borderTop: isDragOver ? "2px solid var(--primary)" : undefined }}
+      style={dragBorderStyle}
       draggable={isDraggable}
+      onMouseDown={() => { dragFromHandle.current = false; }}
       onDragStart={isDraggable ? handleDragStart : undefined}
-      onDragOver={isDraggable && onDragOver ? (e) => { e.preventDefault(); e.stopPropagation(); onDragOver(task.id); } : undefined}
+      onDragOver={isDraggable && onDragOver ? (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (isDragInvalid) e.dataTransfer.dropEffect = "none";
+        onDragOver(task.id);
+      } : undefined}
       onDrop={isDraggable && onDrop ? (e) => { e.preventDefault(); e.stopPropagation(); onDrop(task.id); } : undefined}
-      onDragEnd={isDraggable && onDragEnd ? (e) => { e.stopPropagation(); onDragEnd(); } : undefined}
+      onDragEnd={isDraggable && onDragEnd ? (e) => { e.stopPropagation(); dragFromHandle.current = false; onDragEnd(); } : undefined}
       onClick={() => onEdit(task)}
     >
       {/* Ghost for custom drag image */}
@@ -481,6 +532,7 @@ export function SubtaskRow({
         <div
           className="flex-shrink-0 w-4 flex items-center justify-center opacity-0 group-hover:opacity-40 cursor-grab active:cursor-grabbing"
           style={{ color: "var(--text-muted)" }}
+          onMouseDown={(e) => { e.stopPropagation(); dragFromHandle.current = true; }}
           onClick={(e) => e.stopPropagation()}
         >
           <GripVertical size={12} />
@@ -590,7 +642,10 @@ export function TaskRow({
   readOnly,
   onViewInLogbook,
   isDraggable,
+  draggingId,
+  draggingHasChildren,
   dragOverId,
+  isDragOverBottom,
   onDragStart,
   onDragOver,
   onDrop,
@@ -611,8 +666,14 @@ export function TaskRow({
   readOnly?: boolean;
   onViewInLogbook?: () => void;
   isDraggable?: boolean;
+  /** ID of the task currently being dragged (for computing subtask drop-indicator direction) */
+  draggingId?: string | null;
+  /** When true, the dragging task has children — dropping into a subtask area is invalid */
+  draggingHasChildren?: boolean;
   /** ID of whichever task/subtask the pointer is currently over during a drag */
   dragOverId?: string | null;
+  /** When true, the drop indicator on this row renders at the bottom */
+  isDragOverBottom?: boolean;
   onDragStart?: (taskId: string) => void;
   onDragOver?: (taskId: string) => void;
   onDrop?: (taskId: string) => void;
@@ -620,6 +681,7 @@ export function TaskRow({
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const ghostRef = useRef<HTMLDivElement>(null);
+  const dragFromHandle = useRef(false);
   const hasSubtasks = subtasks.length > 0;
   const isDone = !!task.completedAt;
   const today = new Date().toISOString().slice(0, 10);
@@ -633,23 +695,33 @@ export function TaskRow({
   const completedSubtasks = subtasks.filter((s) => !!s.completedAt);
   const showSubtasksArea = (hasSubtasks && isExpanded) || showInlineSubtask;
 
-  // Whether this row itself is the drag-over target (for top-level reorder or subtask→parent drop)
+  // Whether this row itself is the drag-over target
   const isRowDragOver = dragOverId === task.id;
 
   const handleDragStart = useCallback((e: React.DragEvent) => {
+    if (!dragFromHandle.current) {
+      e.preventDefault();
+      return;
+    }
     e.stopPropagation();
     if (ghostRef.current) e.dataTransfer.setDragImage(ghostRef.current, 14, 14);
     onDragStart?.(task.id);
   }, [task.id, onDragStart]);
 
+  const rowBorderStyle = isRowDragOver
+    ? isDragOverBottom
+      ? { borderBottom: "2px solid var(--primary)" }
+      : { borderTop: "2px solid var(--primary)" }
+    : undefined;
+
   return (
     <div
       className="border-b"
       style={{ borderColor: "var(--border)" }}
-      // Drag source for top-level reordering
       draggable={isDraggable}
+      onMouseDown={() => { dragFromHandle.current = false; }}
       onDragStart={isDraggable ? handleDragStart : undefined}
-      onDragEnd={isDraggable && onDragEnd ? () => onDragEnd() : undefined}
+      onDragEnd={isDraggable && onDragEnd ? () => { dragFromHandle.current = false; onDragEnd(); } : undefined}
     >
       {/* Ghost for custom drag image */}
       <DragGhost
@@ -663,7 +735,7 @@ export function TaskRow({
       {/* Main task row — also a drop target (top-level reorder + subtask→parent) */}
       <div
         className="flex items-center gap-2 py-2.5 group cursor-pointer rounded-lg -mx-2 px-2"
-        style={{ borderTop: isRowDragOver ? "2px solid var(--primary)" : undefined }}
+        style={rowBorderStyle}
         onClick={() => onEdit(task)}
         onDragOver={onDragOver ? (e) => { e.preventDefault(); e.stopPropagation(); onDragOver(task.id); } : undefined}
         onDrop={onDrop ? (e) => { e.preventDefault(); e.stopPropagation(); onDrop(task.id); } : undefined}
@@ -673,6 +745,7 @@ export function TaskRow({
           <div
             className="flex-shrink-0 w-4 flex items-center justify-center opacity-0 group-hover:opacity-40 cursor-grab active:cursor-grabbing"
             style={{ color: "var(--text-muted)" }}
+            onMouseDown={(e) => { e.stopPropagation(); dragFromHandle.current = true; }}
             onClick={(e) => e.stopPropagation()}
           >
             <GripVertical size={13} />
@@ -830,24 +903,37 @@ export function TaskRow({
 
       {/* Subtasks area */}
       {showSubtasksArea && (
-        <div className="pl-14 pb-1">
-          {isExpanded && openSubtasks.map((sub) => (
-            <SubtaskRow
-              key={sub.id}
-              task={sub}
-              onToggleComplete={onToggleComplete}
-              onEdit={onEdit}
-              onDelete={onDelete}
-              userImages={userImages}
-              readOnly={readOnly}
-              isDraggable={!readOnly && !sub.completedAt}
-              isDragOver={dragOverId === sub.id}
-              onDragStart={onDragStart}
-              onDragOver={onDragOver}
-              onDrop={onDrop}
-              onDragEnd={onDragEnd}
-            />
-          ))}
+        <div
+          className="pl-14 pb-1 rounded-b-lg transition-colors"
+          style={
+            draggingHasChildren && dragOverId && openSubtasks.some((s) => s.id === dragOverId)
+              ? { background: "color-mix(in srgb, var(--destructive, #ef4444) 6%, transparent)" }
+              : undefined
+          }
+        >
+          {isExpanded && openSubtasks.map((sub, subIdx) => {
+            const fromSubIdx = draggingId ? openSubtasks.findIndex((s) => s.id === draggingId) : -1;
+            const isSubDragOverBottom = fromSubIdx !== -1 && fromSubIdx < subIdx;
+            return (
+              <SubtaskRow
+                key={sub.id}
+                task={sub}
+                onToggleComplete={onToggleComplete}
+                onEdit={onEdit}
+                onDelete={onDelete}
+                userImages={userImages}
+                readOnly={readOnly}
+                isDraggable={!readOnly && !sub.completedAt}
+                isDragOver={dragOverId === sub.id}
+                isDragOverBottom={dragOverId === sub.id ? isSubDragOverBottom : undefined}
+                isDragInvalid={!!draggingHasChildren}
+                onDragStart={onDragStart}
+                onDragOver={onDragOver}
+                onDrop={onDrop}
+                onDragEnd={onDragEnd}
+              />
+            );
+          })}
 
           {!readOnly && (
             showInlineSubtask ? (

@@ -88,7 +88,7 @@ export default async function AdminPage({
           Event Types
         </h1>
         <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>
-          Types available when adding events to a client's timeline.
+          Types available when adding events to a client&apos;s timeline.
         </p>
         <AdminEventTypesTable initialEventTypes={eventTypes} />
       </div>

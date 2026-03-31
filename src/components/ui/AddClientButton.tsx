@@ -188,17 +188,31 @@ function AddClientForm({ onClose }: { onClose: () => void }) {
         </div>
       </div>
 
-      <label className="flex items-center gap-2 cursor-pointer select-none">
-        <input
-          type="checkbox"
-          checked={form.createFolder}
-          onChange={(e) => setForm((f) => ({ ...f, createFolder: e.target.checked }))}
-          className="rounded accent-[var(--primary)]"
-        />
-        <span className="text-sm" style={{ color: "var(--text-secondary)" }}>
-          Create Google Drive folder
-        </span>
-      </label>
+      <div
+        className="rounded-xl px-3 py-2.5"
+        style={{ background: "var(--primary-light, #ede9fe)" }}
+      >
+        <label className="flex items-center justify-between cursor-pointer select-none">
+          <span className="text-sm font-medium" style={{ color: "var(--primary)" }}>
+            Create Google Drive folder
+          </span>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={form.createFolder}
+            onClick={() => setForm((f) => ({ ...f, createFolder: !f.createFolder }))}
+            className="relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors duration-200"
+            style={{
+              background: form.createFolder ? "var(--primary)" : "var(--border)",
+            }}
+          >
+            <span
+              className="inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform duration-200"
+              style={{ transform: form.createFolder ? "translateX(18px)" : "translateX(2px)" }}
+            />
+          </button>
+        </label>
+      </div>
 
       {error && <p className="text-xs text-red-500">{error}</p>}
 
