@@ -3,10 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Home,
-  CheckSquare,
   Users,
-  MessageSquare,
   ShieldCheck,
   Settings,
   Calendar,
@@ -15,10 +12,7 @@ import ThemeToggle from "./ThemeToggle";
 import UserMenu from "./UserMenu";
 
 const topItems = [
-  { href: "/dashboard", label: "Home", icon: Home },
-  { href: "/tasks", label: "Tasks", icon: CheckSquare },
   { href: "/clients", label: "Clients", icon: Users },
-  { href: "/messages", label: "Messages", icon: MessageSquare },
 ];
 
 interface Props {
