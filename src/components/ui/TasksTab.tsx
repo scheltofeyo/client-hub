@@ -130,6 +130,8 @@ function DeliveryStatCard({
     );
   }
 
+  if (!deliveryDate) return null;
+
   const today = new Date().toISOString().slice(0, 10);
   // Use UTC-neutral day diff (date strings only, no TZ issues)
   const [dy, dm, dd] = deliveryDate.split("-").map(Number);

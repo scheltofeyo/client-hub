@@ -1,25 +1,13 @@
-import { auth } from "@/auth";
-import { redirect } from "next/navigation";
 import IconNav from "@/components/layout/IconNav";
 import PanelNav from "@/components/layout/PanelNav";
 import SessionProviderWrapper from "@/components/layout/SessionProviderWrapper";
 import { RightPanelProvider } from "@/components/layout/RightPanel";
 
-export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const session = await auth();
-  if (!session) redirect("/login");
-
-  const user = {
-    name: session.user?.name ?? "Unknown",
-    email: session.user?.email ?? "",
-    image: session.user?.image ?? null,
-    isAdmin: session.user?.isAdmin ?? false,
-  };
-
+export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <SessionProviderWrapper>
       <div className="flex h-screen overflow-hidden">
-        <IconNav user={user} />
+        <IconNav />
 
         <div className="flex-1 flex flex-col pt-6 min-h-0">
           <div

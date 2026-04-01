@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useSession } from "next-auth/react";
 import {
   Users,
   ShieldCheck,
@@ -15,15 +16,6 @@ const topItems = [
   { href: "/clients", label: "Clients", icon: Users },
 ];
 
-interface Props {
-  user: {
-    name: string;
-    email: string;
-    image?: string | null;
-    isAdmin: boolean;
-  };
-}
-
 function openCalendarPopup() {
   const w = Math.min(Math.round(window.screen.width * 0.85), 1200);
   const h = Math.round(window.screen.height * 0.9);
@@ -36,9 +28,11 @@ function openCalendarPopup() {
   );
 }
 
-export default function IconNav({ user }: Props) {
+export default function IconNav() {
   const pathname = usePathname();
+  const { data: session } = useSession();
   const isActive = (href: string) => pathname.startsWith(href);
+  const isAdmin = session?.user?.isAdmin ?? false;
 
   return (
     <nav
@@ -83,7 +77,7 @@ export default function IconNav({ user }: Props) {
       {/* Bottom nav */}
       <div className="mt-auto flex flex-col items-center gap-2 w-full px-3">
         <ThemeToggle />
-        {user.isAdmin && (
+        {isAdmin && (
           <Link
             href="/admin"
             data-active={isActive("/admin")}
@@ -101,12 +95,7 @@ export default function IconNav({ user }: Props) {
           <Settings size={17} strokeWidth={isActive("/settings") ? 2.2 : 1.8} />
           <span className="text-[10px] leading-none font-medium">Settings</span>
         </Link>
-        <UserMenu
-          name={user.name}
-          email={user.email}
-          image={user.image}
-          isAdmin={user.isAdmin}
-        />
+        <UserMenu />
       </div>
     </nav>
   );

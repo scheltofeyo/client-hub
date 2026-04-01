@@ -1,21 +1,19 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { signOut } from "next-auth/react";
+import { useSession, signOut } from "next-auth/react";
 import { LogOut } from "lucide-react";
 import UserAvatar from "@/components/ui/UserAvatar";
 
-interface Props {
-  name: string;
-  email: string;
-  image?: string | null;
-  isAdmin: boolean;
-}
-
-
-export default function UserMenu({ name, email, image, isAdmin }: Props) {
+export default function UserMenu() {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const { data: session } = useSession();
+
+  const name = session?.user?.name ?? "";
+  const email = session?.user?.email ?? "";
+  const image = session?.user?.image ?? null;
+  const isAdmin = session?.user?.isAdmin ?? false;
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
