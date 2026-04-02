@@ -337,6 +337,7 @@ export async function getLogsByClientId(clientId: string): Promise<Log[]> {
     followUpDeadline: doc.followUpDeadline ?? undefined,
     followedUpAt: doc.followedUpAt ?? undefined,
     followedUpByName: doc.followedUpByName ?? undefined,
+    isSystemGenerated: doc.isSystemGenerated ?? false,
     createdById: doc.createdById,
     createdByName: doc.createdByName,
     createdAt: doc.createdAt?.toISOString().split("T")[0],
@@ -581,6 +582,30 @@ function expandOccurrences(
   }
   return occurrences;
 }
+
+/**
+ * Returns the latest followedUpAt date per serviceId for a given client.
+ * Used by OverviewTab to reset the service expiry timer display.
+ */
+export const getLatestFollowUpDatesByService = cache(async (clientId: string): Promise<Record<string, string>> => {
+  await connectDB();
+  const logs = await LogModel.find({
+    clientId,
+    serviceId: { $exists: true, $ne: null },
+    followUp: true,
+    followedUpAt: { $ne: null },
+  }).lean();
+
+  const result: Record<string, string> = {};
+  for (const l of logs) {
+    const sid = l.serviceId as string;
+    const date = l.followedUpAt as string;
+    if (!result[sid] || date > result[sid]) {
+      result[sid] = date;
+    }
+  }
+  return result;
+});
 
 // ── Service expiry automation ─────────────────────────────────────────────
 // When a service's check-in timer expires, create an automated log entry

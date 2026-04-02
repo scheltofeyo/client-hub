@@ -1,4 +1,4 @@
-import { getClientById, getProjectsByClientId, getArchetypes, getLogsByClientId, getLogSignals, getSheetsByClientId, getClientProjectsWithTaskStats, getLastActivityByClientId, getServices, getUpcomingEventsForClient, getEventTypes, getClientStatuses, checkAndCreateServiceExpiryLogs } from "@/lib/data";
+import { getClientById, getProjectsByClientId, getArchetypes, getLogsByClientId, getLogSignals, getSheetsByClientId, getClientProjectsWithTaskStats, getLastActivityByClientId, getServices, getUpcomingEventsForClient, getEventTypes, getClientStatuses, checkAndCreateServiceExpiryLogs, getLatestFollowUpDatesByService } from "@/lib/data";
 import { auth } from "@/auth";
 import { connectDB } from "@/lib/mongodb";
 import { UserModel } from "@/lib/models/User";
@@ -561,10 +561,11 @@ async function DashboardTabWrapper({
   // Check for expired services and create logs/tasks before fetching events
   await checkAndCreateServiceExpiryLogs(clientId);
 
-  const [taskStats, lastActivity, upcomingEvents] = await Promise.all([
+  const [taskStats, lastActivity, upcomingEvents, serviceFollowUpDates] = await Promise.all([
     getClientProjectsWithTaskStats(projects.map((p) => p.id), currentUserId),
     getLastActivityByClientId(clientId),
     getUpcomingEventsForClient(clientId),
+    getLatestFollowUpDatesByService(clientId),
   ]);
 
   const totalOpenTasks = [...taskStats.perProject.values()].reduce(
@@ -590,6 +591,7 @@ async function DashboardTabWrapper({
       eventTypes={eventTypes}
       statusOptions={statusOptions}
       lastActivityAt={lastActivity?.createdAt ?? null}
+      serviceFollowUpDates={serviceFollowUpDates}
     />
   );
 }

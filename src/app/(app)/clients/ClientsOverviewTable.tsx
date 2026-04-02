@@ -134,7 +134,7 @@ function FilterBar({
 
       {/* Status chips */}
       {statuses.length > 0 && (
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 ml-2">
           <span className="text-xs shrink-0" style={{ color: "var(--text-muted)" }}>Status</span>
           {statuses.map((s) => {
             const active = selectedStatuses.has(s);
@@ -158,7 +158,7 @@ function FilterBar({
 
       {/* Lead chips */}
       {leads.length > 0 && (
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 ml-2">
           <span className="text-xs shrink-0" style={{ color: "var(--text-muted)" }}>Lead</span>
           {leads.map((lead) => {
             const active = selectedLeads.has(lead.userId);

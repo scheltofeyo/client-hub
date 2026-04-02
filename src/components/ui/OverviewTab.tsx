@@ -160,6 +160,7 @@ export default function OverviewTab({
   eventTypes,
   statusOptions = [],
   lastActivityAt,
+  serviceFollowUpDates = {},
 }: {
   clientId: string;
   client: Client;
@@ -177,6 +178,7 @@ export default function OverviewTab({
   eventTypes: EventType[];
   statusOptions?: ClientStatusOption[];
   lastActivityAt: string | null;
+  serviceFollowUpDates?: Record<string, string>;
 }) {
   const [recentActivity, setRecentActivity] = useState<ActivityEvent[]>([]);
   const [assignableUsers, setAssignableUsers] = useState<{ id: string; name: string; image: string | null }[]>([]);
@@ -232,21 +234,20 @@ export default function OverviewTab({
   // ── Derived ──────────────────────────────────────────────
 
   // Group completed projects by service for the services table
-  const serviceMap = new Map<string, { name: string; count: number; lastDate: string; checkInDays: number | null }>(
-    services.map((s) => [s.id, { name: s.name, count: 0, lastDate: "", checkInDays: s.checkInDays ?? null }])
+  const serviceMap = new Map<string, { id: string; name: string; count: number; lastDate: string; checkInDays: number | null }>(
+    services.map((s) => [s.id, { id: s.id, name: s.name, count: 0, lastDate: "", checkInDays: s.checkInDays ?? null }])
   );
   for (const p of projects) {
     if (p.status === "completed" && p.serviceId && p.service) {
       const existing = serviceMap.get(p.serviceId);
       const date = p.completedDate ?? "";
       if (!existing) {
-        serviceMap.set(p.serviceId, { name: p.service, count: 1, lastDate: date, checkInDays: null });
+        serviceMap.set(p.serviceId, { id: p.serviceId, name: p.service, count: 1, lastDate: date, checkInDays: null });
       } else {
         serviceMap.set(p.serviceId, {
-          name: p.service,
+          ...existing,
           count: existing.count + 1,
           lastDate: date > existing.lastDate ? date : existing.lastDate,
-          checkInDays: existing.checkInDays,
         });
       }
     }
@@ -874,8 +875,10 @@ export default function OverviewTab({
             <span className="text-right">Check-in due</span>
           </div>
           {deliveredServiceRows.map((row, idx) => {
-            const expiryDate = row.checkInDays && row.lastDate
-              ? addDaysToISO(row.lastDate, row.checkInDays)
+            const followUpDate = serviceFollowUpDates[row.id];
+            const anchorDate = followUpDate && followUpDate > row.lastDate ? followUpDate : row.lastDate;
+            const expiryDate = row.checkInDays && anchorDate
+              ? addDaysToISO(anchorDate, row.checkInDays)
               : null;
             const daysUntil = expiryDate ? daysUntilISO(expiryDate) : null;
             const color = daysUntil != null ? expiryColor(daysUntil) : "var(--text-muted)";
