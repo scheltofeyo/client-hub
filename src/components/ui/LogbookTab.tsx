@@ -376,6 +376,9 @@ function LogCardMenu({
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
+  // Hide menu entirely when there are no actions
+  if (!canEdit && !hasFollowUp) return null;
+
   useEffect(() => {
     if (!open) return;
     function handleClick(e: MouseEvent) {
@@ -1067,7 +1070,7 @@ export default function LogbookTab({
 
       {filteredLogs.map((log, idx) => {
         const isLast = idx === filteredLogs.length - 1;
-        const canEdit = isAdmin || log.createdById === currentUserId;
+        const canEdit = !log.isSystemGenerated && (isAdmin || log.createdById === currentUserId);
         const isActive = !!(log.followUp && log.followUpDeadline && !log.followedUpAt);
         const isOverdue = isActive && log.followUpDeadline! < today();
 

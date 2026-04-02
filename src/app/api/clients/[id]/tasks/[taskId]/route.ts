@@ -7,6 +7,10 @@ import { LogModel } from "@/lib/models/Log";
 import { recordActivity } from "@/lib/activity";
 
 async function recalcProjectStatus(projectId: string) {
+  const project = await ProjectModel.findById(projectId).lean();
+  // Skip recalculation for upcoming (not-yet-kicked-off) projects
+  if (!project?.kickedOffAt) return;
+
   const allTasks = await TaskModel.find({ projectId }).lean();
   const completedCount = allTasks.filter((t) => !!t.completedAt).length;
   const total = allTasks.length;
@@ -18,8 +22,7 @@ async function recalcProjectStatus(projectId: string) {
       : "in_progress";
   const projectUpdate: Record<string, unknown> = { status: projectStatus };
   if (projectStatus === "completed") {
-    const existing = await ProjectModel.findById(projectId).lean();
-    if (!existing?.completedDate) {
+    if (!project.completedDate) {
       projectUpdate.completedDate = new Date().toISOString().split("T")[0];
     }
   } else {

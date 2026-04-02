@@ -165,6 +165,7 @@ export async function getClientStatuses(): Promise<ClientStatusOption[]> {
     slug: d.slug,
     label: d.label,
     rank: d.rank ?? 0,
+    checkInDays: d.checkInDays ?? null,
     createdAt: d.createdAt?.toISOString().split("T")[0],
   }));
 }
@@ -192,6 +193,14 @@ export async function getDashboardStats(): Promise<DashboardStats> {
 }
 
 function mapProject(doc: ReturnType<typeof Object.assign>, serviceMap?: Map<string, string>, labelMap?: Map<string, string>): Project {
+  // Lazy migration: treat existing projects that already have a deliveryDate or non-not_started
+  // status as already kicked off (they pre-date the kickedOffAt field).
+  const kickedOffAt: string | undefined =
+    doc.kickedOffAt ??
+    (doc.deliveryDate || doc.status !== "not_started"
+      ? (doc.createdAt?.toISOString().split("T")[0] ?? undefined)
+      : undefined);
+
   return {
     id: doc._id.toString(),
     clientId: doc.clientId,
@@ -206,6 +215,9 @@ function mapProject(doc: ReturnType<typeof Object.assign>, serviceMap?: Map<stri
     service: doc.serviceId && serviceMap ? serviceMap.get(doc.serviceId) : undefined,
     labelId: doc.labelId ?? undefined,
     label: doc.labelId && labelMap ? labelMap.get(doc.labelId) : undefined,
+    kickedOffAt,
+    scheduledStartDate: doc.scheduledStartDate ?? undefined,
+    scheduledEndDate: doc.scheduledEndDate ?? undefined,
     createdAt: doc.createdAt?.toISOString().split("T")[0],
   };
 }
@@ -250,6 +262,7 @@ export async function getServices(): Promise<Service[]> {
     id: d._id.toString(),
     name: d.name,
     rank: d.rank ?? 0,
+    checkInDays: d.checkInDays ?? null,
     createdAt: d.createdAt?.toISOString().split("T")[0],
   }));
 }
@@ -317,6 +330,7 @@ export async function getLogsByClientId(clientId: string): Promise<Log[]> {
     date: doc.date,
     summary: doc.summary,
     signalIds: doc.signalIds ?? [],
+    serviceId: doc.serviceId ?? undefined,
     signals: (doc.signalIds ?? []).map((sid: string) => signalMap.get(sid) ?? sid),
     followUp: doc.followUp ?? false,
     followUpAction: doc.followUpAction ?? undefined,
@@ -527,6 +541,12 @@ export async function getUpcomingGeneralTasksByClientId(
 
 const RECURRENCE_WINDOW_DAYS = 365;
 
+function addDays(dateStr: string, days: number): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const date = new Date(y, m - 1, d + days);
+  return date.toISOString().slice(0, 10);
+}
+
 function nextOccurrenceDate(dateStr: string, recurrence: RecurrenceFrequency): string {
   const [y, m, d] = dateStr.split("-").map(Number);
   let next: Date;
@@ -562,6 +582,107 @@ function expandOccurrences(
   return occurrences;
 }
 
+// ── Service expiry automation ─────────────────────────────────────────────
+// When a service's check-in timer expires, create an automated log entry
+// with a follow-up task. Idempotent: skips if a pending log already exists.
+
+export async function checkAndCreateServiceExpiryLogs(
+  clientId: string,
+): Promise<void> {
+  await connectDB();
+
+  const today = new Date().toISOString().slice(0, 10);
+
+  const servicesWithTimer = await ServiceModel.find({ checkInDays: { $ne: null } }).lean();
+  if (servicesWithTimer.length === 0) return;
+
+  const serviceIds = servicesWithTimer.map((s) => s._id.toString());
+
+  // Fetch project completion dates and log follow-up dates in parallel
+  const [completedProjects, followedUpLogs] = await Promise.all([
+    ProjectModel.find({
+      clientId,
+      status: "completed",
+      serviceId: { $in: serviceIds },
+      completedDate: { $exists: true, $ne: null },
+    }).lean(),
+    LogModel.find({
+      clientId,
+      serviceId: { $in: serviceIds },
+      followUp: true,
+      followedUpAt: { $ne: null },
+    }).lean(),
+  ]);
+
+  // Latest project completion per service
+  const latestProjectDate = new Map<string, string>();
+  for (const p of completedProjects) {
+    const sid = p.serviceId as string;
+    const date = p.completedDate as string;
+    if (!latestProjectDate.has(sid) || date > latestProjectDate.get(sid)!) {
+      latestProjectDate.set(sid, date);
+    }
+  }
+
+  // Latest follow-up completion per service (for timer reset)
+  const latestFollowedUpDate = new Map<string, string>();
+  for (const l of followedUpLogs) {
+    const sid = l.serviceId as string;
+    const date = l.followedUpAt as string;
+    if (!latestFollowedUpDate.has(sid) || date > latestFollowedUpDate.get(sid)!) {
+      latestFollowedUpDate.set(sid, date);
+    }
+  }
+
+  for (const svc of servicesWithTimer) {
+    const sid = svc._id.toString();
+    const projectDate = latestProjectDate.get(sid);
+    if (!projectDate) continue; // no completed project → nothing to expire
+
+    const followUpDate = latestFollowedUpDate.get(sid);
+    const lastInteraction = followUpDate && followUpDate > projectDate ? followUpDate : projectDate;
+    const expiryDate = addDays(lastInteraction, svc.checkInDays as number);
+
+    if (expiryDate > today) continue; // not yet expired
+
+    // Idempotency: skip if a pending log already exists for this service
+    const existing = await LogModel.findOne({
+      clientId,
+      serviceId: sid,
+      followUp: true,
+      followedUpAt: null,
+    }).lean();
+    if (existing) continue;
+
+    const serviceName = svc.name as string;
+    const followUpAction = `Check in about expired service: ${serviceName}`;
+
+    const doc = await LogModel.create({
+      clientId,
+      serviceId: sid,
+      date: today,
+      summary: `${serviceName} expired today`,
+      followUp: true,
+      followUpAction,
+      followUpDeadline: today,
+      isSystemGenerated: true,
+      createdById: "system",
+      createdByName: "System",
+    });
+
+    const task = await TaskModel.create({
+      clientId,
+      logId: doc._id.toString(),
+      title: followUpAction,
+      completionDate: today,
+      createdById: "system",
+      createdByName: "System",
+    });
+
+    await LogModel.findByIdAndUpdate(doc._id, { $set: { followUpTaskId: task._id.toString() } });
+  }
+}
+
 export async function getUpcomingEventsForClient(clientId: string): Promise<TimelineEvent[]> {
   await connectDB();
 
@@ -571,25 +692,30 @@ export async function getUpcomingEventsForClient(clientId: string): Promise<Time
   const windowEnd = windowEndDate.toISOString().slice(0, 10);
 
   const activeProjectIds = (
-    await ProjectModel.find({ clientId, status: { $ne: "completed" } }, { _id: 1 }).lean()
+    await ProjectModel.find({ clientId, status: { $ne: "completed" }, kickedOffAt: { $exists: true, $ne: null } }, { _id: 1 }).lean()
   ).map((p) => p._id.toString());
 
-  const [logs, completionProjects, deliveryProjects, projectTasks, generalTasks, customDocs] =
+  const [logs, completionProjects, deliveryProjects, projectTasks, generalTasks, customDocs, servicesWithTimer] =
     await Promise.all([
       LogModel.find({
         clientId,
         followUp: true,
         followedUpAt: null,
-        followUpDeadline: { $gte: today },
+        $or: [
+          { followUpDeadline: { $gte: today } },
+          { serviceId: { $exists: true, $ne: null } },
+        ],
       }).lean(),
       ProjectModel.find({
         clientId,
         status: { $ne: "completed" },
+        kickedOffAt: { $exists: true, $ne: null },
         completedDate: { $gte: today },
       }).lean(),
       ProjectModel.find({
         clientId,
         status: { $ne: "completed" },
+        kickedOffAt: { $exists: true, $ne: null },
         deliveryDate: { $gte: today },
       }).lean(),
       activeProjectIds.length > 0
@@ -608,20 +734,33 @@ export async function getUpcomingEventsForClient(clientId: string): Promise<Time
         completionDate: { $gte: today },
       }).lean(),
       ClientEventModel.find({ clientId }).sort({ date: 1 }).lean(),
+      ServiceModel.find({ checkInDays: { $ne: null } }).lean(),
     ]);
+
+  // Build service name lookup for service-linked log events
+  const serviceNameMap = new Map<string, string>();
+  for (const svc of servicesWithTimer) {
+    serviceNameMap.set(svc._id.toString(), svc.name as string);
+  }
 
   const tasks = [...projectTasks, ...generalTasks];
 
   const events: TimelineEvent[] = [
-    ...logs.map((l) => ({
-      id: `log_${l._id.toString()}`,
-      date: l.followUpDeadline!,
-      title: (l.followUpAction as string | undefined)?.trim() || (l.summary as string).slice(0, 60),
-      type: "follow_up" as const,
-      source: "log_followup" as const,
-      sourceId: l._id.toString(),
-      deletable: false,
-    })),
+    ...logs.map((l) => {
+      const logServiceId = l.serviceId as string | undefined;
+      const serviceName = logServiceId ? serviceNameMap.get(logServiceId) : undefined;
+      return {
+        id: `log_${l._id.toString()}`,
+        date: l.followUpDeadline ?? l.date,
+        title: logServiceId && serviceName
+          ? `${serviceName} is expired`
+          : (l.followUpAction as string | undefined)?.trim() || (l.summary as string).slice(0, 60),
+        type: logServiceId ? "expired_service" : "follow_up",
+        source: "log_followup" as const,
+        sourceId: l._id.toString(),
+        deletable: false,
+      };
+    }),
     ...tasks.map((t) => ({
       id: `task_${t._id.toString()}`,
       date: t.completionDate!,
@@ -710,17 +849,19 @@ export async function getTasksByProjectIds(projectIds: string[]): Promise<Map<st
 
 export async function getEventTypes(): Promise<EventType[]> {
   await connectDB();
-  let docs = await EventTypeModel.find().sort({ rank: 1, createdAt: 1 }).lean();
 
-  // Auto-seed defaults if collection is empty
-  if (docs.length === 0) {
-    await Promise.all(
-      DEFAULT_EVENT_TYPES.map((et, i) =>
-        EventTypeModel.create({ ...et, rank: i })
+  // Upsert any missing defaults (preserves existing customised entries)
+  await Promise.all(
+    DEFAULT_EVENT_TYPES.map((et, i) =>
+      EventTypeModel.updateOne(
+        { slug: et.slug },
+        { $setOnInsert: { ...et, rank: i } },
+        { upsert: true }
       )
-    );
-    docs = await EventTypeModel.find().sort({ rank: 1, createdAt: 1 }).lean();
-  }
+    )
+  );
+
+  const docs = await EventTypeModel.find().sort({ rank: 1, createdAt: 1 }).lean();
 
   return docs.map((d) => ({
     id: d._id.toString(),
@@ -730,6 +871,116 @@ export async function getEventTypes(): Promise<EventType[]> {
     icon: d.icon,
     rank: d.rank ?? 0,
   }));
+}
+
+// ── Bulk admin overview helpers ───────────────────────────────────────────
+
+export async function getOpenTaskCountsByClient(): Promise<Map<string, number>> {
+  await connectDB();
+  const results = await TaskModel.aggregate([
+    { $match: { completedAt: null, clientId: { $exists: true } } },
+    { $group: { _id: "$clientId", count: { $sum: 1 } } },
+  ]);
+  const map = new Map<string, number>();
+  for (const r of results) {
+    if (r._id) map.set(r._id.toString(), r.count);
+  }
+  return map;
+}
+
+export async function getOpenProjectCountsByClient(): Promise<Map<string, number>> {
+  await connectDB();
+  const results = await ProjectModel.aggregate([
+    { $match: { status: { $ne: "completed" } } },
+    { $group: { _id: "$clientId", count: { $sum: 1 } } },
+  ]);
+  const map = new Map<string, number>();
+  for (const r of results) {
+    if (r._id) map.set(r._id.toString(), r.count);
+  }
+  return map;
+}
+
+export async function getLastActivityDateByAllClients(): Promise<Map<string, string | null>> {
+  await connectDB();
+  const results = await ActivityEventModel.aggregate([
+    { $sort: { createdAt: -1 } },
+    { $group: { _id: "$clientId", lastActivity: { $first: "$createdAt" } } },
+  ]);
+  const map = new Map<string, string | null>();
+  for (const r of results) {
+    if (r._id) map.set(r._id.toString(), r.lastActivity ? new Date(r.lastActivity).toISOString() : null);
+  }
+  return map;
+}
+
+export type FirstEventResult = { date: string; title: string; source: string } | null;
+
+export async function getFirstUpcomingEventByAllClients(): Promise<Map<string, FirstEventResult>> {
+  await connectDB();
+
+  const today = new Date().toISOString().slice(0, 10);
+  const windowEndDate = new Date();
+  windowEndDate.setDate(windowEndDate.getDate() + RECURRENCE_WINDOW_DAYS);
+  const windowEnd = windowEndDate.toISOString().slice(0, 10);
+
+  const [logs, completionProjects, deliveryProjects, tasks, customDocs] = await Promise.all([
+    LogModel.find({ followUp: true, followedUpAt: null, followUpDeadline: { $gte: today } }).lean(),
+    ProjectModel.find({ status: { $ne: "completed" }, kickedOffAt: { $exists: true, $ne: null }, completedDate: { $gte: today } }).lean(),
+    ProjectModel.find({ status: { $ne: "completed" }, kickedOffAt: { $exists: true, $ne: null }, deliveryDate: { $gte: today } }).lean(),
+    TaskModel.find({ completedAt: null, completionDate: { $gte: today }, logId: { $exists: false } }).lean(),
+    ClientEventModel.find({}).sort({ date: 1 }).lean(),
+  ]);
+
+  // Collect candidates per client: { clientId -> [{date, title, source}] }
+  const candidates = new Map<string, { date: string; title: string; source: string }[]>();
+
+  function add(clientId: string, event: { date: string; title: string; source: string }) {
+    if (!clientId) return;
+    const cid = clientId.toString();
+    if (!candidates.has(cid)) candidates.set(cid, []);
+    candidates.get(cid)!.push(event);
+  }
+
+  for (const l of logs) {
+    add(l.clientId as string, {
+      date: l.followUpDeadline as string,
+      title: (l.followUpAction as string | undefined)?.trim() || (l.summary as string).slice(0, 60),
+      source: "log_followup",
+    });
+  }
+  for (const p of completionProjects) {
+    add(p.clientId as string, { date: p.completedDate as string, title: p.title as string, source: "project" });
+  }
+  for (const p of deliveryProjects) {
+    add(p.clientId as string, { date: p.deliveryDate as string, title: p.title as string, source: "project" });
+  }
+  for (const t of tasks) {
+    if (t.clientId) {
+      add(t.clientId as string, { date: t.completionDate as string, title: t.title as string, source: "task" });
+    }
+  }
+  for (const doc of customDocs) {
+    const recurrence = (doc.recurrence ?? "none") as RecurrenceFrequency;
+    const cid = (doc.clientId as string).toString();
+    if (recurrence === "none") {
+      if ((doc.date as string) >= today) {
+        add(cid, { date: doc.date as string, title: doc.title as string, source: "custom" });
+      }
+    } else {
+      const occurrences = expandOccurrences(doc.date as string, recurrence, today, windowEnd, doc.repetitions as number | null);
+      if (occurrences.length > 0) {
+        add(cid, { date: occurrences[0], title: doc.title as string, source: "custom" });
+      }
+    }
+  }
+
+  const result = new Map<string, FirstEventResult>();
+  for (const [cid, events] of candidates.entries()) {
+    events.sort((a, b) => a.date.localeCompare(b.date));
+    result.set(cid, events[0]);
+  }
+  return result;
 }
 
 export const getTemplateTasksByTemplateId = cache(async (templateId: string): Promise<TemplateTask[]> => {
@@ -746,3 +997,23 @@ export const getTemplateTasksByTemplateId = cache(async (templateId: string): Pr
     createdAt: doc.createdAt?.toISOString(),
   }));
 });
+
+export async function getProjectsByAllClients(): Promise<Map<string, Project[]>> {
+  await connectDB();
+  const [docs, serviceDocs, labelMap] = await Promise.all([
+    ProjectModel.find({}).sort({ createdAt: -1 }).lean(),
+    fetchServiceDocs(),
+    buildProjectLabelMap(),
+  ]);
+  const serviceMap = new Map<string, string>();
+  serviceDocs.forEach((d) => serviceMap.set(d._id.toString(), d.name));
+
+  const map = new Map<string, Project[]>();
+  for (const doc of docs) {
+    const project = mapProject(doc, serviceMap, labelMap);
+    const cid = project.clientId;
+    if (!map.has(cid)) map.set(cid, []);
+    map.get(cid)!.push(project);
+  }
+  return map;
+}

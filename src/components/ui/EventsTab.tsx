@@ -60,6 +60,7 @@ function eventNavUrl(clientId: string, event: TimelineEvent): string | null {
     case "project":
       return `/clients/${clientId}/projects/${event.sourceId}/tasks`;
     case "custom":
+    default:
       return null;
   }
 }
@@ -69,7 +70,8 @@ function sourceLabel(event: TimelineEvent): string {
     case "log_followup": return "Logbook follow-up";
     case "task":         return "Task deadline";
     case "project":      return "Project";
-    case "custom":       return "";
+    case "custom":         return "";
+    default:               return "";
   }
 }
 

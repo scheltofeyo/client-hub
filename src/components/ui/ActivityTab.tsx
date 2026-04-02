@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { NotebookPen, CheckSquare, FolderKanban, UserPlus, Building2, Trash2, CheckCheck, ChevronDown, ChevronRight, CalendarDays } from "lucide-react";
+import { NotebookPen, CheckSquare, FolderKanban, UserPlus, Building2, Trash2, CheckCheck, ChevronDown, ChevronRight, CalendarDays, Rocket } from "lucide-react";
 import UserAvatar from "@/components/ui/UserAvatar";
 
 export interface ActivityEvent {
@@ -80,6 +80,14 @@ function eventDescription(event: ActivityEvent): React.ReactNode {
       return title && status
         ? <><Bold>Project</Bold><Dim> moved to </Dim><Italic>{STATUS_LABELS[status] ?? status}</Italic><Dim>: </Dim><Italic>{title}</Italic></>
         : <><Bold>Project</Bold><Dim> status updated</Dim></>;
+    case "project.kicked_off":
+      return title
+        ? <><Bold>Project</Bold><Dim> kicked off: </Dim><Italic>{title}</Italic></>
+        : <><Bold>Project</Bold><Dim> kicked off</Dim></>;
+    case "project.reset_to_upcoming":
+      return title
+        ? <><Bold>Project</Bold><Dim> reset to upcoming: </Dim><Italic>{title}</Italic></>
+        : <><Bold>Project</Bold><Dim> reset to upcoming</Dim></>;
     case "project.deleted":
       return title
         ? <><Bold>Project</Bold><Dim> deleted: </Dim><Italic>{title}</Italic></>
@@ -118,9 +126,11 @@ function typeSummaryLabel(type: string, count: number): React.ReactNode {
     case "task.created":           return <><Bold>{n} task{s}</Bold><Dim> added</Dim></>;
     case "task.completed":         return <><Bold>{n} task{s}</Bold><Dim> completed</Dim></>;
     case "task.deleted":           return <><Bold>{n} task{s}</Bold><Dim> deleted</Dim></>;
-    case "project.created":        return <><Bold>{n} project{s}</Bold><Dim> added</Dim></>;
-    case "project.status_changed": return <><Bold>{n}</Bold><Dim> project status change{s}</Dim></>;
-    case "project.deleted":        return <><Bold>{n} project{s}</Bold><Dim> deleted</Dim></>;
+    case "project.created":           return <><Bold>{n} project{s}</Bold><Dim> added</Dim></>;
+    case "project.status_changed":    return <><Bold>{n}</Bold><Dim> project status change{s}</Dim></>;
+    case "project.kicked_off":        return <><Bold>{n} project{s}</Bold><Dim> kicked off</Dim></>;
+    case "project.reset_to_upcoming": return <><Bold>{n} project{s}</Bold><Dim> reset to upcoming</Dim></>;
+    case "project.deleted":           return <><Bold>{n} project{s}</Bold><Dim> deleted</Dim></>;
     case "log.created":            return <><Bold>{n} log{s}</Bold><Dim> added</Dim></>;
     case "log.updated":            return <><Bold>{n} log{s}</Bold><Dim> updated</Dim></>;
     case "log.deleted":            return <><Bold>{n} log{s}</Bold><Dim> deleted</Dim></>;
@@ -137,6 +147,7 @@ function typeSummaryLabel(type: string, count: number): React.ReactNode {
 function eventIcon(type: string) {
   if (type === "log.deleted" || type === "task.deleted" || type === "project.deleted") return <Trash2 size={14} />;
   if (type === "log.followedup") return <CheckCheck size={14} />;
+  if (type === "project.kicked_off") return <Rocket size={14} />;
   if (type.startsWith("log.")) return <NotebookPen size={14} />;
   if (type.startsWith("task.")) return <CheckSquare size={14} />;
   if (type.startsWith("project.")) return <FolderKanban size={14} />;

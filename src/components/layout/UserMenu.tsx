@@ -27,7 +27,7 @@ export default function UserMenu() {
     <div ref={ref} className="relative mt-1">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="rounded-full ring-2 ring-transparent hover:ring-[var(--primary)] transition-all"
+        className="inline-flex rounded-full ring-2 ring-transparent hover:ring-[var(--primary)] transition-all p-0 leading-none"
         title={name}
       >
         <UserAvatar name={name} image={image} size={32} />

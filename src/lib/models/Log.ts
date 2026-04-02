@@ -7,12 +7,14 @@ export interface ILog extends Document {
   date: string;
   summary: string;
   signalIds: string[];
+  serviceId?: string;
   followUp: boolean;
   followUpAction?: string;
   followUpDeadline?: string;
   followUpTaskId?: string;
   followedUpAt?: string;
   followedUpByName?: string;
+  isSystemGenerated: boolean;
   createdById: string;
   createdByName: string;
   createdAt: Date;
@@ -27,12 +29,14 @@ const LogSchema = new Schema<ILog>(
     date: { type: String, required: true },
     summary: { type: String, required: true, trim: true },
     signalIds: { type: [String], default: [] },
+    serviceId: { type: String, index: true },
     followUp: { type: Boolean, default: false },
     followUpAction: { type: String },
     followUpDeadline: { type: String },
     followUpTaskId: { type: String },
     followedUpAt: { type: String },
     followedUpByName: { type: String },
+    isSystemGenerated: { type: Boolean, default: false },
     createdById: { type: String, required: true },
     createdByName: { type: String, required: true },
   },

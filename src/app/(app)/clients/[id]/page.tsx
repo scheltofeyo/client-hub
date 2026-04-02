@@ -1,4 +1,4 @@
-import { getClientById, getProjectsByClientId, getArchetypes, getLogsByClientId, getLogSignals, getSheetsByClientId, getClientProjectsWithTaskStats, getLastActivityByClientId, getServices, getUpcomingEventsForClient, getEventTypes } from "@/lib/data";
+import { getClientById, getProjectsByClientId, getArchetypes, getLogsByClientId, getLogSignals, getSheetsByClientId, getClientProjectsWithTaskStats, getLastActivityByClientId, getServices, getUpcomingEventsForClient, getEventTypes, getClientStatuses, checkAndCreateServiceExpiryLogs } from "@/lib/data";
 import { auth } from "@/auth";
 import { connectDB } from "@/lib/mongodb";
 import { UserModel } from "@/lib/models/User";
@@ -7,7 +7,6 @@ import { Suspense } from "react";
 export const dynamic = "force-dynamic";
 import StatusBadge from "@/components/ui/StatusBadge";
 import EditClientButton from "@/components/ui/EditClientButton";
-import DeleteClientButton from "@/components/ui/DeleteClientButton";
 import ContactsSection from "@/components/ui/ContactsSection";
 import LeadsSection from "@/components/ui/LeadsSection";
 import AddProjectButton from "@/components/ui/AddProjectButton";
@@ -16,6 +15,7 @@ import LogbookTab from "@/components/ui/LogbookTab";
 import OverviewTab from "@/components/ui/OverviewTab";
 import SheetsTab, { ManageSheetsButton } from "@/components/ui/SheetsTab";
 import ActivityTab from "@/components/ui/ActivityTab";
+import ProjectsTimeline from "@/components/ui/ProjectsTimeline";
 import EventsTab from "@/components/ui/EventsTab";
 import AddEventButton from "@/components/ui/AddEventButton";
 import FolderPendingBanner from "@/components/ui/FolderPendingBanner";
@@ -24,7 +24,7 @@ import PageHeader from "@/components/layout/PageHeader";
 import Link from "next/link";
 import { FolderOpen } from "lucide-react";
 import { notFound } from "next/navigation";
-import type { Client, Log, LogSignal, Project, Service, Sheet, Task } from "@/types";
+import type { Archetype, Client, ClientStatusOption, Log, LogSignal, Project, Service, Sheet, Task } from "@/types";
 import { getGeneralTasksByClientId, getTasksByProjectIds } from "@/lib/data";
 import { fmtDate } from "@/lib/utils";
 
@@ -40,7 +40,7 @@ export default async function ClientDetailPage({
 }) {
   const { id } = await params;
   const { tab, section } = await searchParams;
-  const [client, projects, session, archetypes, logs, logSignals, sheets, services, eventTypes] = await Promise.all([
+  const [client, projects, session, archetypes, logs, logSignals, sheets, services, eventTypes, clientStatuses] = await Promise.all([
     getClientById(id),
     getProjectsByClientId(id),
     auth(),
@@ -50,6 +50,7 @@ export default async function ClientDetailPage({
     getSheetsByClientId(id),
     getServices(),
     getEventTypes(),
+    getClientStatuses(),
   ]);
 
   if (!client) notFound();
@@ -87,12 +88,7 @@ export default async function ClientDetailPage({
         ]}
         title={activeTab}
         actions={
-          activeTab === "Settings" && canEdit ? (
-            <>
-              <EditClientButton client={client} archetypes={archetypes} />
-              {isAdmin && <DeleteClientButton id={client.id} company={client.company} />}
-            </>
-          ) : activeTab === "Projects" && canEdit ? (
+          activeTab === "Projects" && canEdit ? (
             <AddProjectButton clientId={client.id} />
           ) : activeTab === "Tasks" ? (
             <AddClientTaskButton clientId={client.id} />
@@ -130,7 +126,9 @@ export default async function ClientDetailPage({
               sheets={sheets}
               services={services}
               eventTypes={eventTypes}
+              statusOptions={clientStatuses}
               currentUserId={currentUserId}
+              currentUserName={session?.user?.name ?? "System"}
               isAdmin={isAdmin}
             />
           </Suspense>
@@ -141,6 +139,8 @@ export default async function ClientDetailPage({
             isAdmin={isAdmin}
             allUsers={allUsers}
             section={section ?? "about"}
+            canEdit={canEdit}
+            archetypes={archetypes}
           />
         )}
         {activeTab === "Projects" && (
@@ -148,7 +148,7 @@ export default async function ClientDetailPage({
             <ProjectsTabWrapper clientId={id} projects={projects} currentUserId={currentUserId} />
           </Suspense>
         )}
-        {activeTab === "Tasks" && (
+{activeTab === "Tasks" && (
           <Suspense fallback={<TasksSkeleton />}>
             <TasksTabWrapper
               clientId={id}
@@ -175,7 +175,7 @@ export default async function ClientDetailPage({
         )}
         {activeTab === "Events" && (
           <Suspense fallback={<TasksSkeleton />}>
-            <EventsTabWrapper clientId={id} eventTypes={eventTypes} />
+            <EventsTabWrapper clientId={id} currentUserId={currentUserId} currentUserName={session?.user?.name ?? "System"} eventTypes={eventTypes} />
           </Suspense>
         )}
         {activeTab === "Activity" && (
@@ -193,11 +193,15 @@ function AboutContent({
   isAdmin,
   allUsers,
   section,
+  canEdit,
+  archetypes,
 }: {
   client: Client;
   isAdmin: boolean;
   allUsers: { id: string; name: string; email: string; image: string | null }[];
   section: string;
+  canEdit: boolean;
+  archetypes: Archetype[];
 }) {
   if (section === "leads") {
     return (
@@ -223,10 +227,10 @@ function AboutContent({
     );
   }
 
-  return <CompanySection client={client} />;
+  return <CompanySection client={client} canEdit={canEdit} archetypes={archetypes} isAdmin={isAdmin} />;
 }
 
-function CompanySection({ client }: { client: Client }) {
+function CompanySection({ client, canEdit, archetypes, isAdmin }: { client: Client; canEdit: boolean; archetypes: Archetype[]; isAdmin: boolean }) {
   const platformLabel =
     client.platform === "summ_core" ? "SUMM Core" :
     client.platform === "summ_suite" ? "SUMM Suite" :
@@ -245,9 +249,12 @@ function CompanySection({ client }: { client: Client }) {
   return (
     <div className="max-w-2xl space-y-8">
       <div className="space-y-5">
-        <h2 className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
-          Company
-        </h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+            Company
+          </h2>
+          {canEdit && <EditClientButton client={client} archetypes={archetypes} isAdmin={isAdmin} />}
+        </div>
 
         <div className="space-y-1.5">
           <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
@@ -306,18 +313,25 @@ async function ProjectsTabWrapper({
   if (projects.length === 0)
     return <EmptyTab message="No projects yet. Click 'Add Project' to get started." />;
 
-  const { perProject, overduePerProject, myOpenTasks, overdueCount } = await getClientProjectsWithTaskStats(
-    projects.map((p) => p.id),
-    currentUserId
-  );
+  const projectIds = projects.map((p) => p.id);
+  const [{ perProject, overduePerProject }, projectTasksMap] = await Promise.all([
+    getClientProjectsWithTaskStats(projectIds, currentUserId),
+    getTasksByProjectIds(projectIds),
+  ]);
+
+  const openTaskCounts: Record<string, number> = {};
+  for (const p of projects) {
+    const tasks = projectTasksMap.get(p.id) ?? [];
+    openTaskCounts[p.id] = tasks.filter((t) => !t.completedAt && !t.parentTaskId).length;
+  }
+
   return (
     <ProjectsTab
       clientId={clientId}
       projects={projects}
       perProject={perProject}
       overduePerProject={overduePerProject}
-      myOpenTasks={myOpenTasks}
-      overdueCount={overdueCount}
+      openTaskCounts={openTaskCounts}
     />
   );
 }
@@ -327,68 +341,34 @@ function ProjectsTab({
   projects,
   perProject,
   overduePerProject,
-  myOpenTasks,
-  overdueCount,
+  openTaskCounts,
 }: {
   clientId: string;
   projects: Project[];
   perProject: Map<string, { total: number; completed: number }>;
   overduePerProject: Map<string, number>;
-  myOpenTasks: number;
-  overdueCount: number;
+  openTaskCounts: Record<string, number>;
 }) {
-  const completedProjects = projects.filter((p) => p.status === "completed").length;
-  const totalProjects = projects.length;
-  const activeProjects = projects.filter((p) => p.status === "in_progress" || p.status === "not_started").length;
-  const projectPct = totalProjects > 0 ? Math.round((completedProjects / totalProjects) * 100) : null;
-
-  const inProgress = projects.filter((p) => p.status === "in_progress");
-  const notStarted = projects.filter((p) => p.status === "not_started");
+  // "Upcoming" = not yet kicked off; "Not Started" / "In Progress" = kicked off
+  const upcomingProjects = projects.filter((p) => !p.kickedOffAt);
+  const inProgress = projects.filter((p) => p.kickedOffAt && p.status === "in_progress");
+  const notStarted = projects.filter((p) => p.kickedOffAt && p.status === "not_started");
   const completed = projects.filter((p) => p.status === "completed");
 
   return (
     <div className="space-y-8">
-      {/* Statistics bar */}
-      <div className="grid grid-cols-3 gap-4 max-w-2xl">
-        <div className="rounded-xl border p-4 space-y-1.5" style={{ borderColor: "var(--border)" }}>
-          <p className="text-xs" style={{ color: "var(--text-muted)" }}>Active projects</p>
-          <p className="text-2xl font-semibold tabular-nums" style={{ color: "var(--text-primary)" }}>
-            {activeProjects}
-          </p>
-          {projectPct !== null && (
-            <div className="flex items-center gap-2 mt-1">
-              <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: "var(--border)" }}>
-                <div className="h-full rounded-full" style={{ width: `${projectPct}%`, background: "var(--primary)" }} />
-              </div>
-              <span className="text-xs tabular-nums" style={{ color: "var(--text-muted)" }}>{completedProjects}/{totalProjects}</span>
-            </div>
-          )}
-        </div>
-
-        <div className="rounded-xl border p-4 space-y-1.5" style={{ borderColor: "var(--border)" }}>
-          <p className="text-xs" style={{ color: "var(--text-muted)" }}>My open tasks</p>
-          <p className="text-2xl font-semibold tabular-nums" style={{ color: "var(--text-primary)" }}>
-            {myOpenTasks}
-          </p>
-        </div>
-
-        <div className="rounded-xl border p-4 space-y-1.5" style={{ borderColor: "var(--border)" }}>
-          <p className="text-xs" style={{ color: "var(--text-muted)" }}>Overdue tasks</p>
-          <p
-            className="text-2xl font-semibold tabular-nums"
-            style={{ color: overdueCount > 0 ? "#dc2626" : "var(--text-primary)" }}
-          >
-            {overdueCount}
-          </p>
-        </div>
-      </div>
+      <ProjectsTimeline projects={projects} clientId={clientId} openTaskCounts={openTaskCounts} />
 
       {inProgress.length > 0 && (
         <ProjectSection title="Currently" projects={inProgress} clientId={clientId} perProject={perProject} overduePerProject={overduePerProject} />
       )}
 
+      {upcomingProjects.length > 0 && (
+        <ProjectSection title="Upcoming" projects={upcomingProjects} clientId={clientId} perProject={perProject} overduePerProject={overduePerProject} />
+      )}
+
       {notStarted.length > 0 && (
-        <ProjectSection title="Upcoming" projects={notStarted} clientId={clientId} perProject={perProject} overduePerProject={overduePerProject} />
+        <ProjectSection title="Not Started" projects={notStarted} clientId={clientId} perProject={perProject} overduePerProject={overduePerProject} />
       )}
 
       {completed.length > 0 && (
@@ -445,6 +425,16 @@ function ProjectCard({
       className="relative flex flex-col rounded-xl border p-4 bg-white dark:bg-[var(--bg-sidebar)] transition-colors project-card-hover"
       style={{ boxShadow: "0 1px 3px 0 rgba(0,0,0,0.06), 0 1px 2px -1px rgba(0,0,0,0.04)" }}
     >
+      {/* Upcoming badge */}
+      {!project.kickedOffAt && (
+        <span
+          className="absolute top-3 right-3 text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full"
+          style={{ background: "var(--primary-light)", color: "var(--primary)" }}
+        >
+          Upcoming
+        </span>
+      )}
+
       {/* Icon + title */}
       <div className="flex gap-3">
         <div
@@ -551,7 +541,9 @@ async function DashboardTabWrapper({
   sheets,
   services,
   eventTypes,
+  statusOptions,
   currentUserId,
+  currentUserName,
   isAdmin,
 }: {
   clientId: string;
@@ -561,9 +553,14 @@ async function DashboardTabWrapper({
   sheets: Sheet[];
   services: Service[];
   eventTypes: import("@/types").EventType[];
+  statusOptions: ClientStatusOption[];
   currentUserId: string;
+  currentUserName: string;
   isAdmin: boolean;
 }) {
+  // Check for expired services and create logs/tasks before fetching events
+  await checkAndCreateServiceExpiryLogs(clientId);
+
   const [taskStats, lastActivity, upcomingEvents] = await Promise.all([
     getClientProjectsWithTaskStats(projects.map((p) => p.id), currentUserId),
     getLastActivityByClientId(clientId),
@@ -591,6 +588,7 @@ async function DashboardTabWrapper({
       myOpenTasks={taskStats.myOpenTasks}
       initialEvents={upcomingEvents.slice(0, 2)}
       eventTypes={eventTypes}
+      statusOptions={statusOptions}
       lastActivityAt={lastActivity?.createdAt ?? null}
     />
   );
@@ -598,14 +596,20 @@ async function DashboardTabWrapper({
 
 async function EventsTabWrapper({
   clientId,
+  currentUserId,
+  currentUserName,
   eventTypes,
 }: {
   clientId: string;
+  currentUserId: string;
+  currentUserName: string;
   eventTypes: import("@/types").EventType[];
 }) {
+  await checkAndCreateServiceExpiryLogs(clientId);
   const initialEvents = await getUpcomingEventsForClient(clientId);
   return <EventsTab clientId={clientId} initialEvents={initialEvents} initialEventTypes={eventTypes} />;
 }
+
 
 async function TasksTabWrapper({
   clientId,
@@ -632,7 +636,7 @@ async function TasksTabWrapper({
   return (
     <ClientTasksTab
       clientId={clientId}
-      projects={projects.map((p) => ({ id: p.id, title: p.title, status: p.status }))}
+      projects={projects.map((p) => ({ id: p.id, title: p.title, status: p.status, kickedOffAt: p.kickedOffAt }))}
       initialGeneralTasks={generalTasks}
       initialProjectTasks={initialProjectTasks}
       currentUserId={currentUserId}

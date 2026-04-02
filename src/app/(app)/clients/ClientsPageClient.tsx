@@ -4,7 +4,10 @@ import { useState, useMemo } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import AddClientButton from "@/components/ui/AddClientButton";
-import type { Client, ClientStatusOption, ClientPlatformOption } from "@/types";
+import ClientsOverviewTable from "./ClientsOverviewTable";
+import ClientsTimeline from "@/components/ui/ClientsTimeline";
+import type { Client, ClientStatusOption, ClientPlatformOption, Project } from "@/types";
+import type { OverviewRow } from "./ClientsOverviewTable";
 
 // ── helpers ────────────────────────────────────────────────────────────────
 
@@ -208,6 +211,39 @@ function SectionGrid({ clients }: { clients: Client[] }) {
   );
 }
 
+// ── tab nav ───────────────────────────────────────────────────────────────
+
+function ClientsTabNav({ activeTab, isAdmin }: { activeTab: string; isAdmin: boolean }) {
+  const tabs = [
+    { value: "all", label: "All clients", href: "/clients" },
+    ...(isAdmin ? [{ value: "overview", label: "Overview", href: "/clients?tab=overview" }] : []),
+  ];
+
+  return (
+    <div
+      className="flex gap-0 border-b shrink-0 mt-2"
+      style={{ borderColor: "var(--border)" }}
+    >
+      {tabs.map(({ value, label, href }) => {
+        const active = activeTab === value;
+        return (
+          <Link
+            key={value}
+            href={href}
+            className="px-1 py-3 mr-5 text-sm font-medium border-b-2 transition-colors"
+            style={{
+              borderColor: active ? "var(--primary)" : "transparent",
+              color: active ? "var(--primary)" : "var(--text-muted)",
+            }}
+          >
+            {label}
+          </Link>
+        );
+      })}
+    </div>
+  );
+}
+
 // ── page client ───────────────────────────────────────────────────────────
 
 export default function ClientsPageClient({
@@ -215,14 +251,25 @@ export default function ClientsPageClient({
   currentUserId,
   statuses,
   platforms,
+  tab,
+  isAdmin,
+  overviewRows,
+  projectsByClient,
 }: {
   clients: Client[];
   currentUserId: string | null;
   statuses: ClientStatusOption[];
   platforms: ClientPlatformOption[];
+  tab: string;
+  isAdmin: boolean;
+  overviewRows: OverviewRow[];
+  projectsByClient: Record<string, Project[]>;
 }) {
   const [selectedStatuses, setSelectedStatuses] = useState<Set<string>>(new Set());
   const [selectedPlatforms, setSelectedPlatforms] = useState<Set<string>>(new Set());
+
+  const isOverview = isAdmin && tab === "overview";
+  const activeTab = isOverview ? "overview" : "all";
 
   function toggle(set: Set<string>, setFn: (s: Set<string>) => void, slug: string) {
     const next = new Set(set);
@@ -255,97 +302,113 @@ export default function ClientsPageClient({
   const hasFilters = selectedStatuses.size > 0 || selectedPlatforms.size > 0;
 
   return (
-    <div className="flex-1 overflow-y-auto p-8">
+    <div className="flex-1 overflow-y-auto">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-xl font-semibold" style={{ color: "var(--text-primary)" }}>
-            Clients
-          </h1>
-          <p className="text-sm mt-0.5" style={{ color: "var(--text-muted)" }}>
-            {hasFilters
-              ? `${filtered.length} of ${clients.length} ${clients.length === 1 ? "client" : "clients"}`
-              : `${clients.length} ${clients.length === 1 ? "client" : "clients"}`}
-          </p>
+      <div className="px-8 pt-8 pb-0">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-semibold" style={{ color: "var(--text-primary)" }}>
+              Clients
+            </h1>
+            {!isOverview && (
+              <p className="text-sm mt-0.5" style={{ color: "var(--text-muted)" }}>
+                {hasFilters
+                  ? `${filtered.length} of ${clients.length} ${clients.length === 1 ? "client" : "clients"}`
+                  : `${clients.length} ${clients.length === 1 ? "client" : "clients"}`}
+              </p>
+            )}
+          </div>
+          <AddClientButton />
         </div>
-        <AddClientButton />
+        <ClientsTabNav activeTab={activeTab} isAdmin={isAdmin} />
       </div>
 
-      {/* Filters */}
-      {(statuses.length > 0 || platforms.length > 0) && (
-        <div className="flex flex-col gap-2 mb-6">
-          <FilterChips
-            label="Status"
-            options={statuses}
-            selected={selectedStatuses}
-            onToggle={(slug) => toggle(selectedStatuses, setSelectedStatuses, slug)}
-          />
-          <FilterChips
-            label="Platform"
-            options={platforms}
-            selected={selectedPlatforms}
-            onToggle={(slug) => toggle(selectedPlatforms, setSelectedPlatforms, slug)}
-          />
-        </div>
-      )}
-
       {/* Content */}
-      {clients.length === 0 ? (
-        <div
-          className="flex flex-col items-center justify-center rounded-2xl border border-dashed py-24 text-center"
-          style={{ borderColor: "var(--border)" }}
-        >
-          <p className="text-sm font-medium mb-1" style={{ color: "var(--text-primary)" }}>
-            No clients yet
-          </p>
-          <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-            Add your first client to get started.
-          </p>
-        </div>
-      ) : filtered.length === 0 ? (
-        <div
-          className="flex flex-col items-center justify-center rounded-2xl border border-dashed py-16 text-center"
-          style={{ borderColor: "var(--border)" }}
-        >
-          <p className="text-sm font-medium mb-1" style={{ color: "var(--text-primary)" }}>
-            No clients match these filters
-          </p>
-          <button
-            type="button"
-            className="text-sm mt-2 btn-link"
-            onClick={() => {
-              setSelectedStatuses(new Set());
-              setSelectedPlatforms(new Set());
-            }}
-          >
-            Clear filters
-          </button>
-        </div>
-      ) : hasSections ? (
-        <div className="flex flex-col gap-10">
-          {myClients.length > 0 && (
-            <section>
-              <h2 className="text-sm font-semibold mb-4" style={{ color: "var(--text-secondary)" }}>
-                Your clients
-              </h2>
-              <SectionGrid clients={myClients} />
-            </section>
-          )}
-          {otherClients.length > 0 && (
-            <section>
-              <h2
-                className="text-sm font-semibold mb-4"
-                style={{ color: "var(--text-secondary)" }}
+      <div className="px-8 py-6">
+        {isOverview ? (
+          <div className="space-y-6">
+            <ClientsTimeline clients={clients} projectsByClient={projectsByClient} />
+            <ClientsOverviewTable rows={overviewRows} statusOptions={statuses} />
+          </div>
+        ) : (
+          <>
+            {/* Filters */}
+            {(statuses.length > 0 || platforms.length > 0) && (
+              <div className="flex flex-col gap-2 mb-6">
+                <FilterChips
+                  label="Status"
+                  options={statuses}
+                  selected={selectedStatuses}
+                  onToggle={(slug) => toggle(selectedStatuses, setSelectedStatuses, slug)}
+                />
+                <FilterChips
+                  label="Platform"
+                  options={platforms}
+                  selected={selectedPlatforms}
+                  onToggle={(slug) => toggle(selectedPlatforms, setSelectedPlatforms, slug)}
+                />
+              </div>
+            )}
+
+            {clients.length === 0 ? (
+              <div
+                className="flex flex-col items-center justify-center rounded-2xl border border-dashed py-24 text-center"
+                style={{ borderColor: "var(--border)" }}
               >
-                {myClients.length > 0 ? "Other clients" : "Clients"}
-              </h2>
-              <SectionGrid clients={otherClients} />
-            </section>
-          )}
-        </div>
-      ) : (
-        <SectionGrid clients={filtered} />
-      )}
+                <p className="text-sm font-medium mb-1" style={{ color: "var(--text-primary)" }}>
+                  No clients yet
+                </p>
+                <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+                  Add your first client to get started.
+                </p>
+              </div>
+            ) : filtered.length === 0 ? (
+              <div
+                className="flex flex-col items-center justify-center rounded-2xl border border-dashed py-16 text-center"
+                style={{ borderColor: "var(--border)" }}
+              >
+                <p className="text-sm font-medium mb-1" style={{ color: "var(--text-primary)" }}>
+                  No clients match these filters
+                </p>
+                <button
+                  type="button"
+                  className="text-sm mt-2 btn-link"
+                  onClick={() => {
+                    setSelectedStatuses(new Set());
+                    setSelectedPlatforms(new Set());
+                  }}
+                >
+                  Clear filters
+                </button>
+              </div>
+            ) : hasSections ? (
+              <div className="flex flex-col gap-10">
+                {myClients.length > 0 && (
+                  <section>
+                    <h2 className="text-sm font-semibold mb-4" style={{ color: "var(--text-secondary)" }}>
+                      Your clients
+                    </h2>
+                    <SectionGrid clients={myClients} />
+                  </section>
+                )}
+                {otherClients.length > 0 && (
+                  <section>
+                    <h2
+                      className="text-sm font-semibold mb-4"
+                      style={{ color: "var(--text-secondary)" }}
+                    >
+                      {myClients.length > 0 ? "Other clients" : "Clients"}
+                    </h2>
+                    <SectionGrid clients={otherClients} />
+                  </section>
+                )}
+              </div>
+            ) : (
+              <SectionGrid clients={filtered} />
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }

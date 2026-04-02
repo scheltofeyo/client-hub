@@ -1,0 +1,76 @@
+[
+  {
+    "date": "2026-04-02",
+    "title": "Release notes and Settings page",
+    "details": [
+      "New Info section on the Settings page displays a running changelog of app updates"
+    ]
+  },
+  {
+    "date": "2026-04-02",
+    "title": "Project kick-off workflow",
+    "details": [
+      "Projects now have a two-phase lifecycle: draft and kicked off",
+      "New Kick Off button lets you set delivery date, sold price, and label before a project goes live",
+      "Projects track scheduledStartDate, scheduledEndDate, and kickedOffAt",
+      "Admins can reset a project back to draft via the edit modal"
+    ]
+  },
+  {
+    "date": "2026-04-02",
+    "title": "Gantt timeline views",
+    "details": [
+      "New interactive Gantt chart component with collapsible sections and horizontal scroll",
+      "Clients overview now includes a timeline view showing all projects across clients",
+      "Individual client pages show a project timeline on the Projects tab"
+    ]
+  },
+  {
+    "date": "2026-04-02",
+    "title": "Clients overview table (admin)",
+    "details": [
+      "Admins see a new Overview tab on the clients page with a sortable data table",
+      "Columns include status, open tasks, open projects, last activity, and next event",
+      "Reusable DataTable component with column sorting, sticky columns, and horizontal scroll"
+    ]
+  },
+  {
+    "date": "2026-04-02",
+    "title": "Service check-in timers",
+    "details": [
+      "Services and client statuses now support a configurable check-in interval (days)",
+      "The overview dashboard uses the status-specific timer instead of a fixed 60-day window",
+      "Automated expiry detection creates log entries with follow-up tasks when a service timer lapses",
+      "New system event types: Follow-up and Expired service"
+    ]
+  },
+  {
+    "date": "2026-04-02",
+    "title": "Stepped modal and shared form components",
+    "details": [
+      "New SteppedModal component for multi-step wizards with step indicators and fixed footer",
+      "Add Project and Edit Project now use modals instead of the right panel",
+      "ServicePills component for selecting services via pill buttons",
+      "Shared form-styles utility for consistent input/label styling across all forms"
+    ]
+  },
+  {
+    "date": "2026-04-02",
+    "title": "Project template enhancements",
+    "details": [
+      "Templates now support default description, default sold price, and default delivery days",
+      "Template editor uses the new stepped modal with inline task management",
+      "Selecting a template pre-fills all project fields during creation"
+    ]
+  },
+  {
+    "date": "2026-04-02",
+    "title": "Client management improvements",
+    "details": [
+      "Admins can delete clients directly from the edit form",
+      "Edit client form now passes isAdmin flag for conditional UI",
+      "Logbook entries can be linked to a service for expiry tracking",
+      "New --bg-elevated CSS variable for subtle surface differentiation"
+    ]
+  }
+]

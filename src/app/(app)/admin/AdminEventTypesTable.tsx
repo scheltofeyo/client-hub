@@ -3,13 +3,13 @@
 import { useState } from "react";
 import {
   Pencil, Trash2, Plus, Check, X, ChevronUp, ChevronDown, Lock,
-  Users, Clock, Flag, Circle, CalendarDays, Star, Bell, Zap, Briefcase, Tag, PackageCheck,
+  Users, Clock, Flag, Circle, CalendarDays, Star, Bell, Zap, Briefcase, Tag, PackageCheck, AlarmClock,
 } from "lucide-react";
 import type { EventType } from "@/types";
 import { useRouter } from "next/navigation";
 import { useRightPanel } from "@/components/layout/RightPanel";
 
-const SYSTEM_SLUGS = ["deadline", "delivery"];
+const SYSTEM_SLUGS = ["deadline", "delivery", "follow_up", "expired_service"];
 
 // ── Icon registry ────────────────────────────────────────────
 
@@ -25,6 +25,7 @@ const ICON_OPTIONS: { name: string; Icon: React.ElementType }[] = [
   { name: "Briefcase",    Icon: Briefcase    },
   { name: "Tag",          Icon: Tag          },
   { name: "PackageCheck", Icon: PackageCheck },
+  { name: "AlarmClock",  Icon: AlarmClock   },
 ];
 
 export const ICON_MAP: Record<string, React.ElementType> = Object.fromEntries(

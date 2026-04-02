@@ -30,7 +30,7 @@ export const EventTypeModel: Model<IEventType> = mongoose.model<IEventType>(
 );
 
 // Slugs used by auto-generated events — cannot be edited or deleted
-export const SYSTEM_EVENT_TYPE_SLUGS = ["deadline", "delivery"] as const;
+export const SYSTEM_EVENT_TYPE_SLUGS = ["deadline", "delivery", "follow_up", "expired_service"] as const;
 
 export const DEFAULT_EVENT_TYPES: Array<{
   slug: string;
@@ -38,9 +38,11 @@ export const DEFAULT_EVENT_TYPES: Array<{
   color: string;
   icon: string;
 }> = [
-  { slug: "check_in",  label: "Check-in", color: "#0d9488", icon: "Users"      },
-  { slug: "meeting",   label: "Meeting",  color: "#ea580c", icon: "Clock"      },
-  { slug: "deadline",  label: "Deadline", color: "#dc2626", icon: "Flag"       },
-  { slug: "delivery",  label: "Delivery", color: "#7c3aed", icon: "PackageCheck" },
-  { slug: "other",     label: "Other",    color: "#94a3b8", icon: "Circle"     },
+  { slug: "check_in",       label: "Check-in",       color: "#0d9488", icon: "Users"        },
+  { slug: "meeting",        label: "Meeting",         color: "#ea580c", icon: "Clock"        },
+  { slug: "deadline",       label: "Deadline",        color: "#dc2626", icon: "Flag"         },
+  { slug: "delivery",       label: "Delivery",        color: "#7c3aed", icon: "PackageCheck" },
+  { slug: "follow_up",      label: "Follow-up",       color: "#3b82f6", icon: "AlarmClock"   },
+  { slug: "expired_service",label: "Expired service", color: "#dc2626", icon: "PackageCheck" },
+  { slug: "other",          label: "Other",           color: "#94a3b8", icon: "Circle"       },
 ];

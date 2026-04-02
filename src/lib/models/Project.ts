@@ -11,6 +11,9 @@ export interface IProject extends Document {
   templateId?: string;
   serviceId?: string;
   labelId?: string;
+  kickedOffAt?: string;
+  scheduledStartDate?: string;
+  scheduledEndDate?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -31,6 +34,9 @@ const ProjectSchema = new Schema<IProject>(
     templateId: { type: String },
     serviceId: { type: String },
     labelId: { type: String },
+    kickedOffAt: { type: String, trim: true },
+    scheduledStartDate: { type: String, trim: true },
+    scheduledEndDate: { type: String, trim: true },
   },
   { timestamps: true }
 );

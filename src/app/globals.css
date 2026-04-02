@@ -6,6 +6,7 @@
 :root {
   --bg-app: #f0eff4;
   --bg-surface: #ffffff;
+  --bg-elevated: #f7f6fb;
   --bg-sidebar: #f7f6fb;
   --bg-hover: #e4e2ee;
   --border: #e6e4ef;
@@ -19,6 +20,7 @@
 .dark {
   --bg-app: #0e0d12;
   --bg-surface: #16151d;
+  --bg-elevated: #1c1b25;
   --bg-sidebar: #1c1b25;
   --bg-hover: #211f2a;
   --border: #2a2836;

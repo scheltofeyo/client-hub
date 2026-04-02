@@ -389,7 +389,7 @@ export default function ClientTasksTab({
   currentUserId,
 }: {
   clientId: string;
-  projects: Pick<Project, "id" | "title" | "status">[];
+  projects: Pick<Project, "id" | "title" | "status" | "kickedOffAt">[];
   initialGeneralTasks: Task[];
   initialProjectTasks: Record<string, Task[]>;
   currentUserId: string;
@@ -541,7 +541,9 @@ export default function ClientTasksTab({
   }
 
   // Projects with at least one open task assigned to me (or all projects when showAll)
+  // Upcoming (not-yet-kicked-off) projects are excluded from the board
   const projectsWithMyTasks = projects
+    .filter((p) => !!p.kickedOffAt)
     .filter((p) => {
       const projectTasks = projectTaskMap[p.id] ?? [];
       const relevant = showAll ? projectTasks : myProjectTasks(projectTasks);

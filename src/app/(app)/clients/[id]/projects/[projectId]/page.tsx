@@ -1,6 +1,8 @@
-import { getProjectById } from "@/lib/data";
+import { getProjectById, getServices, getProjectLabels } from "@/lib/data";
+import { auth } from "@/auth";
 import { notFound } from "next/navigation";
 import StatusBadge from "@/components/ui/StatusBadge";
+import EditProjectButton from "@/components/ui/EditProjectButton";
 import { fmtDate } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -10,13 +12,19 @@ export default async function ProjectOverviewPage({
 }: {
   params: Promise<{ id: string; projectId: string }>;
 }) {
-  const { projectId } = await params;
-  const project = await getProjectById(projectId);
+  const { id, projectId } = await params;
+  const [project, services, labels, session] = await Promise.all([
+    getProjectById(projectId),
+    getServices(),
+    getProjectLabels(),
+    auth(),
+  ]);
   if (!project) notFound();
 
   const details: [string, string | undefined][] = [
     ["Status", undefined],
     ["Service", project.service],
+    ["Kicked off", project.kickedOffAt ? fmtDate(project.kickedOffAt) : "Upcoming"],
     ["Completed", project.completedDate ? fmtDate(project.completedDate) : undefined],
     [
       "Sold price",
@@ -30,12 +38,15 @@ export default async function ProjectOverviewPage({
   return (
     <div className="max-w-2xl space-y-8">
       <div className="space-y-5">
-        <h2
-          className="text-xs font-semibold uppercase tracking-wide"
-          style={{ color: "var(--text-muted)" }}
-        >
-          Project details
-        </h2>
+        <div className="flex items-center justify-between">
+          <h2
+            className="text-xs font-semibold uppercase tracking-wide"
+            style={{ color: "var(--text-muted)" }}
+          >
+            Project details
+          </h2>
+          <EditProjectButton project={project} clientId={id} services={services} labels={labels} isAdmin={!!session?.user?.isAdmin} />
+        </div>
 
         {project.description && (
           <p className="text-sm leading-relaxed" style={{ color: "var(--text-primary)" }}>
@@ -54,13 +65,16 @@ export default async function ProjectOverviewPage({
           </div>
           {details
             .filter(([label]) => label !== "Status")
-            .filter(([, value]) => value !== undefined)
+            .filter(([label, value]) => label === "Kicked off" || value !== undefined)
             .map(([label, value]) => (
               <div key={label}>
                 <dt className="text-xs mb-0.5" style={{ color: "var(--text-muted)" }}>
                   {label}
                 </dt>
-                <dd className="font-medium" style={{ color: "var(--text-primary)" }}>
+                <dd
+                  className="font-medium"
+                  style={{ color: label === "Kicked off" && !project.kickedOffAt ? "var(--text-muted)" : "var(--text-primary)" }}
+                >
                   {value}
                 </dd>
               </div>

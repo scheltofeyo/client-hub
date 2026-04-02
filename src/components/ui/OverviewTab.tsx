@@ -4,12 +4,12 @@ import { useState, useEffect, useMemo } from "react";
 import { Check, X, FileText, BookOpen, FolderOpen, Users, FolderPlus, CheckSquare, CalendarPlus, CalendarDays, FilePlus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import type { Client, Contact, EventType, LogSignal, Project, Service, Sheet, Task, TimelineEvent } from "@/types";
+import type { Client, ClientStatusOption, Contact, EventType, LogSignal, Project, Service, Sheet, Task, TimelineEvent } from "@/types";
 import { fmtDate } from "@/lib/utils";
 import StatusBadge from "@/components/ui/StatusBadge";
 import UserAvatar from "@/components/ui/UserAvatar";
 import { useRightPanel } from "@/components/layout/RightPanel";
-import { TemplatePicker } from "@/components/ui/AddProjectButton";
+import { AddProjectModal } from "@/components/ui/AddProjectButton";
 import { CollapsibleTypeGroup, ActivityEvent, getPeriodKey, getPeriodLabel } from "@/components/ui/ActivityTab";
 import { TaskForm } from "@/components/ui/ClientTasksTab";
 import { EventForm } from "@/components/ui/EventsTab";
@@ -26,6 +26,25 @@ function daysSinceISO(isoString: string): number {
   const past = new Date(isoString);
   const now = new Date();
   return Math.floor((now.getTime() - past.getTime()) / 86400000);
+}
+
+function addDaysToISO(dateStr: string, days: number): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return new Date(y, m - 1, d + days).toISOString().slice(0, 10);
+}
+
+function daysUntilISO(dateStr: string): number {
+  const target = new Date(dateStr);
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  return Math.ceil((target.getTime() - now.getTime()) / 86400000);
+}
+
+function expiryColor(daysUntil: number): string {
+  if (daysUntil > 14) return "var(--text-muted)";
+  if (daysUntil > 7)  return "#d97706";
+  if (daysUntil >= 0) return "#ea580c";
+  return "#dc2626";
 }
 
 
@@ -139,6 +158,7 @@ export default function OverviewTab({
   contacts,
   initialEvents,
   eventTypes,
+  statusOptions = [],
   lastActivityAt,
 }: {
   clientId: string;
@@ -155,15 +175,20 @@ export default function OverviewTab({
   myOpenTasks: number;
   initialEvents: TimelineEvent[];
   eventTypes: EventType[];
+  statusOptions?: ClientStatusOption[];
   lastActivityAt: string | null;
 }) {
   const [recentActivity, setRecentActivity] = useState<ActivityEvent[]>([]);
   const [assignableUsers, setAssignableUsers] = useState<{ id: string; name: string; image: string | null }[]>([]);
+  const [addProjectOpen, setAddProjectOpen] = useState(false);
   const router = useRouter();
   const { openPanel, closePanel } = useRightPanel();
 
   // ── Check-in timer ───────────────────────────────────────
-  const WINDOW = 60;
+  const statusCheckInDays = client.status
+    ? statusOptions.find((s) => s.slug === client.status)?.checkInDays ?? null
+    : null;
+  const WINDOW = statusCheckInDays ?? 60;
   const daysElapsed = lastActivityAt ? daysSinceISO(lastActivityAt) : WINDOW;
   const daysRemaining = WINDOW - daysElapsed;
   const isOverdue = daysRemaining < 0;
@@ -204,24 +229,24 @@ export default function OverviewTab({
     })();
   }, [clientId, isOverdue]);
 
-
   // ── Derived ──────────────────────────────────────────────
 
   // Group completed projects by service for the services table
-  const serviceMap = new Map<string, { name: string; count: number; lastDate: string }>(
-    services.map((s) => [s.id, { name: s.name, count: 0, lastDate: "" }])
+  const serviceMap = new Map<string, { name: string; count: number; lastDate: string; checkInDays: number | null }>(
+    services.map((s) => [s.id, { name: s.name, count: 0, lastDate: "", checkInDays: s.checkInDays ?? null }])
   );
   for (const p of projects) {
     if (p.status === "completed" && p.serviceId && p.service) {
       const existing = serviceMap.get(p.serviceId);
       const date = p.completedDate ?? "";
       if (!existing) {
-        serviceMap.set(p.serviceId, { name: p.service, count: 1, lastDate: date });
+        serviceMap.set(p.serviceId, { name: p.service, count: 1, lastDate: date, checkInDays: null });
       } else {
         serviceMap.set(p.serviceId, {
           name: p.service,
           count: existing.count + 1,
           lastDate: date > existing.lastDate ? date : existing.lastDate,
+          checkInDays: existing.checkInDays,
         });
       }
     }
@@ -235,9 +260,9 @@ export default function OverviewTab({
   const fillPct = Math.max(0, Math.min(100, (daysRemaining / WINDOW) * 100));
 
   const timerColor =
-    daysRemaining > 30 ? "color-mix(in srgb, var(--primary) 75%, transparent)"
-    : daysRemaining > 15 ? "#d97706bf"
-    : daysRemaining > 5 ? "#ea580cbf"
+    daysRemaining > WINDOW * 0.5 ? "color-mix(in srgb, var(--primary) 75%, transparent)"
+    : daysRemaining > WINDOW * 0.25 ? "#d97706bf"
+    : daysRemaining > WINDOW * 0.08 ? "#ea580cbf"
     : "#dc2626bf";
 
   const timerLabel = !lastActivityAt
@@ -482,13 +507,12 @@ export default function OverviewTab({
             <button
               type="button"
               className="btn-action"
-              onClick={() =>
-                openPanel("New Project", <TemplatePicker clientId={clientId} onClose={closePanel} />)
-              }
+              onClick={() => setAddProjectOpen(true)}
             >
               <FolderPlus size={18} />
               New project
             </button>
+            <AddProjectModal clientId={clientId} open={addProjectOpen} onClose={() => setAddProjectOpen(false)} />
             <button
               type="button"
               className="btn-action"
@@ -838,7 +862,7 @@ export default function OverviewTab({
           style={{ borderColor: "var(--border)" }}
         >
           <div
-            className="px-4 py-3 grid grid-cols-3 text-xs font-semibold uppercase tracking-wide bg-white dark:bg-[var(--bg-sidebar)]"
+            className="px-4 py-3 grid grid-cols-4 text-xs font-semibold uppercase tracking-wide bg-white dark:bg-[var(--bg-sidebar)]"
             style={{
               borderBottom: "1px solid var(--border)",
               color: "var(--text-muted)",
@@ -847,30 +871,45 @@ export default function OverviewTab({
             <span>Service</span>
             <span className="text-center">Delivered</span>
             <span className="text-right">Last completed</span>
+            <span className="text-right">Check-in due</span>
           </div>
-          {deliveredServiceRows.map((row, idx) => (
-            <div
-              key={row.name}
-              className="px-4 py-3 grid grid-cols-3 items-center"
-              style={{
-                borderBottom: idx < deliveredServiceRows.length - 1 ? "1px solid var(--border)" : undefined,
-                background: "#FFFFFF",
-              }}
-            >
-              <span className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
-                {row.name}
-              </span>
-              <span
-                className="text-sm text-center tabular-nums"
-                style={{ color: row.count > 0 ? "var(--text-primary)" : "var(--text-muted)" }}
+          {deliveredServiceRows.map((row, idx) => {
+            const expiryDate = row.checkInDays && row.lastDate
+              ? addDaysToISO(row.lastDate, row.checkInDays)
+              : null;
+            const daysUntil = expiryDate ? daysUntilISO(expiryDate) : null;
+            const color = daysUntil != null ? expiryColor(daysUntil) : "var(--text-muted)";
+            return (
+              <div
+                key={row.name}
+                className="px-4 py-3 grid grid-cols-4 items-center"
+                style={{
+                  borderBottom: idx < deliveredServiceRows.length - 1 ? "1px solid var(--border)" : undefined,
+                  background: "#FFFFFF",
+                }}
               >
-                {row.count}×
-              </span>
-              <span className="text-sm text-right" style={{ color: "var(--text-muted)" }}>
-                {row.lastDate ? fmtDate(row.lastDate) : "—"}
-              </span>
-            </div>
-          ))}
+                <span className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
+                  {row.name}
+                </span>
+                <span
+                  className="text-sm text-center tabular-nums"
+                  style={{ color: row.count > 0 ? "var(--text-primary)" : "var(--text-muted)" }}
+                >
+                  {row.count}×
+                </span>
+                <span className="text-sm text-right" style={{ color: "var(--text-muted)" }}>
+                  {row.lastDate ? fmtDate(row.lastDate) : "—"}
+                </span>
+                <span className="text-sm text-right tabular-nums" style={{ color }}>
+                  {expiryDate
+                    ? daysUntil != null && daysUntil < 0
+                      ? `${fmtDate(expiryDate)} (overdue)`
+                      : fmtDate(expiryDate)
+                    : "—"}
+                </span>
+              </div>
+            );
+          })}
         </div>
       )}
 

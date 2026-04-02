@@ -4,15 +4,17 @@ export interface IClientStatusOption extends Document {
   slug: string;
   label: string;
   rank: number;
+  checkInDays: number | null;
   createdAt: Date;
   updatedAt: Date;
 }
 
 const ClientStatusOptionSchema = new Schema<IClientStatusOption>(
   {
-    slug:  { type: String, required: true, trim: true, unique: true },
-    label: { type: String, required: true, trim: true, unique: true },
-    rank:  { type: Number, default: 0 },
+    slug:        { type: String, required: true, trim: true, unique: true },
+    label:       { type: String, required: true, trim: true, unique: true },
+    rank:        { type: Number, default: 0 },
+    checkInDays: { type: Number, default: null },
   },
   { timestamps: true }
 );

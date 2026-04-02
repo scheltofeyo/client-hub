@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import PageHeader from "@/components/layout/PageHeader";
 import { TaskRow, SubtaskRow } from "@/components/ui/task-row";
+import GanttTimeline, { GanttSection } from "@/components/ui/GanttTimeline";
 import type { Task } from "@/types";
 
 const section = "mb-10";
@@ -25,6 +26,39 @@ function mk(partial: Partial<Task> & { id: string; title: string }): Task {
 
 const noop = () => {};
 const noopAsync = async () => {};
+
+// ── Mock Gantt data ──────────────────────────────────────────────────────────
+
+const _TODAY = new Date();
+_TODAY.setHours(0, 0, 0, 0);
+const _d = (offsetDays: number) =>
+  new Date(_TODAY.getTime() + offsetDays * 86_400_000);
+
+const MOCK_GANTT_SECTIONS: GanttSection[] = [
+  {
+    key: "current",
+    label: "Current",
+    rows: [
+      { id: "mg1", label: "Brand Identity",    sublabel: "Design",      start: _d(-45), end: _d(30),  variant: "active" },
+      { id: "mg2", label: "Website Redesign",  sublabel: "Development", start: _d(-10), end: _d(60),  variant: "active" },
+    ],
+  },
+  {
+    key: "upcoming",
+    label: "Upcoming",
+    rows: [
+      { id: "mg3", label: "SEO Audit",         sublabel: "Marketing",   start: _d(45),  end: _d(90),  variant: "upcoming" },
+    ],
+  },
+  {
+    key: "completed",
+    label: "Completed",
+    defaultCollapsed: true,
+    rows: [
+      { id: "mg4", label: "Discovery Sprint",  sublabel: "Strategy",    start: _d(-120), end: _d(-60), variant: "muted" },
+    ],
+  },
+];
 
 // ── Page ─────────────────────────────────────────────────────────────────────
 
@@ -52,7 +86,8 @@ export default function StylesheetPage() {
         breadcrumbs={[{ label: "Admin", href: "/admin" }, { label: "..." }]}
         title="Stylesheet"
       />
-      <div className="flex-1 overflow-y-auto p-8 max-w-3xl">
+      <div className="flex-1 overflow-y-auto">
+      <div className="p-8 max-w-3xl">
 
       {/* ── Buttons ── */}
       <div className={section}>
@@ -213,7 +248,17 @@ export default function StylesheetPage() {
         </div>
       </div>
 
+      </div>{/* end max-w-3xl */}
+
+      {/* ── Gantt Timeline — full-width, outside max-w-3xl ── */}
+      <div className="px-8 pb-8">
+        <p className={sectionTitle} style={{ color: "var(--text-muted)" }}>
+          Gantt Timeline
+        </p>
+        <GanttTimeline sections={MOCK_GANTT_SECTIONS} onRowClick={noop} />
       </div>
+
+      </div>{/* end overflow-y-auto */}
     </div>
   );
 }

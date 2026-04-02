@@ -22,10 +22,43 @@ export async function PATCH(
   }
 
   const body = await req.json();
-  const { title, description, status, completedDate, soldPrice, serviceId, labelId, deliveryDate } = body;
+  const { title, description, status, completedDate, soldPrice, serviceId, labelId, deliveryDate, kickedOffAt, scheduledStartDate, scheduledEndDate } = body;
 
   if (title !== undefined && !title?.trim()) {
     return NextResponse.json({ error: "Title cannot be empty" }, { status: 400 });
+  }
+
+  // Admin-only: reset project back to upcoming (un-kick-off)
+  if (kickedOffAt === null) {
+    if (!session.user.isAdmin) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    const doc = await ProjectModel.findByIdAndUpdate(
+      projectId,
+      { $set: { status: "not_started", completedDate: null, deliveryDate: null, soldPrice: null, labelId: null }, $unset: { kickedOffAt: 1 } },
+      { new: true }
+    ).lean();
+    if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    await recordActivity({
+      clientId: id,
+      actorId: session.user.id,
+      actorName: session.user.name ?? "Unknown",
+      type: "project.reset_to_upcoming",
+      metadata: { projectId, title: doc.title },
+    });
+    return NextResponse.json({
+      id: doc._id.toString(),
+      clientId: doc.clientId,
+      title: doc.title,
+      description: doc.description,
+      status: doc.status,
+      completedDate: doc.completedDate ?? null,
+      deliveryDate: doc.deliveryDate ?? null,
+      soldPrice: doc.soldPrice ?? null,
+      serviceId: doc.serviceId ?? null,
+      labelId: doc.labelId ?? null,
+      kickedOffAt: null,
+    });
   }
 
   const update: Record<string, unknown> = {};
@@ -35,6 +68,9 @@ export async function PATCH(
   if (serviceId !== undefined) update.serviceId = serviceId || null;
   if (labelId !== undefined) update.labelId = labelId || null;
   if (deliveryDate !== undefined) update.deliveryDate = deliveryDate?.trim() || null;
+  if (scheduledStartDate !== undefined) update.scheduledStartDate = scheduledStartDate?.trim() || null;
+  if (scheduledEndDate !== undefined) update.scheduledEndDate = scheduledEndDate?.trim() || null;
+  if (kickedOffAt !== undefined && kickedOffAt !== null) update.kickedOffAt = kickedOffAt?.trim() || null;
 
   if (status !== undefined) {
     update.status = status;
@@ -77,6 +113,9 @@ export async function PATCH(
     soldPrice: doc.soldPrice,
     serviceId: doc.serviceId,
     labelId: doc.labelId,
+    kickedOffAt: doc.kickedOffAt ?? null,
+    scheduledStartDate: doc.scheduledStartDate ?? null,
+    scheduledEndDate: doc.scheduledEndDate ?? null,
   });
 }
 

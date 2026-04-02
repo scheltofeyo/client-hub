@@ -13,20 +13,26 @@ export async function PATCH(
   }
 
   const { id } = await params;
-  const { name } = await req.json();
+  const { name, checkInDays } = await req.json();
   if (!name?.trim()) {
     return NextResponse.json({ error: "Name is required" }, { status: 400 });
   }
 
-  await connectDB();
-  const doc = await ServiceModel.findByIdAndUpdate(
-    id,
-    { $set: { name: name.trim() } },
-    { new: true }
-  ).lean();
-  if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  const parsedDays = checkInDays != null && checkInDays !== "" ? Number(checkInDays) : null;
 
-  return NextResponse.json({ id: doc._id.toString(), name: doc.name, rank: doc.rank ?? 0 });
+  await connectDB();
+  try {
+    const doc = await ServiceModel.findByIdAndUpdate(
+      id,
+      { $set: { name: name.trim(), checkInDays: parsedDays } },
+      { new: true }
+    ).lean();
+    if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+    return NextResponse.json({ id: doc._id.toString(), name: doc.name, rank: doc.rank ?? 0, checkInDays: doc.checkInDays ?? null });
+  } catch {
+    return NextResponse.json({ error: "Name already exists" }, { status: 409 });
+  }
 }
 
 export async function DELETE(

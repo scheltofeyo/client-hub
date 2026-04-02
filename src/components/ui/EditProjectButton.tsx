@@ -1,54 +1,71 @@
 "use client";
 
 import { useState } from "react";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2, RotateCcw } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useRightPanel } from "@/components/layout/RightPanel";
+import SteppedModal from "@/components/ui/SteppedModal";
+import ServicePills from "@/components/ui/ServicePills";
+import { inputClass, inputStyle, labelClass, labelStyle } from "@/components/ui/form-styles";
 import type { Project, ProjectLabel, Service } from "@/types";
 
-const inputClass =
-  "w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--primary)]/40";
-const inputStyle = {
-  background: "var(--bg-sidebar)",
-  borderColor: "var(--border)",
-  color: "var(--text-primary)",
-};
-const labelClass = "block text-xs font-medium mb-1";
-const labelStyle = { color: "var(--text-muted)" };
-
-function EditProjectForm({
+export default function EditProjectButton({
   project,
   clientId,
   services,
   labels,
-  onClose,
+  isAdmin = false,
 }: {
   project: Project;
   clientId: string;
   services: Service[];
   labels: ProjectLabel[];
-  onClose: () => void;
+  isAdmin?: boolean;
 }) {
+  const [open, setOpen] = useState(false);
   const [form, setForm] = useState({
-    title: project.title,
-    description: project.description ?? "",
-    completedDate: project.completedDate ?? "",
-    deliveryDate: project.deliveryDate ?? "",
-    soldPrice: project.soldPrice != null ? String(project.soldPrice) : "",
-    serviceId: project.serviceId ?? "",
-    labelId: project.labelId ?? "",
+    title: "",
+    description: "",
+    completedDate: "",
+    deliveryDate: "",
+    soldPrice: "",
+    serviceId: "",
+    labelId: "",
+    scheduledStartDate: "",
+    scheduledEndDate: "",
+    kickedOffAt: "",
   });
   const [loading, setLoading] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const [error, setError] = useState("");
   const router = useRouter();
+
+  function handleOpen() {
+    setForm({
+      title: project.title,
+      description: project.description ?? "",
+      completedDate: project.completedDate ?? "",
+      deliveryDate: project.deliveryDate ?? "",
+      soldPrice: project.soldPrice != null ? String(project.soldPrice) : "",
+      serviceId: project.serviceId ?? "",
+      labelId: project.labelId ?? "",
+      scheduledStartDate: project.scheduledStartDate ?? "",
+      scheduledEndDate: project.scheduledEndDate ?? "",
+      kickedOffAt: project.kickedOffAt ?? "",
+    });
+    setError("");
+    setOpen(true);
+  }
+
+  function handleClose() {
+    setOpen(false);
+  }
 
   function set(field: string, value: string) {
     setForm((f) => ({ ...f, [field]: value }));
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleSubmit() {
     if (!form.title.trim()) return;
 
     setLoading(true);
@@ -60,11 +77,21 @@ function EditProjectForm({
       body: JSON.stringify({
         title: form.title,
         description: form.description || undefined,
-        ...(project.status === "completed" ? { completedDate: form.completedDate || undefined } : {}),
+        ...(project.status === "completed"
+          ? { completedDate: form.completedDate || undefined }
+          : {}),
         deliveryDate: form.deliveryDate || undefined,
         soldPrice: form.soldPrice ? Number(form.soldPrice) : undefined,
         serviceId: form.serviceId || undefined,
         labelId: form.labelId || undefined,
+        ...(!project.kickedOffAt
+          ? {
+              scheduledStartDate: form.scheduledStartDate || undefined,
+              scheduledEndDate: form.scheduledEndDate || undefined,
+            }
+          : {
+              kickedOffAt: form.kickedOffAt || undefined,
+            }),
       }),
     });
 
@@ -76,12 +103,13 @@ function EditProjectForm({
       return;
     }
 
-    onClose();
+    handleClose();
     router.refresh();
   }
 
   async function handleDelete() {
-    if (!confirm(`Delete project "${project.title}"? This cannot be undone.`)) return;
+    if (!confirm(`Delete project "${project.title}"? This cannot be undone.`))
+      return;
 
     setDeleting(true);
     const res = await fetch(`/api/clients/${clientId}/projects/${project.id}`, {
@@ -94,224 +122,297 @@ function EditProjectForm({
       return;
     }
 
-    onClose();
+    handleClose();
     router.push(`/clients/${clientId}?tab=projects`);
     router.refresh();
   }
 
+  async function handleReset() {
+    if (
+      !confirm(
+        `Reset "${project.title}" to upcoming? This will clear the delivery date, financials, and project status.`
+      )
+    )
+      return;
+
+    setResetting(true);
+    const res = await fetch(`/api/clients/${clientId}/projects/${project.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ kickedOffAt: null }),
+    });
+    setResetting(false);
+
+    if (!res.ok) {
+      setError("Failed to reset project");
+      return;
+    }
+
+    handleClose();
+    router.refresh();
+  }
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
-      <div>
-        <label htmlFor="ep-title" className={labelClass} style={labelStyle}>
-          Title <span className="text-red-400">*</span>
-        </label>
-        <input
-          id="ep-title"
-          type="text"
-          value={form.title}
-          onChange={(e) => set("title", e.target.value)}
-          autoFocus
-          className={inputClass}
-          style={inputStyle}
-        />
-      </div>
+    <>
+      <button
+        onClick={handleOpen}
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border btn-secondary"
+      >
+        <Pencil size={13} />
+        Edit
+      </button>
 
-      <div>
-        <p className={labelClass} style={labelStyle}>
-          Connect to a service <span className="text-red-400">*</span>
-        </p>
-        <div className="flex flex-wrap gap-2">
-          {services.map((s) => {
-            const selected = form.serviceId === s.id;
-            return (
-              <button
-                key={s.id}
-                type="button"
-                onClick={() => set("serviceId", s.id)}
-                className="px-2.5 py-0.5 rounded-full text-xs font-medium border transition-colors"
-                style={
-                  selected
-                    ? {
-                        background: "var(--primary)",
-                        borderColor: "var(--primary)",
-                        color: "#fff",
-                      }
-                    : {
-                        background: "var(--bg-sidebar)",
-                        borderColor: "var(--border)",
-                        color: "var(--text-secondary)",
-                      }
-                }
-              >
-                {s.name}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      <div>
-        <label htmlFor="ep-description" className={labelClass} style={labelStyle}>
-          Short description
-        </label>
-        <textarea
-          id="ep-description"
-          value={form.description}
-          onChange={(e) => set("description", e.target.value)}
-          rows={3}
-          className={inputClass + " resize-none"}
-          style={inputStyle}
-        />
-      </div>
-
-      {project.status === "completed" && (
-        <div>
-          <label htmlFor="ep-completed-date" className={labelClass} style={labelStyle}>
-            Completed date
-          </label>
-          <input
-            id="ep-completed-date"
-            type="date"
-            value={form.completedDate}
-            onChange={(e) => set("completedDate", e.target.value)}
-            className={inputClass}
-            style={inputStyle}
-          />
-        </div>
-      )}
-
-      <div className="!mt-9">
-        <label htmlFor="ep-delivery" className={labelClass} style={labelStyle}>
-          Expected delivery date
-        </label>
-        <input
-          id="ep-delivery"
-          type="date"
-          value={form.deliveryDate}
-          onChange={(e) => set("deliveryDate", e.target.value)}
-          className={inputClass}
-          style={inputStyle}
-        />
-        <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
-          Automatically creates an event for this delivery.
-        </p>
-      </div>
-
-      <div className="!mt-9">
-        <p className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: "var(--text-muted)" }}>
-          Financial information
-        </p>
-        <div className="grid grid-cols-2 gap-3">
+      <SteppedModal
+        open={open}
+        onClose={handleClose}
+        title="Edit Project"
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={handleClose}
+              className="px-4 py-2 rounded-lg text-sm font-medium btn-ghost"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={loading || !form.title.trim() || !form.serviceId}
+              className="px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50 btn-primary"
+            >
+              {loading ? "Saving…" : "Save Changes"}
+            </button>
+          </>
+        }
+      >
+        <div className="space-y-5">
+          {/* Core fields */}
           <div>
-            <label htmlFor="ep-price" className={labelClass} style={labelStyle}>
-              Sold price (€)
+            <label htmlFor="ep-title" className={labelClass} style={labelStyle}>
+              Title <span className="text-red-400">*</span>
             </label>
             <input
-              id="ep-price"
-              type="number"
-              min={0}
-              step={1}
-              value={form.soldPrice}
-              onChange={(e) => set("soldPrice", e.target.value)}
-              placeholder="e.g. 5000"
+              id="ep-title"
+              type="text"
+              value={form.title}
+              onChange={(e) => set("title", e.target.value)}
               className={inputClass}
               style={inputStyle}
             />
           </div>
-          <div>
-            <label htmlFor="ep-label" className={labelClass} style={labelStyle}>
-              Label
-            </label>
-            <select
-              id="ep-label"
-              value={form.labelId}
-              onChange={(e) => set("labelId", e.target.value)}
-              className={inputClass}
-              style={inputStyle}
-            >
-              <option value="">— No label —</option>
-              {labels.map((l) => (
-                <option key={l.id} value={l.id}>
-                  {l.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-      </div>
 
-      {error && <p className="text-xs text-red-500">{error}</p>}
-
-      <div className="flex justify-end gap-2 pt-1">
-        <button
-          type="button"
-          onClick={onClose}
-          className="px-3 py-1.5 rounded-lg text-sm font-medium btn-ghost"
-        >
-          Cancel
-        </button>
-        <button
-          type="submit"
-          disabled={loading || !form.title.trim() || !form.serviceId}
-          className="px-3 py-1.5 rounded-lg text-sm font-medium disabled:opacity-50 btn-primary"
-        >
-          {loading ? "Saving…" : "Save Changes"}
-        </button>
-      </div>
-
-      {/* Danger zone */}
-      <div
-        className="pt-4 mt-4 border-t"
-        style={{ borderColor: "var(--border)" }}
-      >
-        <p className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: "var(--text-muted)" }}>
-          Danger zone
-        </p>
-        <button
-          type="button"
-          onClick={handleDelete}
-          disabled={deleting}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium disabled:opacity-50 btn-danger"
-        >
-          <Trash2 size={13} />
-          {deleting ? "Deleting…" : "Delete project"}
-        </button>
-      </div>
-    </form>
-  );
-}
-
-export default function EditProjectButton({
-  project,
-  clientId,
-  services,
-  labels,
-}: {
-  project: Project;
-  clientId: string;
-  services: Service[];
-  labels: ProjectLabel[];
-}) {
-  const { openPanel, closePanel } = useRightPanel();
-
-  return (
-    <button
-      onClick={() =>
-        openPanel(
-          "Edit Project",
-          <EditProjectForm
-            project={project}
-            clientId={clientId}
+          <ServicePills
             services={services}
-            labels={labels}
-            onClose={closePanel}
+            selectedId={form.serviceId}
+            onChange={(id) => set("serviceId", id)}
+            label="Connect to a service"
+            required
           />
-        )
-      }
-      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border btn-secondary"
-    >
-      <Pencil size={13} />
-      Edit
-    </button>
+
+          <div>
+            <label htmlFor="ep-description" className={labelClass} style={labelStyle}>
+              Short description
+            </label>
+            <textarea
+              id="ep-description"
+              value={form.description}
+              onChange={(e) => set("description", e.target.value)}
+              rows={3}
+              className={inputClass + " resize-none"}
+              style={inputStyle}
+            />
+          </div>
+
+          {/* Scheduled dates — before kick-off */}
+          {!project.kickedOffAt && (
+            <div className="!mt-9">
+              <p
+                className="text-xs font-semibold uppercase tracking-wide mb-3"
+                style={{ color: "var(--text-muted)" }}
+              >
+                Scheduled dates
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label htmlFor="ep-sched-start" className={labelClass} style={labelStyle}>
+                    Start date
+                  </label>
+                  <input
+                    id="ep-sched-start"
+                    type="date"
+                    value={form.scheduledStartDate}
+                    onChange={(e) => set("scheduledStartDate", e.target.value)}
+                    className={inputClass}
+                    style={inputStyle}
+                  />
+                </div>
+                <div>
+                  <label htmlFor="ep-sched-end" className={labelClass} style={labelStyle}>
+                    End date
+                  </label>
+                  <input
+                    id="ep-sched-end"
+                    type="date"
+                    value={form.scheduledEndDate}
+                    onChange={(e) => set("scheduledEndDate", e.target.value)}
+                    className={inputClass}
+                    style={inputStyle}
+                  />
+                </div>
+              </div>
+              <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+                Shown on the timeline. End date pre-fills delivery date at kick-off.
+              </p>
+            </div>
+          )}
+
+          {/* Completed date */}
+          {project.status === "completed" && (
+            <div>
+              <label htmlFor="ep-completed-date" className={labelClass} style={labelStyle}>
+                Completed date
+              </label>
+              <input
+                id="ep-completed-date"
+                type="date"
+                value={form.completedDate}
+                onChange={(e) => set("completedDate", e.target.value)}
+                className={inputClass}
+                style={inputStyle}
+              />
+            </div>
+          )}
+
+          {/* Project dates + financial — after kick-off */}
+          {project.kickedOffAt && (
+            <>
+              <div className="!mt-9">
+                <p
+                  className="text-xs font-semibold uppercase tracking-wide mb-3"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  Project dates
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label htmlFor="ep-kickoff" className={labelClass} style={labelStyle}>
+                      Kick-off date
+                    </label>
+                    <input
+                      id="ep-kickoff"
+                      type="date"
+                      value={form.kickedOffAt}
+                      onChange={(e) => set("kickedOffAt", e.target.value)}
+                      className={inputClass}
+                      style={inputStyle}
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="ep-delivery" className={labelClass} style={labelStyle}>
+                      Expected delivery
+                    </label>
+                    <input
+                      id="ep-delivery"
+                      type="date"
+                      value={form.deliveryDate}
+                      onChange={(e) => set("deliveryDate", e.target.value)}
+                      className={inputClass}
+                      style={inputStyle}
+                    />
+                  </div>
+                </div>
+                <p className="text-xs mt-2" style={{ color: "var(--text-muted)" }}>
+                  Delivery date automatically creates a timeline event.
+                </p>
+              </div>
+
+              <div className="!mt-9">
+                <p
+                  className="text-xs font-semibold uppercase tracking-wide mb-3"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  Financial information
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label htmlFor="ep-price" className={labelClass} style={labelStyle}>
+                      Sold price (€)
+                    </label>
+                    <input
+                      id="ep-price"
+                      type="number"
+                      min={0}
+                      step={1}
+                      value={form.soldPrice}
+                      onChange={(e) => set("soldPrice", e.target.value)}
+                      placeholder="e.g. 5000"
+                      className={inputClass}
+                      style={inputStyle}
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="ep-label" className={labelClass} style={labelStyle}>
+                      Label
+                    </label>
+                    <select
+                      id="ep-label"
+                      value={form.labelId}
+                      onChange={(e) => set("labelId", e.target.value)}
+                      className={inputClass}
+                      style={inputStyle}
+                    >
+                      <option value="">— No label —</option>
+                      {labels.map((l) => (
+                        <option key={l.id} value={l.id}>
+                          {l.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+
+          {error && <p className="text-xs text-red-500">{error}</p>}
+
+          {/* Danger zone */}
+          {isAdmin && (
+            <div
+              className="pt-5 mt-5 border-t space-y-2"
+              style={{ borderColor: "var(--border)" }}
+            >
+              <p
+                className="text-xs font-semibold uppercase tracking-wide mb-3"
+                style={{ color: "var(--text-muted)" }}
+              >
+                Danger zone
+              </p>
+              {project.kickedOffAt && (
+                <button
+                  type="button"
+                  onClick={handleReset}
+                  disabled={resetting}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium disabled:opacity-50 btn-secondary border"
+                >
+                  <RotateCcw size={13} />
+                  {resetting ? "Resetting…" : "Reset to upcoming"}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={deleting}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium disabled:opacity-50 btn-danger"
+              >
+                <Trash2 size={13} />
+                {deleting ? "Deleting…" : "Delete project"}
+              </button>
+            </div>
+          )}
+        </div>
+      </SteppedModal>
+    </>
   );
 }

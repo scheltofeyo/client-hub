@@ -5,16 +5,19 @@ import { EventTypeModel, DEFAULT_EVENT_TYPES } from "@/lib/models/EventType";
 
 export async function GET() {
   await connectDB();
-  let docs = await EventTypeModel.find().sort({ rank: 1, createdAt: 1 }).lean();
 
-  if (docs.length === 0) {
-    await Promise.all(
-      DEFAULT_EVENT_TYPES.map((et, i) =>
-        EventTypeModel.create({ ...et, rank: i })
+  // Upsert any missing defaults (preserves existing customised entries)
+  await Promise.all(
+    DEFAULT_EVENT_TYPES.map((et, i) =>
+      EventTypeModel.updateOne(
+        { slug: et.slug },
+        { $setOnInsert: { ...et, rank: i } },
+        { upsert: true }
       )
-    );
-    docs = await EventTypeModel.find().sort({ rank: 1, createdAt: 1 }).lean();
-  }
+    )
+  );
+
+  const docs = await EventTypeModel.find().sort({ rank: 1, createdAt: 1 }).lean();
 
   return NextResponse.json(
     docs.map((d) => ({

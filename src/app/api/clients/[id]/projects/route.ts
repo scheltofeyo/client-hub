@@ -32,6 +32,9 @@ export async function GET(
       templateId: doc.templateId,
       serviceId: doc.serviceId,
       labelId: doc.labelId,
+      kickedOffAt: doc.kickedOffAt ?? null,
+      scheduledStartDate: doc.scheduledStartDate ?? null,
+      scheduledEndDate: doc.scheduledEndDate ?? null,
       createdAt: doc.createdAt?.toISOString().split("T")[0],
     }))
   );
@@ -56,7 +59,7 @@ export async function POST(
   }
 
   const body = await req.json();
-  const { title, description, soldPrice, templateId, serviceId, labelId, deliveryDate } = body;
+  const { title, description, templateId, serviceId, scheduledStartDate, scheduledEndDate } = body;
 
   if (!title?.trim()) {
     return NextResponse.json({ error: "Title is required" }, { status: 400 });
@@ -67,11 +70,10 @@ export async function POST(
     title: title.trim(),
     description: description?.trim() || undefined,
     status: "not_started",
-    soldPrice: soldPrice ? Number(soldPrice) : undefined,
     templateId: templateId || undefined,
     serviceId: serviceId || undefined,
-    labelId: labelId || undefined,
-    deliveryDate: deliveryDate || undefined,
+    scheduledStartDate: scheduledStartDate?.trim() || undefined,
+    scheduledEndDate: scheduledEndDate?.trim() || undefined,
   });
 
   // Bulk-create tasks from template if one was used
@@ -156,6 +158,9 @@ export async function POST(
     templateId: doc.templateId,
     serviceId: doc.serviceId,
     labelId: doc.labelId,
+    kickedOffAt: doc.kickedOffAt ?? null,
+    scheduledStartDate: doc.scheduledStartDate ?? null,
+    scheduledEndDate: doc.scheduledEndDate ?? null,
     createdAt: doc.createdAt?.toISOString().split("T")[0],
   }, { status: 201 });
 }

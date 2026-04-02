@@ -18,7 +18,6 @@ export default function FolderPendingBanner({ clientId }: { clientId: string }) 
         if (data.folderStatus === "ready") {
           clearInterval(intervalRef.current!);
           setStatus("ready");
-          router.refresh();
         }
       } catch {
         // network error — keep polling
@@ -45,7 +44,7 @@ export default function FolderPendingBanner({ clientId }: { clientId: string }) 
         <CheckCircle size={14} className="shrink-0" />
         <span className="flex-1">Google Drive folders and sheets have been created.</span>
         <button
-          onClick={() => setStatus("dismissed")}
+          onClick={() => { setStatus("dismissed"); router.refresh(); }}
           className="px-2.5 py-1 rounded-md text-xs font-medium btn-primary"
         >
           OK

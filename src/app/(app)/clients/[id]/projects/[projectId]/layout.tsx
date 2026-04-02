@@ -1,9 +1,9 @@
-import { getClientById, getProjectById, getProjectLabels, getServices } from "@/lib/data";
+import { getClientById, getProjectById } from "@/lib/data";
 import { notFound } from "next/navigation";
 import PageHeader from "@/components/layout/PageHeader";
 import ProjectTertiaryNav from "@/components/layout/ProjectTertiaryNav";
-import EditProjectButton from "@/components/ui/EditProjectButton";
 import CompleteProjectButton from "@/components/ui/CompleteProjectButton";
+import KickOffProjectButton from "@/components/ui/KickOffProjectButton";
 
 export const dynamic = "force-dynamic";
 
@@ -15,11 +15,9 @@ export default async function ProjectDetailLayout({
   params: Promise<{ id: string; projectId: string }>;
 }) {
   const { id, projectId } = await params;
-  const [client, project, services, labels] = await Promise.all([
+  const [client, project] = await Promise.all([
     getClientById(id),
     getProjectById(projectId),
-    getServices(),
-    getProjectLabels(),
   ]);
 
   if (!client || !project) notFound();
@@ -37,14 +35,15 @@ export default async function ProjectDetailLayout({
         ]}
         title={project.title}
         actions={
-          <>
+          project.kickedOffAt ? (
             <CompleteProjectButton
               projectId={projectId}
               clientId={id}
               isCompleted={project.status === "completed"}
             />
-            <EditProjectButton project={project} clientId={id} services={services} labels={labels} />
-          </>
+          ) : (
+            <KickOffProjectButton project={project} clientId={id} />
+          )
         }
         tertiaryNav={<ProjectTertiaryNav basePath={basePath} />}
       />

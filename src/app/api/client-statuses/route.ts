@@ -17,7 +17,7 @@ export async function GET() {
   }
 
   return NextResponse.json(
-    docs.map((d) => ({ id: d._id.toString(), slug: d.slug, label: d.label, rank: d.rank ?? 0 }))
+    docs.map((d) => ({ id: d._id.toString(), slug: d.slug, label: d.label, rank: d.rank ?? 0, checkInDays: d.checkInDays ?? null }))
   );
 }
 
@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { label } = await req.json();
+  const { label, checkInDays } = await req.json();
   if (!label?.trim()) {
     return NextResponse.json({ error: "Label is required" }, { status: 400 });
   }
@@ -37,14 +37,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Could not generate a valid slug from label" }, { status: 400 });
   }
 
+  const parsedDays = checkInDays != null && checkInDays !== "" ? Number(checkInDays) : null;
+
   await connectDB();
   const last = await ClientStatusOptionModel.findOne().sort({ rank: -1 }).lean();
   const rank = last ? (last.rank ?? 0) + 1 : 0;
 
   try {
-    const doc = await ClientStatusOptionModel.create({ slug, label: label.trim(), rank });
+    const doc = await ClientStatusOptionModel.create({ slug, label: label.trim(), rank, checkInDays: parsedDays });
     return NextResponse.json(
-      { id: doc._id.toString(), slug: doc.slug, label: doc.label, rank: doc.rank },
+      { id: doc._id.toString(), slug: doc.slug, label: doc.label, rank: doc.rank, checkInDays: doc.checkInDays ?? null },
       { status: 201 }
     );
   } catch {

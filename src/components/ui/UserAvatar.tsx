@@ -20,7 +20,7 @@ export default function UserAvatar({
 
   return (
     <span
-      className="inline-flex items-center justify-center rounded-full overflow-hidden flex-shrink-0"
+      className="flex items-center justify-center rounded-full overflow-hidden flex-shrink-0"
       style={{ width: size, height: size, background: "var(--border)" }}
       title={name}
     >

@@ -57,29 +57,31 @@ export async function PATCH(
     await TaskModel.updateMany({ parentTaskId: taskId }, { $set: { assignees } });
   }
 
-  // Recalculate project status when task completion changes
+  // Recalculate project status when task completion changes (only for kicked-off projects)
   if (completed === true || completed === false) {
-    const allTasks = await TaskModel.find({ projectId: doc.projectId }).lean();
-    const completedCount = allTasks.filter((t) => !!t.completedAt).length;
-    const total = allTasks.length;
-    const projectStatus =
-      total === 0 || completedCount === 0
-        ? "not_started"
-        : completedCount === total
-        ? "completed"
-        : "in_progress";
-    const projectUpdate: Record<string, unknown> = { status: projectStatus };
-    if (projectStatus === "completed") {
-      // All tasks just completed — set completedDate to today if not already set
-      const existing = await ProjectModel.findById(doc.projectId).lean();
-      if (!existing?.completedDate) {
-        projectUpdate.completedDate = new Date().toISOString().split("T")[0];
+    const project = await ProjectModel.findById(doc.projectId).lean();
+    if (project?.kickedOffAt) {
+      const allTasks = await TaskModel.find({ projectId: doc.projectId }).lean();
+      const completedCount = allTasks.filter((t) => !!t.completedAt).length;
+      const total = allTasks.length;
+      const projectStatus =
+        total === 0 || completedCount === 0
+          ? "not_started"
+          : completedCount === total
+          ? "completed"
+          : "in_progress";
+      const projectUpdate: Record<string, unknown> = { status: projectStatus };
+      if (projectStatus === "completed") {
+        // All tasks just completed — set completedDate to today if not already set
+        if (!project.completedDate) {
+          projectUpdate.completedDate = new Date().toISOString().split("T")[0];
+        }
+      } else {
+        // Project no longer completed — clear completedDate
+        projectUpdate.completedDate = null;
       }
-    } else {
-      // Project no longer completed — clear completedDate
-      projectUpdate.completedDate = null;
+      await ProjectModel.findByIdAndUpdate(doc.projectId, { $set: projectUpdate });
     }
-    await ProjectModel.findByIdAndUpdate(doc.projectId, { $set: projectUpdate });
   }
 
   if (completed === true) {

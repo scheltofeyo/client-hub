@@ -5,6 +5,7 @@ export interface ClientStatusOption {
   slug: string;
   label: string;
   rank: number;
+  checkInDays?: number | null;
   createdAt?: string;
 }
 
@@ -37,6 +38,7 @@ export interface Service {
   id: string;
   name: string;
   rank: number;
+  checkInDays?: number | null;
   createdAt?: string;
 }
 
@@ -91,6 +93,9 @@ export interface Project {
   service?: string;
   labelId?: string;
   label?: string;
+  kickedOffAt?: string;
+  scheduledStartDate?: string;
+  scheduledEndDate?: string;
   createdAt?: string;
 }
 
@@ -139,12 +144,14 @@ export interface Log {
   date: string;
   summary: string;
   signalIds: string[];
+  serviceId?: string;
   signals?: string[];
   followUp: boolean;
   followUpAction?: string;
   followUpDeadline?: string;
   followedUpAt?: string;
   followedUpByName?: string;
+  isSystemGenerated?: boolean;
   createdById: string;
   createdByName: string;
   createdAt?: string;
@@ -208,4 +215,10 @@ export interface TimelineEvent {
   deletable: boolean;
   recurrence?: RecurrenceFrequency;
   repetitions?: number; // total occurrences; undefined = unlimited
+}
+
+export interface ReleaseNote {
+  date: string;       // YYYY-MM-DD
+  title: string;
+  details?: string[];
 }

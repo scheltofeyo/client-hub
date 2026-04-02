@@ -221,3 +221,21 @@ All button variants are `@layer components` in `globals.css`. Use them before cr
 | `btn-action` | Large column-oriented action tile |
 
 The `/admin/stylesheet` page renders all button variants and every task row state using the real shared components. Check it when making visual changes.
+
+## Release Notes
+
+`src/data/release-notes.json` contains user-facing release notes displayed on the Settings page. Before every meaningful commit (new features, bug fixes, visible changes), add an entry to the **top** of the array:
+
+```json
+{
+  "date": "YYYY-MM-DD",
+  "title": "Short description of the change",
+  "details": ["Optional bullet point", "Another detail"]
+}
+```
+
+- `date` must be `YYYY-MM-DD` format
+- `title` is required; keep it to one short sentence
+- `details` is optional; omit for trivial changes
+- Entries must be in reverse chronological order (newest first)
+- Do not add release notes for internal refactors, dependency bumps, or changes invisible to users

@@ -21,11 +21,18 @@ export async function PATCH(
 
   const isAdmin = session.user.isAdmin ?? false;
   const isCreator = existing.createdById === session.user.id;
+  const isSystemLog = !!(existing.isSystemGenerated);
 
   const body = await req.json();
   const { contactIds, date, summary, signalIds, followUp, followUpAction, followUpDeadline, followedUpAt, followedUpByName } = body;
 
   const isEditAction = date !== undefined || summary !== undefined || signalIds !== undefined || followUp !== undefined || contactIds !== undefined;
+
+  // System-generated logs can only have their follow-up status toggled, not edited
+  if (isSystemLog && isEditAction) {
+    return NextResponse.json({ error: "System-generated logs cannot be edited" }, { status: 403 });
+  }
+
   if (isEditAction && !isAdmin && !isCreator) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
@@ -144,11 +151,13 @@ export async function PATCH(
     date: doc.date,
     summary: doc.summary,
     signalIds: doc.signalIds ?? [],
+    serviceId: doc.serviceId ?? undefined,
     followUp: doc.followUp ?? false,
     followUpAction: doc.followUpAction ?? undefined,
     followUpDeadline: doc.followUpDeadline ?? undefined,
     followedUpAt: doc.followedUpAt ?? undefined,
     followedUpByName: doc.followedUpByName ?? undefined,
+    isSystemGenerated: doc.isSystemGenerated ?? false,
     createdById: doc.createdById,
     createdByName: doc.createdByName,
     createdAt: doc.createdAt?.toISOString().split("T")[0],
@@ -168,6 +177,10 @@ export async function DELETE(
   await connectDB();
   const existing = await LogModel.findById(logId).lean();
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  if (existing.isSystemGenerated) {
+    return NextResponse.json({ error: "System-generated logs cannot be deleted" }, { status: 403 });
+  }
 
   const isAdmin = session.user.isAdmin ?? false;
   const isCreator = existing.createdById === session.user.id;

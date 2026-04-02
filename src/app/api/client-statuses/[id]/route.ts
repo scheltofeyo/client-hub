@@ -13,20 +13,22 @@ export async function PATCH(
   }
 
   const { id } = await params;
-  const { label } = await req.json();
+  const { label, checkInDays } = await req.json();
   if (!label?.trim()) {
     return NextResponse.json({ error: "Label is required" }, { status: 400 });
   }
+
+  const parsedDays = checkInDays != null && checkInDays !== "" ? Number(checkInDays) : null;
 
   await connectDB();
   try {
     const doc = await ClientStatusOptionModel.findByIdAndUpdate(
       id,
-      { $set: { label: label.trim() } },
+      { $set: { label: label.trim(), checkInDays: parsedDays } },
       { new: true }
     ).lean();
     if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
-    return NextResponse.json({ id: doc._id.toString(), slug: doc.slug, label: doc.label, rank: doc.rank });
+    return NextResponse.json({ id: doc._id.toString(), slug: doc.slug, label: doc.label, rank: doc.rank, checkInDays: doc.checkInDays ?? null });
   } catch {
     return NextResponse.json({ error: "Label already exists" }, { status: 409 });
   }

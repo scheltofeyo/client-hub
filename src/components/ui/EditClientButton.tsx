@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useRightPanel } from "@/components/layout/RightPanel";
 import type { Archetype, Client, ClientStatusOption, ClientPlatformOption } from "@/types";
 
+
 const inputClass =
   "w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--primary)]/40";
 const inputStyle = {
@@ -20,10 +21,12 @@ const labelStyle = { color: "var(--text-muted)" };
 function EditClientForm({
   client,
   archetypes,
+  isAdmin,
   onClose,
 }: {
   client: Client;
   archetypes: Archetype[];
+  isAdmin: boolean;
   onClose: () => void;
 }) {
   const [form, setForm] = useState({
@@ -40,6 +43,9 @@ function EditClientForm({
   const [error, setError] = useState("");
   const [statusOptions, setStatusOptions] = useState<ClientStatusOption[]>([]);
   const [platformOptions, setPlatformOptions] = useState<ClientPlatformOption[]>([]);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
 
   useEffect(() => {
     fetch("/api/client-statuses").then((r) => r.json()).then(setStatusOptions).catch(() => {});
@@ -77,6 +83,20 @@ function EditClientForm({
     }
 
     onClose();
+    router.refresh();
+  }
+
+  async function handleDelete() {
+    setDeleteLoading(true);
+    setDeleteError("");
+    const res = await fetch(`/api/clients/${client.id}`, { method: "DELETE" });
+    setDeleteLoading(false);
+    if (!res.ok) {
+      setDeleteError("Failed to delete client.");
+      return;
+    }
+    onClose();
+    router.push("/clients");
     router.refresh();
   }
 
@@ -232,6 +252,49 @@ function EditClientForm({
           {loading ? "Saving…" : "Save Changes"}
         </button>
       </div>
+
+      {isAdmin && (
+        <div className="border-t pt-4" style={{ borderColor: "var(--border)" }}>
+          {!deleteConfirm ? (
+            <button
+              type="button"
+              onClick={() => setDeleteConfirm(true)}
+              className="text-sm btn-link"
+              style={{ color: "#ef4444" }}
+            >
+              Delete client…
+            </button>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+                Are you sure you want to delete{" "}
+                <span className="font-medium" style={{ color: "var(--text-primary)" }}>
+                  {client.company}
+                </span>
+                ? This cannot be undone.
+              </p>
+              {deleteError && <p className="text-xs text-red-500">{deleteError}</p>}
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setDeleteConfirm(false)}
+                  className="px-3 py-1.5 rounded-lg text-sm font-medium btn-ghost"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDelete}
+                  disabled={deleteLoading}
+                  className="px-3 py-1.5 rounded-lg text-sm font-medium disabled:opacity-50 btn-danger"
+                >
+                  {deleteLoading ? "Deleting…" : "Delete"}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </form>
   );
 }
@@ -239,9 +302,11 @@ function EditClientForm({
 export default function EditClientButton({
   client,
   archetypes,
+  isAdmin = false,
 }: {
   client: Client;
   archetypes: Archetype[];
+  isAdmin?: boolean;
 }) {
   const { openPanel, closePanel } = useRightPanel();
 
@@ -250,7 +315,7 @@ export default function EditClientButton({
       onClick={() =>
         openPanel(
           "Edit Client",
-          <EditClientForm client={client} archetypes={archetypes} onClose={closePanel} />
+          <EditClientForm client={client} archetypes={archetypes} isAdmin={isAdmin} onClose={closePanel} />
         )
       }
       className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border btn-secondary"

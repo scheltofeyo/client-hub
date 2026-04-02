@@ -11,6 +11,7 @@ import {
   TaskForm,
   UserOption,
 } from "@/components/ui/task-row";
+import KickOffProjectButton from "@/components/ui/KickOffProjectButton";
 
 export { TaskForm } from "@/components/ui/task-row";
 
@@ -548,8 +549,23 @@ export default function TasksTab({
 
   return (
     <div className="max-w-3xl">
+      {/* Upcoming banner — shown when project has not been kicked off yet */}
+      {project && !project.kickedOffAt && (
+        <div
+          className="flex items-center justify-between gap-4 px-4 py-3 rounded-xl border mb-6"
+          style={{ borderColor: "var(--border)", background: "var(--bg-sidebar)" }}
+        >
+          <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
+            This project hasn&apos;t been kicked off yet. Tasks won&apos;t appear on the client board until kick-off.
+          </p>
+          <div className="shrink-0">
+            <KickOffProjectButton project={project} clientId={clientId} />
+          </div>
+        </div>
+      )}
+
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-4 mb-8">
+      <div className={`grid gap-4 mb-8 ${project?.kickedOffAt ? "grid-cols-3" : "grid-cols-2"}`}>
         <StatCard
           label="All open tasks"
           count={allOpen.length}
@@ -564,11 +580,13 @@ export default function TasksTab({
           total={myTasks.length}
           overdueCount={overdueMe}
         />
-        <DeliveryStatCard
-          deliveryDate={project?.deliveryDate}
-          deliveryTask={deliveryTask}
-          projectCompletedDate={project?.completedDate}
-        />
+        {project?.kickedOffAt && (
+          <DeliveryStatCard
+            deliveryDate={project?.deliveryDate}
+            deliveryTask={deliveryTask}
+            projectCompletedDate={project?.completedDate}
+          />
+        )}
       </div>
 
       {/* Open tasks section */}
