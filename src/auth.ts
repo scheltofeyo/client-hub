@@ -12,21 +12,52 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       if (account?.provider !== "google") return false;
       await connectDB();
 
-      const existing = await UserModel.findOne({ googleId: account.providerAccountId });
-      if (!existing) {
-        await UserModel.create({
-          googleId: account.providerAccountId,
-          email: user.email ?? "",
-          name: user.name ?? "Unknown",
-          image: user.image ?? undefined,
-          isAdmin: false,
-        });
-      } else {
-        await UserModel.updateOne(
+      // Look up by googleId first, then by email (for invited-not-yet-linked employees)
+      const existing = await UserModel.findOne({
+        $or: [
           { googleId: account.providerAccountId },
-          { $set: { image: user.image ?? undefined } }
-        );
+          { email: user.email, googleId: { $exists: false } },
+        ],
+      });
+
+      if (!existing) {
+        // Not invited — reject login
+        return "/login?error=not-invited";
       }
+
+      if (existing.status === "inactive") {
+        return "/login?error=account-inactive";
+      }
+
+      // Build update
+      const update: Record<string, unknown> = {
+        googleName: user.name ?? undefined,
+        googleImage: user.image ?? undefined,
+      };
+
+      // Link Google account if first login after invitation
+      if (!existing.googleId) {
+        update.googleId = account.providerAccountId;
+      }
+
+      if (existing.status === "invited") {
+        update.status = "active";
+      }
+
+      // Recompute name/image only if no admin override exists
+      if (!existing.displayName) {
+        const nameParts = [existing.firstName, existing.preposition, existing.lastName].filter(Boolean);
+        update.name = existing.displayName ?? user.name ?? (nameParts.length > 0 ? nameParts.join(" ") : existing.name);
+      }
+      if (!existing.displayImage) {
+        update.image = user.image ?? existing.image;
+      }
+
+      await UserModel.updateOne(
+        { _id: existing._id },
+        { $set: update }
+      );
+
       return true;
     },
 
@@ -37,7 +68,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         const dbUser = await UserModel.findOne({ googleId: account.providerAccountId }).lean();
         if (dbUser) {
           token.userId = dbUser._id.toString();
-          token.isAdmin = dbUser.isAdmin;
+          token.isAdmin = dbUser.role === "admin";
+          token.role = dbUser.role;
           token.image = dbUser.image ?? null;
         }
       }
@@ -47,6 +79,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     async session({ session, token }) {
       session.user.id = token.userId as string;
       session.user.isAdmin = (token.isAdmin as boolean) ?? false;
+      session.user.role = (token.role as string) ?? "member";
       session.user.image = (token.image as string | null) ?? (token.picture as string | undefined) ?? undefined;
       return session;
     },

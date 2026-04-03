@@ -583,6 +583,27 @@ function expandOccurrences(
   return occurrences;
 }
 
+function expandPastOccurrences(
+  baseDate: string,
+  recurrence: RecurrenceFrequency,
+  lookbackStart: string,
+  today: string,
+  repetitions?: number | null
+): string[] {
+  const occurrences: string[] = [];
+  let current = baseDate;
+  let totalCount = 0;
+  while (current < today) {
+    totalCount++;
+    if (current >= lookbackStart) occurrences.push(current);
+    if (repetitions != null && totalCount >= repetitions) break;
+    const next = nextOccurrenceDate(current, recurrence);
+    if (next <= current) break;
+    current = next;
+  }
+  return occurrences;
+}
+
 /**
  * Returns the latest followedUpAt date per serviceId for a given client.
  * Used by OverviewTab to reset the service expiry timer display.
@@ -851,6 +872,161 @@ export async function getUpcomingEventsForClient(clientId: string): Promise<Time
 
   events.sort((a, b) => a.date.localeCompare(b.date));
   return events;
+}
+
+const PAST_LOOKBACK_DAYS = 365;
+
+export async function getPastEventsForClient(clientId: string): Promise<TimelineEvent[]> {
+  await connectDB();
+
+  const today = new Date().toISOString().slice(0, 10);
+  const lookbackDate = new Date();
+  lookbackDate.setDate(lookbackDate.getDate() - PAST_LOOKBACK_DAYS);
+  const lookbackStart = lookbackDate.toISOString().slice(0, 10);
+
+  const [logs, completionProjects, deliveryProjects, projectTasks, generalTasks, customDocs, servicesWithTimer] =
+    await Promise.all([
+      // Past follow-ups: either already followed up, or deadline has passed
+      LogModel.find({
+        clientId,
+        followUp: true,
+        $or: [
+          { followedUpAt: { $ne: null } },
+          { followUpDeadline: { $lt: today } },
+        ],
+        $and: [
+          { $or: [
+            { followUpDeadline: { $gte: lookbackStart } },
+            { followUpDeadline: null, date: { $gte: lookbackStart } },
+          ]},
+        ],
+      }).lean(),
+      // Completed projects with completedDate in lookback window
+      ProjectModel.find({
+        clientId,
+        completedDate: { $lt: today, $gte: lookbackStart },
+      }).lean(),
+      // Completed projects with deliveryDate in lookback window
+      ProjectModel.find({
+        clientId,
+        deliveryDate: { $lt: today, $gte: lookbackStart },
+      }).lean(),
+      // Completed tasks (project-level) with completionDate in lookback window
+      TaskModel.find({
+        clientId,
+        projectId: { $exists: true },
+        completedAt: { $ne: null },
+        completionDate: { $lt: today, $gte: lookbackStart },
+      }).lean(),
+      // Completed tasks (client-level) with completionDate in lookback window
+      TaskModel.find({
+        clientId,
+        projectId: { $exists: false },
+        completedAt: { $ne: null },
+        completionDate: { $lt: today, $gte: lookbackStart },
+      }).lean(),
+      ClientEventModel.find({ clientId }).sort({ date: 1 }).lean(),
+      ServiceModel.find({ checkInDays: { $ne: null } }).lean(),
+    ]);
+
+  const serviceNameMap = new Map<string, string>();
+  for (const svc of servicesWithTimer) {
+    serviceNameMap.set(svc._id.toString(), svc.name as string);
+  }
+
+  const tasks = [...projectTasks, ...generalTasks];
+
+  const events: TimelineEvent[] = [
+    ...logs.flatMap((l) => {
+      const deadline = l.followUpDeadline ?? l.date;
+      if (deadline >= today || deadline < lookbackStart) return [];
+      const logServiceId = l.serviceId as string | undefined;
+      const serviceName = logServiceId ? serviceNameMap.get(logServiceId) : undefined;
+      return [{
+        id: `log_${l._id.toString()}`,
+        date: deadline,
+        title: logServiceId && serviceName
+          ? `${serviceName} is expired`
+          : (l.followUpAction as string | undefined)?.trim() || (l.summary as string).slice(0, 60),
+        type: logServiceId ? "expired_service" : "follow_up",
+        source: "log_followup" as const,
+        sourceId: l._id.toString(),
+        deletable: false,
+      }];
+    }),
+    ...tasks.map((t) => ({
+      id: `task_${t._id.toString()}`,
+      date: t.completionDate!,
+      title: t.title as string,
+      type: "deadline" as const,
+      source: "task" as const,
+      sourceId: t._id.toString(),
+      projectId: (t.projectId as string | undefined)?.toString(),
+      deletable: false,
+    })),
+    ...completionProjects.map((p) => ({
+      id: `project_${p._id.toString()}`,
+      date: p.completedDate!,
+      title: p.title as string,
+      type: "project_completion" as const,
+      source: "project" as const,
+      sourceId: p._id.toString(),
+      deletable: false,
+    })),
+    ...deliveryProjects.map((p) => ({
+      id: `delivery_${p._id.toString()}`,
+      date: p.deliveryDate!,
+      title: p.title as string,
+      type: "delivery" as const,
+      source: "project" as const,
+      sourceId: p._id.toString(),
+      deletable: false,
+    })),
+    ...customDocs.flatMap((doc) => {
+      const recurrence = (doc.recurrence ?? "none") as RecurrenceFrequency;
+      const docId = doc._id.toString();
+      if (recurrence === "none") {
+        if (doc.date >= today || doc.date < lookbackStart) return [] as TimelineEvent[];
+        return [{
+          id: `custom_${docId}`,
+          date: doc.date,
+          title: doc.title as string,
+          type: doc.type as string,
+          source: "custom" as const,
+          sourceId: docId,
+          notes: (doc.notes as string | undefined) ?? undefined,
+          deletable: true,
+          recurrence: "none" as const,
+        }] as TimelineEvent[];
+      }
+      return expandPastOccurrences(doc.date, recurrence, lookbackStart, today, doc.repetitions as number | null).map(
+        (occDate) => ({
+          id: `custom_${docId}_${occDate}`,
+          date: occDate,
+          baseDate: doc.date,
+          title: doc.title as string,
+          type: doc.type as string,
+          source: "custom" as const,
+          sourceId: docId,
+          notes: (doc.notes as string | undefined) ?? undefined,
+          deletable: true,
+          recurrence,
+          repetitions: (doc.repetitions as number | undefined) ?? undefined,
+        })
+      );
+    }),
+  ];
+
+  events.sort((a, b) => a.date.localeCompare(b.date));
+  return events;
+}
+
+export async function getAllEventsForClient(clientId: string): Promise<TimelineEvent[]> {
+  const [past, upcoming] = await Promise.all([
+    getPastEventsForClient(clientId),
+    getUpcomingEventsForClient(clientId),
+  ]);
+  return [...past, ...upcoming];
 }
 
 export async function getGeneralTasksByClientId(clientId: string): Promise<Task[]> {

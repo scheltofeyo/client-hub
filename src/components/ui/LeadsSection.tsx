@@ -130,7 +130,7 @@ export default function LeadsSection({
             className="px-3 py-2 flex items-center justify-between border-b text-xs font-medium"
             style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}
           >
-            Select a user
+            Select an employee
             <button onClick={() => setPicking(false)} className="btn-icon p-0.5 rounded">
               <X size={13} />
             </button>

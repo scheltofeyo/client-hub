@@ -8,7 +8,9 @@ export async function GET() {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   await connectDB();
-  const users = await UserModel.find().sort({ name: 1 }).lean();
+  const users = await UserModel.find({
+    $or: [{ status: "active" }, { status: { $exists: false } }],
+  }).sort({ name: 1 }).lean();
 
   return NextResponse.json(
     users.map((u) => ({

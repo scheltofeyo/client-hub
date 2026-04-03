@@ -898,6 +898,11 @@ export function TaskRow({
               {task.description}
             </p>
           )}
+          {!isExpanded && openSubtasks.length > 0 && (
+            <p className="text-[11px] mt-0.5" style={{ color: "var(--text-muted)", opacity: 0.7 }}>
+              {openSubtasks.length} open subtask{openSubtasks.length !== 1 ? "s" : ""}
+            </p>
+          )}
         </div>
       </div>
 

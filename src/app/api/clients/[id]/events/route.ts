@@ -3,7 +3,7 @@ import { auth } from "@/auth";
 import { connectDB } from "@/lib/mongodb";
 import { ClientEventModel } from "@/lib/models/ClientEvent";
 import { recordActivity } from "@/lib/activity";
-import { getUpcomingEventsForClient } from "@/lib/data";
+import { getUpcomingEventsForClient, getAllEventsForClient } from "@/lib/data";
 import type { TimelineEvent, RecurrenceFrequency } from "@/types";
 
 // ── Recurrence helpers (kept for POST response expansion) ────
@@ -51,7 +51,7 @@ function expandOccurrences(
 // ── Handlers ──────────────────────────────────────────────────
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await auth();
@@ -60,7 +60,10 @@ export async function GET(
   }
 
   const { id: clientId } = await params;
-  const events = await getUpcomingEventsForClient(clientId);
+  const scope = req.nextUrl.searchParams.get("scope") ?? "all";
+  const events = scope === "upcoming"
+    ? await getUpcomingEventsForClient(clientId)
+    : await getAllEventsForClient(clientId);
   return NextResponse.json(events);
 }
 

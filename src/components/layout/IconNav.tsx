@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
-  Users,
+  Building2,
   ShieldCheck,
   Settings,
   Calendar,
@@ -13,7 +13,7 @@ import ThemeToggle from "./ThemeToggle";
 import UserMenu from "./UserMenu";
 
 const topItems = [
-  { href: "/clients", label: "Clients", icon: Users },
+  { href: "/clients", label: "Clients", icon: Building2 },
 ];
 
 function openCalendarPopup() {

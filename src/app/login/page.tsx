@@ -2,15 +2,21 @@ import { signIn } from "@/auth";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 
+const errorMessages: Record<string, string> = {
+  "not-invited": "Your account hasn\u2019t been set up yet. Contact your administrator.",
+  "account-inactive": "Your account has been deactivated. Contact your administrator.",
+};
+
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ callbackUrl?: string }>;
+  searchParams: Promise<{ callbackUrl?: string; error?: string }>;
 }) {
   const session = await auth();
   if (session) redirect("/dashboard");
 
-  const { callbackUrl } = await searchParams;
+  const { callbackUrl, error } = await searchParams;
+  const errorMessage = error ? errorMessages[error] : null;
 
   return (
     <div
@@ -44,6 +50,18 @@ export default async function LoginPage({
             Sign in to your workspace
           </p>
         </div>
+
+        {errorMessage && (
+          <div
+            className="mb-6 rounded-lg px-4 py-3 text-sm text-center"
+            style={{
+              background: "var(--danger-light, #fef2f2)",
+              color: "var(--danger, #dc2626)",
+            }}
+          >
+            {errorMessage}
+          </div>
+        )}
 
         <form
           action={async () => {

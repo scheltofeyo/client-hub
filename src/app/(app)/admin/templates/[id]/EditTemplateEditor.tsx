@@ -693,7 +693,7 @@ export default function EditTemplateEditor({
               type="text"
               value={form.description}
               onChange={(e) => set("description", e.target.value)}
-              placeholder="Shown to users when picking a template"
+              placeholder="Shown to employees when picking a template"
               className={inputClass}
               style={inputStyle}
             />

@@ -76,7 +76,9 @@ export default function StylesheetPage() {
   const tExpandedSub1 = mk({ id: "t6s1", title: "Open subtask", parentTaskId: "t6" });
   const tExpandedSub2 = mk({ id: "t6s2", title: "Completed subtask", parentTaskId: "t6", completedAt: "2026-03-20T00:00:00.000Z", completedByName: "Demo User" });
   const tCollapsed    = mk({ id: "t7", title: "Task with subtasks (collapsed)" });
-  const tCollapsedSub = mk({ id: "t7s1", title: "A subtask", parentTaskId: "t7" });
+  const tCollapsedSub1 = mk({ id: "t7s1", title: "First subtask", parentTaskId: "t7" });
+  const tCollapsedSub2 = mk({ id: "t7s2", title: "Second subtask", parentTaskId: "t7" });
+  const tCollapsedSub3 = mk({ id: "t7s3", title: "Third subtask", parentTaskId: "t7" });
   const tDone         = mk({ id: "t8", title: "Completed task", completedAt: "2026-03-25T00:00:00.000Z", completedByName: "Demo User" });
   const tLogDerived   = mk({ id: "t9", title: "Follow-up from a log entry", logId: "log1" });
 
@@ -218,7 +220,7 @@ export default function StylesheetPage() {
             onAddSubtask={noop} onDelete={noop}
             showInlineSubtask={false} onInlineSubtaskSave={noopAsync} onInlineSubtaskCancel={noop} />
 
-          <TaskRow task={tCollapsed} subtasks={[tCollapsedSub]} isExpanded={false}
+          <TaskRow task={tCollapsed} subtasks={[tCollapsedSub1, tCollapsedSub2, tCollapsedSub3]} isExpanded={false}
             onToggleExpand={noop} onToggleComplete={noop} onEdit={noop}
             onAddSubtask={noop} onDelete={noop}
             showInlineSubtask={false} onInlineSubtaskSave={noopAsync} onInlineSubtaskCancel={noop} />

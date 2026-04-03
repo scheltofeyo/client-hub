@@ -1,5 +1,28 @@
 [
   {
+    "date": "2026-04-03",
+    "title": "Scrollable event history on Events tab",
+    "details": [
+      "Events tab now shows past events (completed tasks, followed-up logs, past milestones, past custom events)",
+      "Scroll up to browse event history up to one year back",
+      "Today is auto-scrolled into view on load",
+      "Past events shown with muted styling to distinguish from upcoming events"
+    ]
+  },
+  {
+    "date": "2026-04-03",
+    "title": "Employee management replaces user management",
+    "details": [
+      "Admin 'Users' section is now 'Employees' with invitation-only access",
+      "Rich employee profiles: personal details, employment info, contract data, emergency contacts",
+      "Admins can invite employees by email \u2014 account auto-activates on first Google login",
+      "Admin-controlled display name and avatar overrides (Google values imported automatically)",
+      "Dedicated employee detail page with full profile editor",
+      "Role-based access: Admin and Member roles (replaces simple admin toggle)",
+      "Employee status tracking: Invited, Active, Inactive"
+    ]
+  },
+  {
     "date": "2026-04-02",
     "title": "Release notes and Settings page",
     "details": [

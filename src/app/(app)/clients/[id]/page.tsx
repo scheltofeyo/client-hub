@@ -1,4 +1,4 @@
-import { getClientById, getProjectsByClientId, getArchetypes, getLogsByClientId, getLogSignals, getSheetsByClientId, getClientProjectsWithTaskStats, getLastActivityByClientId, getServices, getUpcomingEventsForClient, getEventTypes, getClientStatuses, checkAndCreateServiceExpiryLogs, getLatestFollowUpDatesByService } from "@/lib/data";
+import { getClientById, getProjectsByClientId, getArchetypes, getLogsByClientId, getLogSignals, getSheetsByClientId, getClientProjectsWithTaskStats, getLastActivityByClientId, getServices, getUpcomingEventsForClient, getAllEventsForClient, getEventTypes, getClientStatuses, checkAndCreateServiceExpiryLogs, getLatestFollowUpDatesByService } from "@/lib/data";
 import { auth } from "@/auth";
 import { connectDB } from "@/lib/mongodb";
 import { UserModel } from "@/lib/models/User";
@@ -608,7 +608,7 @@ async function EventsTabWrapper({
   eventTypes: import("@/types").EventType[];
 }) {
   await checkAndCreateServiceExpiryLogs(clientId);
-  const initialEvents = await getUpcomingEventsForClient(clientId);
+  const initialEvents = await getAllEventsForClient(clientId);
   return <EventsTab clientId={clientId} initialEvents={initialEvents} initialEventTypes={eventTypes} />;
 }
 

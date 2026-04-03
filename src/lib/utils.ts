@@ -1,3 +1,19 @@
+/** Build a display name from user fields, using fallback chain. */
+export function buildDisplayName(user: {
+  displayName?: string | null;
+  googleName?: string | null;
+  firstName?: string | null;
+  preposition?: string | null;
+  lastName?: string | null;
+  email?: string;
+}): string {
+  if (user.displayName) return user.displayName;
+  if (user.googleName) return user.googleName;
+  const parts = [user.firstName, user.preposition, user.lastName].filter(Boolean);
+  if (parts.length > 0) return parts.join(" ");
+  return user.email ?? "Unknown";
+}
+
 /** Convert a YYYY-MM-DD string to DD-MM-YYYY for display. Returns the original value if it doesn't match the expected format. */
 export function fmtDate(date: string | undefined | null): string {
   if (!date) return "—";

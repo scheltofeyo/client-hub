@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   X,
@@ -355,6 +355,7 @@ function EventCard({
   clientId,
   typeConfig,
   hideDate,
+  isPast,
 }: {
   event: TimelineEvent;
   onDelete: (event: TimelineEvent) => void;
@@ -362,6 +363,7 @@ function EventCard({
   clientId: string;
   typeConfig: Record<string, { color: string; label: string; icon: React.ElementType }>;
   hideDate?: boolean;
+  isPast?: boolean;
 }) {
   const router = useRouter();
   const cfg = getTypeCfg(event.type, typeConfig);
@@ -383,6 +385,7 @@ function EventCard({
         borderColor: "var(--border)",
         background: "var(--bg-sidebar)",
         boxShadow: "0 1px 3px 0 rgba(0,0,0,0.05)",
+        opacity: isPast ? 0.55 : 1,
       }}
     >
       {/* ── Left: date only ── */}
@@ -479,13 +482,21 @@ function EventCard({
 // ── Groups ────────────────────────────────────────────────────
 
 const GROUPS: { label: string; min: number; max: number }[] = [
-  { label: "Today",           min: 0,   max: 0   },
-  { label: "Tomorrow",        min: 1,   max: 1   },
-  { label: "This week",       min: 2,   max: 7   },
-  { label: "This month",      min: 8,   max: 30  },
-  { label: "Next 3 months",   min: 31,  max: 90  },
-  { label: "Next 6 months",   min: 91,  max: 180 },
-  { label: "Beyond 6 months", min: 181, max: Infinity },
+  // Past groups (oldest first)
+  { label: "Over 6 months ago", min: -Infinity, max: -181 },
+  { label: "Past 6 months",     min: -180,      max: -91  },
+  { label: "Past 3 months",     min: -90,       max: -31  },
+  { label: "Last month",        min: -30,       max: -8   },
+  { label: "Last week",         min: -7,        max: -2   },
+  { label: "Yesterday",         min: -1,        max: -1   },
+  // Present + future groups
+  { label: "Today",             min: 0,         max: 0    },
+  { label: "Tomorrow",          min: 1,         max: 1    },
+  { label: "This week",         min: 2,         max: 7    },
+  { label: "This month",        min: 8,         max: 30   },
+  { label: "Next 3 months",     min: 31,        max: 90   },
+  { label: "Next 6 months",     min: 91,        max: 180  },
+  { label: "Beyond 6 months",   min: 181,       max: Infinity },
 ];
 
 // ── EventsTab ─────────────────────────────────────────────────
@@ -503,6 +514,7 @@ export default function EventsTab({
   const [eventTypes, setEventTypes] = useState<EventType[]>(initialEventTypes);
   const { openPanel, closePanel } = useRightPanel();
   const router = useRouter();
+  const scrollTargetRef = useRef<HTMLDivElement>(null);
 
   const refreshEvents = useCallback(async () => {
     const data = await fetch(`/api/clients/${clientId}/events`).then((r) => r.json()).catch(() => null);
@@ -510,9 +522,33 @@ export default function EventsTab({
     router.refresh();
   }, [clientId, router]);
 
+  const scrollToToday = useCallback(() => {
+    const el = scrollTargetRef.current;
+    if (!el) return;
+    // Find the overflow-y scroll container (like Gantt does with chartRef)
+    let scrollParent: HTMLElement | null = el.parentElement;
+    while (scrollParent) {
+      const style = getComputedStyle(scrollParent);
+      if (style.overflowY === "auto" || style.overflowY === "scroll") break;
+      scrollParent = scrollParent.parentElement;
+    }
+    if (scrollParent) {
+      const elRect = el.getBoundingClientRect();
+      const parentRect = scrollParent.getBoundingClientRect();
+      scrollParent.scrollTop += elRect.top - parentRect.top - 12;
+    }
+  }, []);
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    refreshEvents();
+    refreshEvents().then(() => {
+      // Double rAF: first waits for React commit, second for layout
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          scrollToToday();
+        });
+      });
+    });
     fetch("/api/event-types")
       .then((r) => r.json())
       .then((data: EventType[]) => { if (Array.isArray(data)) setEventTypes(data); })
@@ -575,7 +611,7 @@ export default function EventsTab({
       >
         <CalendarDays size={32} strokeWidth={1.4} style={{ color: "var(--text-muted)" }} />
         <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-          No upcoming events for this client.
+          No events for this client.
         </p>
         <button
           type="button"
@@ -589,20 +625,24 @@ export default function EventsTab({
   }
 
   // One-off events go into the timeline groups; recurring events get a separate bucket.
-  // For recurring, deduplicate by sourceId — the API returns occurrences sorted by date,
-  // so the first entry per sourceId is the next upcoming occurrence.
+  // Past recurring occurrences appear inline in past groups (no dedup).
+  // Future recurring events are deduplicated to next occurrence only.
   const oneOffEvents = events.filter((e) => !e.recurrence || e.recurrence === "none");
+
+  const pastRecurringEvents = events.filter(
+    (e) => e.recurrence && e.recurrence !== "none" && daysBetween(todayStr, e.date) < 0
+  );
 
   const recurringNext = new Map<string, TimelineEvent>();
   for (const e of events) {
-    if (e.recurrence && e.recurrence !== "none" && !recurringNext.has(e.sourceId)) {
+    if (e.recurrence && e.recurrence !== "none" && daysBetween(todayStr, e.date) >= 0 && !recurringNext.has(e.sourceId)) {
       recurringNext.set(e.sourceId, e);
     }
   }
   const recurringEvents = Array.from(recurringNext.values());
 
-  // Timeline shows one-off events + the next occurrence of each recurring event
-  const timelineEvents = [...oneOffEvents, ...recurringEvents];
+  // Timeline = one-off + past recurring occurrences + next future recurring occurrence
+  const timelineEvents = [...oneOffEvents, ...pastRecurringEvents, ...recurringEvents];
 
   const activeGroups = GROUPS.map((group) => ({
     ...group,
@@ -613,25 +653,45 @@ export default function EventsTab({
   })).filter((g) => g.items.length > 0);
 
   const hasTimeline = activeGroups.length > 0;
+  const firstFutureIdx = activeGroups.findIndex((g) => g.min >= 0);
 
   return (
     <div className="space-y-10">
       {/* ── Timeline: one-off events ── */}
       {hasTimeline && (
-        <div className="relative">
-          <div
-            className="absolute top-2 bottom-2 w-px"
-            style={{ left: 4, background: "var(--border)" }}
-          />
+        <div>
           <div className="space-y-7">
-            {activeGroups.map((group, gi) => (
-              <div key={group.label}>
+            {activeGroups.map((group, gi) => {
+              const isPastGroup = group.max < 0;
+              const isScrollTarget = gi === firstFutureIdx;
+              return (
+              <div
+                key={group.label}
+                className="relative"
+                ref={isScrollTarget ? scrollTargetRef : undefined}
+              >
+                {/* Connector line from this dot down to the next dot */}
+                {gi < activeGroups.length - 1 && (
+                  <div
+                    className="absolute w-px"
+                    style={{
+                      left: 4,
+                      top: 5,
+                      bottom: -33,
+                      background: "var(--border)",
+                    }}
+                  />
+                )}
                 <div className="flex items-center gap-2.5 mb-3">
                   <div
-                    className="w-2.5 h-2.5 rounded-full shrink-0 border-2 z-10"
+                    className="w-2.5 h-2.5 rounded-full shrink-0 border-2 z-10 relative"
                     style={{
-                      background: gi === 0 ? "var(--primary)" : "var(--bg-surface)",
-                      borderColor: gi === 0 ? "var(--primary)" : "var(--border)",
+                      background: isPastGroup
+                        ? "var(--border)"
+                        : gi === firstFutureIdx ? "var(--primary)" : "var(--bg-surface)",
+                      borderColor: isPastGroup
+                        ? "var(--border)"
+                        : gi === firstFutureIdx ? "var(--primary)" : "var(--border)",
                     }}
                   />
                   <span
@@ -650,11 +710,13 @@ export default function EventsTab({
                       onEdit={openEditForm}
                       clientId={clientId}
                       typeConfig={typeConfig}
+                      isPast={isPastGroup}
                     />
                   ))}
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
@@ -689,6 +751,9 @@ export default function EventsTab({
           </div>
         </div>
       )}
+
+      {/* Spacer so "Today" can always scroll to the top of the viewport */}
+      {firstFutureIdx > 0 && <div className="min-h-[60vh]" />}
     </div>
   );
 }

@@ -21,12 +21,14 @@ export default function PageHeader({
     >
       <nav className="flex items-center gap-1.5 mb-2">
         {breadcrumbs.flatMap((crumb, i) => {
+          const isLast = i === breadcrumbs.length - 1;
           const sep = i > 0
             ? [<span key={`s${i}`} className="text-xs" style={{ color: "var(--text-muted)" }}>/</span>]
             : [];
+          // Last breadcrumb without href always renders as "..."
           const node = crumb.href
             ? <Link key={`c${i}`} href={crumb.href} className="text-xs breadcrumb-link">{crumb.label}</Link>
-            : <span key={`c${i}`} className="text-xs" style={{ color: "var(--text-muted)" }}>{crumb.label}</span>;
+            : <span key={`c${i}`} className="text-xs" style={{ color: "var(--text-muted)" }}>{isLast && !crumb.href ? "..." : crumb.label}</span>;
           return [...sep, node];
         })}
       </nav>
