@@ -17,7 +17,7 @@ import { ClientEventModel } from "./models/ClientEvent";
 import { ClientStatusOptionModel, DEFAULT_CLIENT_STATUSES } from "./models/ClientStatusOption";
 import { ClientPlatformOptionModel, DEFAULT_CLIENT_PLATFORMS } from "./models/ClientPlatformOption";
 import { ProjectLabelModel } from "./models/ProjectLabel";
-import type { Archetype, Client, ClientPlatformOption, ClientStatusOption, DashboardStats, EventType, Log, LogSignal, Project, ProjectLabel, ProjectTemplate, RecurrenceFrequency, Service, Sheet, Task, TemplateTask, TimelineEvent } from "@/types";
+import type { Archetype, Client, ClientPlatformOption, ClientStatusOption, DashboardStats, EventType, Log, LogSignal, Project, ProjectLabel, ProjectTemplate, RecurrenceUnit, Service, Sheet, Task, TemplateTask, TimelineEvent } from "@/types";
 
 function mapClient(doc: ReturnType<typeof Object.assign>, archetypeMap?: Map<string, string>, platformLabelMap?: Map<string, string>): Client {
   return {
@@ -548,23 +548,46 @@ function addDays(dateStr: string, days: number): string {
   return date.toISOString().slice(0, 10);
 }
 
-function nextOccurrenceDate(dateStr: string, recurrence: RecurrenceFrequency): string {
+/** Map legacy recurrence strings to interval + unit */
+function legacyToIntervalUnit(recurrence: string): { interval: number; unit: RecurrenceUnit } | null {
+  switch (recurrence) {
+    case "weekly":    return { interval: 1, unit: "weeks" };
+    case "biweekly":  return { interval: 2, unit: "weeks" };
+    case "monthly":   return { interval: 1, unit: "months" };
+    case "quarterly": return { interval: 3, unit: "months" };
+    case "yearly":    return { interval: 1, unit: "years" };
+    default:          return null;
+  }
+}
+
+/** Resolve recurrence from a ClientEvent doc (supports both new and legacy format) */
+function resolveRecurrence(doc: { recurrenceInterval?: unknown; recurrenceUnit?: unknown; recurrence?: unknown }): { interval: number; unit: RecurrenceUnit } | null {
+  if (typeof doc.recurrenceInterval === "number" && typeof doc.recurrenceUnit === "string") {
+    return { interval: doc.recurrenceInterval, unit: doc.recurrenceUnit as RecurrenceUnit };
+  }
+  if (typeof doc.recurrence === "string" && doc.recurrence !== "none") {
+    return legacyToIntervalUnit(doc.recurrence);
+  }
+  return null;
+}
+
+function nextOccurrenceDateByUnit(dateStr: string, interval: number, unit: RecurrenceUnit): string {
   const [y, m, d] = dateStr.split("-").map(Number);
   let next: Date;
-  switch (recurrence) {
-    case "weekly":    next = new Date(y, m - 1, d + 7);  break;
-    case "biweekly":  next = new Date(y, m - 1, d + 14); break;
-    case "monthly":   next = new Date(y, m,     d);      break;
-    case "quarterly": next = new Date(y, m + 2, d);      break;
-    case "yearly":    next = new Date(y + 1, m - 1, d);  break;
-    default:          return dateStr;
+  switch (unit) {
+    case "days":   next = new Date(y, m - 1, d + interval);       break;
+    case "weeks":  next = new Date(y, m - 1, d + interval * 7);   break;
+    case "months": next = new Date(y, m - 1 + interval, d);       break;
+    case "years":  next = new Date(y + interval, m - 1, d);       break;
+    default:       return dateStr;
   }
   return next.toISOString().slice(0, 10);
 }
 
 function expandOccurrences(
   baseDate: string,
-  recurrence: RecurrenceFrequency,
+  interval: number,
+  unit: RecurrenceUnit,
   today: string,
   windowEnd: string,
   repetitions?: number | null
@@ -576,7 +599,7 @@ function expandOccurrences(
     totalCount++;
     if (current >= today) occurrences.push(current);
     if (repetitions != null && totalCount >= repetitions) break;
-    const next = nextOccurrenceDate(current, recurrence);
+    const next = nextOccurrenceDateByUnit(current, interval, unit);
     if (next <= current) break;
     current = next;
   }
@@ -585,7 +608,8 @@ function expandOccurrences(
 
 function expandPastOccurrences(
   baseDate: string,
-  recurrence: RecurrenceFrequency,
+  interval: number,
+  unit: RecurrenceUnit,
   lookbackStart: string,
   today: string,
   repetitions?: number | null
@@ -597,11 +621,20 @@ function expandPastOccurrences(
     totalCount++;
     if (current >= lookbackStart) occurrences.push(current);
     if (repetitions != null && totalCount >= repetitions) break;
-    const next = nextOccurrenceDate(current, recurrence);
+    const next = nextOccurrenceDateByUnit(current, interval, unit);
     if (next <= current) break;
     current = next;
   }
   return occurrences;
+}
+
+/** Build a human-readable label like "Every 2 weeks" */
+function recurrenceLabel(interval: number, unit: RecurrenceUnit): string {
+  if (interval === 1) {
+    const singular: Record<RecurrenceUnit, string> = { days: "day", weeks: "week", months: "month", years: "year" };
+    return `Every ${singular[unit]}`;
+  }
+  return `Every ${interval} ${unit}`;
 }
 
 /**
@@ -836,9 +869,9 @@ export async function getUpcomingEventsForClient(clientId: string): Promise<Time
       deletable: false,
     })),
     ...customDocs.flatMap((doc) => {
-      const recurrence = (doc.recurrence ?? "none") as RecurrenceFrequency;
+      const rec = resolveRecurrence(doc);
       const docId = doc._id.toString();
-      if (recurrence === "none") {
+      if (!rec) {
         if (doc.date < today) return [] as TimelineEvent[];
         return [{
           id: `custom_${docId}`,
@@ -849,10 +882,9 @@ export async function getUpcomingEventsForClient(clientId: string): Promise<Time
           sourceId: docId,
           notes: (doc.notes as string | undefined) ?? undefined,
           deletable: true,
-          recurrence: "none" as const,
         }] as TimelineEvent[];
       }
-      return expandOccurrences(doc.date, recurrence, today, windowEnd, doc.repetitions as number | null).map(
+      return expandOccurrences(doc.date, rec.interval, rec.unit, today, windowEnd, doc.repetitions as number | null).map(
         (occDate) => ({
           id: `custom_${docId}_${occDate}`,
           date: occDate,
@@ -863,7 +895,8 @@ export async function getUpcomingEventsForClient(clientId: string): Promise<Time
           sourceId: docId,
           notes: (doc.notes as string | undefined) ?? undefined,
           deletable: true,
-          recurrence,
+          recurrenceInterval: rec.interval,
+          recurrenceUnit: rec.unit,
           repetitions: (doc.repetitions as number | undefined) ?? undefined,
         })
       );
@@ -983,9 +1016,9 @@ export async function getPastEventsForClient(clientId: string): Promise<Timeline
       deletable: false,
     })),
     ...customDocs.flatMap((doc) => {
-      const recurrence = (doc.recurrence ?? "none") as RecurrenceFrequency;
+      const rec = resolveRecurrence(doc);
       const docId = doc._id.toString();
-      if (recurrence === "none") {
+      if (!rec) {
         if (doc.date >= today || doc.date < lookbackStart) return [] as TimelineEvent[];
         return [{
           id: `custom_${docId}`,
@@ -996,10 +1029,9 @@ export async function getPastEventsForClient(clientId: string): Promise<Timeline
           sourceId: docId,
           notes: (doc.notes as string | undefined) ?? undefined,
           deletable: true,
-          recurrence: "none" as const,
         }] as TimelineEvent[];
       }
-      return expandPastOccurrences(doc.date, recurrence, lookbackStart, today, doc.repetitions as number | null).map(
+      return expandPastOccurrences(doc.date, rec.interval, rec.unit, lookbackStart, today, doc.repetitions as number | null).map(
         (occDate) => ({
           id: `custom_${docId}_${occDate}`,
           date: occDate,
@@ -1010,7 +1042,8 @@ export async function getPastEventsForClient(clientId: string): Promise<Timeline
           sourceId: docId,
           notes: (doc.notes as string | undefined) ?? undefined,
           deletable: true,
-          recurrence,
+          recurrenceInterval: rec.interval,
+          recurrenceUnit: rec.unit,
           repetitions: (doc.repetitions as number | undefined) ?? undefined,
         })
       );
@@ -1162,14 +1195,14 @@ export async function getFirstUpcomingEventByAllClients(): Promise<Map<string, F
     }
   }
   for (const doc of customDocs) {
-    const recurrence = (doc.recurrence ?? "none") as RecurrenceFrequency;
+    const rec = resolveRecurrence(doc);
     const cid = (doc.clientId as string).toString();
-    if (recurrence === "none") {
+    if (!rec) {
       if ((doc.date as string) >= today) {
         add(cid, { date: doc.date as string, title: doc.title as string, source: "custom" });
       }
     } else {
-      const occurrences = expandOccurrences(doc.date as string, recurrence, today, windowEnd, doc.repetitions as number | null);
+      const occurrences = expandOccurrences(doc.date as string, rec.interval, rec.unit, today, windowEnd, doc.repetitions as number | null);
       if (occurrences.length > 0) {
         add(cid, { date: occurrences[0], title: doc.title as string, source: "custom" });
       }

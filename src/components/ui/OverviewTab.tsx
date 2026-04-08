@@ -757,7 +757,8 @@ export default function OverviewTab({
           {(() => {
             const seen = new Set<string>();
             const deduped = initialEvents.filter((e) => {
-              if (!e.recurrence || e.recurrence === "none") return true;
+              const isRecurring = !!(e.recurrenceInterval && e.recurrenceUnit);
+              if (!isRecurring) return true;
               if (seen.has(e.sourceId)) return false;
               seen.add(e.sourceId);
               return true;

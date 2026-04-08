@@ -3,9 +3,12 @@
 import { useState, useMemo } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import AddClientButton from "@/components/ui/AddClientButton";
 import ClientsOverviewTable from "./ClientsOverviewTable";
 import ClientsTimeline from "@/components/ui/ClientsTimeline";
+import DataTable from "@/components/ui/DataTable";
+import type { SortState, ColumnDef } from "@/components/ui/DataTable";
 import type { Client, ClientStatusOption, ClientPlatformOption, Project } from "@/types";
 import type { OverviewRow } from "./ClientsOverviewTable";
 
@@ -211,6 +214,181 @@ function SectionGrid({ clients }: { clients: Client[] }) {
   );
 }
 
+// ── other-clients table ──────────────────────────────────────────────────
+
+function OtherClientsTable({ clients }: { clients: Client[] }) {
+  const router = useRouter();
+  const [sort, setSort] = useState<SortState>({ col: "company", dir: "asc" });
+
+  function onSort(col: string) {
+    setSort((prev) =>
+      prev.col === col
+        ? prev.dir === "asc"
+          ? { col, dir: "desc" }
+          : { col: null, dir: "asc" }
+        : { col, dir: "asc" }
+    );
+  }
+
+  const sorted = useMemo(() => {
+    const list = [...clients];
+    if (!sort.col) return list.sort((a, b) => a.company.localeCompare(b.company));
+    const dir = sort.dir === "asc" ? 1 : -1;
+    return list.sort((a, b) => {
+      switch (sort.col) {
+        case "company":
+          return dir * a.company.localeCompare(b.company);
+        case "status":
+          return dir * (a.status ?? "").localeCompare(b.status ?? "");
+        case "platform":
+          return dir * (a.platformLabel ?? "").localeCompare(b.platformLabel ?? "");
+        case "clientSince": {
+          const ya = a.clientSince ? new Date(a.clientSince).getFullYear() : 0;
+          const yb = b.clientSince ? new Date(b.clientSince).getFullYear() : 0;
+          return dir * (ya - yb);
+        }
+        default:
+          return 0;
+      }
+    });
+  }, [clients, sort]);
+
+  const columns: ColumnDef<Client>[] = useMemo(
+    () => [
+      {
+        key: "company",
+        label: "Client",
+        minWidth: 200,
+        sortable: true,
+        sticky: true,
+        render: (row) => {
+          const color = accentColor(row.company);
+          return (
+            <div className="flex items-center gap-3">
+              <div
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold shrink-0"
+                style={{ background: color }}
+              >
+                {initials(row.company)}
+              </div>
+              <span className="font-medium" style={{ color: "var(--text-primary)" }}>
+                {row.company}
+              </span>
+            </div>
+          );
+        },
+      },
+      {
+        key: "status",
+        label: "Status",
+        minWidth: 120,
+        sortable: true,
+        render: (row) =>
+          row.status ? (
+            <span
+              className="text-xs px-2 py-0.5 rounded-full border font-medium capitalize"
+              style={{
+                borderColor: "var(--border)",
+                color: "var(--text-secondary)",
+                background: "var(--bg-elevated)",
+              }}
+            >
+              {row.status.replace(/_/g, " ")}
+            </span>
+          ) : (
+            <span style={{ color: "var(--text-muted)" }}>—</span>
+          ),
+      },
+      {
+        key: "platform",
+        label: "Platform",
+        minWidth: 120,
+        sortable: true,
+        render: (row) =>
+          row.platformLabel ? (
+            <span
+              className="text-xs px-2 py-0.5 rounded-full border font-medium"
+              style={{
+                borderColor: "var(--border)",
+                color: "var(--text-secondary)",
+                background: "var(--bg-elevated)",
+              }}
+            >
+              {row.platformLabel}
+            </span>
+          ) : (
+            <span style={{ color: "var(--text-muted)" }}>—</span>
+          ),
+      },
+      {
+        key: "clientSince",
+        label: "Since",
+        minWidth: 80,
+        sortable: true,
+        render: (row) =>
+          row.clientSince ? (
+            <span className="text-sm" style={{ color: "var(--text-secondary)" }}>
+              {new Date(row.clientSince).getFullYear()}
+            </span>
+          ) : (
+            <span style={{ color: "var(--text-muted)" }}>—</span>
+          ),
+      },
+      {
+        key: "leads",
+        label: "Leads",
+        minWidth: 100,
+        sortable: false,
+        render: (row) =>
+          row.leads && row.leads.length > 0 ? (
+            <div className="flex items-center">
+              {row.leads.map((lead, i) => (
+                <div
+                  key={lead.userId}
+                  title={lead.name}
+                  className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center text-white text-[10px] font-semibold shrink-0"
+                  style={{
+                    background: accentColor(lead.name),
+                    marginLeft: i === 0 ? 0 : "-5px",
+                    outline: "2px solid var(--bg-surface)",
+                    zIndex: i,
+                  }}
+                >
+                  {lead.image ? (
+                    <Image
+                      src={lead.image}
+                      alt={lead.name}
+                      width={24}
+                      height={24}
+                      className="object-cover w-full h-full"
+                    />
+                  ) : (
+                    leadInitials(lead.name)
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <span style={{ color: "var(--text-muted)" }}>—</span>
+          ),
+      },
+    ],
+    []
+  );
+
+  return (
+    <DataTable
+      columns={columns}
+      rows={sorted}
+      getRowKey={(row) => row.id}
+      sort={sort}
+      onSort={onSort}
+      onRowClick={(row) => router.push(`/clients/${row.id}`)}
+      emptyMessage="No clients"
+    />
+  );
+}
+
 // ── tab nav ───────────────────────────────────────────────────────────────
 
 function ClientsTabNav({ activeTab, isAdmin }: { activeTab: string; isAdmin: boolean }) {
@@ -265,7 +443,7 @@ export default function ClientsPageClient({
   overviewRows: OverviewRow[];
   projectsByClient: Record<string, Project[]>;
 }) {
-  const [selectedStatuses, setSelectedStatuses] = useState<Set<string>>(new Set());
+  const [selectedStatuses, setSelectedStatuses] = useState<Set<string>>(new Set(["active", "sleeper"]));
   const [selectedPlatforms, setSelectedPlatforms] = useState<Set<string>>(new Set());
 
   const isOverview = isAdmin && tab === "overview";
@@ -289,7 +467,9 @@ export default function ClientsPageClient({
   }, [clients, selectedStatuses, selectedPlatforms]);
 
   const myClients = currentUserId
-    ? filtered.filter((c) => c.leads?.some((l) => l.userId === currentUserId))
+    ? clients
+        .filter((c) => c.leads?.some((l) => l.userId === currentUserId))
+        .sort((a, b) => a.company.localeCompare(b.company))
     : [];
   const otherClients = currentUserId
     ? filtered.filter((c) => !c.leads?.some((l) => l.userId === currentUserId))
@@ -298,8 +478,6 @@ export default function ClientsPageClient({
   const hasSections = currentUserId
     ? clients.some((c) => c.leads?.some((l) => l.userId === currentUserId))
     : false;
-
-  const hasFilters = selectedStatuses.size > 0 || selectedPlatforms.size > 0;
 
   return (
     <div className="flex-1 overflow-y-auto">
@@ -312,9 +490,7 @@ export default function ClientsPageClient({
             </h1>
             {!isOverview && (
               <p className="text-sm mt-0.5" style={{ color: "var(--text-muted)" }}>
-                {hasFilters
-                  ? `${filtered.length} of ${clients.length} ${clients.length === 1 ? "client" : "clients"}`
-                  : `${clients.length} ${clients.length === 1 ? "client" : "clients"}`}
+                {clients.length} {clients.length === 1 ? "client" : "clients"}
               </p>
             )}
           </div>
@@ -332,24 +508,6 @@ export default function ClientsPageClient({
           </div>
         ) : (
           <>
-            {/* Filters */}
-            {(statuses.length > 0 || platforms.length > 0) && (
-              <div className="flex flex-col gap-2 mb-6">
-                <FilterChips
-                  label="Status"
-                  options={statuses}
-                  selected={selectedStatuses}
-                  onToggle={(slug) => toggle(selectedStatuses, setSelectedStatuses, slug)}
-                />
-                <FilterChips
-                  label="Platform"
-                  options={platforms}
-                  selected={selectedPlatforms}
-                  onToggle={(slug) => toggle(selectedPlatforms, setSelectedPlatforms, slug)}
-                />
-              </div>
-            )}
-
             {clients.length === 0 ? (
               <div
                 className="flex flex-col items-center justify-center rounded-2xl border border-dashed py-24 text-center"
@@ -362,25 +520,6 @@ export default function ClientsPageClient({
                   Add your first client to get started.
                 </p>
               </div>
-            ) : filtered.length === 0 ? (
-              <div
-                className="flex flex-col items-center justify-center rounded-2xl border border-dashed py-16 text-center"
-                style={{ borderColor: "var(--border)" }}
-              >
-                <p className="text-sm font-medium mb-1" style={{ color: "var(--text-primary)" }}>
-                  No clients match these filters
-                </p>
-                <button
-                  type="button"
-                  className="text-sm mt-2 btn-link"
-                  onClick={() => {
-                    setSelectedStatuses(new Set());
-                    setSelectedPlatforms(new Set());
-                  }}
-                >
-                  Clear filters
-                </button>
-              </div>
             ) : hasSections ? (
               <div className="flex flex-col gap-10">
                 {myClients.length > 0 && (
@@ -391,20 +530,55 @@ export default function ClientsPageClient({
                     <SectionGrid clients={myClients} />
                   </section>
                 )}
-                {otherClients.length > 0 && (
-                  <section>
-                    <h2
-                      className="text-sm font-semibold mb-4"
-                      style={{ color: "var(--text-secondary)" }}
+                <section>
+                  <h2
+                    className="text-sm font-semibold mb-4"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
+                    {myClients.length > 0 ? "Other clients" : "Clients"}
+                  </h2>
+                  {(statuses.length > 0 || platforms.length > 0) && (
+                    <div className="flex items-center gap-6 mb-4 flex-wrap">
+                      <FilterChips
+                        label="Status"
+                        options={statuses}
+                        selected={selectedStatuses}
+                        onToggle={(slug) => toggle(selectedStatuses, setSelectedStatuses, slug)}
+                      />
+                      <FilterChips
+                        label="Platform"
+                        options={platforms}
+                        selected={selectedPlatforms}
+                        onToggle={(slug) => toggle(selectedPlatforms, setSelectedPlatforms, slug)}
+                      />
+                    </div>
+                  )}
+                  {otherClients.length > 0 ? (
+                    <OtherClientsTable clients={otherClients} />
+                  ) : (
+                    <div
+                      className="flex flex-col items-center justify-center rounded-2xl border border-dashed py-16 text-center"
+                      style={{ borderColor: "var(--border)" }}
                     >
-                      {myClients.length > 0 ? "Other clients" : "Clients"}
-                    </h2>
-                    <SectionGrid clients={otherClients} />
-                  </section>
-                )}
+                      <p className="text-sm font-medium mb-1" style={{ color: "var(--text-primary)" }}>
+                        No clients match these filters
+                      </p>
+                      <button
+                        type="button"
+                        className="text-sm mt-2 btn-link"
+                        onClick={() => {
+                          setSelectedStatuses(new Set());
+                          setSelectedPlatforms(new Set());
+                        }}
+                      >
+                        Clear filters
+                      </button>
+                    </div>
+                  )}
+                </section>
               </div>
             ) : (
-              <SectionGrid clients={filtered} />
+              <SectionGrid clients={[...filtered].sort((a, b) => a.company.localeCompare(b.company))} />
             )}
           </>
         )}

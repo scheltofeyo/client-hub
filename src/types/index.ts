@@ -200,6 +200,8 @@ export interface Task {
 export type ClientEventType = string;
 export type TimelineEventSource = "log_followup" | "task" | "project" | "custom";
 export type TimelineEventType = string;
+export type RecurrenceUnit = "days" | "weeks" | "months" | "years";
+/** @deprecated kept for backward compat with old ClientEvent docs */
 export type RecurrenceFrequency = "none" | "weekly" | "biweekly" | "monthly" | "quarterly" | "yearly";
 
 export interface TimelineEvent {
@@ -213,6 +215,9 @@ export interface TimelineEvent {
   projectId?: string;
   notes?: string;
   deletable: boolean;
+  recurrenceInterval?: number;  // e.g. 2
+  recurrenceUnit?: RecurrenceUnit; // e.g. "weeks" → "every 2 weeks"
+  /** @deprecated old format, kept for backward compat */
   recurrence?: RecurrenceFrequency;
   repetitions?: number; // total occurrences; undefined = unlimited
 }

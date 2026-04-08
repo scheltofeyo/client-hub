@@ -24,6 +24,7 @@ import PageHeader from "@/components/layout/PageHeader";
 import Link from "next/link";
 import { FolderOpen } from "lucide-react";
 import { notFound } from "next/navigation";
+import ScrollReset from "@/components/ui/ScrollReset";
 import type { Archetype, Client, ClientStatusOption, Log, LogSignal, Project, Service, Sheet, Task } from "@/types";
 import { getGeneralTasksByClientId, getTasksByProjectIds } from "@/lib/data";
 import { fmtDate } from "@/lib/utils";
@@ -116,6 +117,7 @@ export default async function ClientDetailPage({
         className={`flex-1 overflow-y-auto px-7 pb-7 ${activeTab === "Dashboard" ? "pt-0" : "pt-7"}`}
         style={activeTab === "Dashboard" ? { background: "var(--bg-surface)" } : undefined}
       >
+        <ScrollReset activeTab={activeTab} />
         {activeTab === "Dashboard" && (
           <Suspense fallback={<DashboardSkeleton />}>
             <DashboardTabWrapper

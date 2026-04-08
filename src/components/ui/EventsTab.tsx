@@ -23,7 +23,10 @@ import {
 } from "lucide-react";
 import { useRightPanel } from "@/components/layout/RightPanel";
 import { fmtDate } from "@/lib/utils";
-import type { EventType, TimelineEvent, RecurrenceFrequency } from "@/types";
+import type { EventType, TimelineEvent, RecurrenceUnit } from "@/types";
+
+/** System event type slugs that should not be user-selectable */
+const SYSTEM_EVENT_TYPE_SLUGS: readonly string[] = ["deadline", "delivery", "follow_up", "expired_service"];
 
 // ── Helpers ──────────────────────────────────────────────────
 
@@ -77,23 +80,32 @@ function sourceLabel(event: TimelineEvent): string {
 
 // ── Recurrence ───────────────────────────────────────────────
 
-const RECURRENCE_OPTIONS: { value: RecurrenceFrequency; label: string }[] = [
-  { value: "none",      label: "Once"      },
-  { value: "weekly",    label: "Weekly"    },
-  { value: "biweekly",  label: "Biweekly"  },
-  { value: "monthly",   label: "Monthly"   },
-  { value: "quarterly", label: "Quarterly" },
-  { value: "yearly",    label: "Yearly"    },
+const RECURRENCE_UNIT_OPTIONS: { value: RecurrenceUnit; label: string }[] = [
+  { value: "days",   label: "days"   },
+  { value: "weeks",  label: "weeks"  },
+  { value: "months", label: "months" },
+  { value: "years",  label: "years"  },
 ];
 
-const RECURRENCE_LABEL: Record<RecurrenceFrequency, string> = {
-  none:      "Once",
-  weekly:    "Weekly",
-  biweekly:  "Biweekly",
-  monthly:   "Monthly",
-  quarterly: "Quarterly",
-  yearly:    "Yearly",
-};
+function recurrenceLabel(interval: number, unit: RecurrenceUnit): string {
+  if (interval === 1) {
+    const singular: Record<RecurrenceUnit, string> = { days: "day", weeks: "week", months: "month", years: "year" };
+    return `Every ${singular[unit]}`;
+  }
+  return `Every ${interval} ${unit}`;
+}
+
+/** Map legacy recurrence strings to interval + unit for edit form */
+function legacyToIntervalUnit(recurrence: string): { interval: number; unit: RecurrenceUnit } | null {
+  switch (recurrence) {
+    case "weekly":    return { interval: 1, unit: "weeks" };
+    case "biweekly":  return { interval: 2, unit: "weeks" };
+    case "monthly":   return { interval: 1, unit: "months" };
+    case "quarterly": return { interval: 3, unit: "months" };
+    case "yearly":    return { interval: 1, unit: "years" };
+    default:          return null;
+  }
+}
 
 // ── Type colours & icons ─────────────────────────────────────
 
@@ -145,7 +157,7 @@ const labelStyle = { color: "var(--text-muted)" };
 interface EventFormProps {
   clientId: string;
   eventTypes: EventType[];
-  onSaved: () => void;
+  onSaved: () => void | Promise<void>;
   onClose: () => void;
   /** When set, the form PATCHes instead of POSTing */
   editEvent?: {
@@ -154,20 +166,39 @@ interface EventFormProps {
     date: string;
     type: string;
     notes?: string;
-    recurrence?: RecurrenceFrequency;
+    recurrenceInterval?: number;
+    recurrenceUnit?: RecurrenceUnit;
+    /** @deprecated old format */
+    recurrence?: string;
     repetitions?: number;
   };
 }
 
+function resolveEditRecurrence(editEvent?: EventFormProps["editEvent"]): { interval: number; unit: RecurrenceUnit } | null {
+  if (!editEvent) return null;
+  if (editEvent.recurrenceInterval && editEvent.recurrenceUnit) {
+    return { interval: editEvent.recurrenceInterval, unit: editEvent.recurrenceUnit };
+  }
+  if (editEvent.recurrence && editEvent.recurrence !== "none") {
+    return legacyToIntervalUnit(editEvent.recurrence);
+  }
+  return null;
+}
+
 export function EventForm({ clientId, eventTypes, onSaved, onClose, editEvent }: EventFormProps) {
-  const defaultSlug = eventTypes[0]?.slug ?? "other";
+  const userTypes = eventTypes.filter((et) => !SYSTEM_EVENT_TYPE_SLUGS.includes(et.slug));
+  const defaultSlug = userTypes[0]?.slug ?? "other";
+  const editRec = resolveEditRecurrence(editEvent);
   const [form, setForm] = useState({
-    title:       editEvent?.title                                 ?? "",
-    date:        editEvent?.date                                  ?? "",
-    type:        editEvent?.type                                  ?? defaultSlug,
-    notes:       editEvent?.notes                                 ?? "",
-    recurrence:  editEvent?.recurrence                            ?? ("none" as RecurrenceFrequency),
-    repetitions: editEvent?.repetitions != null ? String(editEvent.repetitions) : "",
+    title:              editEvent?.title ?? "",
+    date:               editEvent?.date  ?? "",
+    type:               editEvent?.type  ?? defaultSlug,
+    notes:              editEvent?.notes ?? "",
+    recurring:          !!editRec,
+    recurrenceInterval: editRec?.interval ?? 1,
+    recurrenceUnit:     editRec?.unit ?? ("months" as RecurrenceUnit),
+    hasRepetitions:     editEvent?.repetitions != null,
+    repetitions:        editEvent?.repetitions != null ? String(editEvent.repetitions) : "",
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -191,13 +222,14 @@ export function EventForm({ clientId, eventTypes, onSaved, onClose, editEvent }:
       method: isEdit ? "PATCH" : "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        title:       form.title,
-        date:        form.date,
-        type:        form.type,
-        notes:       form.notes || undefined,
-        recurrence:  form.recurrence,
+        title:              form.title,
+        date:               form.date,
+        type:               form.type,
+        notes:              form.notes || undefined,
+        recurrenceInterval: form.recurring ? form.recurrenceInterval : undefined,
+        recurrenceUnit:     form.recurring ? form.recurrenceUnit : undefined,
         // null clears repetitions (unlimited); integer sets the cap
-        repetitions: form.recurrence !== "none" && form.repetitions !== ""
+        repetitions:        form.recurring && form.hasRepetitions && form.repetitions !== ""
           ? parseInt(form.repetitions, 10)
           : (isEdit ? null : undefined),
       }),
@@ -209,7 +241,7 @@ export function EventForm({ clientId, eventTypes, onSaved, onClose, editEvent }:
       setError(data.error ?? "Something went wrong");
       return;
     }
-    onSaved();
+    await onSaved();
     onClose();
   }
 
@@ -232,7 +264,7 @@ export function EventForm({ clientId, eventTypes, onSaved, onClose, editEvent }:
       </div>
       <div>
         <label htmlFor="ev-date" className={labelClass} style={labelStyle}>
-          {form.recurrence !== "none" ? "Start date" : "Date"} <span className="text-red-400">*</span>
+          {form.recurring ? "Start date" : "Date"} <span className="text-red-400">*</span>
         </label>
         <input
           id="ev-date"
@@ -247,7 +279,7 @@ export function EventForm({ clientId, eventTypes, onSaved, onClose, editEvent }:
       <div>
         <p className={labelClass} style={labelStyle}>Type</p>
         <div className="flex gap-2 flex-wrap">
-          {eventTypes.map((et) => {
+          {userTypes.map((et) => {
             const Icon = ICON_REGISTRY[et.icon] ?? Circle;
             const active = form.type === et.slug;
             return (
@@ -269,49 +301,84 @@ export function EventForm({ clientId, eventTypes, onSaved, onClose, editEvent }:
           })}
         </div>
       </div>
+      {/* Recurrence toggle row */}
       <div>
         <p className={labelClass} style={labelStyle}>Recurrence</p>
-        <div className="flex gap-2 flex-wrap">
-          {RECURRENCE_OPTIONS.map((opt) => {
-            const active = form.recurrence === opt.value;
-            return (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => set("recurrence", opt.value)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors"
-                style={
-                  active
-                    ? { background: "var(--primary)", color: "#fff", borderColor: "var(--primary)" }
-                    : { background: "var(--bg-sidebar)", color: "var(--text-primary)", borderColor: "var(--border)" }
-                }
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            role="switch"
+            aria-checked={form.recurring}
+            onClick={() => set("recurring", !form.recurring)}
+            className="relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors"
+            style={{ background: form.recurring ? "var(--primary)" : "var(--border)" }}
+          >
+            <span
+              className="pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow transition-transform"
+              style={{ transform: form.recurring ? "translateX(16px)" : "translateX(0)" }}
+            />
+          </button>
+          {form.recurring && (
+            <>
+              <span className="text-xs" style={{ color: "var(--text-muted)" }}>Every</span>
+              <input
+                type="number"
+                min={1}
+                value={form.recurrenceInterval}
+                onChange={(e) => set("recurrenceInterval", Math.max(1, parseInt(e.target.value) || 1))}
+                className={inputClass}
+                style={{ ...inputStyle, width: 60, textAlign: "center" }}
+              />
+              <select
+                value={form.recurrenceUnit}
+                onChange={(e) => set("recurrenceUnit", e.target.value as RecurrenceUnit)}
+                className={inputClass}
+                style={{ ...inputStyle, width: "auto", paddingRight: 24 }}
               >
-                {opt.value !== "none" && <RefreshCw size={10} />}
-                {opt.label}
-              </button>
-            );
-          })}
+                {RECURRENCE_UNIT_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </>
+          )}
         </div>
       </div>
-      {form.recurrence !== "none" && (
+      {/* Repetitions toggle row — only visible when recurring */}
+      {form.recurring && (
         <div>
-          <label htmlFor="ev-repetitions" className={labelClass} style={labelStyle}>
-            Repetitions
-          </label>
+          <p className={labelClass} style={labelStyle}>Repetitions</p>
           <div className="flex items-center gap-2">
-            <input
-              id="ev-repetitions"
-              type="number"
-              min={1}
-              value={form.repetitions}
-              onChange={(e) => set("repetitions", e.target.value)}
-              placeholder="∞"
-              className={inputClass}
-              style={{ ...inputStyle, width: 100 }}
-            />
-            <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-              {form.repetitions !== "" ? `occurrence${parseInt(form.repetitions) !== 1 ? "s" : ""}` : "unlimited"}
-            </span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={form.hasRepetitions}
+              onClick={() => set("hasRepetitions", !form.hasRepetitions)}
+              className="relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors"
+              style={{ background: form.hasRepetitions ? "var(--primary)" : "var(--border)" }}
+            >
+              <span
+                className="pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow transition-transform"
+                style={{ transform: form.hasRepetitions ? "translateX(16px)" : "translateX(0)" }}
+              />
+            </button>
+            {form.hasRepetitions ? (
+              <>
+                <input
+                  type="number"
+                  min={1}
+                  value={form.repetitions}
+                  onChange={(e) => set("repetitions", e.target.value)}
+                  placeholder="e.g. 10"
+                  className={inputClass}
+                  style={{ ...inputStyle, width: 70, textAlign: "center" }}
+                />
+                <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                  occurrence{form.repetitions !== "" && parseInt(form.repetitions) === 1 ? "" : "s"}
+                </span>
+              </>
+            ) : (
+              <span className="text-xs" style={{ color: "var(--text-muted)" }}>Unlimited</span>
+            )}
           </div>
         </div>
       )}
@@ -369,7 +436,7 @@ function EventCard({
   const cfg = getTypeCfg(event.type, typeConfig);
   const Icon = cfg.icon;
   const url = eventNavUrl(clientId, event);
-  const isRecurring = event.recurrence && event.recurrence !== "none";
+  const isRecurring = !!(event.recurrenceInterval && event.recurrenceUnit);
 
   const MONTHS = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
   const [, mm, dd] = event.date.split("-");
@@ -456,7 +523,7 @@ function EventCard({
 
         {/* Notes */}
         {event.notes && (
-          <p className="text-xs line-clamp-1" style={{ color: "var(--text-muted)" }}>
+          <p className="text-xs" style={{ color: "var(--text-muted)" }}>
             {event.notes}
           </p>
         )}
@@ -469,7 +536,7 @@ function EventCard({
               style={{ background: "var(--bg-hover)", color: "var(--text-muted)" }}
             >
               <RefreshCw size={9} strokeWidth={2.5} />
-              {RECURRENCE_LABEL[event.recurrence!]}
+              {recurrenceLabel(event.recurrenceInterval!, event.recurrenceUnit!)}
               {event.repetitions != null && ` · ${event.repetitions}×`}
             </span>
           </div>
@@ -578,13 +645,15 @@ export default function EventsTab({
         onSaved={refreshEvents}
         onClose={closePanel}
         editEvent={{
-          id:          event.sourceId,
-          title:       event.title,
-          date:        event.baseDate ?? event.date,
-          type:        event.type,
-          notes:       event.notes,
-          recurrence:  event.recurrence ?? "none",
-          repetitions: event.repetitions,
+          id:                 event.sourceId,
+          title:              event.title,
+          date:               event.baseDate ?? event.date,
+          type:               event.type,
+          notes:              event.notes,
+          recurrenceInterval: event.recurrenceInterval,
+          recurrenceUnit:     event.recurrenceUnit,
+          recurrence:         event.recurrence,
+          repetitions:        event.repetitions,
         }}
       />
     );
@@ -627,15 +696,16 @@ export default function EventsTab({
   // One-off events go into the timeline groups; recurring events get a separate bucket.
   // Past recurring occurrences appear inline in past groups (no dedup).
   // Future recurring events are deduplicated to next occurrence only.
-  const oneOffEvents = events.filter((e) => !e.recurrence || e.recurrence === "none");
+  const isRecurringEvent = (e: TimelineEvent) => !!(e.recurrenceInterval && e.recurrenceUnit);
+  const oneOffEvents = events.filter((e) => !isRecurringEvent(e));
 
   const pastRecurringEvents = events.filter(
-    (e) => e.recurrence && e.recurrence !== "none" && daysBetween(todayStr, e.date) < 0
+    (e) => isRecurringEvent(e) && daysBetween(todayStr, e.date) < 0
   );
 
   const recurringNext = new Map<string, TimelineEvent>();
   for (const e of events) {
-    if (e.recurrence && e.recurrence !== "none" && daysBetween(todayStr, e.date) >= 0 && !recurringNext.has(e.sourceId)) {
+    if (isRecurringEvent(e) && daysBetween(todayStr, e.date) >= 0 && !recurringNext.has(e.sourceId)) {
       recurringNext.set(e.sourceId, e);
     }
   }

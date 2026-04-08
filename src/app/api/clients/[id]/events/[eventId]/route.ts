@@ -3,9 +3,9 @@ import { auth } from "@/auth";
 import { connectDB } from "@/lib/mongodb";
 import { ClientEventModel } from "@/lib/models/ClientEvent";
 import { recordActivity } from "@/lib/activity";
-import type { RecurrenceFrequency } from "@/types";
+import type { RecurrenceUnit } from "@/types";
 
-const VALID_RECURRENCE: RecurrenceFrequency[] = ["none", "weekly", "biweekly", "monthly", "quarterly", "yearly"];
+const VALID_UNITS: RecurrenceUnit[] = ["days", "weeks", "months", "years"];
 
 export async function PATCH(
   req: NextRequest,
@@ -28,7 +28,18 @@ export async function PATCH(
   if (body.date?.trim())   doc.date  = body.date.trim();
   if (body.type)           doc.type  = body.type;
   if (body.notes !== undefined) doc.notes = body.notes?.trim() || undefined;
-  if (VALID_RECURRENCE.includes(body.recurrence)) doc.recurrence = body.recurrence;
+
+  // Recurrence: if interval+unit provided, set them; if both absent, clear recurrence
+  if (Number.isInteger(body.recurrenceInterval) && body.recurrenceInterval >= 1 && VALID_UNITS.includes(body.recurrenceUnit)) {
+    doc.recurrenceInterval = body.recurrenceInterval;
+    doc.recurrenceUnit = body.recurrenceUnit;
+    doc.recurrence = "custom" as typeof doc.recurrence;
+  } else if (body.recurrenceInterval === undefined && body.recurrenceUnit === undefined) {
+    doc.recurrenceInterval = undefined;
+    doc.recurrenceUnit = undefined;
+    doc.recurrence = "none";
+  }
+
   // repetitions: null clears it (unlimited); positive integer sets it
   if (body.repetitions === null) {
     doc.repetitions = undefined;
@@ -43,7 +54,7 @@ export async function PATCH(
     actorId: session.user.id,
     actorName: session.user.name ?? "Unknown",
     type: "event.updated",
-    metadata: { eventId, title: doc.title, recurrence: doc.recurrence },
+    metadata: { eventId, title: doc.title, recurrenceInterval: doc.recurrenceInterval, recurrenceUnit: doc.recurrenceUnit },
   });
 
   return NextResponse.json({ ok: true });
