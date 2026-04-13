@@ -83,16 +83,23 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           token.leadPermissions = await getLeadSettings();
         }
       } else if (token.userId) {
-        // Periodic re-check: invalidate session if user has been archived
+        // Periodic re-check: refresh permissions and invalidate if archived
         const now = Date.now();
         const lastCheck = (token.statusCheckedAt as number) ?? 0;
         if (now - lastCheck > 5 * 60 * 1000) {
           await connectDB();
-          const dbUser = await UserModel.findById(token.userId, { status: 1 }).lean();
+          await seedRoles();
+          const dbUser = await UserModel.findById(token.userId, { status: 1, role: 1 }).lean();
           if (!dbUser || dbUser.status === "inactive") {
             token.userId = "";
             token.permissions = [];
             token.leadPermissions = [];
+          } else {
+            // Reload permissions so role/permission changes take effect
+            // without requiring the user to sign out and back in
+            const role = await RoleModel.findOne({ slug: dbUser.role }).lean();
+            token.permissions = role?.permissions ?? [];
+            token.leadPermissions = await getLeadSettings();
           }
           token.statusCheckedAt = now;
         }
