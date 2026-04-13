@@ -1,6 +1,10 @@
 [
   {
     "date": "2026-04-13",
+    "title": "Fix sign out not working — session is now properly cleared"
+  },
+  {
+    "date": "2026-04-13",
     "title": "Fix navigation permissions not updating after deployment",
     "details": [
       "Admin panel and holiday planner buttons now appear correctly without requiring a sign-out/sign-in",
