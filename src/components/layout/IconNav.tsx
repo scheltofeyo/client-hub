@@ -4,16 +4,18 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
+  LayoutDashboard,
   Building2,
+  Users,
   ShieldCheck,
-  Settings,
   Calendar,
 } from "lucide-react";
-import ThemeToggle from "./ThemeToggle";
 import UserMenu from "./UserMenu";
 
-const topItems = [
+const topItems: { href: string; label: string; icon: typeof LayoutDashboard; requires?: string }[] = [
+  { href: "/my-day", label: "Dashboard", icon: LayoutDashboard },
   { href: "/clients", label: "Clients", icon: Building2 },
+  { href: "/team", label: "Team", icon: Users, requires: "team.viewCalendar" },
 ];
 
 function openCalendarPopup() {
@@ -32,7 +34,7 @@ export default function IconNav() {
   const pathname = usePathname();
   const { data: session } = useSession();
   const isActive = (href: string) => pathname.startsWith(href);
-  const isAdmin = session?.user?.isAdmin ?? false;
+  const canAccessAdmin = (session?.user?.permissions ?? []).includes("admin.access");
 
   return (
     <nav
@@ -51,7 +53,8 @@ export default function IconNav() {
 
       {/* Top nav */}
       <div className="flex flex-col items-center gap-2 w-full px-3">
-        {topItems.map(({ href, label, icon: Icon }) => {
+        {topItems.map(({ href, label, icon: Icon, requires }) => {
+          if (requires && !(session?.user?.permissions ?? []).includes(requires)) return null;
           const active = isActive(href);
           return (
             <Link
@@ -76,8 +79,7 @@ export default function IconNav() {
 
       {/* Bottom nav */}
       <div className="mt-auto flex flex-col items-center gap-2 w-full px-3">
-        <ThemeToggle />
-        {isAdmin && (
+        {canAccessAdmin && (
           <Link
             href="/admin"
             data-active={isActive("/admin")}
@@ -87,14 +89,6 @@ export default function IconNav() {
             <span className="text-[10px] leading-none font-medium">Admin</span>
           </Link>
         )}
-        <Link
-          href="/settings"
-          data-active={isActive("/settings")}
-          className="flex flex-col items-center gap-0.5 py-1.5 rounded-xl w-full transition-colors nav-icon-item"
-        >
-          <Settings size={17} strokeWidth={isActive("/settings") ? 2.2 : 1.8} />
-          <span className="text-[10px] leading-none font-medium">Settings</span>
-        </Link>
         <UserMenu />
       </div>
     </nav>

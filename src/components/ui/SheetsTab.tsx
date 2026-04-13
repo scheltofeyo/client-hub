@@ -14,8 +14,6 @@ const inputStyle = {
   borderColor: "var(--border)",
   color: "var(--text-primary)",
 };
-const labelClass = "block text-xs font-medium mb-1";
-const labelStyle = { color: "var(--text-muted)" };
 
 // ── Sheet Manager Panel ──────────────────────────────────────
 
@@ -107,11 +105,11 @@ export function SheetManagerPanel({
   if (mode === "add" || mode === "edit") {
     return (
       <div className="space-y-4">
-        {error && <p className="text-xs text-red-500">{error}</p>}
+        {error && <p className="text-xs text-[var(--danger)]">{error}</p>}
 
         <div>
-          <label className={labelClass} style={labelStyle}>
-            Name <span className="text-red-400">*</span>
+          <label className="typo-label">
+            Name <span className="text-[var(--danger)]">*</span>
           </label>
           <input
             type="text"
@@ -124,8 +122,8 @@ export function SheetManagerPanel({
         </div>
 
         <div>
-          <label className={labelClass} style={labelStyle}>
-            Google Sheets URL <span className="text-red-400">*</span>
+          <label className="typo-label">
+            Google Sheets URL <span className="text-[var(--danger)]">*</span>
           </label>
           <input
             type="url"
@@ -192,7 +190,7 @@ export function SheetManagerPanel({
             <button
               type="button"
               onClick={() => handleDelete(sheet)}
-              className="p-1.5 rounded-md btn-icon text-red-500"
+              className="p-1.5 rounded-md btn-icon text-[var(--danger)]"
               title="Remove"
             >
               <Trash2 size={13} />

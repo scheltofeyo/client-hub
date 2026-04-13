@@ -2,6 +2,9 @@ import NextAuth from "next-auth";
 import { authConfig } from "./auth.config";
 import { connectDB } from "@/lib/mongodb";
 import { UserModel } from "@/lib/models/User";
+import { RoleModel } from "@/lib/models/Role";
+import { getLeadSettings } from "@/lib/models/LeadSettings";
+import { seedRoles } from "@/lib/seed-roles";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   ...authConfig,
@@ -65,12 +68,33 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       // On first sign-in, enrich token from DB
       if (account?.provider === "google") {
         await connectDB();
+        await seedRoles();
         const dbUser = await UserModel.findOne({ googleId: account.providerAccountId }).lean();
         if (dbUser) {
           token.userId = dbUser._id.toString();
-          token.isAdmin = dbUser.role === "admin";
           token.role = dbUser.role;
           token.image = dbUser.image ?? null;
+
+          // Load role permissions
+          const role = await RoleModel.findOne({ slug: dbUser.role }).lean();
+          token.permissions = role?.permissions ?? [];
+
+          // Load global lead settings (same for all users)
+          token.leadPermissions = await getLeadSettings();
+        }
+      } else if (token.userId) {
+        // Periodic re-check: invalidate session if user has been archived
+        const now = Date.now();
+        const lastCheck = (token.statusCheckedAt as number) ?? 0;
+        if (now - lastCheck > 5 * 60 * 1000) {
+          await connectDB();
+          const dbUser = await UserModel.findById(token.userId, { status: 1 }).lean();
+          if (!dbUser || dbUser.status === "inactive") {
+            token.userId = "";
+            token.permissions = [];
+            token.leadPermissions = [];
+          }
+          token.statusCheckedAt = now;
         }
       }
       return token;
@@ -78,8 +102,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
     async session({ session, token }) {
       session.user.id = token.userId as string;
-      session.user.isAdmin = (token.isAdmin as boolean) ?? false;
       session.user.role = (token.role as string) ?? "member";
+      session.user.permissions = (token.permissions as string[]) ?? [];
+      session.user.leadPermissions = (token.leadPermissions as string[]) ?? [];
       session.user.image = (token.image as string | null) ?? (token.picture as string | undefined) ?? undefined;
       return session;
     },

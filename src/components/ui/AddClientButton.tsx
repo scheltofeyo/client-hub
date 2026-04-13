@@ -13,8 +13,6 @@ const inputStyle = {
   borderColor: "var(--border)",
   color: "var(--text-primary)",
 };
-const labelClass = "block text-xs font-medium mb-1";
-const labelStyle = { color: "var(--text-muted)" };
 
 function AddClientForm({ onClose }: { onClose: () => void }) {
   const today = new Date().toISOString().split("T")[0];
@@ -75,8 +73,8 @@ function AddClientForm({ onClose }: { onClose: () => void }) {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <label htmlFor="ac-company" className={labelClass} style={labelStyle}>
-          Company name <span className="text-red-400">*</span>
+        <label htmlFor="ac-company" className="typo-label">
+          Company name <span className="text-[var(--danger)]">*</span>
         </label>
         <input
           id="ac-company"
@@ -91,7 +89,7 @@ function AddClientForm({ onClose }: { onClose: () => void }) {
       </div>
 
       <div>
-        <label htmlFor="ac-description" className={labelClass} style={labelStyle}>
+        <label htmlFor="ac-description" className="typo-label">
           Description
         </label>
         <textarea
@@ -107,7 +105,7 @@ function AddClientForm({ onClose }: { onClose: () => void }) {
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label htmlFor="ac-website" className={labelClass} style={labelStyle}>
+          <label htmlFor="ac-website" className="typo-label">
             Website
           </label>
           <input
@@ -121,7 +119,7 @@ function AddClientForm({ onClose }: { onClose: () => void }) {
           />
         </div>
         <div>
-          <label htmlFor="ac-client-since" className={labelClass} style={labelStyle}>
+          <label htmlFor="ac-client-since" className="typo-label">
             Client since
           </label>
           <input
@@ -136,7 +134,7 @@ function AddClientForm({ onClose }: { onClose: () => void }) {
       </div>
 
       <div>
-        <label htmlFor="ac-employees" className={labelClass} style={labelStyle}>
+        <label htmlFor="ac-employees" className="typo-label">
           Employees
         </label>
         <input
@@ -153,7 +151,7 @@ function AddClientForm({ onClose }: { onClose: () => void }) {
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label htmlFor="ac-status" className={labelClass} style={labelStyle}>
+          <label htmlFor="ac-status" className="typo-label">
             Status
           </label>
           <select
@@ -170,7 +168,7 @@ function AddClientForm({ onClose }: { onClose: () => void }) {
           </select>
         </div>
         <div>
-          <label htmlFor="ac-platform" className={labelClass} style={labelStyle}>
+          <label htmlFor="ac-platform" className="typo-label">
             Platform
           </label>
           <select
@@ -214,7 +212,7 @@ function AddClientForm({ onClose }: { onClose: () => void }) {
         </label>
       </div>
 
-      {error && <p className="text-xs text-red-500">{error}</p>}
+      {error && <p className="text-xs text-[var(--danger)]">{error}</p>}
 
       <div className="flex justify-end gap-2 pt-1">
         <button

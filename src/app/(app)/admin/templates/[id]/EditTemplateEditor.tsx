@@ -23,8 +23,6 @@ const inputStyle = {
   borderColor: "var(--border)",
   color: "var(--text-primary)",
 };
-const labelClass = "block text-xs font-medium mb-1";
-const labelStyle = { color: "var(--text-muted)" };
 
 // ── Inline task input ─────────────────────────────────────────────────────────
 
@@ -146,7 +144,7 @@ function TemplateTaskForm({
     <form onSubmit={handleSubmit} className="space-y-4">
       {parentTask && (
         <div>
-          <label className={labelClass} style={labelStyle}>
+          <label className="typo-label">
             Parent task
           </label>
           <p
@@ -159,8 +157,8 @@ function TemplateTaskForm({
       )}
 
       <div>
-        <label className={labelClass} style={labelStyle}>
-          Title <span className="text-red-400">*</span>
+        <label className="typo-label">
+          Title <span className="text-[var(--danger)]">*</span>
         </label>
         <input
           type="text"
@@ -174,7 +172,7 @@ function TemplateTaskForm({
       </div>
 
       <div>
-        <label className={labelClass} style={labelStyle}>
+        <label className="typo-label">
           Description
         </label>
         <textarea
@@ -204,7 +202,7 @@ function TemplateTaskForm({
         </div>
       </label>
 
-      {error && <p className="text-xs text-red-500">{error}</p>}
+      {error && <p className="text-xs text-[var(--danger)]">{error}</p>}
 
       <div className="flex justify-end gap-2 pt-1">
         <button
@@ -339,7 +337,7 @@ function TaskRow({
                 <button
                   type="button"
                   onClick={() => { setMenuOpen(false); onDelete(task.id); }}
-                  className="w-full text-left px-3 py-2 text-sm text-red-500 hover:opacity-80 transition-opacity"
+                  className="w-full text-left px-3 py-2 text-sm text-[var(--danger)] hover:opacity-80 transition-opacity"
                 >
                   Delete
                 </button>
@@ -635,11 +633,11 @@ export default function EditTemplateEditor({
           onSubmit={handleSaveFields}
           className={`space-y-4 ${tab !== "settings" ? "hidden" : ""}`}
         >
-          {saveError && <p className="text-xs text-red-500">{saveError}</p>}
+          {saveError && <p className="text-xs text-[var(--danger)]">{saveError}</p>}
 
           <div>
-            <label className={labelClass} style={labelStyle}>
-              Template name <span className="text-red-400">*</span>
+            <label className="typo-label">
+              Template name <span className="text-[var(--danger)]">*</span>
             </label>
             <input
               type="text"
@@ -652,8 +650,8 @@ export default function EditTemplateEditor({
           </div>
 
           <div>
-            <p className={labelClass} style={labelStyle}>
-              Service <span className="text-red-400">*</span>
+            <p className="typo-label">
+              Service <span className="text-[var(--danger)]">*</span>
             </p>
             <div className="flex flex-wrap gap-2">
               {services.map((s) => {
@@ -686,7 +684,7 @@ export default function EditTemplateEditor({
           </div>
 
           <div>
-            <label className={labelClass} style={labelStyle}>
+            <label className="typo-label">
               Short description
             </label>
             <input
@@ -700,7 +698,7 @@ export default function EditTemplateEditor({
           </div>
 
           <div>
-            <label className={labelClass} style={labelStyle}>
+            <label className="typo-label">
               Default project description
             </label>
             <textarea
@@ -714,10 +712,10 @@ export default function EditTemplateEditor({
           </div>
 
           <div className="!mt-9">
-            <p className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: "var(--text-muted)" }}>
+            <p className="typo-section-header mb-3" style={{ color: "var(--text-muted)" }}>
               Financial information
             </p>
-            <label className={labelClass} style={labelStyle}>
+            <label className="typo-label">
               Default sold price (€)
             </label>
             <input
@@ -733,7 +731,7 @@ export default function EditTemplateEditor({
           </div>
 
           <div>
-            <label className={labelClass} style={labelStyle}>
+            <label className="typo-label">
               Delivery — days after creation
             </label>
             <input

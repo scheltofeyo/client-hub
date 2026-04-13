@@ -5,7 +5,7 @@ import { Rocket } from "lucide-react";
 import { useRouter } from "next/navigation";
 import SteppedModal from "@/components/ui/SteppedModal";
 import ServicePills from "@/components/ui/ServicePills";
-import { inputClass, inputStyle, labelClass, labelStyle } from "@/components/ui/form-styles";
+import { inputClass, inputStyle } from "@/components/ui/form-styles";
 import type { Project, ProjectLabel, Service } from "@/types";
 
 export default function KickOffProjectButton({
@@ -243,8 +243,8 @@ export default function KickOffProjectButton({
             </div>
 
             <div>
-              <label htmlFor="ko-title" className={labelClass} style={labelStyle}>
-                Title <span className="text-red-400">*</span>
+              <label htmlFor="ko-title" className="typo-label">
+                Title <span className="text-[var(--danger)]">*</span>
               </label>
               <input
                 id="ko-title"
@@ -265,7 +265,7 @@ export default function KickOffProjectButton({
             />
 
             <div>
-              <label htmlFor="ko-description" className={labelClass} style={labelStyle}>
+              <label htmlFor="ko-description" className="typo-label">
                 Description
               </label>
               <textarea
@@ -285,8 +285,8 @@ export default function KickOffProjectButton({
         {step === 1 && (
           <div className="space-y-5">
             <div>
-              <label htmlFor="ko-delivery" className={labelClass} style={labelStyle}>
-                Delivery date <span className="text-red-400">*</span>
+              <label htmlFor="ko-delivery" className="typo-label">
+                Delivery date <span className="text-[var(--danger)]">*</span>
               </label>
               <input
                 id="ko-delivery"
@@ -302,7 +302,7 @@ export default function KickOffProjectButton({
             </div>
 
             <div>
-              <label htmlFor="ko-start" className={labelClass} style={labelStyle}>
+              <label htmlFor="ko-start" className="typo-label">
                 Start date override
               </label>
               <input
@@ -330,7 +330,7 @@ export default function KickOffProjectButton({
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label htmlFor="ko-price" className={labelClass} style={labelStyle}>
+                <label htmlFor="ko-price" className="typo-label">
                   Sold price (€)
                 </label>
                 <input
@@ -346,7 +346,7 @@ export default function KickOffProjectButton({
                 />
               </div>
               <div>
-                <label htmlFor="ko-label" className={labelClass} style={labelStyle}>
+                <label htmlFor="ko-label" className="typo-label">
                   Label
                 </label>
                 <select
@@ -366,7 +366,7 @@ export default function KickOffProjectButton({
               </div>
             </div>
 
-            {error && <p className="text-xs text-red-500">{error}</p>}
+            {error && <p className="text-xs text-[var(--danger)]">{error}</p>}
           </div>
         )}
       </SteppedModal>

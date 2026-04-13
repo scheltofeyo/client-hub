@@ -5,7 +5,7 @@ import { Plus, FileText, Layers } from "lucide-react";
 import { useRouter } from "next/navigation";
 import SteppedModal from "@/components/ui/SteppedModal";
 import ServicePills from "@/components/ui/ServicePills";
-import { inputClass, inputStyle, labelClass, labelStyle } from "@/components/ui/form-styles";
+import { inputClass, inputStyle } from "@/components/ui/form-styles";
 import type { ProjectTemplate, Service } from "@/types";
 
 /**
@@ -265,8 +265,8 @@ export function AddProjectModal({
             )}
 
             <div>
-              <label htmlFor="ap-title" className={labelClass} style={labelStyle}>
-                Title <span className="text-red-400">*</span>
+              <label htmlFor="ap-title" className="typo-label">
+                Title <span className="text-[var(--danger)]">*</span>
               </label>
               <input
                 id="ap-title"
@@ -288,7 +288,7 @@ export function AddProjectModal({
             />
 
             <div>
-              <label htmlFor="ap-description" className={labelClass} style={labelStyle}>
+              <label htmlFor="ap-description" className="typo-label">
                 Short description
               </label>
               <textarea
@@ -304,14 +304,14 @@ export function AddProjectModal({
 
             <div>
               <p
-                className="text-xs font-semibold uppercase tracking-wide mb-3"
+                className="typo-section-header mb-3"
                 style={{ color: "var(--text-muted)" }}
               >
                 Scheduled dates
               </p>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label htmlFor="ap-start" className={labelClass} style={labelStyle}>
+                  <label htmlFor="ap-start" className="typo-label">
                     Start date
                   </label>
                   <input
@@ -324,7 +324,7 @@ export function AddProjectModal({
                   />
                 </div>
                 <div>
-                  <label htmlFor="ap-end" className={labelClass} style={labelStyle}>
+                  <label htmlFor="ap-end" className="typo-label">
                     End date
                   </label>
                   <input
@@ -342,7 +342,7 @@ export function AddProjectModal({
               </p>
             </div>
 
-            {error && <p className="text-xs text-red-500">{error}</p>}
+            {error && <p className="text-xs text-[var(--danger)]">{error}</p>}
           </div>
         )}
       </SteppedModal>

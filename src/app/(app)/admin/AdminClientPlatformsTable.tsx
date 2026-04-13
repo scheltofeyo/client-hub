@@ -13,8 +13,6 @@ const inputStyle = {
   borderColor: "var(--border)",
   color: "var(--text-primary)",
 };
-const labelClass = "block text-xs font-medium mb-1";
-const labelStyle = { color: "var(--text-muted)" };
 
 function AddPlatformForm({
   onCreated,
@@ -52,10 +50,10 @@ function AddPlatformForm({
 
   return (
     <div className="space-y-4">
-      {error && <p className="text-xs text-red-500">{error}</p>}
+      {error && <p className="text-xs text-[var(--danger)]">{error}</p>}
       <div>
-        <label className={labelClass} style={labelStyle}>
-          Label <span className="text-red-400">*</span>
+        <label className="typo-label">
+          Label <span className="text-[var(--danger)]">*</span>
         </label>
         <input
           type="text"
@@ -167,7 +165,7 @@ export default function AdminClientPlatformsTable({
 
   return (
     <div className="space-y-3">
-      {error && <p className="text-xs text-red-500">{error}</p>}
+      {error && <p className="text-xs text-[var(--danger)]">{error}</p>}
 
       {platforms.map((p, i) => (
         <div
@@ -240,7 +238,7 @@ export default function AdminClientPlatformsTable({
                 </button>
                 <button
                   onClick={() => handleDelete(p.id, p.label)}
-                  className="p-1.5 rounded-md btn-icon text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+                  className="p-1.5 rounded-md btn-icon text-[var(--danger)] hover:bg-[var(--danger-light)]"
                   title="Delete platform"
                 >
                   <Trash2 size={13} />

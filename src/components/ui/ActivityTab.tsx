@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { NotebookPen, CheckSquare, FolderKanban, UserPlus, Building2, Trash2, CheckCheck, ChevronDown, ChevronRight, CalendarDays, Rocket } from "lucide-react";
+import { NotebookPen, CheckSquare, FolderKanban, UserPlus, UserMinus, Building2, Trash2, CheckCheck, ChevronDown, ChevronRight, CalendarDays, Rocket, FileSpreadsheet } from "lucide-react";
 import UserAvatar from "@/components/ui/UserAvatar";
 
 export interface ActivityEvent {
@@ -68,6 +68,10 @@ function eventDescription(event: ActivityEvent): React.ReactNode {
       return title
         ? <><Bold>Task</Bold><Dim> completed: </Dim><Italic>{title}</Italic></>
         : <><Bold>Task</Bold><Dim> completed</Dim></>;
+    case "task.updated":
+      return title
+        ? <><Bold>Task</Bold><Dim> updated: </Dim><Italic>{title}</Italic></>
+        : <><Bold>Task</Bold><Dim> updated</Dim></>;
     case "task.deleted":
       return title
         ? <><Bold>Task</Bold><Dim> deleted: </Dim><Italic>{title}</Italic></>
@@ -88,6 +92,10 @@ function eventDescription(event: ActivityEvent): React.ReactNode {
       return title
         ? <><Bold>Project</Bold><Dim> reset to upcoming: </Dim><Italic>{title}</Italic></>
         : <><Bold>Project</Bold><Dim> reset to upcoming</Dim></>;
+    case "project.updated":
+      return title
+        ? <><Bold>Project</Bold><Dim> updated: </Dim><Italic>{title}</Italic></>
+        : <><Bold>Project</Bold><Dim> updated</Dim></>;
     case "project.deleted":
       return title
         ? <><Bold>Project</Bold><Dim> deleted: </Dim><Italic>{title}</Italic></>
@@ -102,6 +110,50 @@ function eventDescription(event: ActivityEvent): React.ReactNode {
     }
     case "client.updated":
       return <Dim>Company details updated</Dim>;
+    case "client.created": {
+      const company = metadata.company as string | undefined;
+      return company
+        ? <><Dim>New </Dim><Bold>client</Bold><Dim> added: </Dim><Italic>{company}</Italic></>
+        : <><Dim>New </Dim><Bold>client</Bold><Dim> added</Dim></>;
+    }
+    case "client.status_changed": {
+      const from = metadata.fromLabel as string | null | undefined;
+      const to = metadata.toLabel as string | null | undefined;
+      if (from && to) return <><Dim>Status changed from </Dim><Italic>{from}</Italic><Dim> to </Dim><Italic>{to}</Italic></>;
+      if (to) return <><Dim>Status set to </Dim><Italic>{to}</Italic></>;
+      if (from) return <><Dim>Status </Dim><Italic>{from}</Italic><Dim> cleared</Dim></>;
+      return <Dim>Status updated</Dim>;
+    }
+    case "client.platform_changed": {
+      const from = metadata.fromLabel as string | null | undefined;
+      const to = metadata.toLabel as string | null | undefined;
+      if (from && to) return <><Dim>Platform changed from </Dim><Italic>{from}</Italic><Dim> to </Dim><Italic>{to}</Italic></>;
+      if (to) return <><Dim>Platform set to </Dim><Italic>{to}</Italic></>;
+      if (from) return <><Dim>Platform </Dim><Italic>{from}</Italic><Dim> cleared</Dim></>;
+      return <Dim>Platform updated</Dim>;
+    }
+    case "client.leads_changed": {
+      const addedLeads = metadata.added as string[] | undefined;
+      const removedLeads = metadata.removed as string[] | undefined;
+      const parts: string[] = [];
+      if (addedLeads && addedLeads.length > 0) parts.push(`added ${addedLeads.join(", ")}`);
+      if (removedLeads && removedLeads.length > 0) parts.push(`removed ${removedLeads.join(", ")}`);
+      return parts.length > 0
+        ? <><Dim>Leads updated: {parts.join(" and ")}</Dim></>
+        : <Dim>Leads updated</Dim>;
+    }
+    case "sheet.created": {
+      const name = metadata.name as string | undefined;
+      return name
+        ? <><Dim>New </Dim><Bold>sheet</Bold><Dim> added: </Dim><Italic>{name}</Italic></>
+        : <><Dim>New </Dim><Bold>sheet</Bold><Dim> added</Dim></>;
+    }
+    case "sheet.deleted": {
+      const name = metadata.name as string | undefined;
+      return name
+        ? <><Bold>Sheet</Bold><Dim> deleted: </Dim><Italic>{name}</Italic></>
+        : <><Bold>Sheet</Bold><Dim> deleted</Dim></>;
+    }
     case "event.created":
       return title
         ? <><Dim>New </Dim><Bold>event</Bold><Dim> added: </Dim><Italic>{title}</Italic></>
@@ -114,6 +166,12 @@ function eventDescription(event: ActivityEvent): React.ReactNode {
       return title
         ? <><Bold>Event</Bold><Dim> deleted: </Dim><Italic>{title}</Italic></>
         : <><Bold>Event</Bold><Dim> deleted</Dim></>;
+    case "lead.archived": {
+      const userName = metadata.userName as string | undefined;
+      return userName
+        ? <><Bold>{userName}</Bold><Dim> was archived and removed as lead</Dim></>
+        : <Dim>A lead was archived and removed</Dim>;
+    }
     default:
       return <Dim>Activity recorded</Dim>;
   }
@@ -123,50 +181,64 @@ function typeSummaryLabel(type: string, count: number): React.ReactNode {
   const n = count;
   const s = n > 1 ? "s" : "";
   switch (type) {
-    case "task.created":           return <><Bold>{n} task{s}</Bold><Dim> added</Dim></>;
-    case "task.completed":         return <><Bold>{n} task{s}</Bold><Dim> completed</Dim></>;
-    case "task.deleted":           return <><Bold>{n} task{s}</Bold><Dim> deleted</Dim></>;
+    case "task.created":              return <><Bold>{n} task{s}</Bold><Dim> added</Dim></>;
+    case "task.updated":              return <><Bold>{n} task{s}</Bold><Dim> updated</Dim></>;
+    case "task.completed":            return <><Bold>{n} task{s}</Bold><Dim> completed</Dim></>;
+    case "task.deleted":              return <><Bold>{n} task{s}</Bold><Dim> deleted</Dim></>;
     case "project.created":           return <><Bold>{n} project{s}</Bold><Dim> added</Dim></>;
+    case "project.updated":           return <><Bold>{n} project{s}</Bold><Dim> updated</Dim></>;
     case "project.status_changed":    return <><Bold>{n}</Bold><Dim> project status change{s}</Dim></>;
     case "project.kicked_off":        return <><Bold>{n} project{s}</Bold><Dim> kicked off</Dim></>;
     case "project.reset_to_upcoming": return <><Bold>{n} project{s}</Bold><Dim> reset to upcoming</Dim></>;
     case "project.deleted":           return <><Bold>{n} project{s}</Bold><Dim> deleted</Dim></>;
-    case "log.created":            return <><Bold>{n} log{s}</Bold><Dim> added</Dim></>;
-    case "log.updated":            return <><Bold>{n} log{s}</Bold><Dim> updated</Dim></>;
-    case "log.deleted":            return <><Bold>{n} log{s}</Bold><Dim> deleted</Dim></>;
-    case "log.followedup":         return <><Bold>{n}</Bold><Dim> follow-up{s} completed</Dim></>;
-    case "contact.changed":        return <><Bold>{n}</Bold><Dim> contact change{s}</Dim></>;
-    case "client.updated":         return <><Bold>{n}</Bold><Dim> company update{s}</Dim></>;
-    case "event.created":          return <><Bold>{n} event{s}</Bold><Dim> added</Dim></>;
-    case "event.updated":          return <><Bold>{n} event{s}</Bold><Dim> updated</Dim></>;
-    case "event.deleted":          return <><Bold>{n} event{s}</Bold><Dim> deleted</Dim></>;
+    case "log.created":               return <><Bold>{n} log{s}</Bold><Dim> added</Dim></>;
+    case "log.updated":               return <><Bold>{n} log{s}</Bold><Dim> updated</Dim></>;
+    case "log.deleted":               return <><Bold>{n} log{s}</Bold><Dim> deleted</Dim></>;
+    case "log.followedup":            return <><Bold>{n}</Bold><Dim> follow-up{s} completed</Dim></>;
+    case "contact.changed":           return <><Bold>{n}</Bold><Dim> contact change{s}</Dim></>;
+    case "client.updated":            return <><Bold>{n}</Bold><Dim> company update{s}</Dim></>;
+    case "client.created":            return <><Bold>{n} client{s}</Bold><Dim> added</Dim></>;
+    case "client.status_changed":     return <><Bold>{n}</Bold><Dim> status change{s}</Dim></>;
+    case "client.platform_changed":   return <><Bold>{n}</Bold><Dim> platform change{s}</Dim></>;
+    case "client.leads_changed":      return <><Bold>{n}</Bold><Dim> lead change{s}</Dim></>;
+    case "sheet.created":             return <><Bold>{n} sheet{s}</Bold><Dim> added</Dim></>;
+    case "sheet.deleted":             return <><Bold>{n} sheet{s}</Bold><Dim> deleted</Dim></>;
+    case "event.created":             return <><Bold>{n} event{s}</Bold><Dim> added</Dim></>;
+    case "event.updated":             return <><Bold>{n} event{s}</Bold><Dim> updated</Dim></>;
+    case "event.deleted":             return <><Bold>{n} event{s}</Bold><Dim> deleted</Dim></>;
+    case "lead.archived":             return <><Bold>{n}</Bold><Dim> lead{s} archived</Dim></>;
     default:                       return <><Bold>{n}</Bold><Dim> activit{n > 1 ? "ies" : "y"}</Dim></>;
   }
 }
 
 function eventIcon(type: string) {
-  if (type === "log.deleted" || type === "task.deleted" || type === "project.deleted") return <Trash2 size={14} />;
+  if (type === "log.deleted" || type === "task.deleted" || type === "project.deleted" || type === "sheet.deleted" || type === "event.deleted") return <Trash2 size={14} />;
   if (type === "log.followedup") return <CheckCheck size={14} />;
   if (type === "project.kicked_off") return <Rocket size={14} />;
   if (type.startsWith("log.")) return <NotebookPen size={14} />;
   if (type.startsWith("task.")) return <CheckSquare size={14} />;
   if (type.startsWith("project.")) return <FolderKanban size={14} />;
+  if (type.startsWith("sheet.")) return <FileSpreadsheet size={14} />;
+  if (type.startsWith("lead.")) return <UserMinus size={14} />;
+  if (type === "client.leads_changed") return <UserPlus size={14} />;
   if (type.startsWith("contact.")) return <UserPlus size={14} />;
   if (type.startsWith("client.")) return <Building2 size={14} />;
   if (type.startsWith("event.")) return <CalendarDays size={14} />;
   return <Building2 size={14} />;
 }
 
-function eventIconBg(type: string): string {
-  if (type === "log.deleted" || type === "task.deleted" || type === "project.deleted") {
-    return "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400";
+function eventIconStyle(type: string): { background: string; color: string } {
+  if (type === "log.deleted" || type === "task.deleted" || type === "project.deleted" || type === "sheet.deleted" || type === "event.deleted") {
+    return { background: "var(--activity-delete-bg)", color: "var(--activity-delete-color)" };
   }
-  if (type.startsWith("log.")) return "bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400";
-  if (type.startsWith("task.")) return "bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400";
-  if (type.startsWith("project.")) return "bg-[var(--primary-light)] text-[var(--primary)]";
-  if (type.startsWith("contact.")) return "bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400";
-  if (type.startsWith("event.")) return "bg-teal-100 text-teal-600 dark:bg-teal-900/30 dark:text-teal-400";
-  return "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400";
+  if (type.startsWith("log.")) return { background: "var(--activity-log-bg)", color: "var(--activity-log-color)" };
+  if (type.startsWith("task.")) return { background: "var(--activity-task-bg)", color: "var(--activity-task-color)" };
+  if (type.startsWith("project.")) return { background: "var(--primary-light)", color: "var(--primary)" };
+  if (type.startsWith("sheet.")) return { background: "var(--activity-sheet-bg)", color: "var(--activity-sheet-color)" };
+  if (type.startsWith("lead.")) return { background: "var(--activity-delete-bg)", color: "var(--activity-delete-color)" };
+  if (type === "client.leads_changed" || type.startsWith("contact.")) return { background: "var(--activity-contact-bg)", color: "var(--activity-contact-color)" };
+  if (type.startsWith("event.")) return { background: "var(--activity-event-bg)", color: "var(--activity-event-color)" };
+  return { background: "var(--activity-client-bg)", color: "var(--activity-client-color)" };
 }
 
 function timeAgo(isoString: string): string {
@@ -216,7 +288,10 @@ function eventNavUrl(clientId: string, event: ActivityEvent): string | null {
   if (type.startsWith("log.")) {
     return `/clients/${clientId}?tab=Logbook`;
   }
-  if (type === "contact.changed" || type === "client.updated") {
+  if (type.startsWith("sheet.") && type !== "sheet.deleted") {
+    return `/clients/${clientId}?tab=Sheets`;
+  }
+  if (type === "contact.changed" || type.startsWith("client.")) {
     return `/clients/${clientId}`;
   }
   if (type.startsWith("event.")) {
@@ -244,7 +319,7 @@ export function CollapsibleTypeGroup({ events, type, clientId }: { events: Activ
         onClick={() => setExpanded(!expanded)}
         className="w-full flex items-center gap-3 py-3 px-2 text-left rounded transition-colors cursor-pointer hover:bg-[var(--primary-light)]"
       >
-        <div className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center ${eventIconBg(type)}`}>
+        <div className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center" style={eventIconStyle(type)}>
           {eventIcon(type)}
         </div>
         <p className="text-sm leading-snug" style={{ color: "var(--text-secondary)" }}>
@@ -386,7 +461,7 @@ export default function ActivityTab({ clientId }: { clientId: string }) {
     <div className="max-w-2xl space-y-6">
       {periodGroups.map((period) => (
         <div key={period.key}>
-          <p className="text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: "var(--text-muted)" }}>
+          <p className="typo-section-header mb-1" style={{ color: "var(--text-muted)" }}>
             {period.label}
           </p>
           <div className="divide-y" style={{ borderColor: "var(--border)" }}>

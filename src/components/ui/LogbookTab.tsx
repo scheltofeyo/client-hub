@@ -14,8 +14,6 @@ const inputStyle = {
   borderColor: "var(--border)",
   color: "var(--text-primary)",
 };
-const labelClass = "block text-xs font-medium mb-1";
-const labelStyle = { color: "var(--text-muted)" };
 
 function today() {
   return new Date().toISOString().split("T")[0];
@@ -59,25 +57,25 @@ function LogbookStats({
   return (
     <div className="grid grid-cols-3 gap-4 max-w-2xl mb-7">
       {/* Latest log */}
-      <div className="rounded-xl border p-4 space-y-1.5" style={{ background: "#fff", borderColor: "var(--border)" }}>
+      <div className="rounded-xl border p-4 space-y-1.5" style={{ background: "var(--bg-surface)", borderColor: "var(--border)" }}>
         <p className="text-xs" style={{ color: "var(--text-muted)" }}>Latest log</p>
-        <p className="text-2xl font-semibold" style={{ color: latestIsStale ? "#dc2626" : "var(--text-primary)" }}>{timeAgoLabel(latestDaysAgo)}</p>
+        <p className="typo-metric" style={{ color: latestIsStale ? "var(--danger)" : "var(--text-primary)" }}>{timeAgoLabel(latestDaysAgo)}</p>
         <p className="text-xs" style={{ color: "var(--text-muted)" }}>{fmtDate(sortedLogs[0].date)}</p>
       </div>
 
       {/* Open follow-ups */}
-      <div className="rounded-xl border p-4 space-y-1.5" style={{ background: "#fff", borderColor: "var(--border)" }}>
+      <div className="rounded-xl border p-4 space-y-1.5" style={{ background: "var(--bg-surface)", borderColor: "var(--border)" }}>
         <p className="text-xs" style={{ color: "var(--text-muted)" }}>Open follow-ups</p>
-        <p className="text-2xl font-semibold tabular-nums" style={{ color: "var(--text-primary)" }}>
+        <p className="typo-metric" style={{ color: "var(--text-primary)" }}>
           {openFollowUps}
         </p>
         {overdueFollowUps > 0 && (
-          <p className="text-xs" style={{ color: "#dc2626" }}>{overdueFollowUps} overdue</p>
+          <p className="text-xs" style={{ color: "var(--danger)" }}>{overdueFollowUps} overdue</p>
         )}
       </div>
 
       {/* Top signals */}
-      <div className="rounded-xl border p-4" style={{ background: "#fff", borderColor: "var(--border)" }}>
+      <div className="rounded-xl border p-4" style={{ background: "var(--bg-surface)", borderColor: "var(--border)" }}>
         <p className="text-xs mb-3" style={{ color: "var(--text-muted)" }}>Top signals</p>
         {signals.length === 0 ? (
           <p className="text-xs" style={{ color: "var(--text-muted)" }}>No signals configured.</p>
@@ -196,11 +194,11 @@ export function LogForm({
 
   return (
     <div className="space-y-6">
-      {error && <p className="text-xs text-red-500">{error}</p>}
+      {error && <p className="text-xs text-[var(--danger)]">{error}</p>}
 
       <div>
-        <label className={labelClass} style={labelStyle}>
-          Summary <span className="text-red-400">*</span>
+        <label className="typo-label">
+          Summary <span className="text-[var(--danger)]">*</span>
         </label>
         <textarea
           value={form.summary}
@@ -214,7 +212,7 @@ export function LogForm({
 
       {contacts.length > 0 && (
         <div>
-          <label className={labelClass} style={labelStyle}>{clientName} contacts</label>
+          <label className="typo-label">{clientName} contacts</label>
           <div className="flex flex-wrap gap-2 mt-1">
             {contacts.map((c) => {
               const active = form.contactIds.includes(c.id);
@@ -240,7 +238,7 @@ export function LogForm({
 
       {signals.length > 0 && (
         <div>
-          <label className={labelClass} style={labelStyle}>Signals</label>
+          <label className="typo-label">Signals</label>
           <div className="flex flex-wrap gap-2 mt-1">
             {signals.map((s) => {
               const active = form.signalIds.includes(s.id);
@@ -265,7 +263,7 @@ export function LogForm({
       )}
 
       <div>
-        <label className={labelClass} style={labelStyle}>Follow-up needed?</label>
+        <label className="typo-label">Follow-up needed?</label>
         <div className="flex items-center gap-3 mt-1 flex-wrap">
           <button
             type="button"
@@ -290,17 +288,17 @@ export function LogForm({
                 value={form.followUpDeadline}
                 onChange={(e) => setForm((f) => ({ ...f, followUpDeadline: e.target.value }))}
                 className="rounded-lg border px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-[var(--primary)]/40"
-                style={{ background: "var(--bg-sidebar)", borderColor: form.followUpDeadline ? "var(--border)" : "#f87171", color: "var(--text-primary)", width: "auto" }}
+                style={{ background: "var(--bg-sidebar)", borderColor: form.followUpDeadline ? "var(--border)" : "var(--danger)", color: "var(--text-primary)", width: "auto" }}
                 required
               />
-              <span className="text-red-400 text-xs">*</span>
+              <span className="text-[var(--danger)] text-xs">*</span>
             </div>
           )}
         </div>
         {form.followUp && (
           <div className="mt-2">
-            <label className={labelClass} style={labelStyle}>
-              Action to follow up on <span className="text-red-400">*</span>
+            <label className="typo-label">
+              Action to follow up on <span className="text-[var(--danger)]">*</span>
             </label>
             <input
               type="text"
@@ -308,7 +306,7 @@ export function LogForm({
               onChange={(e) => setForm((f) => ({ ...f, followUpAction: e.target.value }))}
               placeholder="What needs to be done…"
               className={inputClass}
-              style={{ ...inputStyle, borderColor: form.followUpAction ? "var(--border)" : "#f87171" }}
+              style={{ ...inputStyle, borderColor: form.followUpAction ? "var(--border)" : "var(--danger)" }}
             />
           </div>
         )}
@@ -316,13 +314,13 @@ export function LogForm({
 
       <div className="flex items-baseline gap-6">
         <div>
-          <label className={labelClass} style={labelStyle}>Logged by</label>
+          <label className="typo-label">Logged by</label>
           <p className="text-sm" style={{ color: "var(--text-primary)" }}>
             {initial?.createdByName ?? currentUserName}
           </p>
         </div>
         <div>
-          <label className={labelClass} style={labelStyle}>Date <span className="text-red-400">*</span></label>
+          <label className="typo-label">Date <span className="text-[var(--danger)]">*</span></label>
           <input
             type="date"
             value={form.date}
@@ -356,8 +354,9 @@ export function LogForm({
   );
 }
 
-function LogCardMenu({
+export function LogCardMenu({
   canEdit,
+  canDelete,
   hasFollowUp,
   alreadyFollowedUp,
   onFollowUp,
@@ -366,6 +365,7 @@ function LogCardMenu({
   onDelete,
 }: {
   canEdit: boolean;
+  canDelete: boolean;
   hasFollowUp: boolean;
   alreadyFollowedUp: boolean;
   onFollowUp: () => void;
@@ -377,7 +377,7 @@ function LogCardMenu({
   const ref = useRef<HTMLDivElement>(null);
 
   // Hide menu entirely when there are no actions
-  if (!canEdit && !hasFollowUp) return null;
+  if (!canEdit && !canDelete && !hasFollowUp) return null;
 
   useEffect(() => {
     if (!open) return;
@@ -426,7 +426,6 @@ function LogCardMenu({
           )}
 
           {canEdit && (
-            <>
               <button
                 type="button"
                 onClick={() => { setOpen(false); onEdit(); }}
@@ -442,11 +441,13 @@ function LogCardMenu({
                 <Pencil size={13} />
                 Edit log
               </button>
+          )}
 
+          {canDelete && (
               <button
                 type="button"
                 onClick={() => { setOpen(false); onDelete(); }}
-                className="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-500 transition-colors"
+                className="flex w-full items-center gap-2 px-3 py-2 text-sm text-[var(--danger)] transition-colors"
                 onMouseEnter={(e) => {
                   (e.currentTarget as HTMLButtonElement).style.background = "var(--bg-sidebar)";
                 }}
@@ -457,7 +458,6 @@ function LogCardMenu({
                 <Trash2 size={13} />
                 Remove log
               </button>
-            </>
           )}
         </div>
       )}
@@ -465,11 +465,12 @@ function LogCardMenu({
   );
 }
 
-function LogCard({
+export function LogCard({
   log,
   contacts,
   signals,
   canEdit,
+  canDelete,
   currentUserName,
   clientId,
   isActive,
@@ -481,6 +482,7 @@ function LogCard({
   contacts: Contact[];
   signals: LogSignal[];
   canEdit: boolean;
+  canDelete: boolean;
   currentUserName: string;
   clientId: string;
   isActive: boolean;
@@ -536,6 +538,7 @@ function LogCard({
       <div className="absolute top-3 right-3">
         <LogCardMenu
           canEdit={canEdit}
+          canDelete={canDelete}
           hasFollowUp={!!(log.followUp && log.followUpDeadline)}
           alreadyFollowedUp={!!log.followedUpAt}
           onFollowUp={handleMarkFollowedUp}
@@ -560,7 +563,7 @@ function LogCard({
       {/* Follow-up block */}
       {log.followUp && log.followUpDeadline && log.followUpAction && (
         <div className="flex flex-col gap-0.5">
-          <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+          <span className="typo-tag" style={{ color: "var(--text-muted)" }}>
             Follow-up
           </span>
           <p className="text-sm font-medium" style={{ color: log.followedUpAt ? "var(--text-muted)" : "var(--primary)" }}>
@@ -606,6 +609,9 @@ export default function LogbookTab({
   currentUserId,
   currentUserName,
   isAdmin,
+  canCreateLog = true,
+  canEditAnyLog = false,
+  canDeleteAnyLog = false,
 }: {
   clientId: string;
   clientName: string;
@@ -615,6 +621,9 @@ export default function LogbookTab({
   currentUserId: string;
   currentUserName: string;
   isAdmin: boolean;
+  canCreateLog?: boolean;
+  canEditAnyLog?: boolean;
+  canDeleteAnyLog?: boolean;
 }) {
   const [logs, setLogs] = useState(initialLogs);
   const router = useRouter();
@@ -886,7 +895,7 @@ export default function LogbookTab({
       )}
 
       {/* ── Inline quick-entry ── */}
-      <div className="relative" style={{ marginBottom: filteredLogs.length > 0 ? "64px" : 0 }}>
+      {canCreateLog && <div className="relative" style={{ marginBottom: filteredLogs.length > 0 ? "64px" : 0 }}>
         {/* Timeline connector to first real entry */}
         {filteredLogs.length > 0 && (
           <div
@@ -924,7 +933,7 @@ export default function LogbookTab({
               {/* Contact */}
               {contacts.length > 0 && (
                 <div>
-                  <label className={labelClass} style={labelStyle}>Contact person</label>
+                  <label className="typo-label">Contact person</label>
                   <div className="flex flex-wrap gap-2 mt-1">
                     {contacts.map((c) => {
                       const active = inline.contactIds.includes(c.id);
@@ -954,7 +963,7 @@ export default function LogbookTab({
               {/* Signals */}
               {signals.length > 0 && (
                 <div>
-                  <label className={labelClass} style={labelStyle}>Signals</label>
+                  <label className="typo-label">Signals</label>
                   <div className="flex flex-wrap gap-2 mt-1">
                     {signals.map((s) => {
                       const active = inline.signalIds.includes(s.id);
@@ -980,7 +989,7 @@ export default function LogbookTab({
 
               {/* Follow-up */}
               <div>
-                <label className={labelClass} style={labelStyle}>Follow-up needed?</label>
+                <label className="typo-label">Follow-up needed?</label>
                 <div className="flex items-center gap-3 mt-1 flex-wrap">
                   <button
                     type="button"
@@ -1005,17 +1014,17 @@ export default function LogbookTab({
                         value={inline.followUpDeadline}
                         onChange={(e) => setInline((f) => ({ ...f, followUpDeadline: e.target.value }))}
                         className="rounded-lg border px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-[var(--primary)]/40"
-                        style={{ background: "var(--bg-sidebar)", borderColor: inline.followUpDeadline ? "var(--border)" : "#f87171", color: "var(--text-primary)", width: "auto" }}
+                        style={{ background: "var(--bg-sidebar)", borderColor: inline.followUpDeadline ? "var(--border)" : "var(--danger)", color: "var(--text-primary)", width: "auto" }}
                         required
                       />
-                      <span className="text-red-400 text-xs">*</span>
+                      <span className="text-[var(--danger)] text-xs">*</span>
                     </div>
                   )}
                 </div>
                 {inline.followUp && (
                   <div className="mt-2">
-                    <label className={labelClass} style={labelStyle}>
-                      Action to follow up on <span className="text-red-400">*</span>
+                    <label className="typo-label">
+                      Action to follow up on <span className="text-[var(--danger)]">*</span>
                     </label>
                     <input
                       type="text"
@@ -1023,13 +1032,13 @@ export default function LogbookTab({
                       onChange={(e) => setInline((f) => ({ ...f, followUpAction: e.target.value }))}
                       placeholder="What needs to be done…"
                       className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--primary)]/40"
-                      style={{ background: "var(--bg-sidebar)", borderColor: inline.followUpAction ? "var(--border)" : "#f87171", color: "var(--text-primary)" }}
+                      style={{ background: "var(--bg-sidebar)", borderColor: inline.followUpAction ? "var(--border)" : "var(--danger)", color: "var(--text-primary)" }}
                     />
                   </div>
                 )}
               </div>
 
-              {inlineError && <p className="text-xs text-red-500">{inlineError}</p>}
+              {inlineError && <p className="text-xs text-[var(--danger)]">{inlineError}</p>}
 
               {/* Actions */}
               <div className="flex items-center gap-2 pt-1">
@@ -1054,7 +1063,7 @@ export default function LogbookTab({
             </div>
           )}
         </div>
-      </div>
+      </div>}
 
       {/* Empty state */}
       {sortedLogs.length === 0 && (
@@ -1070,7 +1079,8 @@ export default function LogbookTab({
 
       {filteredLogs.map((log, idx) => {
         const isLast = idx === filteredLogs.length - 1;
-        const canEdit = !log.isSystemGenerated && (isAdmin || log.createdById === currentUserId);
+        const canEdit = !log.isSystemGenerated && (canEditAnyLog || log.createdById === currentUserId);
+        const canDelete = !log.isSystemGenerated && (canDeleteAnyLog || log.createdById === currentUserId);
         const isActive = !!(log.followUp && log.followUpDeadline && !log.followedUpAt);
         const isOverdue = isActive && log.followUpDeadline! < today();
 
@@ -1099,7 +1109,7 @@ export default function LogbookTab({
               >
                 <div
                   className="absolute inset-0 rounded-full"
-                  style={{ background: isOverdue ? "#dc2626" : "var(--primary)", opacity: isActive ? 1 : 0.25 }}
+                  style={{ background: isOverdue ? "var(--danger)" : "var(--primary)", opacity: isActive ? 1 : 0.25 }}
                 />
               </div>
               <p className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>
@@ -1108,7 +1118,7 @@ export default function LogbookTab({
                 {log.createdByName}
               </p>
               {log.followUp && !log.followedUpAt && log.followUpDeadline && (
-                <p className="ml-auto text-xs font-medium whitespace-nowrap" style={{ color: isOverdue ? "#dc2626" : "var(--primary)" }}>
+                <p className="ml-auto text-xs font-medium whitespace-nowrap" style={{ color: isOverdue ? "var(--danger)" : "var(--primary)" }}>
                   Follow-up: {fmtDate(log.followUpDeadline)}
                 </p>
               )}
@@ -1121,6 +1131,7 @@ export default function LogbookTab({
               contacts={contacts}
               signals={signals}
               canEdit={canEdit}
+              canDelete={canDelete}
               currentUserName={currentUserName}
               clientId={clientId}
               isActive={isActive}

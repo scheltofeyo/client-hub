@@ -52,7 +52,7 @@ function SortHeader({
   const active = sort.col === col;
   return (
     <th
-      className="px-4 py-3 text-xs font-semibold uppercase tracking-wide cursor-pointer select-none whitespace-nowrap text-left transition-colors"
+      className="px-4 py-3 typo-section-header cursor-pointer select-none whitespace-nowrap text-left transition-colors"
       style={{
         color: active ? "var(--primary)" : "var(--text-muted)",
         minWidth,
@@ -136,7 +136,7 @@ export default function DataTable<T>({
                   ) : (
                     <th
                       key={col.key}
-                      className="px-4 py-3 text-xs font-semibold uppercase tracking-wide whitespace-nowrap text-left"
+                      className="px-4 py-3 typo-section-header whitespace-nowrap text-left"
                       style={{
                         color: "var(--text-muted)",
                         minWidth: col.minWidth,

@@ -62,7 +62,7 @@ export default function LeadsSection({
     <div>
       <div className="flex items-center justify-between mb-4">
         <h2
-          className="text-xs font-semibold uppercase tracking-wide"
+          className="typo-section-header"
           style={{ color: "var(--text-muted)" }}
         >
           Client Leads

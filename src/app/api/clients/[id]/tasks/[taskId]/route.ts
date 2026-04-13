@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { hasPermission, hasPermissionOrIsCreator } from "@/lib/auth-helpers";
 import { connectDB } from "@/lib/mongodb";
 import { TaskModel } from "@/lib/models/Task";
 import { ProjectModel } from "@/lib/models/Project";
@@ -47,6 +48,15 @@ export async function PATCH(
   }
 
   await connectDB();
+
+  const existing = await TaskModel.findById(taskId).lean();
+  if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  const canEditAny = hasPermission(session, "tasks.editAny");
+  const canEditOwn = hasPermissionOrIsCreator(session, "tasks.editOwn", existing.createdById ?? "");
+  if (!canEditAny && !canEditOwn) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const update: Record<string, unknown> = {};
   if (title !== undefined) update.title = title.trim();
@@ -111,6 +121,18 @@ export async function PATCH(
       type: "task.completed",
       metadata: { projectId: doc.projectId, title: doc.title },
     });
+  } else {
+    const trackFields = ["title", "description", "assignees", "completionDate"] as const;
+    const updatedFields = trackFields.filter((f) => body[f] !== undefined);
+    if (updatedFields.length > 0) {
+      await recordActivity({
+        clientId,
+        actorId: session.user.id,
+        actorName: session.user.name ?? "Unknown",
+        type: "task.updated",
+        metadata: { projectId: doc.projectId, title: doc.title, fields: updatedFields },
+      });
+    }
   }
 
   return NextResponse.json({
@@ -145,6 +167,15 @@ export async function DELETE(
 
   const { id: clientId, taskId } = await params;
   await connectDB();
+
+  const existing = await TaskModel.findById(taskId).lean();
+  if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  const canDeleteAny = hasPermission(session, "tasks.deleteAny");
+  const canDeleteOwn = hasPermissionOrIsCreator(session, "tasks.deleteOwn", existing.createdById ?? "");
+  if (!canDeleteAny && !canDeleteOwn) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const doc = await TaskModel.findByIdAndDelete(taskId).lean();
   if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });

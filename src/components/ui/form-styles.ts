@@ -7,6 +7,3 @@ export const inputStyle = {
   color: "var(--text-primary)",
 } as const;
 
-export const labelClass = "block text-xs font-medium mb-1";
-
-export const labelStyle = { color: "var(--text-muted)" } as const;

@@ -3,6 +3,49 @@
 /* Class-based dark mode for Tailwind v4 */
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* ── Design token → Tailwind utility mapping ──────────────────────────────── */
+@theme {
+  /* Surface colors → bg-surface, bg-elevated, bg-app, bg-hover, bg-sidebar */
+  --color-surface: var(--bg-surface);
+  --color-elevated: var(--bg-elevated);
+  --color-app: var(--bg-app);
+  --color-hover: var(--bg-hover);
+  --color-sidebar: var(--bg-sidebar);
+
+  /* Border colors → border-border-default, border-border-strong */
+  --color-border-default: var(--border);
+  --color-border-strong: var(--border-strong);
+
+  /* Text colors → text-text-primary, text-text-muted */
+  --color-text-primary: var(--text-primary);
+  --color-text-muted: var(--text-muted);
+
+  /* Brand colors → bg-brand, text-brand, bg-brand-light */
+  --color-brand: var(--primary);
+  --color-brand-light: var(--primary-light);
+
+  /* Feedback colors → bg-danger, text-danger, bg-success, text-success, etc. */
+  --color-danger: var(--danger);
+  --color-danger-light: var(--danger-light);
+  --color-success: var(--success);
+  --color-success-light: var(--success-light);
+  --color-warning: var(--warning);
+  --color-warning-light: var(--warning-light);
+  --color-info: var(--info);
+  --color-info-light: var(--info-light);
+
+  /* Semantic radii → rounded-card, rounded-button, rounded-badge */
+  --radius-card: 0.75rem;
+  --radius-button: 0.5rem;
+  --radius-badge: 9999px;
+
+  /* Semantic shadows → shadow-card, shadow-subtle, shadow-dropdown, shadow-sticky */
+  --shadow-card: var(--card-shadow);
+  --shadow-subtle: 0 1px 3px 0 rgba(0, 0, 0, 0.06), 0 1px 2px -1px rgba(0, 0, 0, 0.04);
+  --shadow-dropdown: 0 8px 24px rgba(0, 0, 0, 0.14);
+  --shadow-sticky: 2px 0 4px -1px rgba(0, 0, 0, 0.06);
+}
+
 :root {
   --bg-app: #f0eff4;
   --bg-surface: #ffffff;
@@ -10,11 +53,84 @@
   --bg-sidebar: #f7f6fb;
   --bg-hover: #e4e2ee;
   --border: #e6e4ef;
+  --border-strong: #d0cde0;
   --text-primary: #09090b;
   --text-muted: #8b8a9b;
   --primary: #7c3aed;
   --primary-light: #ede9fe;
   --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 8px 32px rgba(100, 80, 160, 0.08);
+
+  /* Leave type colors */
+  --leave-sick: #dc2626;
+  --leave-sick-bg: #fef2f2;
+  --leave-personal: #0891b2;
+  --leave-personal-bg: #ecfeff;
+
+  /* Feedback colors */
+  --danger: #dc2626;
+  --danger-light: #fef2f2;
+  --destructive: #ef4444;
+  --success: #16a34a;
+  --success-light: #f0fdf4;
+  --warning: #d97706;
+  --warning-light: #fffbeb;
+  --info: #2563eb;
+  --info-light: #dbeafe;
+
+  /* Status badge colors */
+  --status-active-bg: #dcfce7;
+  --status-active-color: #166534;
+  --status-muted-bg: #f4f4f5;
+  --status-muted-color: #71717a;
+  --status-accent-bg: #ede9fe;
+  --status-accent-color: #6d28d9;
+  --status-progress-bg: #fef9c3;
+  --status-progress-color: #854d0e;
+  --status-review-bg: #ffedd5;
+  --status-review-color: #9a3412;
+  --status-planning-bg: #f3e8ff;
+  --status-planning-color: #7e22ce;
+
+  /* Accent palette (avatars, client colors) */
+  --accent-0: #7C3AED;
+  --accent-1: #2563EB;
+  --accent-2: #059669;
+  --accent-3: #D97706;
+  --accent-4: #DC2626;
+  --accent-5: #DB2777;
+  --accent-6: #0891B2;
+  --accent-7: #0D9488;
+
+  /* Week calendar card types */
+  --card-deadline: #7c3aed;
+  --card-deadline-bg: #ede9fe;
+  --card-delivery: #059669;
+  --card-delivery-bg: #d1fae5;
+  --card-kickoff: #2563eb;
+  --card-kickoff-bg: #dbeafe;
+  --card-followup: #d97706;
+  --card-followup-bg: #fef3c7;
+  --card-event: #0891b2;
+  --card-event-bg: #cffafe;
+
+  /* Activity badge colors */
+  --activity-delete-bg: #fee2e2;
+  --activity-delete-color: #dc2626;
+  --activity-log-bg: #dbeafe;
+  --activity-log-color: #2563eb;
+  --activity-task-bg: #dcfce7;
+  --activity-task-color: #16a34a;
+  --activity-sheet-bg: #f3e8ff;
+  --activity-sheet-color: #9333ea;
+  --activity-contact-bg: #ffedd5;
+  --activity-contact-color: #ea580c;
+  --activity-event-bg: #cffafe;
+  --activity-event-color: #0891b2;
+  --activity-client-bg: #f1f5f9;
+  --activity-client-color: #475569;
+
+  /* Birthday */
+  --birthday: #ec4899;
 }
 
 .dark {
@@ -24,11 +140,84 @@
   --bg-sidebar: #1c1b25;
   --bg-hover: #211f2a;
   --border: #2a2836;
+  --border-strong: #3a3850;
   --text-primary: #f4f3f8;
   --text-muted: #6b697e;
   --primary: #a78bfa;
   --primary-light: #2e1065;
   --card-shadow: none;
+
+  /* Leave type colors (dark) */
+  --leave-sick: #f87171;
+  --leave-sick-bg: #450a0a;
+  --leave-personal: #22d3ee;
+  --leave-personal-bg: #083344;
+
+  /* Feedback colors (dark) */
+  --danger: #f87171;
+  --danger-light: #450a0a;
+  --destructive: #f87171;
+  --success: #4ade80;
+  --success-light: #052e16;
+  --warning: #fbbf24;
+  --warning-light: #451a03;
+  --info: #60a5fa;
+  --info-light: #1e3a5f;
+
+  /* Status badge colors (dark) */
+  --status-active-bg: #052e16;
+  --status-active-color: #4ade80;
+  --status-muted-bg: #27272a;
+  --status-muted-color: #a1a1aa;
+  --status-accent-bg: #2e1065;
+  --status-accent-color: #a78bfa;
+  --status-progress-bg: #422006;
+  --status-progress-color: #fbbf24;
+  --status-review-bg: #431407;
+  --status-review-color: #fb923c;
+  --status-planning-bg: #2e1065;
+  --status-planning-color: #c084fc;
+
+  /* Accent palette (dark) */
+  --accent-0: #a78bfa;
+  --accent-1: #60a5fa;
+  --accent-2: #34d399;
+  --accent-3: #fbbf24;
+  --accent-4: #f87171;
+  --accent-5: #f472b6;
+  --accent-6: #22d3ee;
+  --accent-7: #2dd4bf;
+
+  /* Week calendar card types (dark) */
+  --card-deadline: #a78bfa;
+  --card-deadline-bg: #2e1065;
+  --card-delivery: #34d399;
+  --card-delivery-bg: #064e3b;
+  --card-kickoff: #60a5fa;
+  --card-kickoff-bg: #1e3a5f;
+  --card-followup: #fbbf24;
+  --card-followup-bg: #78350f;
+  --card-event: #22d3ee;
+  --card-event-bg: #164e63;
+
+  /* Activity badge colors (dark) */
+  --activity-delete-bg: rgba(127, 29, 29, 0.3);
+  --activity-delete-color: #f87171;
+  --activity-log-bg: rgba(30, 58, 138, 0.3);
+  --activity-log-color: #60a5fa;
+  --activity-task-bg: rgba(5, 46, 22, 0.3);
+  --activity-task-color: #4ade80;
+  --activity-sheet-bg: rgba(88, 28, 135, 0.3);
+  --activity-sheet-color: #c084fc;
+  --activity-contact-bg: rgba(124, 45, 18, 0.3);
+  --activity-contact-color: #fb923c;
+  --activity-event-bg: rgba(22, 78, 99, 0.3);
+  --activity-event-color: #22d3ee;
+  --activity-client-bg: rgba(30, 41, 59, 1);
+  --activity-client-color: #94a3b8;
+
+  /* Birthday */
+  --birthday: #f472b6;
 }
 
 * {
@@ -105,7 +294,7 @@ body {
   }
 
   .btn-danger {
-    background: #ef4444;
+    background: var(--destructive);
     color: #fff;
     transition: filter 0.15s;
   }
@@ -170,6 +359,61 @@ body {
     background: color-mix(in srgb, var(--primary) 18%, transparent);
   }
 
+
+}
+
+/* ── Typography composites ────────────────────────────────────
+   Placed outside @layer so they always beat Tailwind's Preflight resets. */
+
+.typo-page-title {
+  font-size: 1.25rem;
+  line-height: 1.75rem;
+  font-weight: 600;
+}
+.typo-modal-title {
+  font-size: 1.125rem;
+  line-height: 1.75rem;
+  font-weight: 600;
+}
+.typo-section-title {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.typo-card-title {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 600;
+}
+.typo-section-header {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.typo-tag {
+  font-size: 10px;
+  line-height: 1rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.typo-metric {
+  font-size: 1.5rem;
+  line-height: 2rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.typo-label {
+  display: block;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 500;
+  margin-bottom: 0.25rem;
+  color: var(--text-muted);
 }
 
 

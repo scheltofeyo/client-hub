@@ -15,18 +15,18 @@ const inputStyle = {
   color: "var(--text-primary)",
 };
 
-const labelClass = "block text-xs font-medium mb-1";
-const labelStyle = { color: "var(--text-muted)" };
 
 function EditClientForm({
   client,
   archetypes,
   isAdmin,
+  canDelete = false,
   onClose,
 }: {
   client: Client;
   archetypes: Archetype[];
   isAdmin: boolean;
+  canDelete?: boolean;
   onClose: () => void;
 }) {
   const [form, setForm] = useState({
@@ -103,8 +103,8 @@ function EditClientForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <label htmlFor="ec-company" className={labelClass} style={labelStyle}>
-          Company name <span className="text-red-400">*</span>
+        <label htmlFor="ec-company" className="typo-label">
+          Company name <span className="text-[var(--danger)]">*</span>
         </label>
         <input
           id="ec-company"
@@ -118,7 +118,7 @@ function EditClientForm({
       </div>
 
       <div>
-        <label htmlFor="ec-description" className={labelClass} style={labelStyle}>
+        <label htmlFor="ec-description" className="typo-label">
           Description
         </label>
         <textarea
@@ -133,7 +133,7 @@ function EditClientForm({
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label htmlFor="ec-website" className={labelClass} style={labelStyle}>
+          <label htmlFor="ec-website" className="typo-label">
             Website
           </label>
           <input
@@ -147,7 +147,7 @@ function EditClientForm({
           />
         </div>
         <div>
-          <label htmlFor="ec-client-since" className={labelClass} style={labelStyle}>
+          <label htmlFor="ec-client-since" className="typo-label">
             Client since
           </label>
           <input
@@ -162,7 +162,7 @@ function EditClientForm({
       </div>
 
       <div>
-        <label htmlFor="ec-employees" className={labelClass} style={labelStyle}>
+        <label htmlFor="ec-employees" className="typo-label">
           Employees
         </label>
         <input
@@ -179,7 +179,7 @@ function EditClientForm({
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label htmlFor="ec-status" className={labelClass} style={labelStyle}>
+          <label htmlFor="ec-status" className="typo-label">
             Status
           </label>
           <select
@@ -196,7 +196,7 @@ function EditClientForm({
           </select>
         </div>
         <div>
-          <label htmlFor="ec-platform" className={labelClass} style={labelStyle}>
+          <label htmlFor="ec-platform" className="typo-label">
             Platform
           </label>
           <select
@@ -215,7 +215,7 @@ function EditClientForm({
       </div>
 
       <div>
-        <label htmlFor="ec-archetype" className={labelClass} style={labelStyle}>
+        <label htmlFor="ec-archetype" className="typo-label">
           Archetype
         </label>
         <select
@@ -234,7 +234,7 @@ function EditClientForm({
         </select>
       </div>
 
-      {error && <p className="text-xs text-red-500">{error}</p>}
+      {error && <p className="text-xs text-[var(--danger)]">{error}</p>}
 
       <div className="flex justify-end gap-2 pt-1">
         <button
@@ -253,14 +253,14 @@ function EditClientForm({
         </button>
       </div>
 
-      {isAdmin && (
+      {canDelete && (
         <div className="border-t pt-4" style={{ borderColor: "var(--border)" }}>
           {!deleteConfirm ? (
             <button
               type="button"
               onClick={() => setDeleteConfirm(true)}
               className="text-sm btn-link"
-              style={{ color: "#ef4444" }}
+              style={{ color: "var(--destructive)" }}
             >
               Delete client…
             </button>
@@ -273,7 +273,7 @@ function EditClientForm({
                 </span>
                 ? This cannot be undone.
               </p>
-              {deleteError && <p className="text-xs text-red-500">{deleteError}</p>}
+              {deleteError && <p className="text-xs text-[var(--danger)]">{deleteError}</p>}
               <div className="flex gap-2">
                 <button
                   type="button"
@@ -303,10 +303,12 @@ export default function EditClientButton({
   client,
   archetypes,
   isAdmin = false,
+  canDelete = false,
 }: {
   client: Client;
   archetypes: Archetype[];
   isAdmin?: boolean;
+  canDelete?: boolean;
 }) {
   const { openPanel, closePanel } = useRightPanel();
 
@@ -315,7 +317,7 @@ export default function EditClientButton({
       onClick={() =>
         openPanel(
           "Edit Client",
-          <EditClientForm client={client} archetypes={archetypes} isAdmin={isAdmin} onClose={closePanel} />
+          <EditClientForm client={client} archetypes={archetypes} isAdmin={isAdmin} canDelete={canDelete} onClose={closePanel} />
         )
       }
       className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border btn-secondary"

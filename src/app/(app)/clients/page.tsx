@@ -9,6 +9,8 @@ import {
   getProjectsByAllClients,
 } from "@/lib/data";
 import { auth } from "@/auth";
+import { connectDB } from "@/lib/mongodb";
+import { hasPermission } from "@/lib/auth-helpers";
 import ClientsPageClient from "./ClientsPageClient";
 import type { OverviewRow } from "./ClientsOverviewTable";
 
@@ -22,11 +24,13 @@ export default async function ClientsPage({
   const [resolvedParams, session] = await Promise.all([
     searchParams,
     auth(),
+    connectDB(),
   ]);
 
   const tab = resolvedParams?.tab ?? "all";
-  const isAdmin = session?.user?.isAdmin ?? false;
-  const isOverview = isAdmin && tab === "overview";
+  const isAdmin = hasPermission(session, "admin.access");
+  const canViewOverview = hasPermission(session, "dashboard.viewOverview");
+  const isOverview = canViewOverview && tab === "overview";
 
   const [clients, statuses, platforms, taskCounts, projectCounts, lastActivity, firstEvents, projectsByClientMap] =
     await Promise.all([
@@ -63,7 +67,8 @@ export default async function ClientsPage({
       statuses={statuses}
       platforms={platforms}
       tab={tab}
-      isAdmin={isAdmin}
+      isAdmin={canViewOverview}
+      canCreateClient={hasPermission(session, "clients.create")}
       overviewRows={overviewRows}
       projectsByClient={projectsByClient}
     />

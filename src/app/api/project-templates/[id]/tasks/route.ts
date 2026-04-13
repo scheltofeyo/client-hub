@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { requirePermission } from "@/lib/auth-helpers";
 import { connectDB } from "@/lib/mongodb";
 import { TemplateTaskModel } from "@/lib/models/TemplateTask";
 import { ProjectTemplateModel } from "@/lib/models/ProjectTemplate";
@@ -9,9 +10,8 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await auth();
-  if (!session?.user?.isAdmin) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const forbidden = requirePermission(session, "admin.projectTemplates");
+  if (forbidden) return forbidden;
 
   const { id } = await params;
   await connectDB();
@@ -36,9 +36,8 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await auth();
-  if (!session?.user?.isAdmin) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const forbidden = requirePermission(session, "admin.projectTemplates");
+  if (forbidden) return forbidden;
 
   const { id: templateId } = await params;
   await connectDB();

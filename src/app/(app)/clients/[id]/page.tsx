@@ -1,5 +1,6 @@
 import { getClientById, getProjectsByClientId, getArchetypes, getLogsByClientId, getLogSignals, getSheetsByClientId, getClientProjectsWithTaskStats, getLastActivityByClientId, getServices, getUpcomingEventsForClient, getAllEventsForClient, getEventTypes, getClientStatuses, checkAndCreateServiceExpiryLogs, getLatestFollowUpDatesByService } from "@/lib/data";
 import { auth } from "@/auth";
+import { hasPermission } from "@/lib/auth-helpers";
 import { connectDB } from "@/lib/mongodb";
 import { UserModel } from "@/lib/models/User";
 import { Suspense } from "react";
@@ -59,16 +60,18 @@ export default async function ClientDetailPage({
   const activeTab: Tab =
     tabs.find((t) => t.toLowerCase() === tab?.toLowerCase()) ?? "Dashboard";
 
-  const isAdmin = session?.user?.isAdmin ?? false;
+  const isAdmin = hasPermission(session, "admin.access");
+  const userPermissions = session?.user?.permissions ?? [];
   const currentUserId = session?.user?.id ?? "";
 
   // Check if current user is a lead for this client
   const isLead = (client.leads ?? []).some((l) => l.userId === currentUserId);
   const canEdit = isAdmin || isLead;
+  const canAssignLeads = userPermissions.includes("clients.assignLeads");
 
-  // Fetch all users for admin lead assignment
+  // Fetch all users for lead assignment
   let allUsers: { id: string; name: string; email: string; image: string | null }[] = [];
-  if (isAdmin) {
+  if (canAssignLeads) {
     await connectDB();
     const docs = await UserModel.find().sort({ name: 1 }).lean();
     allUsers = docs.map((u) => ({
@@ -89,13 +92,13 @@ export default async function ClientDetailPage({
         ]}
         title={activeTab}
         actions={
-          activeTab === "Projects" && canEdit ? (
+          activeTab === "Projects" && canEdit && userPermissions.includes("projects.create") ? (
             <AddProjectButton clientId={client.id} />
-          ) : activeTab === "Tasks" ? (
+          ) : activeTab === "Tasks" && userPermissions.includes("tasks.create") ? (
             <AddClientTaskButton clientId={client.id} />
-          ) : activeTab === "Sheets" ? (
+          ) : activeTab === "Sheets" && userPermissions.includes("sheets.create") ? (
             <ManageSheetsButton clientId={id} initialSheets={sheets} />
-          ) : activeTab === "Events" ? (
+          ) : activeTab === "Events" && userPermissions.includes("events.create") ? (
             <AddEventButton clientId={id} />
           ) : undefined
         }
@@ -132,6 +135,7 @@ export default async function ClientDetailPage({
               currentUserId={currentUserId}
               currentUserName={session?.user?.name ?? "System"}
               isAdmin={isAdmin}
+              permissions={userPermissions}
             />
           </Suspense>
         )}
@@ -139,6 +143,8 @@ export default async function ClientDetailPage({
           <AboutContent
             client={client}
             isAdmin={isAdmin}
+            canAssignLeads={canAssignLeads}
+            canDeleteClient={userPermissions.includes("clients.delete")}
             allUsers={allUsers}
             section={section ?? "about"}
             canEdit={canEdit}
@@ -157,6 +163,7 @@ export default async function ClientDetailPage({
               projects={projects}
               currentUserId={currentUserId}
               currentUserName={session?.user?.name ?? ""}
+              permissions={userPermissions}
             />
           </Suspense>
         )}
@@ -173,6 +180,9 @@ export default async function ClientDetailPage({
             currentUserId={currentUserId}
             currentUserName={session?.user?.name ?? ""}
             isAdmin={isAdmin}
+            canCreateLog={userPermissions.includes("logs.create")}
+            canEditAnyLog={userPermissions.includes("logs.editAny")}
+            canDeleteAnyLog={userPermissions.includes("logs.deleteAny")}
           />
         )}
         {activeTab === "Events" && (
@@ -193,6 +203,8 @@ export default async function ClientDetailPage({
 function AboutContent({
   client,
   isAdmin,
+  canAssignLeads,
+  canDeleteClient,
   allUsers,
   section,
   canEdit,
@@ -200,6 +212,8 @@ function AboutContent({
 }: {
   client: Client;
   isAdmin: boolean;
+  canAssignLeads: boolean;
+  canDeleteClient: boolean;
   allUsers: { id: string; name: string; email: string; image: string | null }[];
   section: string;
   canEdit: boolean;
@@ -212,7 +226,7 @@ function AboutContent({
           clientId={client.id}
           initialLeads={client.leads ?? []}
           allUsers={allUsers}
-          isAdmin={isAdmin}
+          isAdmin={canAssignLeads}
         />
       </div>
     );
@@ -229,19 +243,17 @@ function AboutContent({
     );
   }
 
-  return <CompanySection client={client} canEdit={canEdit} archetypes={archetypes} isAdmin={isAdmin} />;
+  if (section === "platform") {
+    return <PlatformSection client={client} />;
+  }
+
+  return <CompanySection client={client} canEdit={canEdit} archetypes={archetypes} isAdmin={isAdmin} canDeleteClient={canDeleteClient} />;
 }
 
-function CompanySection({ client, canEdit, archetypes, isAdmin }: { client: Client; canEdit: boolean; archetypes: Archetype[]; isAdmin: boolean }) {
-  const platformLabel =
-    client.platform === "summ_core" ? "SUMM Core" :
-    client.platform === "summ_suite" ? "SUMM Suite" :
-    undefined;
-
+function CompanySection({ client, canEdit, archetypes, isAdmin, canDeleteClient }: { client: Client; canEdit: boolean; archetypes: Archetype[]; isAdmin: boolean; canDeleteClient: boolean }) {
   const details: [string, string | undefined][] = [
     ["Website", client.website],
     ["Employees", client.employees != null ? client.employees.toLocaleString() : undefined],
-    ["Platform", platformLabel],
     ["Archetype", client.archetype],
     ["Client since", fmtDate(client.clientSince ?? client.createdAt)],
     ["Projects", String(client.projects?.length ?? 0)],
@@ -252,14 +264,14 @@ function CompanySection({ client, canEdit, archetypes, isAdmin }: { client: Clie
     <div className="max-w-2xl space-y-8">
       <div className="space-y-5">
         <div className="flex items-center justify-between">
-          <h2 className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+          <h2 className="typo-section-header" style={{ color: "var(--text-muted)" }}>
             Company
           </h2>
-          {canEdit && <EditClientButton client={client} archetypes={archetypes} isAdmin={isAdmin} />}
+          {canEdit && <EditClientButton client={client} archetypes={archetypes} isAdmin={isAdmin} canDelete={canDeleteClient} />}
         </div>
 
         <div className="space-y-1.5">
-          <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+          <p className="typo-card-title" style={{ color: "var(--text-primary)" }}>
             {client.company}
           </p>
           {client.description && (
@@ -297,6 +309,30 @@ function CompanySection({ client, canEdit, archetypes, isAdmin }: { client: Clie
               </div>
             )}
           </dl>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function PlatformSection({ client }: { client: Client }) {
+  const platformLabel = client.platformLabel ?? null;
+
+  return (
+    <div className="max-w-2xl space-y-8">
+      <div className="space-y-5">
+        <h2 className="typo-section-header" style={{ color: "var(--text-muted)" }}>
+          Platform
+        </h2>
+
+        {platformLabel ? (
+          <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
+            {platformLabel}
+          </p>
+        ) : (
+          <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+            No platform set
+          </p>
         )}
       </div>
     </div>
@@ -395,7 +431,7 @@ function ProjectSection({
 }) {
   return (
     <div className="space-y-3">
-      <h3 className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+      <h3 className="typo-section-header" style={{ color: "var(--text-muted)" }}>
         {title}
       </h3>
       <div className="grid grid-cols-3 gap-4">
@@ -430,7 +466,7 @@ function ProjectCard({
       {/* Upcoming badge */}
       {!project.kickedOffAt && (
         <span
-          className="absolute top-3 right-3 text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full"
+          className="absolute top-3 right-3 typo-tag px-1.5 py-0.5 rounded-full"
           style={{ background: "var(--primary-light)", color: "var(--primary)" }}
         >
           Upcoming
@@ -447,7 +483,7 @@ function ProjectCard({
         </div>
         <div className="flex flex-col justify-center min-w-0">
           {project.service && (
-            <p className="text-[10px] font-semibold uppercase tracking-wider leading-none mb-1 truncate" style={{ color: "var(--text-muted)" }}>
+            <p className="typo-tag leading-none mb-1 truncate" style={{ color: "var(--text-muted)" }}>
               {project.service}
             </p>
           )}
@@ -477,7 +513,7 @@ function ProjectCard({
             <p className="text-xs" style={{ color: "var(--text-muted)" }}>
               {openTasks} open {openTasks === 1 ? "task" : "tasks"}
               {overdue > 0 && (
-                <span style={{ color: "#dc2626" }}> · {overdue} overdue</span>
+                <span style={{ color: "var(--danger)" }}> · {overdue} overdue</span>
               )}
             </p>
           )}
@@ -506,7 +542,7 @@ function CompletedSection({
 }) {
   return (
     <div className="space-y-3">
-      <h3 className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+      <h3 className="typo-section-header" style={{ color: "var(--text-muted)" }}>
         Completed
       </h3>
       <div className="rounded-xl border overflow-hidden" style={{ borderColor: "var(--border)" }}>
@@ -547,6 +583,7 @@ async function DashboardTabWrapper({
   currentUserId,
   currentUserName,
   isAdmin,
+  permissions,
 }: {
   clientId: string;
   client: Client;
@@ -559,6 +596,7 @@ async function DashboardTabWrapper({
   currentUserId: string;
   currentUserName: string;
   isAdmin: boolean;
+  permissions: string[];
 }) {
   // Check for expired services and create logs/tasks before fetching events
   await checkAndCreateServiceExpiryLogs(clientId);
@@ -620,11 +658,13 @@ async function TasksTabWrapper({
   projects,
   currentUserId,
   currentUserName: _currentUserName,
+  permissions = [],
 }: {
   clientId: string;
   projects: Project[];
   currentUserId: string;
   currentUserName: string;
+  permissions?: string[];
 }) {
   const projectIds = projects.map((p) => p.id);
   const [generalTasks, projectTasksMap] = await Promise.all([
@@ -644,6 +684,11 @@ async function TasksTabWrapper({
       initialGeneralTasks={generalTasks}
       initialProjectTasks={initialProjectTasks}
       currentUserId={currentUserId}
+      today={new Date().toISOString().slice(0, 10)}
+      canEditOwnTask={permissions.includes("tasks.editOwn")}
+      canEditAnyTask={permissions.includes("tasks.editAny")}
+      canDeleteOwnTask={permissions.includes("tasks.deleteOwn")}
+      canDeleteAnyTask={permissions.includes("tasks.deleteAny")}
     />
   );
 }

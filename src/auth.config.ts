@@ -21,7 +21,6 @@ export const authConfig: NextAuthConfig = {
     },
     async session({ session, token }) {
       if (token.userId) session.user.id = token.userId as string;
-      if (token.isAdmin !== undefined) session.user.isAdmin = token.isAdmin as boolean;
       if (token.role) session.user.role = token.role as string;
       return session;
     },

@@ -57,7 +57,7 @@ function StatCard({
       style={{ borderColor: "var(--border)" }}
     >
       <p className="text-xs" style={{ color: "var(--text-muted)" }}>{label}</p>
-      <p className="text-2xl font-semibold tabular-nums" style={{ color: accent ?? "var(--text-primary)" }}>
+      <p className="typo-metric" style={{ color: accent ?? "var(--text-primary)" }}>
         {count}
       </p>
       {completed !== undefined && total !== undefined && total > 0 && (
@@ -78,9 +78,12 @@ function Section({
   users,
   currentUserId,
   showCompleted,
+  today: todayProp,
   onToggleComplete,
   onTaskSaved,
   onDelete,
+  taskCanEdit,
+  taskCanDelete,
 }: {
   title: string;
   badge?: React.ReactNode;
@@ -90,9 +93,12 @@ function Section({
   users: UserOption[];
   currentUserId: string;
   showCompleted: boolean;
+  today?: string;
   onToggleComplete: (task: Task) => void;
   onTaskSaved: (t: Task) => void;
   onDelete: (taskId: string) => void;
+  taskCanEdit: (task: Task) => boolean;
+  taskCanDelete: (task: Task) => boolean;
 }) {
   const { openPanel, closePanel } = useRightPanel();
   const router = useRouter();
@@ -122,7 +128,7 @@ function Section({
       return aOrder - bOrder;
     });
   const openCount = topLevelTasks.filter((t) => !t.completedAt).length;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayProp ?? new Date().toISOString().slice(0, 10);
   const hasOverdue = topLevelTasks.some((t) => !t.completedAt && t.completionDate && t.completionDate < today) ||
     tasks.some((t) => !t.completedAt && t.completionDate && t.completionDate < today);
 
@@ -304,7 +310,7 @@ function Section({
           <span className="font-medium text-sm truncate" style={{ color: "var(--text-primary)" }}>{title}</span>
           {badge}
           {hasOverdue && (
-            <AlertTriangle size={13} style={{ color: "#f97316", flexShrink: 0 }} />
+            <AlertTriangle size={13} style={{ color: "var(--warning)", flexShrink: 0 }} />
           )}
         </span>
         <span
@@ -344,8 +350,11 @@ function Section({
                   onInlineSubtaskSave={(title) => createSubtask(task, title)}
                   onInlineSubtaskCancel={() => setInlineSubtaskFor(null)}
                   userImages={userImages}
+                  canEdit={taskCanEdit(task)}
+                  canDelete={taskCanDelete(task)}
                   onViewInLogbook={task.logId ? () => router.push(`/clients/${clientId}?tab=Logbook`) : undefined}
-                  isDraggable={!task.completedAt}
+                  today={today}
+                  isDraggable={taskCanEdit(task) && !task.completedAt}
                   draggingId={draggingId}
                   draggingHasChildren={!!draggingId && getSubtasks(draggingId).length > 0}
                   dragOverId={dragOverId}
@@ -387,13 +396,26 @@ export default function ClientTasksTab({
   initialGeneralTasks,
   initialProjectTasks,
   currentUserId,
+  today: todayProp,
+  canEditAnyTask = true,
+  canEditOwnTask = true,
+  canDeleteAnyTask = true,
+  canDeleteOwnTask = true,
 }: {
   clientId: string;
   projects: Pick<Project, "id" | "title" | "status" | "kickedOffAt">[];
   initialGeneralTasks: Task[];
   initialProjectTasks: Record<string, Task[]>;
   currentUserId: string;
+  today?: string;
+  canEditAnyTask?: boolean;
+  canEditOwnTask?: boolean;
+  canDeleteAnyTask?: boolean;
+  canDeleteOwnTask?: boolean;
 }) {
+  const taskCanEdit = (task: Task) => canEditAnyTask || (canEditOwnTask && task.createdById === currentUserId);
+  const taskCanDelete = (task: Task) => canDeleteAnyTask || (canDeleteOwnTask && task.createdById === currentUserId);
+
   const [generalTasks, setGeneralTasks] = useState<Task[]>(initialGeneralTasks);
   const [projectTaskMap, setProjectTaskMap] = useState<Record<string, Task[]>>(initialProjectTasks);
   const [users, setUsers] = useState<UserOption[]>([]);
@@ -413,7 +435,7 @@ export default function ClientTasksTab({
     return [...generalTasks, ...projectTasks];
   }, [generalTasks, projectTaskMap]);
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayProp ?? new Date().toISOString().slice(0, 10);
 
   // Project sections only show tasks assigned to the current user
   function myProjectTasks(tasks: Task[]) {
@@ -575,7 +597,7 @@ export default function ClientTasksTab({
         <StatCard
           label="Overdue"
           count={overdueCount}
-          accent={overdueCount > 0 ? "var(--destructive, #ef4444)" : undefined}
+          accent={overdueCount > 0 ? "var(--destructive)" : undefined}
         />
       </div>
 
@@ -625,9 +647,12 @@ export default function ClientTasksTab({
         users={users}
         currentUserId={currentUserId}
         showCompleted={showCompleted}
+        today={today}
         onToggleComplete={handleToggleComplete}
         onTaskSaved={upsertTask}
         onDelete={handleDelete}
+        taskCanEdit={taskCanEdit}
+        taskCanDelete={taskCanDelete}
       />
 
       {/* Project sections */}
@@ -641,9 +666,12 @@ export default function ClientTasksTab({
           users={users}
           currentUserId={currentUserId}
           showCompleted={showCompleted}
+          today={today}
           onToggleComplete={handleToggleComplete}
           onTaskSaved={upsertTask}
           onDelete={handleDelete}
+          taskCanEdit={taskCanEdit}
+          taskCanDelete={taskCanDelete}
         />
       ))}
     </div>

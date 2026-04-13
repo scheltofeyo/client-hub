@@ -5,6 +5,7 @@ import { ClientModel } from "@/lib/models/Client";
 import { ProjectModel } from "@/lib/models/Project";
 import { TaskModel } from "@/lib/models/Task";
 import { recordActivity } from "@/lib/activity";
+import { hasPermissionOrIsLead } from "@/lib/auth-helpers";
 
 export async function POST(
   req: NextRequest,
@@ -16,10 +17,11 @@ export async function POST(
   const { id, projectId } = await params;
   await connectDB();
 
-  if (!session.user.isAdmin) {
+  {
     const client = await ClientModel.findById(id).lean();
-    const isLead = (client?.leads ?? []).some((l) => l.userId === session.user.id);
-    if (!isLead) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (!hasPermissionOrIsLead(session, "projects.kickoff", client?.leads ?? [])) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
   }
 
   const existing = await ProjectModel.findById(projectId).lean();

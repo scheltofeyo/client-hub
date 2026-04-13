@@ -20,10 +20,9 @@ export default function ServicePills({
   return (
     <div>
       <p
-        className="block text-xs font-medium mb-1"
-        style={{ color: "var(--text-muted)" }}
+        className="typo-label"
       >
-        {label} {required && <span className="text-red-400">*</span>}
+        {label} {required && <span className="text-[var(--danger)]">*</span>}
       </p>
       <div className="flex flex-wrap gap-2">
         {services.map((s) => {

@@ -151,8 +151,6 @@ const inputStyle = {
   borderColor: "var(--border)",
   color: "var(--text-primary)",
 };
-const labelClass = "block text-xs font-medium mb-1";
-const labelStyle = { color: "var(--text-muted)" };
 
 interface EventFormProps {
   clientId: string;
@@ -248,8 +246,8 @@ export function EventForm({ clientId, eventTypes, onSaved, onClose, editEvent }:
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <label htmlFor="ev-title" className={labelClass} style={labelStyle}>
-          Title <span className="text-red-400">*</span>
+        <label htmlFor="ev-title" className="typo-label">
+          Title <span className="text-[var(--danger)]">*</span>
         </label>
         <input
           id="ev-title"
@@ -263,8 +261,8 @@ export function EventForm({ clientId, eventTypes, onSaved, onClose, editEvent }:
         />
       </div>
       <div>
-        <label htmlFor="ev-date" className={labelClass} style={labelStyle}>
-          {form.recurring ? "Start date" : "Date"} <span className="text-red-400">*</span>
+        <label htmlFor="ev-date" className="typo-label">
+          {form.recurring ? "Start date" : "Date"} <span className="text-[var(--danger)]">*</span>
         </label>
         <input
           id="ev-date"
@@ -277,7 +275,7 @@ export function EventForm({ clientId, eventTypes, onSaved, onClose, editEvent }:
         />
       </div>
       <div>
-        <p className={labelClass} style={labelStyle}>Type</p>
+        <p className="typo-label">Type</p>
         <div className="flex gap-2 flex-wrap">
           {userTypes.map((et) => {
             const Icon = ICON_REGISTRY[et.icon] ?? Circle;
@@ -303,7 +301,7 @@ export function EventForm({ clientId, eventTypes, onSaved, onClose, editEvent }:
       </div>
       {/* Recurrence toggle row */}
       <div>
-        <p className={labelClass} style={labelStyle}>Recurrence</p>
+        <p className="typo-label">Recurrence</p>
         <div className="flex items-center gap-2">
           <button
             type="button"
@@ -346,7 +344,7 @@ export function EventForm({ clientId, eventTypes, onSaved, onClose, editEvent }:
       {/* Repetitions toggle row — only visible when recurring */}
       {form.recurring && (
         <div>
-          <p className={labelClass} style={labelStyle}>Repetitions</p>
+          <p className="typo-label">Repetitions</p>
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -383,7 +381,7 @@ export function EventForm({ clientId, eventTypes, onSaved, onClose, editEvent }:
         </div>
       )}
       <div>
-        <label htmlFor="ev-notes" className={labelClass} style={labelStyle}>
+        <label htmlFor="ev-notes" className="typo-label">
           Notes
         </label>
         <textarea
@@ -396,7 +394,7 @@ export function EventForm({ clientId, eventTypes, onSaved, onClose, editEvent }:
           style={inputStyle}
         />
       </div>
-      {error && <p className="text-xs text-red-500">{error}</p>}
+      {error && <p className="text-xs text-[var(--danger)]">{error}</p>}
       <div className="flex justify-end gap-2 pt-1">
         <button type="button" onClick={onClose} className="px-3 py-1.5 rounded-lg text-sm font-medium btn-ghost">
           Cancel
@@ -485,7 +483,7 @@ function EventCard({
         {/* Type label row — edit/delete buttons sit here for deletable events */}
         <div className="flex items-center gap-1.5">
           <span
-            className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide"
+            className="flex items-center gap-1 typo-tag"
             style={{ color: cfg.color }}
           >
             <Icon size={10} strokeWidth={2} />
@@ -517,7 +515,7 @@ function EventCard({
         </div>
 
         {/* Title */}
-        <p className="text-sm font-semibold leading-snug line-clamp-2" style={{ color: "var(--text-primary)" }}>
+        <p className="typo-card-title leading-snug line-clamp-2" style={{ color: "var(--text-primary)" }}>
           {event.title}
         </p>
 
@@ -765,7 +763,7 @@ export default function EventsTab({
                     }}
                   />
                   <span
-                    className="text-[11px] font-semibold uppercase tracking-wide leading-tight"
+                    className="typo-section-header leading-tight"
                     style={{ color: "var(--text-muted)" }}
                   >
                     {group.label}
@@ -800,7 +798,7 @@ export default function EventsTab({
           <div className="flex items-center gap-2 mb-4">
             <RefreshCw size={13} strokeWidth={2} style={{ color: "var(--text-muted)" }} />
             <span
-              className="text-[11px] font-semibold uppercase tracking-wide"
+              className="typo-section-header"
               style={{ color: "var(--text-muted)" }}
             >
               Recurring

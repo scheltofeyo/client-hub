@@ -13,8 +13,6 @@ const inputStyle = {
   borderColor: "var(--border)",
   color: "var(--text-primary)",
 };
-const labelClass = "block text-xs font-medium mb-1";
-const labelStyle = { color: "var(--text-muted)" };
 
 export default function NewTemplateEditor({ services }: { services: Service[] }) {
   const router = useRouter();
@@ -105,11 +103,11 @@ export default function NewTemplateEditor({ services }: { services: Service[] })
 
       <div className="px-7 py-6 max-w-2xl">
         <form id="new-template-form" onSubmit={handleSubmit} className="space-y-4">
-          {error && <p className="text-xs text-red-500">{error}</p>}
+          {error && <p className="text-xs text-[var(--danger)]">{error}</p>}
 
           <div>
-            <label className={labelClass} style={labelStyle}>
-              Template name <span className="text-red-400">*</span>
+            <label className="typo-label">
+              Template name <span className="text-[var(--danger)]">*</span>
             </label>
             <input
               type="text"
@@ -123,8 +121,8 @@ export default function NewTemplateEditor({ services }: { services: Service[] })
           </div>
 
           <div>
-            <p className={labelClass} style={labelStyle}>
-              Service <span className="text-red-400">*</span>
+            <p className="typo-label">
+              Service <span className="text-[var(--danger)]">*</span>
             </p>
             <div className="flex flex-wrap gap-2">
               {services.map((s) => {
@@ -157,7 +155,7 @@ export default function NewTemplateEditor({ services }: { services: Service[] })
           </div>
 
           <div>
-            <label className={labelClass} style={labelStyle}>
+            <label className="typo-label">
               Short description
             </label>
             <input
@@ -171,7 +169,7 @@ export default function NewTemplateEditor({ services }: { services: Service[] })
           </div>
 
           <div>
-            <label className={labelClass} style={labelStyle}>
+            <label className="typo-label">
               Default project description
             </label>
             <textarea
@@ -185,10 +183,10 @@ export default function NewTemplateEditor({ services }: { services: Service[] })
           </div>
 
           <div className="!mt-9">
-            <p className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: "var(--text-muted)" }}>
+            <p className="typo-section-header mb-3" style={{ color: "var(--text-muted)" }}>
               Financial information
             </p>
-            <label className={labelClass} style={labelStyle}>
+            <label className="typo-label">
               Default sold price (€)
             </label>
             <input

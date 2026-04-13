@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Users, LayoutTemplate, Tag, Palette, ChevronRight } from "lucide-react";
+import { useSession } from "next-auth/react";
+import { Users, LayoutTemplate, Tag, Palette, ChevronRight, Shield, UserCheck } from "lucide-react";
+import type { Permission } from "@/lib/permissions";
 
 interface EmployeeItem {
   id: string;
@@ -11,9 +13,16 @@ interface EmployeeItem {
   status: string;
 }
 
-const tabItems = [
-  { tab: "users",     label: "Employees",         icon: Users,          expandable: true },
-  { tab: "templates", label: "Project Templates",  icon: LayoutTemplate, expandable: false },
+const tabItems: { tab: string; label: string; icon: typeof Users; expandable: boolean; requires: Permission }[] = [
+  { tab: "users",     label: "Employees",         icon: Users,          expandable: true,  requires: "employees.view" },
+  { tab: "roles",     label: "Roles",             icon: Shield,         expandable: false, requires: "roles.manage" },
+  { tab: "leads",     label: "Lead Settings",     icon: UserCheck,      expandable: false, requires: "roles.manage" },
+  { tab: "templates", label: "Project Templates",  icon: LayoutTemplate, expandable: false, requires: "admin.projectTemplates" },
+];
+
+const labelsPermissions: Permission[] = [
+  "admin.archetypes", "admin.services", "admin.logSignals",
+  "admin.clientStatuses", "admin.clientPlatforms", "admin.eventTypes", "admin.projectLabels",
 ];
 
 const standaloneItems = [
@@ -21,30 +30,41 @@ const standaloneItems = [
 ];
 
 export default function AdminPanelNav() {
+  const { data: session } = useSession();
+  const perms = session?.user?.permissions ?? [];
+
   const searchParams = useSearchParams();
   const pathname = usePathname();
+
+  const visibleTabs = tabItems.filter((t) => perms.includes(t.requires));
   const rawTab = searchParams.get("tab")?.toLowerCase() ?? "users";
-  const activeTab = tabItems.some((t) => t.tab === rawTab) ? rawTab : "users";
+  const activeTab = visibleTabs.some((t) => t.tab === rawTab) ? rawTab : (visibleTabs[0]?.tab ?? "users");
+
+  const showLabels = labelsPermissions.some((p) => perms.includes(p));
 
   const [employees, setEmployees] = useState<EmployeeItem[]>([]);
 
+  const canViewEmployees = perms.includes("employees.view" as Permission);
+
   // Fetch employees for the sidebar list
   useEffect(() => {
+    if (!canViewEmployees) return;
     fetch("/api/users")
       .then((r) => (r.ok ? r.json() : []))
       .then((data: EmployeeItem[]) => setEmployees(data))
       .catch(() => {});
-  }, []);
+  }, [canViewEmployees]);
 
   // Refresh when navigating back from employee detail
   useEffect(() => {
+    if (!canViewEmployees) return;
     if (activeTab === "users" && pathname === "/admin") {
       fetch("/api/users")
         .then((r) => (r.ok ? r.json() : []))
         .then((data: EmployeeItem[]) => setEmployees(data))
         .catch(() => {});
     }
-  }, [activeTab, pathname]);
+  }, [activeTab, pathname, canViewEmployees]);
 
   const isOnEmployeeDetail = pathname.startsWith("/admin/employees/");
   const isOnAdminRoot = pathname === "/admin";
@@ -66,12 +86,13 @@ export default function AdminPanelNav() {
       </div>
 
       <div className="px-2 space-y-0.5">
-        {tabItems.map(({ tab, label, icon: Icon, expandable }) => {
+        {visibleTabs.map(({ tab, label, icon: Icon, expandable }) => {
           const isEmployeesTab = tab === "users";
           const active = isEmployeesTab
             ? activeTab === "users" && isOnAdminRoot
             : activeTab === tab ||
-              (tab === "templates" && pathname.startsWith("/admin/templates"));
+              (tab === "templates" && pathname.startsWith("/admin/templates")) ||
+              (tab === "roles" && pathname.startsWith("/admin/roles"));
 
           return (
             <div key={tab}>
@@ -95,10 +116,10 @@ export default function AdminPanelNav() {
                 )}
               </Link>
 
-              {/* Employee children — shown when in employees area */}
+              {/* Employee children — shown when in employees area (exclude archived) */}
               {isEmployeesTab && isInEmployeesArea && employees.length > 0 && (
                 <div className="mt-0.5 space-y-0.5">
-                  {employees.map((emp) => {
+                  {employees.filter((emp) => emp.status !== "inactive").map((emp) => {
                     const empActive = activeEmployeeId === emp.id;
                     return (
                       <Link
@@ -110,7 +131,7 @@ export default function AdminPanelNav() {
                         <span
                           className="truncate"
                           style={{
-                            opacity: emp.status === "inactive" ? 0.5 : emp.status === "invited" ? 0.7 : 1,
+                            opacity: emp.status === "invited" ? 0.7 : 1,
                           }}
                         >
                           {emp.name}
@@ -124,14 +145,16 @@ export default function AdminPanelNav() {
           );
         })}
 
-        <Link
-          href="/admin/labels-and-types"
-          data-active={pathname.startsWith("/admin/labels-and-types")}
-          className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm transition-colors nav-panel-item"
-        >
-          <Tag size={14} strokeWidth={1.8} />
-          <span className="flex-1">Labels and Types</span>
-        </Link>
+        {showLabels && (
+          <Link
+            href="/admin/labels-and-types"
+            data-active={pathname.startsWith("/admin/labels-and-types")}
+            className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm transition-colors nav-panel-item"
+          >
+            <Tag size={14} strokeWidth={1.8} />
+            <span className="flex-1">Labels and Types</span>
+          </Link>
+        )}
       </div>
 
       <div className="mx-3 my-3 border-t" style={{ borderColor: "var(--border)" }} />

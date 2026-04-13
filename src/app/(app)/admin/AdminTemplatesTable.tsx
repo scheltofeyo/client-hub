@@ -5,7 +5,7 @@ import { Pencil, Trash2, Plus, ListTodo } from "lucide-react";
 import { useRouter } from "next/navigation";
 import SteppedModal from "@/components/ui/SteppedModal";
 import ServicePills from "@/components/ui/ServicePills";
-import { inputClass, inputStyle, labelClass, labelStyle } from "@/components/ui/form-styles";
+import { inputClass, inputStyle } from "@/components/ui/form-styles";
 import type { ProjectTemplate, Service } from "@/types";
 
 /* ── Template settings form (shared between add + edit modals) ── */
@@ -31,8 +31,8 @@ function TemplateSettingsFields({
   return (
     <div className="space-y-5">
       <div>
-        <label htmlFor="tpl-name" className={labelClass} style={labelStyle}>
-          Template name <span className="text-red-400">*</span>
+        <label htmlFor="tpl-name" className="typo-label">
+          Template name <span className="text-[var(--danger)]">*</span>
         </label>
         <input
           id="tpl-name"
@@ -54,7 +54,7 @@ function TemplateSettingsFields({
       />
 
       <div>
-        <label htmlFor="tpl-desc" className={labelClass} style={labelStyle}>
+        <label htmlFor="tpl-desc" className="typo-label">
           Short description
         </label>
         <input
@@ -69,7 +69,7 @@ function TemplateSettingsFields({
       </div>
 
       <div>
-        <label htmlFor="tpl-default-desc" className={labelClass} style={labelStyle}>
+        <label htmlFor="tpl-default-desc" className="typo-label">
           Default project description
         </label>
         <textarea
@@ -85,14 +85,14 @@ function TemplateSettingsFields({
 
       <div className="!mt-9">
         <p
-          className="text-xs font-semibold uppercase tracking-wide mb-3"
+          className="typo-section-header mb-3"
           style={{ color: "var(--text-muted)" }}
         >
           Defaults
         </p>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label htmlFor="tpl-price" className={labelClass} style={labelStyle}>
+            <label htmlFor="tpl-price" className="typo-label">
               Default sold price (€)
             </label>
             <input
@@ -108,7 +108,7 @@ function TemplateSettingsFields({
             />
           </div>
           <div>
-            <label htmlFor="tpl-days" className={labelClass} style={labelStyle}>
+            <label htmlFor="tpl-days" className="typo-label">
               Default delivery days
             </label>
             <input
@@ -330,7 +330,7 @@ export default function AdminTemplatesTable({
               </button>
               <button
                 onClick={() => handleDelete(tpl.id, tpl.name)}
-                className="p-1.5 rounded-md btn-icon text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+                className="p-1.5 rounded-md btn-icon text-[var(--danger)] hover:bg-[var(--danger-light)]"
                 title="Delete template"
               >
                 <Trash2 size={13} />
@@ -385,7 +385,7 @@ export default function AdminTemplatesTable({
           set={(field, value) => setAddForm((f) => ({ ...f, [field]: value }))}
           services={services}
         />
-        {addError && <p className="text-xs text-red-500 mt-3">{addError}</p>}
+        {addError && <p className="text-xs text-[var(--danger)] mt-3">{addError}</p>}
       </SteppedModal>
 
       {/* Edit template modal */}
@@ -418,7 +418,7 @@ export default function AdminTemplatesTable({
           set={(field, value) => setEditForm((f) => ({ ...f, [field]: value }))}
           services={services}
         />
-        {editError && <p className="text-xs text-red-500 mt-3">{editError}</p>}
+        {editError && <p className="text-xs text-[var(--danger)] mt-3">{editError}</p>}
       </SteppedModal>
     </div>
   );

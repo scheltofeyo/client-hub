@@ -222,8 +222,106 @@ export interface TimelineEvent {
   repetitions?: number; // total occurrences; undefined = unlimited
 }
 
+export interface MyProjectOverview {
+  projectId: string;
+  projectTitle: string;
+  clientId: string;
+  clientName: string;
+  status: ProjectStatus;
+  taskTotal: number;
+  taskCompleted: number;
+  nextDeadline?: string;
+  deliveryDate?: string;
+}
+
+export interface MyDayUserInfo {
+  name: string;
+  image: string | null;
+  email: string;
+  roleName: string;
+  activeClientCount: number;
+  activeProjectCount: number;
+  openTaskCount: number;
+  openFollowUpCount: number;
+}
+
+export interface MyDayTaskData {
+  tasks: (Task & { clientName: string; projectName?: string })[];
+  subtasksByParent: Record<string, Task[]>;
+  userImages: Record<string, string>;
+}
+
+export interface MyDayFollowUpData {
+  logs: (Log & { clientName: string; signals?: string[] })[];
+  contactsByClient: Record<string, Contact[]>;
+  signals: LogSignal[];
+}
+
 export interface ReleaseNote {
   date: string;       // YYYY-MM-DD
   title: string;
   details?: string[];
+}
+
+// ── Team / Holiday Calendar ─────────────────────────────────────────
+
+export interface LeaveType {
+  id: string;
+  slug: string;
+  label: string;
+  color: string;
+  icon: string;
+  rank: number;
+  countsAgainstAllowance: boolean;
+}
+
+export type DayPortion = "full" | "am" | "pm";
+
+export interface TimeOffEntry {
+  id: string;
+  userId: string;
+  userName?: string;
+  userImage?: string;
+  startDate: string;
+  endDate: string;
+  startDayPortion: DayPortion;
+  endDayPortion: DayPortion;
+  leaveTypeSlug: string;
+  notes?: string;
+  status: string;
+  createdById: string;
+  createdByName: string;
+  createdAt?: string;
+}
+
+export interface TimeOffBalance {
+  userId: string;
+  name: string;
+  image: string | null;
+  role: string;
+  allowance: number;
+  usedByType: Record<string, number>;
+  remaining: number;
+}
+
+export interface CompanyHoliday {
+  id: string;
+  date: string;
+  label: string;
+}
+
+// ── Week Team Data (dashboard) ─────────────────────────────────────
+
+export interface BirthdayItem {
+  userId: string;
+  userName: string;
+  userImage: string | null;
+  date: string; // YYYY-MM-DD of the birthday this week
+}
+
+export interface WeekTeamData {
+  timeOff: TimeOffEntry[];
+  companyHolidays: CompanyHoliday[];
+  birthdays: BirthdayItem[];
+  leaveTypes: LeaveType[];
 }

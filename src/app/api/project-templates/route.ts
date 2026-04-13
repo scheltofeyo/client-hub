@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { requirePermission } from "@/lib/auth-helpers";
 import { connectDB } from "@/lib/mongodb";
 import { ProjectTemplateModel } from "@/lib/models/ProjectTemplate";
 import { TemplateTaskModel } from "@/lib/models/TemplateTask";
@@ -35,9 +36,8 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const session = await auth();
-  if (!session?.user?.isAdmin) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const forbidden = requirePermission(session, "admin.projectTemplates");
+  if (forbidden) return forbidden;
 
   await connectDB();
   const body = await req.json();

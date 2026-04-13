@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { connectDB } from "@/lib/mongodb";
 import { ClientModel } from "@/lib/models/Client";
+import { requirePermission } from "@/lib/auth-helpers";
+import { recordActivity } from "@/lib/activity";
 
 export async function GET() {
   const session = await auth();
@@ -25,9 +27,8 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const session = await auth();
-  if (!session?.user?.isAdmin) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const forbidden = requirePermission(session, "clients.create");
+  if (forbidden) return forbidden;
 
   const body = await req.json();
   const { company, status, platform, clientSince, employees, website, description, createFolder } = body;
@@ -73,6 +74,14 @@ export async function POST(req: NextRequest) {
       console.warn("[folder-webhook] Missing env vars: GAS_FOLDER_WEBHOOK_URL, GAS_FOLDER_WEBHOOK_SECRET, or APP_URL");
     }
   }
+
+  await recordActivity({
+    clientId: doc._id.toString(),
+    actorId: session!.user.id,
+    actorName: session!.user.name ?? "Unknown",
+    type: "client.created",
+    metadata: { company: doc.company },
+  });
 
   return NextResponse.json(
     {

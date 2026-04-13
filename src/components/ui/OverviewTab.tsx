@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { Client, ClientStatusOption, Contact, EventType, LogSignal, Project, Service, Sheet, Task, TimelineEvent } from "@/types";
 import { fmtDate } from "@/lib/utils";
+import { accentColor } from "@/lib/styles";
 import StatusBadge from "@/components/ui/StatusBadge";
 import UserAvatar from "@/components/ui/UserAvatar";
 import { useRightPanel } from "@/components/layout/RightPanel";
@@ -15,11 +16,13 @@ import { TaskForm } from "@/components/ui/ClientTasksTab";
 import { EventForm } from "@/components/ui/EventsTab";
 import { SheetManagerPanel } from "@/components/ui/SheetsTab";
 
-const labelClass = "block text-xs font-medium mb-1";
-const labelStyle = { color: "var(--text-muted)" };
 
 function today() {
-  return new Date().toISOString().split("T")[0];
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 function daysSinceISO(isoString: string): number {
@@ -68,18 +71,6 @@ function relativeLabel(days: number): string {
 }
 
 // ── Monogram helpers (matches /clients card style) ──────────────────────
-const ACCENT_COLORS = [
-  "#7C3AED", "#2563EB", "#059669", "#D97706",
-  "#DC2626", "#DB2777", "#0891B2", "#0D9488",
-];
-function accentColor(name: string): string {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  return ACCENT_COLORS[Math.abs(hash) % ACCENT_COLORS.length];
-}
-function hexToRgb(hex: string): string {
-  return `${parseInt(hex.slice(1, 3), 16)}, ${parseInt(hex.slice(3, 5), 16)}, ${parseInt(hex.slice(5, 7), 16)}`;
-}
 function monogramInitials(company: string): string {
   return company.split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("");
 }
@@ -128,16 +119,16 @@ function UpcomingEventCard({ event, eventTypes, clientId }: { event: TimelineEve
         <span className="text-[10px] font-bold uppercase tracking-widest leading-none" style={{ color }}>
           {monthStr}
         </span>
-        <span className="text-2xl font-bold tabular-nums leading-none mt-0.5" style={{ color: "var(--text-primary)" }}>
+        <span className="typo-metric leading-none mt-0.5" style={{ color: "var(--text-primary)" }}>
           {dayStr}
         </span>
       </div>
       {/* Content */}
       <div className="flex flex-col flex-1 min-w-0 px-3 py-2.5 gap-0.5">
-        <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color }}>
+        <span className="typo-tag" style={{ color }}>
           {label}
         </span>
-        <p className="text-sm font-semibold leading-snug line-clamp-2" style={{ color: "var(--text-primary)" }}>
+        <p className="typo-card-title leading-snug line-clamp-2" style={{ color: "var(--text-primary)" }}>
           {event.title}
         </p>
         <p className="text-xs mt-auto pt-1" style={{ color: "var(--text-muted)" }}>
@@ -363,7 +354,6 @@ export default function OverviewTab({
   }
 
   const cardColor = accentColor(client.company);
-  const cardRgb = hexToRgb(cardColor);
   const abbr = monogramInitials(client.company);
 
   return (
@@ -380,7 +370,7 @@ export default function OverviewTab({
           {/* Tinted header with monogram + chips */}
           <div
             className="relative flex items-start px-5 pt-5 shrink-0"
-            style={{ background: `rgba(${cardRgb}, 0.08)`, height: "52px" }}
+            style={{ background: `color-mix(in srgb, ${cardColor} 8%, transparent)`, height: "52px" }}
           >
             {/* Status + platform chips — top right */}
             {(client.status || client.platform) && (
@@ -409,7 +399,7 @@ export default function OverviewTab({
           <div className="flex flex-col gap-4 px-5 pt-9 pb-5">
             {/* Company name + description + employees + chips */}
             <div className="flex flex-col gap-2">
-              <h1 className="text-lg font-semibold leading-tight" style={{ color: "var(--text-primary)" }}>
+              <h1 className="typo-modal-title leading-tight" style={{ color: "var(--text-primary)" }}>
                 {client.company}
               </h1>
               {client.description && (
@@ -441,7 +431,7 @@ export default function OverviewTab({
 
             {/* Client leads */}
             <div className="flex flex-col gap-2">
-              <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+              <p className="typo-section-header" style={{ color: "var(--text-muted)" }}>
                 Client leads
               </p>
               {client.leads && client.leads.length > 0 ? (
@@ -462,7 +452,7 @@ export default function OverviewTab({
 
             {/* Sheets */}
             <div className="flex flex-col gap-2">
-              <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+              <p className="typo-section-header" style={{ color: "var(--text-muted)" }}>
                 Sheets
               </p>
               {sheets.length === 0 ? (
@@ -573,7 +563,7 @@ export default function OverviewTab({
 
             {/* Section header */}
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-base font-semibold" style={{ color: "var(--text-primary)" }}>Logbook</h2>
+              <h2 className="typo-section-title" style={{ color: "var(--text-primary)" }}>Logbook</h2>
               <Link
                 href={`/clients/${clientId}?tab=logbook`}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border btn-secondary"
@@ -606,7 +596,7 @@ export default function OverviewTab({
                   <div className="mt-3 flex flex-col gap-3">
                     {contacts.length > 0 && (
                       <div>
-                        <label className={labelClass} style={labelStyle}>Contact person</label>
+                        <label className="typo-label">Contact person</label>
                         <div className="flex flex-wrap gap-2 mt-1">
                           {contacts.map((c) => {
                             const active = inline.contactIds.includes(c.id);
@@ -639,7 +629,7 @@ export default function OverviewTab({
 
                     {signals.length > 0 && (
                       <div>
-                        <label className={labelClass} style={labelStyle}>Signals</label>
+                        <label className="typo-label">Signals</label>
                         <div className="flex flex-wrap gap-2 mt-1">
                           {signals.map((s) => {
                             const active = inline.signalIds.includes(s.id);
@@ -671,7 +661,7 @@ export default function OverviewTab({
                     )}
 
                     <div>
-                      <label className={labelClass} style={labelStyle}>Follow-up needed?</label>
+                      <label className="typo-label">Follow-up needed?</label>
                       <div className="flex items-center gap-3 mt-1 flex-wrap">
                         <button
                           type="button"
@@ -708,8 +698,8 @@ export default function OverviewTab({
                       </div>
                       {inline.followUp && (
                         <div className="mt-2">
-                          <label className={labelClass} style={labelStyle}>
-                            Action to follow up on <span className="text-red-400">*</span>
+                          <label className="typo-label">
+                            Action to follow up on <span className="text-[var(--danger)]">*</span>
                           </label>
                           <input
                             type="text"
@@ -727,7 +717,7 @@ export default function OverviewTab({
                       )}
                     </div>
 
-                    {inlineError && <p className="text-xs text-red-500">{inlineError}</p>}
+                    {inlineError && <p className="text-xs text-[var(--danger)]">{inlineError}</p>}
 
                     <div className="flex items-center gap-2 pt-1">
                       <button
@@ -769,7 +759,7 @@ export default function OverviewTab({
                 style={{ borderColor: "var(--border)", boxShadow: "0 1px 3px 0 rgba(0,0,0,0.06), 0 1px 2px -1px rgba(0,0,0,0.04)" }}
               >
                 <div className="flex items-center justify-between">
-                  <h2 className="text-base font-semibold" style={{ color: "var(--text-primary)" }}>Upcoming events</h2>
+                  <h2 className="typo-section-title" style={{ color: "var(--text-primary)" }}>Upcoming events</h2>
                   <Link
                     href={`/clients/${clientId}?tab=events`}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border btn-secondary"
@@ -797,7 +787,7 @@ export default function OverviewTab({
             style={{ borderColor: "var(--border)", boxShadow: "0 1px 3px 0 rgba(0,0,0,0.06), 0 1px 2px -1px rgba(0,0,0,0.04)" }}
           >
             <div className="flex items-center justify-between">
-              <h2 className="text-base font-semibold" style={{ color: "var(--text-primary)" }}>Recent activity</h2>
+              <h2 className="typo-section-title" style={{ color: "var(--text-primary)" }}>Recent activity</h2>
               <Link
                 href={`/clients/${clientId}?tab=activity`}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border btn-secondary"
@@ -811,7 +801,7 @@ export default function OverviewTab({
             {(isOverdue || daysRemaining <= WINDOW / 2) && (
               <div className="flex flex-col gap-2">
                 <div className="flex items-center justify-between">
-                  <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+                  <p className="typo-section-header" style={{ color: "var(--text-muted)" }}>
                     No activity for {daysElapsed} day{daysElapsed === 1 ? "" : "s"}
                   </p>
                   <p className="text-xs font-semibold" style={{ color: timerColor }}>
@@ -840,7 +830,7 @@ export default function OverviewTab({
               <div className="space-y-4">
                 {recentActivityGroups.map((group) => (
                   <div key={group.label}>
-                    <p className="text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: "var(--text-muted)", opacity: 0.6 }}>
+                    <p className="typo-section-header mb-1" style={{ color: "var(--text-muted)", opacity: 0.6 }}>
                       {group.label}
                     </p>
                     <div className="divide-y" style={{ borderColor: "var(--border)" }}>
@@ -864,7 +854,7 @@ export default function OverviewTab({
           style={{ borderColor: "var(--border)" }}
         >
           <div
-            className="px-4 py-3 grid grid-cols-4 text-xs font-semibold uppercase tracking-wide bg-white dark:bg-[var(--bg-sidebar)]"
+            className="px-4 py-3 grid grid-cols-4 typo-section-header bg-white dark:bg-[var(--bg-sidebar)]"
             style={{
               borderBottom: "1px solid var(--border)",
               color: "var(--text-muted)",
@@ -889,7 +879,7 @@ export default function OverviewTab({
                 className="px-4 py-3 grid grid-cols-4 items-center"
                 style={{
                   borderBottom: idx < deliveredServiceRows.length - 1 ? "1px solid var(--border)" : undefined,
-                  background: "#FFFFFF",
+                  background: "var(--bg-surface)",
                 }}
               >
                 <span className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>

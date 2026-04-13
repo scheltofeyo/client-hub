@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { hasPermission } from "@/lib/auth-helpers";
 import { connectDB } from "@/lib/mongodb";
 import { ClientEventModel } from "@/lib/models/ClientEvent";
 import { recordActivity } from "@/lib/activity";
@@ -14,6 +15,9 @@ export async function PATCH(
   const session = await auth();
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (!hasPermission(session, "events.edit")) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const { id: clientId, eventId } = await params;
@@ -67,6 +71,9 @@ export async function DELETE(
   const session = await auth();
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (!hasPermission(session, "events.delete")) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const { id: clientId, eventId } = await params;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Plus, CheckCircle2, AlertCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useRightPanel } from "@/components/layout/RightPanel";
@@ -61,11 +61,11 @@ function StatCard({
     >
       <p className="text-xs" style={{ color: "var(--text-muted)" }}>{label}</p>
       <div className="flex items-baseline gap-2">
-        <p className="text-2xl font-semibold tabular-nums" style={{ color: accent ?? "var(--text-primary)" }}>
+        <p className="typo-metric" style={{ color: accent ?? "var(--text-primary)" }}>
           {count}
         </p>
         {overdueCount !== undefined && overdueCount > 0 && (
-          <span className="text-xs tabular-nums" style={{ color: "var(--destructive, #ef4444)" }}>
+          <span className="text-xs tabular-nums" style={{ color: "var(--destructive)" }}>
             {overdueCount} overdue
           </span>
         )}
@@ -83,10 +83,12 @@ function DeliveryStatCard({
   deliveryDate,
   deliveryTask,
   projectCompletedDate,
+  today: todayProp,
 }: {
   deliveryDate: string | undefined;
   deliveryTask: Task | null | undefined; // undefined = still loading
   projectCompletedDate?: string;
+  today?: string;
 }) {
   if (!deliveryDate && !projectCompletedDate) {
     return (
@@ -133,7 +135,7 @@ function DeliveryStatCard({
 
   if (!deliveryDate) return null;
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayProp ?? new Date().toISOString().slice(0, 10);
   // Use UTC-neutral day diff (date strings only, no TZ issues)
   const [dy, dm, dd] = deliveryDate.split("-").map(Number);
   const [ty, tm, td] = today.split("-").map(Number);
@@ -157,8 +159,8 @@ function DeliveryStatCard({
       >
         <p className="text-xs" style={{ color: "var(--text-muted)" }}>Delivery</p>
         <div className="flex items-center gap-1.5">
-          <AlertCircle size={18} style={{ color: "#f59e0b" }} />
-          <p className="text-xl font-semibold" style={{ color: "#f59e0b" }}>
+          <AlertCircle size={18} style={{ color: "var(--warning)" }} />
+          <p className="text-xl font-semibold" style={{ color: "var(--warning)" }}>
             {overdueDays === 0 ? "Due today" : `${overdueDays}d overdue`}
           </p>
         </div>
@@ -180,8 +182,8 @@ function DeliveryStatCard({
       <p className="text-xs" style={{ color: "var(--text-muted)" }}>Delivery</p>
       <div className="flex items-baseline gap-1.5">
         <p
-          className="text-2xl font-semibold tabular-nums"
-          style={{ color: isUrgent ? "#f59e0b" : "var(--text-primary)" }}
+          className="typo-metric"
+          style={{ color: isUrgent ? "var(--warning)" : "var(--text-primary)" }}
         >
           {daysUntil}
         </p>
@@ -199,7 +201,7 @@ function DeliveryStatCard({
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
     <p
-      className="text-xs font-semibold uppercase tracking-wide mb-3"
+      className="typo-section-header mb-3"
       style={{ color: "var(--text-muted)" }}
     >
       {children}
@@ -215,16 +217,29 @@ export default function TasksTab({
   initialTasks,
   currentUserId,
   project,
+  today: todayProp,
+  canEditAnyTask = true,
+  canEditOwnTask = true,
+  canDeleteAnyTask = true,
+  canDeleteOwnTask = true,
 }: {
   projectId: string;
   clientId: string;
   initialTasks: Task[];
   currentUserId: string;
   project: Project | null;
+  today?: string;
+  canEditAnyTask?: boolean;
+  canEditOwnTask?: boolean;
+  canDeleteAnyTask?: boolean;
+  canDeleteOwnTask?: boolean;
 }) {
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
   const [users, setUsers] = useState<UserOption[]>([]);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+
+  const taskCanEdit = (task: Task) => canEditAnyTask || (canEditOwnTask && task.createdById === currentUserId);
+  const taskCanDelete = (task: Task) => canDeleteAnyTask || (canDeleteOwnTask && task.createdById === currentUserId);
   const [showInlineAdd, setShowInlineAdd] = useState(false);
   const [inlineSubtaskFor, setInlineSubtaskFor] = useState<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -246,42 +261,47 @@ export default function TasksTab({
       .catch(() => {});
   }, []);
 
-  // Delivery task: fetch general tasks, find or auto-create delivery task when date is reached
+  // Delivery task: find in project tasks or auto-create when date is reached
+  const deliveryTitle = project?.title ? `Deliver ${project.title}` : "";
+  const deliveryCreating = useRef(false);
   useEffect(() => {
     if (!project?.deliveryDate) {
       setDeliveryTask(null);
       return;
     }
 
-    const deliveryTitle = `Deliver ${project.title}`;
     const today = new Date().toISOString().slice(0, 10);
 
-    fetch(`/api/clients/${clientId}/tasks`)
-      .then((r) => (r.ok ? r.json() : []))
-      .then(async (generalTasks: Task[]) => {
-        const found = generalTasks.find((t) => t.title === deliveryTitle);
-        if (found) {
-          setDeliveryTask(found);
-          return;
-        }
-        // Auto-create when delivery date has been reached
-        if (project.deliveryDate! <= today) {
-          const res = await fetch(`/api/clients/${clientId}/tasks`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ title: deliveryTitle }),
-          });
-          if (res.ok) {
-            setDeliveryTask(await res.json());
+    // Search project tasks (from server-rendered initial data)
+    const found = initialTasks.find((t) => t.title === deliveryTitle);
+    if (found) {
+      setDeliveryTask(found);
+      return;
+    }
+
+    // Auto-create when delivery date has been reached
+    if (project.deliveryDate <= today && !deliveryCreating.current) {
+      deliveryCreating.current = true;
+      fetch(`/api/clients/${clientId}/projects/${projectId}/tasks`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: deliveryTitle }),
+      })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((created) => {
+          if (created) {
+            setDeliveryTask(created);
+            setTasks((prev) => [...prev, created]);
           } else {
             setDeliveryTask(null);
           }
-        } else {
-          setDeliveryTask(null);
-        }
-      })
-      .catch(() => setDeliveryTask(null));
-  }, [clientId, project?.deliveryDate, project?.title]);
+        })
+        .catch(() => setDeliveryTask(null))
+        .finally(() => { deliveryCreating.current = false; });
+    } else if (project.deliveryDate > today) {
+      setDeliveryTask(null);
+    }
+  }, [clientId, projectId, initialTasks, deliveryTitle, project?.deliveryDate]);
 
   const userImages = useMemo(
     () => Object.fromEntries(users.filter((u) => u.image).map((u) => [u.id, u.image!])),
@@ -538,7 +558,7 @@ export default function TasksTab({
     }
   }
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayProp ?? new Date().toISOString().slice(0, 10);
   const allOpen = tasks.filter((t) => !t.completedAt);
   const allCompleted = tasks.filter((t) => t.completedAt);
   const myTasks = tasks.filter((t) => t.assignees.some((a) => a.userId === currentUserId));
@@ -585,6 +605,7 @@ export default function TasksTab({
             deliveryDate={project?.deliveryDate}
             deliveryTask={deliveryTask}
             projectCompletedDate={project?.completedDate}
+            today={today}
           />
         )}
       </div>
@@ -621,7 +642,12 @@ export default function TasksTab({
               onInlineSubtaskSave={(title) => handleInlineSubtaskSave(task.id, title)}
               onInlineSubtaskCancel={() => setInlineSubtaskFor(null)}
               userImages={userImages}
-              isDraggable={true}
+              canEdit={taskCanEdit(task)}
+              canDelete={taskCanDelete(task)}
+              titlePrefix={task.title === deliveryTitle ? "Deliver:" : undefined}
+              displayTitle={task.title === deliveryTitle ? project!.title : undefined}
+              today={today}
+              isDraggable={taskCanEdit(task)}
               draggingId={draggingId}
               draggingHasChildren={!!draggingId && subtasksOf(draggingId).length > 0}
               dragOverId={dragOverId}
@@ -676,6 +702,11 @@ export default function TasksTab({
                 onInlineSubtaskCancel={() => {}}
                 userImages={userImages}
                 readOnly
+                canEdit={taskCanEdit(task)}
+                canDelete={taskCanDelete(task)}
+                titlePrefix={task.title === deliveryTitle ? "Deliver:" : undefined}
+                displayTitle={task.title === deliveryTitle ? project!.title : undefined}
+                today={today}
               />
             ))}
           </div>

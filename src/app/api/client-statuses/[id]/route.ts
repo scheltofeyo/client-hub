@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { requirePermission } from "@/lib/auth-helpers";
 import { connectDB } from "@/lib/mongodb";
 import { ClientStatusOptionModel } from "@/lib/models/ClientStatusOption";
 
@@ -8,9 +9,8 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await auth();
-  if (!session?.user?.isAdmin) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const forbidden = requirePermission(session, "admin.clientStatuses");
+  if (forbidden) return forbidden;
 
   const { id } = await params;
   const { label, checkInDays } = await req.json();
@@ -39,9 +39,8 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await auth();
-  if (!session?.user?.isAdmin) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const forbidden = requirePermission(session, "admin.clientStatuses");
+  if (forbidden) return forbidden;
 
   const { id } = await params;
   await connectDB();

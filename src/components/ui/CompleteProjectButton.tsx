@@ -28,7 +28,7 @@ function ConfirmModal({
         <div className="flex items-start gap-3">
           <AlertTriangle size={18} className="shrink-0 mt-0.5 text-amber-500" />
           <div>
-            <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+            <p className="typo-card-title" style={{ color: "var(--text-primary)" }}>
               {openTaskCount} open task{openTaskCount === 1 ? "" : "s"} remaining
             </p>
             <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>

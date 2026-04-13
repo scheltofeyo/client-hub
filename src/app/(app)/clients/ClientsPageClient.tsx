@@ -12,27 +12,9 @@ import type { SortState, ColumnDef } from "@/components/ui/DataTable";
 import type { Client, ClientStatusOption, ClientPlatformOption, Project } from "@/types";
 import type { OverviewRow } from "./ClientsOverviewTable";
 
+import { accentColor } from "@/lib/styles";
+
 // ── helpers ────────────────────────────────────────────────────────────────
-
-const ACCENT_COLORS = [
-  "#7C3AED", "#2563EB", "#059669", "#D97706",
-  "#DC2626", "#DB2777", "#0891B2", "#0D9488",
-];
-
-function accentColor(name: string): string {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) {
-    hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  return ACCENT_COLORS[Math.abs(hash) % ACCENT_COLORS.length];
-}
-
-function hexToRgb(hex: string): string {
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  return `${r}, ${g}, ${b}`;
-}
 
 function initials(company: string): string {
   return company.split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("");
@@ -49,7 +31,6 @@ function leadInitials(name: string): string {
 
 function ClientCard({ client }: { client: Client }) {
   const color = accentColor(client.company);
-  const rgb = hexToRgb(color);
   const abbr = initials(client.company);
 
   return (
@@ -60,7 +41,7 @@ function ClientCard({ client }: { client: Client }) {
     >
       <div
         className="flex items-start px-4 pt-4 pb-0"
-        style={{ background: `rgba(${rgb}, 0.08)`, height: "40px" }}
+        style={{ background: `color-mix(in srgb, ${color} 8%, transparent)`, height: "40px" }}
       >
         <div
           className="w-12 h-12 rounded-xl flex items-center justify-center text-white text-base font-bold shadow-sm mb-[-24px] z-10"
@@ -431,6 +412,7 @@ export default function ClientsPageClient({
   platforms,
   tab,
   isAdmin,
+  canCreateClient = true,
   overviewRows,
   projectsByClient,
 }: {
@@ -440,6 +422,7 @@ export default function ClientsPageClient({
   platforms: ClientPlatformOption[];
   tab: string;
   isAdmin: boolean;
+  canCreateClient?: boolean;
   overviewRows: OverviewRow[];
   projectsByClient: Record<string, Project[]>;
 }) {
@@ -485,7 +468,7 @@ export default function ClientsPageClient({
       <div className="px-8 pt-8 pb-0">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-semibold" style={{ color: "var(--text-primary)" }}>
+            <h1 className="typo-page-title" style={{ color: "var(--text-primary)" }}>
               Clients
             </h1>
             {!isOverview && (
@@ -494,7 +477,7 @@ export default function ClientsPageClient({
               </p>
             )}
           </div>
-          <AddClientButton />
+          {canCreateClient && <AddClientButton />}
         </div>
         <ClientsTabNav activeTab={activeTab} isAdmin={isAdmin} />
       </div>
@@ -503,7 +486,7 @@ export default function ClientsPageClient({
       <div className="px-8 py-6">
         {isOverview ? (
           <div className="space-y-6">
-            <ClientsTimeline clients={clients} projectsByClient={projectsByClient} />
+            <ClientsTimeline clients={clients} projectsByClient={projectsByClient} pxPerDay={12} />
             <ClientsOverviewTable rows={overviewRows} statusOptions={statuses} />
           </div>
         ) : (
@@ -524,7 +507,7 @@ export default function ClientsPageClient({
               <div className="flex flex-col gap-10">
                 {myClients.length > 0 && (
                   <section>
-                    <h2 className="text-sm font-semibold mb-4" style={{ color: "var(--text-secondary)" }}>
+                    <h2 className="typo-section-title mb-4" style={{ color: "var(--text-secondary)" }}>
                       Your clients
                     </h2>
                     <SectionGrid clients={myClients} />
@@ -532,7 +515,7 @@ export default function ClientsPageClient({
                 )}
                 <section>
                   <h2
-                    className="text-sm font-semibold mb-4"
+                    className="typo-section-title mb-4"
                     style={{ color: "var(--text-secondary)" }}
                   >
                     {myClients.length > 0 ? "Other clients" : "Clients"}

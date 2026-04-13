@@ -47,8 +47,6 @@ const inputStyle = {
   borderColor: "var(--border)",
   color: "var(--text-primary)",
 };
-const labelClass = "block text-xs font-medium mb-1";
-const labelStyle = { color: "var(--text-muted)" };
 
 // ── ColorIconPicker ──────────────────────────────────────────
 
@@ -66,7 +64,7 @@ function ColorIconPicker({
   return (
     <div className="space-y-3">
       <div>
-        <p className={labelClass} style={labelStyle}>Color</p>
+        <p className="typo-label">Color</p>
         <div className="flex flex-wrap gap-2">
           {PRESET_COLORS.map((c) => (
             <button
@@ -93,7 +91,7 @@ function ColorIconPicker({
         </div>
       </div>
       <div>
-        <p className={labelClass} style={labelStyle}>Icon</p>
+        <p className="typo-label">Icon</p>
         <div className="flex flex-wrap gap-1.5">
           {ICON_OPTIONS.map(({ name, Icon }) => (
             <button
@@ -157,10 +155,10 @@ function AddEventTypeForm({
 
   return (
     <div className="space-y-4">
-      {error && <p className="text-xs text-red-500">{error}</p>}
+      {error && <p className="text-xs text-[var(--danger)]">{error}</p>}
       <div>
-        <label className={labelClass} style={labelStyle}>
-          Label <span className="text-red-400">*</span>
+        <label className="typo-label">
+          Label <span className="text-[var(--danger)]">*</span>
         </label>
         <input
           type="text"
@@ -182,7 +180,7 @@ function AddEventTypeForm({
         <div className="flex items-center gap-2 py-1">
           <span className="text-xs" style={{ color: "var(--text-muted)" }}>Preview:</span>
           <span
-            className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded"
+            className="flex items-center gap-1 typo-tag px-1.5 py-0.5 rounded"
             style={{ background: `${color}18`, color }}
           >
             <Icon size={10} strokeWidth={2} />
@@ -291,7 +289,7 @@ export default function AdminEventTypesTable({
 
   return (
     <div className="space-y-3">
-      {error && <p className="text-xs text-red-500">{error}</p>}
+      {error && <p className="text-xs text-[var(--danger)]">{error}</p>}
 
       {eventTypes.map((et, i) => {
         const Icon = ICON_MAP[et.icon] ?? Circle;
@@ -323,7 +321,7 @@ export default function AdminEventTypesTable({
                   <div className="flex items-center gap-2">
                     <span className="text-xs" style={{ color: "var(--text-muted)" }}>Preview:</span>
                     <span
-                      className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded"
+                      className="flex items-center gap-1 typo-tag px-1.5 py-0.5 rounded"
                       style={{ background: `${editColor}18`, color: editColor }}
                     >
                       <EditIcon size={10} strokeWidth={2} />
@@ -355,7 +353,7 @@ export default function AdminEventTypesTable({
               <div className="flex items-center justify-between gap-4">
                 <div className="flex items-center gap-2.5">
                   <span
-                    className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded"
+                    className="flex items-center gap-1 typo-tag px-1.5 py-0.5 rounded"
                     style={{ background: `${et.color}18`, color: et.color }}
                   >
                     <Icon size={10} strokeWidth={2} />
@@ -403,7 +401,7 @@ export default function AdminEventTypesTable({
                       </button>
                       <button
                         onClick={() => handleDelete(et.id, et.label)}
-                        className="p-1.5 rounded-md btn-icon text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+                        className="p-1.5 rounded-md btn-icon text-[var(--danger)] hover:bg-[var(--danger-light)]"
                         title="Delete event type"
                       >
                         <Trash2 size={13} />

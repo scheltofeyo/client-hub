@@ -8,19 +8,11 @@ const notes: ReleaseNote[] = releaseNotes;
 export default function Page() {
   return (
     <div className="flex-1 overflow-y-auto p-8 max-w-3xl">
-      <h1 className="text-xl font-semibold mb-1" style={{ color: "var(--text-primary)" }}>
-        Settings
+      <h1 className="typo-page-title mb-1" style={{ color: "var(--text-primary)" }}>
+        Release Notes
       </h1>
       <p className="text-sm mb-8" style={{ color: "var(--text-muted)" }}>
-        App information and preferences.
-      </p>
-
-      {/* Release Notes */}
-      <p
-        className="text-xs font-semibold uppercase tracking-wider mb-4"
-        style={{ color: "var(--text-muted)" }}
-      >
-        Release Notes
+        Recent updates and changes.
       </p>
       <div className="space-y-3">
         {notes.map((note, i) => (

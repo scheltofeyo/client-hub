@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { hasPermission } from "@/lib/auth-helpers";
 import { connectDB } from "@/lib/mongodb";
 import { SheetModel } from "@/lib/models/Sheet";
+import { recordActivity } from "@/lib/activity";
 
 export async function GET(
   _req: NextRequest,
@@ -34,6 +36,9 @@ export async function POST(
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  if (!hasPermission(session, "sheets.create")) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const { id: clientId } = await params;
   const body = await req.json();
@@ -51,6 +56,14 @@ export async function POST(
     clientId,
     name: name.trim(),
     url: url.trim(),
+  });
+
+  await recordActivity({
+    clientId,
+    actorId: session.user.id,
+    actorName: session.user.name ?? "Unknown",
+    type: "sheet.created",
+    metadata: { sheetId: doc._id.toString(), name: doc.name },
   });
 
   return NextResponse.json(

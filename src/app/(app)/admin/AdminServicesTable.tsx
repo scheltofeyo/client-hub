@@ -13,8 +13,6 @@ const inputStyle = {
   borderColor: "var(--border)",
   color: "var(--text-primary)",
 };
-const labelClass = "block text-xs font-medium mb-1";
-const labelStyle = { color: "var(--text-muted)" };
 
 function AddServiceForm({
   onCreated,
@@ -54,10 +52,10 @@ function AddServiceForm({
 
   return (
     <div className="space-y-4">
-      {error && <p className="text-xs text-red-500">{error}</p>}
+      {error && <p className="text-xs text-[var(--danger)]">{error}</p>}
       <div>
-        <label className={labelClass} style={labelStyle}>
-          Name <span className="text-red-400">*</span>
+        <label className="typo-label">
+          Name <span className="text-[var(--danger)]">*</span>
         </label>
         <input
           type="text"
@@ -70,7 +68,7 @@ function AddServiceForm({
         />
       </div>
       <div>
-        <label className={labelClass} style={labelStyle}>
+        <label className="typo-label">
           Check-in interval (days)
         </label>
         <input
@@ -191,7 +189,7 @@ export default function AdminServicesTable({
 
   return (
     <div className="space-y-3">
-      {error && <p className="text-xs text-red-500">{error}</p>}
+      {error && <p className="text-xs text-[var(--danger)]">{error}</p>}
 
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)" }}>
         <div
@@ -204,25 +202,25 @@ export default function AdminServicesTable({
             >
               <tr>
                 <th
-                  className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-left whitespace-nowrap"
+                  className="px-4 py-3 typo-section-header text-left whitespace-nowrap"
                   style={{ color: "var(--text-muted)" }}
                 >
                   Name
                 </th>
                 <th
-                  className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-left whitespace-nowrap"
+                  className="px-4 py-3 typo-section-header text-left whitespace-nowrap"
                   style={{ color: "var(--text-muted)", minWidth: 160 }}
                 >
                   Check-in interval
                 </th>
                 <th
-                  className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-right whitespace-nowrap"
+                  className="px-4 py-3 typo-section-header text-right whitespace-nowrap"
                   style={{ color: "var(--text-muted)" }}
                 >
                   Order
                 </th>
                 <th
-                  className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-right whitespace-nowrap"
+                  className="px-4 py-3 typo-section-header text-right whitespace-nowrap"
                   style={{ color: "var(--text-muted)" }}
                 >
                   Actions
@@ -334,7 +332,7 @@ export default function AdminServicesTable({
                           </button>
                           <button
                             onClick={() => handleDelete(s.id, s.name)}
-                            className="p-1.5 rounded-md btn-icon text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+                            className="p-1.5 rounded-md btn-icon text-[var(--danger)] hover:bg-[var(--danger-light)]"
                             title="Delete service"
                           >
                             <Trash2 size={13} />

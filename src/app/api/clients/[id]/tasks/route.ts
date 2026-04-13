@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { hasPermission } from "@/lib/auth-helpers";
 import { connectDB } from "@/lib/mongodb";
 import { TaskModel } from "@/lib/models/Task";
 import { recordActivity } from "@/lib/activity";
@@ -56,6 +57,9 @@ export async function POST(
 ) {
   const session = await auth();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!hasPermission(session, "tasks.create")) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const { id: clientId } = await params;
   const body = await req.json();

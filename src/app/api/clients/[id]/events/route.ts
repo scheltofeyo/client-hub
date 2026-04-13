@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { hasPermission } from "@/lib/auth-helpers";
 import { connectDB } from "@/lib/mongodb";
 import { ClientEventModel } from "@/lib/models/ClientEvent";
 import { recordActivity } from "@/lib/activity";
@@ -34,6 +35,9 @@ export async function POST(
   const session = await auth();
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (!hasPermission(session, "events.create")) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const { id: clientId } = await params;

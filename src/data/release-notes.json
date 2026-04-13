@@ -1,5 +1,108 @@
 [
   {
+    "date": "2026-04-12",
+    "title": "Expanded activity tracking with granular status, platform, lead, sheet, task, and project change events",
+    "details": [
+      "Client status and platform changes now show old and new values instead of generic 'Company details updated'",
+      "Lead additions and removals on clients are now tracked separately",
+      "Sheet creation and deletion are now recorded in the activity log",
+      "Task and project field edits (title, assignees, dates, etc.) are now tracked",
+      "New client creation is recorded as the first activity entry"
+    ]
+  },
+  {
+    "date": "2026-04-10",
+    "title": "Redesigned This Week page with day detail view",
+    "details": [
+      "Compact week overview strip with stacked bars showing event density per day",
+      "Click any day to see a detailed 3-column breakdown: Project Events, Events & Tasks, and Team",
+      "Team column shows time-off, workload indicators, and birthdays",
+      "Project Gantt timeline moved to the top of the page"
+    ]
+  },
+  {
+    "date": "2026-04-10",
+    "title": "Fix: Delivery task now appears in project task list",
+    "details": [
+      "Delivery tasks are now created as project-level tasks so they appear in the Open tasks list",
+      "Previously, delivery tasks were created at the client level and were invisible on the project page"
+    ]
+  },
+  {
+    "date": "2026-04-10",
+    "title": "Archive employees",
+    "details": [
+      "Archive an employee to remove them from all client leads, task assignments, and future time-off",
+      "Impact preview shows exactly what will change before you confirm",
+      "Archived employees can no longer log in",
+      "Reactivate an archived employee at any time (assignments must be re-added manually)",
+      "Historical records (logs, activity, completed tasks) are preserved"
+    ]
+  },
+  {
+    "date": "2026-04-10",
+    "title": "Team page with holiday calendar",
+    "details": [
+      "New 'Team' page accessible from the sidebar with a monthly wallchart calendar",
+      "Log time off for yourself or team members with half-day support",
+      "Leave balance overview showing vacation allowance vs. days used",
+      "Configurable leave types and company holidays via Admin > Labels and Types",
+      "Company-wide holidays highlighted on the calendar"
+    ]
+  },
+  {
+    "date": "2026-04-09",
+    "title": "New 'My Day' personal dashboard",
+    "details": [
+      "Personal landing page showing your overdue and today's tasks, open follow-ups, project overview, and upcoming deadlines",
+      "Complete tasks and mark follow-ups done directly from the dashboard",
+      "Projects section shows progress bars for clients you lead",
+      "Now the default page when you open the app"
+    ]
+  },
+  {
+    "date": "2026-04-08",
+    "title": "New 'This Week' team dashboard",
+    "details": [
+      "Weekly calendar view with Mon-Fri day columns showing events, milestones, and deadlines",
+      "Filter by event type with toggle pills (Deadlines, Deliveries, Kick-offs, Follow-ups, Events)",
+      "Navigate between weeks with arrow buttons",
+      "Active projects Gantt timeline below the calendar",
+      "Dashboard is now the default landing page"
+    ]
+  },
+  {
+    "date": "2026-04-08",
+    "title": "Configurable lead permissions per role",
+    "details": [
+      "Each role now defines two permission sets: Global (everywhere) and Lead (on assigned clients only)",
+      "Role editor shows both sections with grouped checkboxes",
+      "Lead permissions use union model: global OR (lead + lead permission) — no conflicts",
+      "Default member lead permissions match previous behavior (edit client, create/edit/kickoff projects)"
+    ]
+  },
+  {
+    "date": "2026-04-08",
+    "title": "Tabbed employee profile editor with self-service access",
+    "details": [
+      "Employee edit page now uses tabbed navigation: Identity & Personal, Employment, System Access, and Notes",
+      "Sticky header stays visible while scrolling through tab content",
+      "Members can edit their own profile (name, avatar, phone, emergency contact) via the avatar menu",
+      "Admin users retain full access to all tabs when editing any employee"
+    ]
+  },
+  {
+    "date": "2026-04-08",
+    "title": "Roles & permissions system",
+    "details": [
+      "Create custom roles with granular permissions from the admin panel",
+      "35+ permissions across clients, projects, tasks, logs, events, employees, and admin features",
+      "Two built-in system roles (Admin, Member) with editable permissions",
+      "Assign any role to employees when inviting or editing their profile",
+      "Lead-based and creator-based access checks preserved alongside role permissions"
+    ]
+  },
+  {
     "date": "2026-04-03",
     "title": "Scrollable event history on Events tab",
     "details": [

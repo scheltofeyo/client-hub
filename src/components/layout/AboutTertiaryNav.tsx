@@ -7,6 +7,7 @@ const sections = [
   { label: "General",       value: "about"    },
   { label: "Client Leads", value: "leads"    },
   { label: "Contacts",     value: "contacts" },
+  { label: "Platform",    value: "platform" },
 ];
 
 export default function AboutTertiaryNav({ clientId }: { clientId: string }) {

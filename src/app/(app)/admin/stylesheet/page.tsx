@@ -8,7 +8,7 @@ import GanttTimeline, { GanttSection } from "@/components/ui/GanttTimeline";
 import type { Task } from "@/types";
 
 const section = "mb-10";
-const sectionTitle = "text-xs font-semibold uppercase tracking-wider mb-4";
+const sectionTitle = "typo-section-header mb-4";
 const row = "flex flex-wrap items-center gap-3 mb-3";
 const label = "text-xs w-20 shrink-0";
 
@@ -161,7 +161,7 @@ export default function StylesheetPage() {
           <button className="p-1.5 rounded-md btn-icon" title="Add">
             <Plus size={14} />
           </button>
-          <button className="p-1.5 rounded-md btn-icon text-red-500" title="Delete">
+          <button className="p-1.5 rounded-md btn-icon text-[var(--danger)]" title="Delete">
             <Trash2 size={14} />
           </button>
           <button className="p-1.5 rounded-md btn-icon" title="Disabled" disabled>
@@ -257,7 +257,7 @@ export default function StylesheetPage() {
         <p className={sectionTitle} style={{ color: "var(--text-muted)" }}>
           Gantt Timeline
         </p>
-        <GanttTimeline sections={MOCK_GANTT_SECTIONS} onRowClick={noop} />
+        <GanttTimeline sections={MOCK_GANTT_SECTIONS} onBarClick={noop} />
       </div>
 
       </div>{/* end overflow-y-auto */}

@@ -2,17 +2,21 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { connectDB } from "@/lib/mongodb";
 import { UserModel } from "@/lib/models/User";
+import { hasPermission, requirePermission } from "@/lib/auth-helpers";
 
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await auth();
-  if (!session?.user?.isAdmin) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
+  const isSelf = id === session.user.id;
+
+  if (!hasPermission(session, "employees.view") && !isSelf) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
   await connectDB();
 
   const user = await UserModel.findById(id).lean();
@@ -23,7 +27,6 @@ export async function GET(
     name: user.name,
     email: user.email,
     image: user.image,
-    isAdmin: user.isAdmin,
     role: user.role ?? "member",
     status: user.status ?? "active",
     googleName: user.googleName,
@@ -54,11 +57,16 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await auth();
-  if (!session?.user?.isAdmin) {
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { id } = await params;
+  const isSelf = id === session.user.id;
+  const hasEmployeeEdit = hasPermission(session, "employees.edit");
+
+  if (!hasEmployeeEdit && !isSelf) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { id } = await params;
   const body = await req.json();
 
   await connectDB();
@@ -67,20 +75,28 @@ export async function PATCH(
   const existing = await UserModel.findById(id);
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  // Prevent self-demotion
-  if (id === session.user.id && body.role === "member" && existing.role === "admin") {
-    return NextResponse.json({ error: "Cannot demote yourself" }, { status: 400 });
+  // Prevent self-demotion (changing your own role)
+  if (isSelf && body.role !== undefined && body.role !== existing.role) {
+    return NextResponse.json({ error: "Cannot change your own role" }, { status: 400 });
   }
 
-  // Allowed fields for update
-  const allowedFields = [
+  // Personal fields (self-editable with profile.editOwn)
+  const PERSONAL_FIELDS = [
     "displayName", "displayImage",
     "firstName", "preposition", "lastName",
-    "dateOfBirth", "dateStarted", "employeeNumber",
+    "dateOfBirth", "phone",
+    "emergencyContactName", "emergencyContactPhone",
+  ];
+
+  // All fields (requires employees.edit)
+  const ALL_EDITABLE_FIELDS = [
+    ...PERSONAL_FIELDS,
+    "dateStarted", "employeeNumber",
     "vacationDays", "contractType", "contractHours", "contractEndDate",
-    "phone", "emergencyContactName", "emergencyContactPhone",
     "notes", "role", "status",
   ];
+
+  const allowedFields = hasEmployeeEdit ? ALL_EDITABLE_FIELDS : PERSONAL_FIELDS;
 
   const setFields: Record<string, unknown> = {};
   for (const field of allowedFields) {
@@ -89,17 +105,11 @@ export async function PATCH(
     }
   }
 
-  // Handle legacy isAdmin toggle (backward compat)
-  if ("isAdmin" in body && !("role" in body)) {
-    setFields.role = body.isAdmin ? "admin" : "member";
-  }
-
-  // Recompute name/image/isAdmin from merged state
+  // Recompute name/image from merged state
   const merged = { ...existing.toObject(), ...setFields };
   const structuredName = [merged.firstName, merged.preposition, merged.lastName].filter(Boolean).join(" ");
   setFields.name = merged.displayName ?? merged.googleName ?? (structuredName || merged.email);
   setFields.image = merged.displayImage ?? merged.googleImage ?? undefined;
-  setFields.isAdmin = (setFields.role ?? merged.role) === "admin";
 
   const user = await UserModel.findByIdAndUpdate(
     id,
@@ -114,7 +124,6 @@ export async function PATCH(
     name: user.name,
     email: user.email,
     image: user.image,
-    isAdmin: user.isAdmin,
     role: user.role ?? "member",
     status: user.status ?? "active",
     displayName: user.displayName,

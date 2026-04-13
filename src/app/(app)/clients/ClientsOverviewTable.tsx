@@ -9,6 +9,7 @@ import DataTable, { type ColumnDef, type SortState } from "@/components/ui/DataT
 import { fmtDate } from "@/lib/utils";
 import type { Client, ClientLead, ClientStatusOption } from "@/types";
 import type { FirstEventResult } from "@/lib/data";
+import { accentColor } from "@/lib/styles";
 
 export type OverviewRow = {
   client: Client;
@@ -19,19 +20,6 @@ export type OverviewRow = {
 };
 
 // ── Client avatar helpers ──────────────────────────────────────────────────
-
-const ACCENT_COLORS = [
-  "#7C3AED", "#2563EB", "#059669", "#D97706",
-  "#DC2626", "#DB2777", "#0891B2", "#0D9488",
-];
-
-function accentColor(name: string): string {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) {
-    hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  return ACCENT_COLORS[Math.abs(hash) % ACCENT_COLORS.length];
-}
 
 function initials(company: string): string {
   return company.split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("");
@@ -49,9 +37,9 @@ function daysSinceISO(isoString: string): number {
 
 function checkinColor(daysRemaining: number, window: number): string {
   if (daysRemaining > window * 0.5) return "color-mix(in srgb, var(--primary) 75%, transparent)";
-  if (daysRemaining > window * 0.25) return "#d97706bf";
-  if (daysRemaining > window * 0.08) return "#ea580cbf";
-  return "#dc2626bf";
+  if (daysRemaining > window * 0.25) return "color-mix(in srgb, var(--warning) 75%, transparent)";
+  if (daysRemaining > window * 0.08) return "color-mix(in srgb, var(--warning) 85%, transparent)";
+  return "color-mix(in srgb, var(--danger) 75%, transparent)";
 }
 
 // ── Sort types ─────────────────────────────────────────────────────────────

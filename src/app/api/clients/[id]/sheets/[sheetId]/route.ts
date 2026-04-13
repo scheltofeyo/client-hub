@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { hasPermission } from "@/lib/auth-helpers";
 import { connectDB } from "@/lib/mongodb";
 import { SheetModel } from "@/lib/models/Sheet";
+import { recordActivity } from "@/lib/activity";
 
 export async function PATCH(
   req: NextRequest,
@@ -50,12 +52,23 @@ export async function DELETE(
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  if (!hasPermission(session, "sheets.delete")) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
-  const { sheetId } = await params;
+  const { id: clientId, sheetId } = await params;
   await connectDB();
   const existing = await SheetModel.findById(sheetId).lean();
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
-
   await SheetModel.findByIdAndDelete(sheetId);
+
+  await recordActivity({
+    clientId,
+    actorId: session.user.id,
+    actorName: session.user.name ?? "Unknown",
+    type: "sheet.deleted",
+    metadata: { sheetId, name: existing.name },
+  });
+
   return new NextResponse(null, { status: 204 });
 }

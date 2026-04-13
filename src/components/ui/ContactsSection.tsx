@@ -5,6 +5,7 @@ import { Pencil, Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useRightPanel } from "@/components/layout/RightPanel";
 import type { Contact } from "@/types";
+import { ACCENT_COLORS } from "@/lib/styles";
 
 const inputClass =
   "w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--primary)]/40";
@@ -13,24 +14,11 @@ const inputStyle = {
   borderColor: "var(--border)",
   color: "var(--text-primary)",
 };
-const labelClass = "block text-xs font-medium mb-1";
-const labelStyle = { color: "var(--text-muted)" };
-
-const AVATAR_COLORS = [
-  "#7c3aed",
-  "#2563eb",
-  "#0d9488",
-  "#16a34a",
-  "#ea580c",
-  "#e11d48",
-  "#4f46e5",
-  "#d97706",
-];
 
 function avatarColor(id: string): string {
   let hash = 0;
   for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
-  return AVATAR_COLORS[hash % AVATAR_COLORS.length];
+  return ACCENT_COLORS[hash % ACCENT_COLORS.length];
 }
 
 function initials(firstName: string, lastName: string): string {
@@ -75,8 +63,8 @@ function ContactForm({
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className={labelClass} style={labelStyle}>
-            First name <span className="text-red-400">*</span>
+          <label className="typo-label">
+            First name <span className="text-[var(--danger)]">*</span>
           </label>
           <input
             type="text"
@@ -89,7 +77,7 @@ function ContactForm({
           />
         </div>
         <div>
-          <label className={labelClass} style={labelStyle}>
+          <label className="typo-label">
             Last name
           </label>
           <input
@@ -103,7 +91,7 @@ function ContactForm({
         </div>
       </div>
       <div>
-        <label className={labelClass} style={labelStyle}>
+        <label className="typo-label">
           Role / Title
         </label>
         <input
@@ -116,7 +104,7 @@ function ContactForm({
         />
       </div>
       <div>
-        <label className={labelClass} style={labelStyle}>
+        <label className="typo-label">
           Email
         </label>
         <input
@@ -129,7 +117,7 @@ function ContactForm({
         />
       </div>
       <div>
-        <label className={labelClass} style={labelStyle}>
+        <label className="typo-label">
           Phone
         </label>
         <input
@@ -217,7 +205,7 @@ export default function ContactsSection({
     <div>
       <div className="flex items-center justify-between mb-4">
         <h2
-          className="text-xs font-semibold uppercase tracking-wide"
+          className="typo-section-header"
           style={{ color: "var(--text-muted)" }}
         >
           Contacts
@@ -298,7 +286,7 @@ export default function ContactsSection({
             className="rounded-xl p-6 w-full max-w-sm shadow-xl"
             style={{ background: "var(--bg-surface)", border: "1px solid var(--border)" }}
           >
-            <h3 className="text-sm font-semibold mb-2" style={{ color: "var(--text-primary)" }}>
+            <h3 className="typo-card-title mb-2" style={{ color: "var(--text-primary)" }}>
               Remove contact?
             </h3>
             <p className="text-sm mb-5" style={{ color: "var(--text-muted)" }}>

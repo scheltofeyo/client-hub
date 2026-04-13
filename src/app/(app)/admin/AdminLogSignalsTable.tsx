@@ -13,8 +13,6 @@ const inputStyle = {
   borderColor: "var(--border)",
   color: "var(--text-primary)",
 };
-const labelClass = "block text-xs font-medium mb-1";
-const labelStyle = { color: "var(--text-muted)" };
 
 function AddLogSignalForm({
   onCreated,
@@ -50,10 +48,10 @@ function AddLogSignalForm({
 
   return (
     <div className="space-y-4">
-      {error && <p className="text-xs text-red-500">{error}</p>}
+      {error && <p className="text-xs text-[var(--danger)]">{error}</p>}
       <div>
-        <label className={labelClass} style={labelStyle}>
-          Name <span className="text-red-400">*</span>
+        <label className="typo-label">
+          Name <span className="text-[var(--danger)]">*</span>
         </label>
         <input
           type="text"
@@ -160,7 +158,7 @@ export default function AdminLogSignalsTable({
 
   return (
     <div className="space-y-3">
-      {error && <p className="text-xs text-red-500">{error}</p>}
+      {error && <p className="text-xs text-[var(--danger)]">{error}</p>}
 
       {signals.map((s, i) => (
         <div
@@ -227,7 +225,7 @@ export default function AdminLogSignalsTable({
                 </button>
                 <button
                   onClick={() => handleDelete(s.id, s.name)}
-                  className="p-1.5 rounded-md btn-icon text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+                  className="p-1.5 rounded-md btn-icon text-[var(--danger)] hover:bg-[var(--danger-light)]"
                   title="Delete signal"
                 >
                   <Trash2 size={13} />

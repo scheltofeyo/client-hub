@@ -23,6 +23,7 @@ export default async function ProjectTasksPage({
       initialTasks={tasks}
       currentUserId={session?.user?.id ?? ""}
       project={project}
+      today={new Date().toISOString().slice(0, 10)}
     />
   );
 }

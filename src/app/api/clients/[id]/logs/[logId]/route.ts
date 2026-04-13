@@ -4,6 +4,7 @@ import { connectDB } from "@/lib/mongodb";
 import { LogModel } from "@/lib/models/Log";
 import { TaskModel } from "@/lib/models/Task";
 import { recordActivity } from "@/lib/activity";
+import { hasPermission, hasPermissionOrIsCreator } from "@/lib/auth-helpers";
 
 export async function PATCH(
   req: NextRequest,
@@ -19,8 +20,6 @@ export async function PATCH(
   const existing = await LogModel.findById(logId).lean();
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const isAdmin = session.user.isAdmin ?? false;
-  const isCreator = existing.createdById === session.user.id;
   const isSystemLog = !!(existing.isSystemGenerated);
 
   const body = await req.json();
@@ -33,8 +32,12 @@ export async function PATCH(
     return NextResponse.json({ error: "System-generated logs cannot be edited" }, { status: 403 });
   }
 
-  if (isEditAction && !isAdmin && !isCreator) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (isEditAction) {
+    const canEditAny = hasPermission(session, "logs.editAny");
+    const canEditOwn = hasPermissionOrIsCreator(session, "logs.editOwn", existing.createdById ?? "");
+    if (!canEditAny && !canEditOwn) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
   }
 
   if (date !== undefined && !date?.trim()) {
@@ -182,9 +185,9 @@ export async function DELETE(
     return NextResponse.json({ error: "System-generated logs cannot be deleted" }, { status: 403 });
   }
 
-  const isAdmin = session.user.isAdmin ?? false;
-  const isCreator = existing.createdById === session.user.id;
-  if (!isAdmin && !isCreator) {
+  const canDeleteAny = hasPermission(session, "logs.deleteAny");
+  const canDeleteOwn = hasPermissionOrIsCreator(session, "logs.deleteOwn", existing.createdById ?? "");
+  if (!canDeleteAny && !canDeleteOwn) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

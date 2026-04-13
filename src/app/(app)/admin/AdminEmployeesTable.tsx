@@ -1,16 +1,22 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
+
+type StatusFilter = "active" | "invited" | "inactive";
+
+interface RoleOption {
+  slug: string;
+  name: string;
+}
 
 interface Employee {
   id: string;
   name: string;
   email: string;
   image: string | null;
-  isAdmin: boolean;
   role: string;
   status: string;
   firstName?: string;
@@ -25,8 +31,8 @@ function initials(name: string) {
 
 function statusColor(status: string) {
   switch (status) {
-    case "active": return { bg: "var(--success-light, #f0fdf4)", color: "var(--success, #16a34a)" };
-    case "invited": return { bg: "var(--warning-light, #fffbeb)", color: "var(--warning, #d97706)" };
+    case "active": return { bg: "var(--success-light)", color: "var(--success)" };
+    case "invited": return { bg: "var(--warning-light)", color: "var(--warning)" };
     case "inactive": return { bg: "var(--bg-hover)", color: "var(--text-muted)" };
     default: return { bg: "var(--bg-hover)", color: "var(--text-muted)" };
   }
@@ -34,6 +40,7 @@ function statusColor(status: string) {
 
 function roleBadge(role: string) {
   if (role === "admin") return { bg: "var(--primary-light)", color: "var(--primary)" };
+  if (role !== "member") return { bg: "var(--bg-hover)", color: "var(--text-secondary)" };
   return null;
 }
 
@@ -45,6 +52,9 @@ export default function AdminEmployeesTable({
   currentUserId: string;
 }) {
   const [rows, setRows] = useState(employees);
+  const [statusFilters, setStatusFilters] = useState<Set<StatusFilter>>(
+    new Set(["active", "invited"])
+  );
   const [showInvite, setShowInvite] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteFirstName, setInviteFirstName] = useState("");
@@ -52,7 +62,36 @@ export default function AdminEmployeesTable({
   const [inviteRole, setInviteRole] = useState("member");
   const [inviting, setInviting] = useState(false);
   const [inviteError, setInviteError] = useState("");
+  const [roleOptions, setRoleOptions] = useState<RoleOption[]>([]);
   const router = useRouter();
+
+  useEffect(() => {
+    fetch("/api/roles")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data: Array<{ slug: string; name: string }>) =>
+        setRoleOptions(data.map((r) => ({ slug: r.slug, name: r.name })))
+      )
+      .catch(() => {});
+  }, []);
+
+  const filteredRows = useMemo(() => {
+    if (statusFilters.size === 0) return rows;
+    return rows.filter((emp) => statusFilters.has((emp.status || "active") as StatusFilter));
+  }, [rows, statusFilters]);
+
+  function toggleFilter(status: StatusFilter) {
+    setStatusFilters((prev) => {
+      const next = new Set(prev);
+      if (next.has(status)) {
+        next.delete(status);
+      } else {
+        next.add(status);
+      }
+      return next;
+    });
+  }
+
+  const hasArchived = rows.some((emp) => emp.status === "inactive");
 
   async function handleInvite(e: React.FormEvent) {
     e.preventDefault();
@@ -61,42 +100,66 @@ export default function AdminEmployeesTable({
     setInviting(true);
     setInviteError("");
 
-    const res = await fetch("/api/users", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email: inviteEmail.trim(),
-        firstName: inviteFirstName.trim() || undefined,
-        lastName: inviteLastName.trim() || undefined,
-        role: inviteRole,
-      }),
-    });
+    try {
+      const res = await fetch("/api/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: inviteEmail.trim(),
+          firstName: inviteFirstName.trim() || undefined,
+          lastName: inviteLastName.trim() || undefined,
+          role: inviteRole,
+        }),
+      });
 
-    if (res.ok) {
-      const created = await res.json();
-      setRows((prev) => [...prev, {
-        ...created,
-        image: null,
-        isAdmin: created.role === "admin",
-      }]);
-      setInviteEmail("");
-      setInviteFirstName("");
-      setInviteLastName("");
-      setInviteRole("member");
-      setShowInvite(false);
-      router.refresh();
-    } else {
-      const data = await res.json();
-      setInviteError(data.error ?? "Failed to invite employee");
+      if (res.ok) {
+        const created = await res.json();
+        setRows((prev) => [...prev, {
+          ...created,
+          image: null,
+        }]);
+        setInviteEmail("");
+        setInviteFirstName("");
+        setInviteLastName("");
+        setInviteRole("member");
+        setShowInvite(false);
+        router.refresh();
+      } else {
+        const data = await res.json().catch(() => null);
+        setInviteError(data?.error ?? "Failed to invite employee");
+      }
+    } catch {
+      setInviteError("Failed to invite employee");
+    } finally {
+      setInviting(false);
     }
-
-    setInviting(false);
   }
 
   return (
     <div className="space-y-4">
-      {/* Invite button */}
-      <div className="flex justify-end">
+      {/* Filters and invite */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1.5">
+          {(["active", "invited", ...(hasArchived ? ["inactive" as const] : [])] as StatusFilter[]).map((s) => {
+            const active = statusFilters.has(s);
+            const sc = statusColor(s);
+            const label = s === "inactive" ? "archived" : s;
+            return (
+              <button
+                key={s}
+                onClick={() => toggleFilter(s)}
+                className="text-xs font-medium px-2.5 py-1 rounded-full capitalize transition-opacity"
+                style={{
+                  background: active ? sc.bg : "var(--bg-hover)",
+                  color: active ? sc.color : "var(--text-muted)",
+                  opacity: active ? 1 : 0.6,
+                }}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
         <button
           onClick={() => setShowInvite(!showInvite)}
           className="btn-primary text-sm px-3 py-1.5 rounded-lg flex items-center gap-1.5"
@@ -118,7 +181,7 @@ export default function AdminEmployeesTable({
         >
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium mb-1" style={{ color: "var(--text-muted)" }}>
+              <label className="typo-label">
                 Email *
               </label>
               <input
@@ -136,7 +199,7 @@ export default function AdminEmployeesTable({
               />
             </div>
             <div>
-              <label className="block text-xs font-medium mb-1" style={{ color: "var(--text-muted)" }}>
+              <label className="typo-label">
                 Role
               </label>
               <select
@@ -149,14 +212,21 @@ export default function AdminEmployeesTable({
                   color: "var(--text-primary)",
                 }}
               >
-                <option value="member">Member</option>
-                <option value="admin">Admin</option>
+                {roleOptions.length > 0
+                  ? roleOptions.map((r) => (
+                      <option key={r.slug} value={r.slug}>{r.name}</option>
+                    ))
+                  : <>
+                      <option value="member">Member</option>
+                      <option value="admin">Admin</option>
+                    </>
+                }
               </select>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium mb-1" style={{ color: "var(--text-muted)" }}>
+              <label className="typo-label">
                 First name
               </label>
               <input
@@ -173,7 +243,7 @@ export default function AdminEmployeesTable({
               />
             </div>
             <div>
-              <label className="block text-xs font-medium mb-1" style={{ color: "var(--text-muted)" }}>
+              <label className="typo-label">
                 Last name
               </label>
               <input
@@ -192,7 +262,7 @@ export default function AdminEmployeesTable({
           </div>
 
           {inviteError && (
-            <p className="text-sm" style={{ color: "var(--danger, #dc2626)" }}>{inviteError}</p>
+            <p className="text-sm" style={{ color: "var(--danger)" }}>{inviteError}</p>
           )}
 
           <div className="flex justify-end gap-2">
@@ -219,7 +289,7 @@ export default function AdminEmployeesTable({
         className="rounded-xl overflow-hidden"
         style={{ border: "1px solid var(--border)" }}
       >
-        {rows.map((emp, i) => {
+        {filteredRows.map((emp, i) => {
           const sc = statusColor(emp.status);
           const rb = roleBadge(emp.role);
 
@@ -229,7 +299,7 @@ export default function AdminEmployeesTable({
               onClick={() => router.push(`/admin/employees/${emp.id}`)}
               className="flex items-center gap-3 px-4 py-3 cursor-pointer hover-row"
               style={{
-                borderBottom: i < rows.length - 1 ? "1px solid var(--border)" : undefined,
+                borderBottom: i < filteredRows.length - 1 ? "1px solid var(--border)" : undefined,
               }}
             >
               {/* Avatar */}
@@ -272,25 +342,27 @@ export default function AdminEmployeesTable({
                 className="text-xs font-medium px-2 py-0.5 rounded-full capitalize"
                 style={{ background: sc.bg, color: sc.color }}
               >
-                {emp.status || "active"}
+                {emp.status === "inactive" ? "archived" : (emp.status || "active")}
               </span>
 
               {/* Role badge */}
               {rb && (
                 <span
-                  className="text-xs font-medium px-2 py-0.5 rounded-full"
+                  className="text-xs font-medium px-2 py-0.5 rounded-full capitalize"
                   style={{ background: rb.bg, color: rb.color }}
                 >
-                  Admin
+                  {emp.role}
                 </span>
               )}
             </div>
           );
         })}
 
-        {rows.length === 0 && (
+        {filteredRows.length === 0 && (
           <div className="px-4 py-8 text-center text-sm" style={{ color: "var(--text-muted)" }}>
-            No employees yet. Invite your first employee above.
+            {rows.length === 0
+              ? "No employees yet. Invite your first employee above."
+              : "No employees match the selected filters."}
           </div>
         )}
       </div>

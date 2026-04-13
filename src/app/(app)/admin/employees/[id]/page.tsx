@@ -2,6 +2,7 @@ import { auth } from "@/auth";
 import { redirect, notFound } from "next/navigation";
 import { connectDB } from "@/lib/mongodb";
 import { UserModel } from "@/lib/models/User";
+import { hasPermission } from "@/lib/auth-helpers";
 import EmployeeDetailEditor from "./EmployeeDetailEditor";
 
 export default async function EmployeeDetailPage({
@@ -10,7 +11,7 @@ export default async function EmployeeDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const session = await auth();
-  if (!session?.user?.isAdmin) redirect("/dashboard");
+  if (!session || !hasPermission(session, "admin.access")) redirect("/dashboard");
 
   const { id } = await params;
   await connectDB();
@@ -52,6 +53,7 @@ export default async function EmployeeDetailPage({
       <EmployeeDetailEditor
         employee={employee}
         isCurrentUser={session.user.id === employee.id}
+        mode="admin"
       />
     </div>
   );

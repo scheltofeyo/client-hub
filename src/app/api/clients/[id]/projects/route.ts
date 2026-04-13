@@ -8,6 +8,7 @@ import { TemplateTaskModel } from "@/lib/models/TemplateTask";
 import { UserModel } from "@/lib/models/User";
 import { recordActivity } from "@/lib/activity";
 import type { TaskAssignee } from "@/types";
+import { hasPermissionOrIsLead } from "@/lib/auth-helpers";
 
 export async function GET(
   _req: NextRequest,
@@ -53,8 +54,7 @@ export async function POST(
   const client = await ClientModel.findById(id).lean();
   if (!client) return NextResponse.json({ error: "Client not found" }, { status: 404 });
 
-  const isLead = (client.leads ?? []).some((l) => l.userId === session.user.id);
-  if (!session.user.isAdmin && !isLead) {
+  if (!hasPermissionOrIsLead(session, "projects.create", client.leads ?? [])) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

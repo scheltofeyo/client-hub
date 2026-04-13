@@ -5,7 +5,7 @@ import { Pencil, Trash2, RotateCcw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import SteppedModal from "@/components/ui/SteppedModal";
 import ServicePills from "@/components/ui/ServicePills";
-import { inputClass, inputStyle, labelClass, labelStyle } from "@/components/ui/form-styles";
+import { inputClass, inputStyle } from "@/components/ui/form-styles";
 import type { Project, ProjectLabel, Service } from "@/types";
 
 export default function EditProjectButton({
@@ -14,12 +14,16 @@ export default function EditProjectButton({
   services,
   labels,
   isAdmin = false,
+  canDelete = false,
+  canReset = false,
 }: {
   project: Project;
   clientId: string;
   services: Service[];
   labels: ProjectLabel[];
   isAdmin?: boolean;
+  canDelete?: boolean;
+  canReset?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({
@@ -189,8 +193,8 @@ export default function EditProjectButton({
         <div className="space-y-5">
           {/* Core fields */}
           <div>
-            <label htmlFor="ep-title" className={labelClass} style={labelStyle}>
-              Title <span className="text-red-400">*</span>
+            <label htmlFor="ep-title" className="typo-label">
+              Title <span className="text-[var(--danger)]">*</span>
             </label>
             <input
               id="ep-title"
@@ -211,7 +215,7 @@ export default function EditProjectButton({
           />
 
           <div>
-            <label htmlFor="ep-description" className={labelClass} style={labelStyle}>
+            <label htmlFor="ep-description" className="typo-label">
               Short description
             </label>
             <textarea
@@ -228,14 +232,14 @@ export default function EditProjectButton({
           {!project.kickedOffAt && (
             <div className="!mt-9">
               <p
-                className="text-xs font-semibold uppercase tracking-wide mb-3"
+                className="typo-section-header mb-3"
                 style={{ color: "var(--text-muted)" }}
               >
                 Scheduled dates
               </p>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label htmlFor="ep-sched-start" className={labelClass} style={labelStyle}>
+                  <label htmlFor="ep-sched-start" className="typo-label">
                     Start date
                   </label>
                   <input
@@ -248,7 +252,7 @@ export default function EditProjectButton({
                   />
                 </div>
                 <div>
-                  <label htmlFor="ep-sched-end" className={labelClass} style={labelStyle}>
+                  <label htmlFor="ep-sched-end" className="typo-label">
                     End date
                   </label>
                   <input
@@ -270,7 +274,7 @@ export default function EditProjectButton({
           {/* Completed date */}
           {project.status === "completed" && (
             <div>
-              <label htmlFor="ep-completed-date" className={labelClass} style={labelStyle}>
+              <label htmlFor="ep-completed-date" className="typo-label">
                 Completed date
               </label>
               <input
@@ -289,14 +293,14 @@ export default function EditProjectButton({
             <>
               <div className="!mt-9">
                 <p
-                  className="text-xs font-semibold uppercase tracking-wide mb-3"
+                  className="typo-section-header mb-3"
                   style={{ color: "var(--text-muted)" }}
                 >
                   Project dates
                 </p>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label htmlFor="ep-kickoff" className={labelClass} style={labelStyle}>
+                    <label htmlFor="ep-kickoff" className="typo-label">
                       Kick-off date
                     </label>
                     <input
@@ -309,7 +313,7 @@ export default function EditProjectButton({
                     />
                   </div>
                   <div>
-                    <label htmlFor="ep-delivery" className={labelClass} style={labelStyle}>
+                    <label htmlFor="ep-delivery" className="typo-label">
                       Expected delivery
                     </label>
                     <input
@@ -329,14 +333,14 @@ export default function EditProjectButton({
 
               <div className="!mt-9">
                 <p
-                  className="text-xs font-semibold uppercase tracking-wide mb-3"
+                  className="typo-section-header mb-3"
                   style={{ color: "var(--text-muted)" }}
                 >
                   Financial information
                 </p>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label htmlFor="ep-price" className={labelClass} style={labelStyle}>
+                    <label htmlFor="ep-price" className="typo-label">
                       Sold price (€)
                     </label>
                     <input
@@ -352,7 +356,7 @@ export default function EditProjectButton({
                     />
                   </div>
                   <div>
-                    <label htmlFor="ep-label" className={labelClass} style={labelStyle}>
+                    <label htmlFor="ep-label" className="typo-label">
                       Label
                     </label>
                     <select
@@ -375,21 +379,21 @@ export default function EditProjectButton({
             </>
           )}
 
-          {error && <p className="text-xs text-red-500">{error}</p>}
+          {error && <p className="text-xs text-[var(--danger)]">{error}</p>}
 
           {/* Danger zone */}
-          {isAdmin && (
+          {(canDelete || canReset) && (
             <div
               className="pt-5 mt-5 border-t space-y-2"
               style={{ borderColor: "var(--border)" }}
             >
               <p
-                className="text-xs font-semibold uppercase tracking-wide mb-3"
+                className="typo-section-header mb-3"
                 style={{ color: "var(--text-muted)" }}
               >
                 Danger zone
               </p>
-              {project.kickedOffAt && (
+              {canReset && project.kickedOffAt && (
                 <button
                   type="button"
                   onClick={handleReset}
@@ -400,15 +404,17 @@ export default function EditProjectButton({
                   {resetting ? "Resetting…" : "Reset to upcoming"}
                 </button>
               )}
-              <button
-                type="button"
-                onClick={handleDelete}
-                disabled={deleting}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium disabled:opacity-50 btn-danger"
-              >
-                <Trash2 size={13} />
-                {deleting ? "Deleting…" : "Delete project"}
-              </button>
+              {canDelete && (
+                <button
+                  type="button"
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium disabled:opacity-50 btn-danger"
+                >
+                  <Trash2 size={13} />
+                  {deleting ? "Deleting…" : "Delete project"}
+                </button>
+              )}
             </div>
           )}
         </div>

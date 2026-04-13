@@ -43,24 +43,34 @@ src/
   app/
     layout.tsx                  # Root HTML shell — dark mode init script, metadata
     (app)/layout.tsx            # Protected group — SessionProvider, three-column shell
-    (app)/dashboard/            # Stats overview
+    (app)/my-day/               # Personal dashboard — overdue tasks, follow-ups, Gantt for led clients
+    (app)/dashboard/            # Team/org stats overview
     (app)/clients/              # Client list table
     (app)/clients/[id]/         # Client detail — tabs: Dashboard, Projects, Tasks, Sheets, Logbook, Events, Activity, Settings
-    (app)/admin/                # Admin panel — users, archetypes, services, signals, templates, reference data
+    (app)/clients/[id]/projects/[projectId]/  # Project detail — layout with ProjectTertiaryNav, overview + tasks + files tabs
+    (app)/admin/                # Admin panel — employees, archetypes, services, signals, templates, reference data
+    (app)/admin/employees/[id]/ # Tabbed employee editor (personal, employment, permissions)
     (app)/admin/templates/      # Project template editor with TemplateTask management
     (app)/admin/stylesheet/     # Visual reference page — renders all button variants and task row states using real components
+    (app)/profile/              # Self-service profile editing (reuses EmployeeDetailEditor in "self" mode)
+    (app)/settings/             # App info + release notes display
     (app)/projects/             # Cross-client project list
-    (app)/tasks/                # Cross-client task list
     api/                        # Route handlers (see API layer below)
   components/
     layout/                     # Shell components (nav, panels, header)
     ui/                         # Feature components (tabs, forms, shared primitives)
+    my-day/                     # My Day dashboard components (tasks, follow-ups, projects/Gantt, user card)
   lib/
     mongodb.ts                  # Global Mongoose connection (singleton, dev-safe)
     data.ts                     # Server-side data helpers with React cache() deduplication
     activity.ts                 # recordActivity() — non-critical audit trail helper
     utils.ts                    # Shared helpers: fmtDate, daysAgo, timeAgoLabel
+    permissions.ts              # Permission registry — all permission strings + groups
+    auth-helpers.ts             # hasPermission, hasLeadPermission, requirePermission, contextual checks
+    seed-roles.ts               # Ensures system roles exist on first login
     models/                     # Mongoose models (see Data Models below)
+  hooks/
+    usePermission.ts            # Client-side permission hooks
   types/index.ts                # All shared TypeScript interfaces
   auth.ts / auth.config.ts      # NextAuth callbacks + edge-safe config
 ```
@@ -111,7 +121,8 @@ All in `src/lib/models/`. Models delete and recompile on hot reload (dev pattern
 
 | Model | Purpose |
 |---|---|
-| `User` | googleId, name, email, image, isAdmin — synced from Google on every login |
+| `User` | googleId, googleName, googleImage, displayName, displayImage, firstName/preposition/lastName, role (slug), status (`invited`\|`active`\|`inactive`), employment fields (dateStarted, contractType, etc.), invitedBy/invitedAt. Auto-computed `name` (displayName > googleName > structured parts) and `image` (displayImage > googleImage) |
+| `Role` | name, slug, description, permissions[], isSystem, rank — role-based access control |
 | `Client` | company, status, platform, contacts[], leads[], archetypeId, folderStatus (`pending`\|`ready`) |
 | `Project` | clientId, title, status, completedDate, soldPrice, templateId, serviceId, labelId |
 | `Task` | clientId?, projectId?, parentTaskId (subtasks), logId (follow-up link), assignees[], completedAt |
@@ -128,6 +139,7 @@ All in `src/lib/models/`. Models delete and recompile on hot reload (dev pattern
 | `ProjectLabel` | name, rank — configurable project label values |
 | `ProjectTemplate` | name, defaults for new projects |
 | `TemplateTask` | templateId, parentTaskId (subtasks), title, assignToClientLead, order |
+| `LeadSettings` | Singleton — configurable lead permissions per role (defaults: clients.edit, projects.create/edit/kickoff) |
 
 Reference data models (Archetype, Service, LogSignal, EventType, ClientStatusOption, ClientPlatformOption, ProjectLabel) all support `rank` and a `/reorder` POST endpoint for drag-to-reorder in the admin UI.
 
@@ -164,12 +176,26 @@ RESTful nesting under `src/app/api/`:
 /api/project-templates/[id]         PATCH, DELETE
 /api/project-templates/[id]/tasks           GET, POST
 /api/project-templates/[id]/tasks/[taskId]  PATCH, DELETE
+/api/roles                          GET, POST
+/api/roles/[id]                     GET, PATCH, DELETE
+/api/roles/reorder                  POST
+/api/permissions                    GET — grouped permission list for admin UI
 /api/users                          GET, POST
 /api/users/[id]                     GET, PATCH
 /api/users/assignable               GET — users eligible for task assignment
 ```
 
-All routes call `auth()` and return 401/403 as appropriate. Admin-only actions check `session.user.isAdmin`.
+All routes call `auth()` and return 401/403 as appropriate. Permission checks use `requirePermission(session, "permission.key")` or `hasPermission(session, "permission.key")` from `src/lib/auth-helpers.ts`. Contextual checks (lead-based, creator-based) combine with permissions via `hasPermissionOrIsLead()` / `hasPermissionOrIsCreator()`.
+
+Permissions are loaded into the JWT/session on login from the `Role` model. The permission registry in `src/lib/permissions.ts` defines all valid permission strings. Role changes take effect on next login.
+
+### Lead permissions
+
+The session carries two permission sets: `permissions` (global) and `leadPermissions` (apply only when the user is a lead on the client). `LeadSettings` (singleton model) defines which permissions leads get. API routes use `hasPermissionOrIsLead(session, permission, client.leads)` to combine both checks. `LEAD_ELIGIBLE_PERMISSIONS` in `permissions.ts` defines which permissions can be granted as lead permissions.
+
+### Employee management & invitation flow
+
+Users must be invited (via admin) before they can log in. `POST /api/users` creates a User with `status: "invited"`. On first Google OAuth login, the user auto-activates if their email matches an invited record. Admin can set display name/image overrides, employment details, and role. The profile page (`/profile`) lets users edit their own personal details using the same `EmployeeDetailEditor` component.
 
 **Exception:** `/api/internal/` routes are excluded from the auth middleware (`auth.config.ts`) and are secured by shared secret instead. Do not add `auth()` calls to these routes.
 
@@ -221,6 +247,57 @@ All button variants are `@layer components` in `globals.css`. Use them before cr
 | `btn-action` | Large column-oriented action tile |
 
 The `/admin/stylesheet` page renders all button variants and every task row state using the real shared components. Check it when making visual changes.
+
+### Design tokens
+
+All visual tokens are CSS custom properties in `globals.css` (`:root` for light, `.dark` for dark mode). The `@theme` block maps these to Tailwind utility classes. This is the single source of truth — never hardcode hex colors in components.
+
+**Token categories** (naming: `--{category}-{variant}`):
+
+| Category | Examples | Purpose |
+|---|---|---|
+| Core | `--primary`, `--bg-surface`, `--text-muted`, `--border` | Base theme colors |
+| Feedback | `--danger`, `--success`, `--warning`, `--info` (+ `-light`) | Semantic state colors |
+| Status | `--status-active-bg`, `--status-active-color`, etc. | Badge background/text pairs |
+| Accent | `--accent-0` through `--accent-7` | Avatar/client color palette |
+| Card types | `--card-deadline`, `--card-deadline-bg`, etc. | Week calendar card colors |
+| Activity | `--activity-delete-bg`, `--activity-delete-color`, etc. | Activity log badge colors |
+| Leave | `--leave-sick`, `--leave-personal` (+ `-bg`) | Leave type colors |
+
+**Tailwind utilities** from `@theme` (use these in class names):
+- Surfaces: `bg-surface`, `bg-elevated`, `bg-app`, `bg-hover`, `bg-sidebar`
+- Borders: `border-border-default`, `border-border-strong`
+- Text: `text-text-primary`, `text-text-muted`
+- Brand: `bg-brand`, `text-brand`, `bg-brand-light`
+- Feedback: `bg-danger`, `text-danger`, `bg-success`, `text-success`, `bg-warning`, `text-warning`, `bg-info`, `text-info` (+ `-light` variants)
+- Radii: `rounded-card`, `rounded-button`, `rounded-badge`
+- Shadows: `shadow-card`, `shadow-subtle`, `shadow-dropdown`, `shadow-sticky`
+
+**Typography composites** (`@layer components`) — use these instead of ad-hoc Tailwind class combinations:
+
+| Class | Equivalent | Use |
+|---|---|---|
+| `typo-page-title` | `text-xl font-semibold` | Page-level h1 headings |
+| `typo-modal-title` | `text-lg font-semibold` | Modal / large panel headings |
+| `typo-section-title` | `text-base font-semibold` | Major section within a page |
+| `typo-card-title` | `text-sm font-semibold` | Card / item titles |
+| `typo-section-header` | `text-xs font-semibold uppercase tracking-wide` | Uppercase section headers, table headers |
+| `typo-tag` | `10px font-semibold uppercase tracking-wide` | Small uppercase tags / badge labels |
+| `typo-metric` | `text-2xl font-semibold tabular-nums` | Large numeric metric displays |
+| `typo-label` | `block text-xs font-medium mb-1` + muted color | Form field labels (includes display, margin, color) |
+
+**Runtime style utilities** (`src/lib/styles.ts`):
+- `ACCENT_COLORS` — accent palette as CSS var array (replaces duplicated hex arrays)
+- `accentColor(name)` — hash a string to a stable accent color
+- `STATUS_STYLES` — status slug → `{ bg, color }` CSS var pairs
+
+**Class name utility** (`src/lib/cn.ts`): `cn()` wraps `clsx` for conditional class composition.
+
+**Rules for new code:**
+- Use CSS custom properties or `@theme` utility classes for all colors, radii, and shadows
+- Use values from `src/lib/styles.ts` for runtime JS color needs
+- Never add hardcoded hex values in components
+- If a new token is needed, add it to `globals.css` `:root` + `.dark` first
 
 ## Release Notes
 

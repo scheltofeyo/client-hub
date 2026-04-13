@@ -7,13 +7,24 @@ import { ChevronDown, ChevronRight } from "lucide-react";
 
 export type GanttVariant = "active" | "upcoming" | "muted";
 
-export interface GanttRow {
-  id: string;
-  label: string;
-  sublabel?: string;
+/** A single bar within a multi-bar row (e.g. one project inside a service row). */
+export interface GanttBar {
+  id: string;        // unique identifier (e.g. project ID)
+  label: string;     // text shown inside the bar (e.g. project title)
   start: Date;
   end: Date;
   variant: GanttVariant;
+}
+
+export interface GanttRow {
+  id: string;
+  label: string;       // left-column label (e.g. service name)
+  sublabel?: string;
+  start: Date;          // envelope min — used for window calculation
+  end: Date;            // envelope max — used for window calculation
+  variant: GanttVariant;
+  /** When set, renders multiple bars on this row instead of a single bar. */
+  bars?: GanttBar[];
 }
 
 export interface GanttSection {
@@ -29,13 +40,15 @@ export interface GanttSection {
 
 interface GanttTimelineProps {
   sections: GanttSection[];
-  onRowClick?: (rowId: string) => void;
-  renderHoverCard?: (row: GanttRow, x: number, y: number) => React.ReactNode;
+  onBarClick?: (barId: string) => void;
+  renderHoverCard?: (barId: string, x: number, y: number) => React.ReactNode;
+  /** Override pixels per day to zoom in/out (default: 5). */
+  pxPerDay?: number;
 }
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
-const PX_PER_DAY = 5;
+const PX_PER_DAY = 12;
 const LABEL_COL = 180;
 const ROW_H = 44;
 const AXIS_H = 32;
@@ -102,12 +115,12 @@ const STYLES = {
 
 // ── Pure helpers ─────────────────────────────────────────────────────────────
 
-function toPx(windowStart: Date, d: Date): number {
-  return Math.max(0, ((d.getTime() - windowStart.getTime()) / MS_PER_DAY) * PX_PER_DAY);
+function toPx(windowStart: Date, d: Date, scale: number = PX_PER_DAY): number {
+  return Math.max(0, ((d.getTime() - windowStart.getTime()) / MS_PER_DAY) * scale);
 }
 
-function widthPx(start: Date, end: Date): number {
-  return Math.max(4, ((end.getTime() - start.getTime()) / MS_PER_DAY) * PX_PER_DAY);
+function widthPx(start: Date, end: Date, scale: number = PX_PER_DAY): number {
+  return Math.max(4, ((end.getTime() - start.getTime()) / MS_PER_DAY) * scale);
 }
 
 function fmtShort(d: Date): string {
@@ -116,13 +129,14 @@ function fmtShort(d: Date): string {
 
 function getMonthSteps(
   windowStart: Date,
-  windowEnd: Date
+  windowEnd: Date,
+  scale: number = PX_PER_DAY
 ): { label: string; leftPx: number }[] {
   const steps: { label: string; leftPx: number }[] = [];
   const cur = new Date(windowStart.getFullYear(), windowStart.getMonth(), 1);
   let isFirst = true;
   while (cur <= windowEnd) {
-    const px = toPx(windowStart, cur);
+    const px = toPx(windowStart, cur, scale);
     const monthShort = cur.toLocaleDateString("en-GB", { month: "short" });
     const year = cur.getFullYear().toString().slice(2);
     const showYear = isFirst || cur.getMonth() === 0;
@@ -141,7 +155,7 @@ function computeWindow(
   today: Date
 ): { windowStart: Date; windowEnd: Date } {
   // Minimum: today + 3 months so there's always some future visible.
-  const minEnd = new Date(today.getFullYear(), today.getMonth() + 4, 1);
+  const minEnd = new Date(today.getFullYear(), today.getMonth() + 3, 1);
 
   if (allRows.length === 0) {
     return {
@@ -156,7 +170,7 @@ function computeWindow(
   const latestEnd = new Date(Math.max(...allRows.map((r) => r.end.getTime())));
   const latestEndBoundary = new Date(
     latestEnd.getFullYear(),
-    latestEnd.getMonth() + 4,
+    latestEnd.getMonth() + 2,
     1
   );
   const windowEnd = new Date(
@@ -227,7 +241,7 @@ function GridLines({ monthSteps }: { monthSteps: { label: string; leftPx: number
   );
 }
 
-/** Today line + label — rendered above items and section headers (z-index 2). */
+/** Today vertical line in the chart body — no label (label lives in MonthAxis). */
 function TodayOverlay({ todayLeftPx }: { todayLeftPx: number }) {
   return (
     <div style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 2 }}>
@@ -242,18 +256,6 @@ function TodayOverlay({ todayLeftPx }: { todayLeftPx: number }) {
           opacity: 0.4,
         }}
       />
-      <span
-        className="text-[9px] font-semibold"
-        style={{
-          position: "absolute",
-          left: todayLeftPx + 4,
-          top: 6,
-          color: "var(--primary)",
-          whiteSpace: "nowrap",
-        }}
-      >
-        Today
-      </span>
     </div>
   );
 }
@@ -263,10 +265,14 @@ function MonthAxis({
   axisRef,
   monthSteps,
   chartWidth,
+  todayLeftPx,
+  showTodayLine,
 }: {
   axisRef: React.RefObject<HTMLDivElement | null>;
   monthSteps: { label: string; leftPx: number }[];
   chartWidth: number;
+  todayLeftPx: number;
+  showTodayLine: boolean;
 }) {
   return (
     /* position:sticky + top:0 scopes to the PAGE (not this element)
@@ -309,6 +315,21 @@ function MonthAxis({
               {m.label}
             </span>
           ))}
+          {/* Today marker — sits on the bottom edge of the axis header */}
+          {showTodayLine && (
+            <span
+              className="text-[9px] font-semibold"
+              style={{
+                position: "absolute",
+                left: todayLeftPx + 4,
+                bottom: 2,
+                color: "var(--primary)",
+                whiteSpace: "nowrap",
+              }}
+            >
+              Today
+            </span>
+          )}
         </div>
       </div>
     </div>
@@ -337,7 +358,7 @@ function SectionHeader({
       <Chevron size={11} style={{ color: "var(--text-muted)", flexShrink: 0 }} />
       {section.icon}
       <span
-        className={isClientRow ? "text-xs font-medium truncate" : "text-[10px] font-semibold uppercase tracking-wide"}
+        className={isClientRow ? "text-xs font-medium truncate" : "typo-tag"}
         style={{ color: isClientRow ? "var(--text-primary)" : "var(--text-muted)" }}
       >
         {section.label}
@@ -357,10 +378,12 @@ function SectionSpacer({
   section,
   isCollapsed,
   windowStart,
+  scale,
 }: {
   section: GanttSection;
   isCollapsed: boolean;
   windowStart: Date;
+  scale: number;
 }) {
   const hasSummary = !!section.summaryBars?.length;
   const h = hasSummary ? ROW_H : SECTION_H;
@@ -369,8 +392,8 @@ function SectionSpacer({
     return (
       <div style={{ ...STYLES.sectionSpacer, height: h, position: "relative" }}>
         {section.summaryBars.map((bar, i) => {
-          const leftPx = toPx(windowStart, bar.start);
-          const barW = widthPx(bar.start, bar.end);
+          const leftPx = toPx(windowStart, bar.start, scale);
+          const barW = widthPx(bar.start, bar.end, scale);
           return (
             <div
               key={i}
@@ -437,28 +460,32 @@ function LabelCell({
   );
 }
 
-/** Project bar in the right scrollable chart panel. */
+/** Project bar(s) in the right scrollable chart panel. */
 function BarCell({
   row,
   windowStart,
+  scale,
   isHovered,
   onHover,
-  onRowClick,
+  onBarClick,
   onBarMouseEnter,
   onBarMouseMove,
   onBarMouseLeave,
 }: {
   row: GanttRow;
   windowStart: Date;
+  scale: number;
   isHovered: boolean;
   onHover: (id: string | null) => void;
-  onRowClick?: (id: string) => void;
-  onBarMouseEnter: (e: React.MouseEvent, row: GanttRow) => void;
+  onBarClick?: (barId: string) => void;
+  onBarMouseEnter: (e: React.MouseEvent, barId: string) => void;
   onBarMouseMove: (e: React.MouseEvent) => void;
   onBarMouseLeave: () => void;
 }) {
-  const leftPx = toPx(windowStart, row.start);
-  const barW = widthPx(row.start, row.end);
+  // Multi-bar row: render each bar individually
+  const bars: GanttBar[] = row.bars ?? [
+    { id: row.id, label: `${fmtShort(row.start)} – ${fmtShort(row.end)}`, start: row.start, end: row.end, variant: row.variant },
+  ];
 
   return (
     <div
@@ -471,36 +498,47 @@ function BarCell({
       onMouseEnter={() => onHover(row.id)}
       onMouseLeave={() => onHover(null)}
     >
-      <div
-        style={{
-          position: "absolute",
-          left: leftPx,
-          width: barW,
-          top: "50%",
-          transform: "translateY(-50%)",
-          height: 24,
-          borderRadius: 6,
-          zIndex: 2,
-          display: "flex",
-          alignItems: "center",
-          paddingLeft: 8,
-          paddingRight: 8,
-          overflow: "hidden",
-          cursor: onRowClick ? "pointer" : "default",
-          ...variantStyle(row.variant),
-        }}
-        onClick={() => onRowClick?.(row.id)}
-        onMouseEnter={(e) => onBarMouseEnter(e, row)}
-        onMouseMove={onBarMouseMove}
-        onMouseLeave={onBarMouseLeave}
-      >
-        <span
-          className="text-[10px] font-medium truncate"
-          style={{ color: "inherit" }}
-        >
-          {fmtShort(row.start)} – {fmtShort(row.end)}
-        </span>
-      </div>
+      {bars.map((bar) => {
+        const leftPx = toPx(windowStart, bar.start, scale);
+        const barW = widthPx(bar.start, bar.end, scale);
+        return (
+          <div
+            key={bar.id}
+            style={{
+              position: "absolute",
+              left: leftPx,
+              width: barW,
+              top: "50%",
+              transform: "translateY(-50%)",
+              height: 24,
+              borderRadius: 6,
+              zIndex: 2,
+              display: "flex",
+              alignItems: "center",
+              paddingLeft: 8,
+              paddingRight: 8,
+              overflow: "clip",
+              cursor: onBarClick ? "pointer" : "default",
+              ...variantStyle(bar.variant),
+            }}
+            onClick={() => onBarClick?.(bar.id)}
+            onMouseEnter={(e) => onBarMouseEnter(e, bar.id)}
+            onMouseMove={onBarMouseMove}
+            onMouseLeave={onBarMouseLeave}
+          >
+            <span
+              className="text-[10px] font-medium truncate"
+              style={{
+                color: "inherit",
+                position: "sticky",
+                left: 0,
+              }}
+            >
+              {bar.label}
+            </span>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -509,9 +547,11 @@ function BarCell({
 
 export default function GanttTimeline({
   sections,
-  onRowClick,
+  onBarClick,
   renderHoverCard,
+  pxPerDay,
 }: GanttTimelineProps) {
+  const effectivePxPerDay = pxPerDay ?? PX_PER_DAY;
   const axisRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<HTMLDivElement>(null);
 
@@ -525,7 +565,7 @@ export default function GanttTimeline({
   });
   const [hoveredRowId, setHoveredRowId] = useState<string | null>(null);
   const [hoverCard, setHoverCard] = useState<{
-    row: GanttRow;
+    barId: string;
     x: number;
     y: number;
   } | null>(null);
@@ -534,10 +574,10 @@ export default function GanttTimeline({
   const allRows = sections.flatMap((s) => s.rows);
   const { windowStart, windowEnd } = computeWindow(allRows, today);
   const chartWidth = Math.round(
-    ((windowEnd.getTime() - windowStart.getTime()) / MS_PER_DAY) * PX_PER_DAY
+    ((windowEnd.getTime() - windowStart.getTime()) / MS_PER_DAY) * effectivePxPerDay
   );
-  const monthSteps = getMonthSteps(windowStart, windowEnd);
-  const todayLeftPx = toPx(windowStart, today);
+  const monthSteps = getMonthSteps(windowStart, windowEnd, effectivePxPerDay);
+  const todayLeftPx = toPx(windowStart, today, effectivePxPerDay);
   const showTodayLine = todayLeftPx > 0 && todayLeftPx < chartWidth;
 
   const items = flattenSections(sections, collapsed);
@@ -547,7 +587,7 @@ export default function GanttTimeline({
     const chart = chartRef.current;
     if (!chart) return;
     // Position today near the left edge, with ~2 weeks of history visible
-    const scrollTo = Math.max(0, todayLeftPx - 14 * PX_PER_DAY);
+    const scrollTo = Math.max(0, todayLeftPx - 14 * effectivePxPerDay);
     chart.scrollLeft = scrollTo;
     if (axisRef.current) axisRef.current.scrollLeft = scrollTo;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -562,8 +602,8 @@ export default function GanttTimeline({
 
   // ── Bar hover ────────────────────────────────────────────────────────────
   const handleBarMouseEnter = useCallback(
-    (e: React.MouseEvent, row: GanttRow) => {
-      setHoverCard({ row, x: e.clientX, y: e.clientY });
+    (e: React.MouseEvent, barId: string) => {
+      setHoverCard({ barId, x: e.clientX, y: e.clientY });
     },
     []
   );
@@ -607,6 +647,8 @@ export default function GanttTimeline({
           axisRef={axisRef}
           monthSteps={monthSteps}
           chartWidth={chartWidth}
+          todayLeftPx={todayLeftPx}
+          showTodayLine={showTodayLine}
         />
 
         {/* ── Two-panel body ──────────────────────────────────────────── */}
@@ -658,15 +700,17 @@ export default function GanttTimeline({
                       section={item.section}
                       isCollapsed={item.isCollapsed}
                       windowStart={windowStart}
+                      scale={effectivePxPerDay}
                     />
                   ) : (
                     <BarCell
                       key={item.row.id}
                       row={item.row}
                       windowStart={windowStart}
+                      scale={effectivePxPerDay}
                       isHovered={hoveredRowId === item.row.id}
                       onHover={setHoveredRowId}
-                      onRowClick={onRowClick}
+                      onBarClick={onBarClick}
                       onBarMouseEnter={handleBarMouseEnter}
                       onBarMouseMove={handleBarMouseMove}
                       onBarMouseLeave={handleBarMouseLeave}
@@ -682,7 +726,7 @@ export default function GanttTimeline({
 
       {/* Hover card — rendered outside any scroll container */}
       {renderHoverCard && hoverCard &&
-        renderHoverCard(hoverCard.row, hoverCard.x, hoverCard.y)}
+        renderHoverCard(hoverCard.barId, hoverCard.x, hoverCard.y)}
     </>
   );
 }

@@ -151,7 +151,7 @@ export default function SteppedModal({
           >
             <div className="flex items-center gap-4 min-w-0">
               <h2
-                className="text-lg font-semibold truncate"
+                className="typo-modal-title truncate"
                 style={{ color: "var(--text-primary)" }}
               >
                 {title}

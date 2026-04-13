@@ -1,5 +1,6 @@
 import { getProjectById, getServices, getProjectLabels } from "@/lib/data";
 import { auth } from "@/auth";
+import { hasPermission } from "@/lib/auth-helpers";
 import { notFound } from "next/navigation";
 import StatusBadge from "@/components/ui/StatusBadge";
 import EditProjectButton from "@/components/ui/EditProjectButton";
@@ -40,12 +41,12 @@ export default async function ProjectOverviewPage({
       <div className="space-y-5">
         <div className="flex items-center justify-between">
           <h2
-            className="text-xs font-semibold uppercase tracking-wide"
+            className="typo-section-header"
             style={{ color: "var(--text-muted)" }}
           >
             Project details
           </h2>
-          <EditProjectButton project={project} clientId={id} services={services} labels={labels} isAdmin={!!session?.user?.isAdmin} />
+          <EditProjectButton project={project} clientId={id} services={services} labels={labels} isAdmin={hasPermission(session, "admin.access")} canDelete={hasPermission(session, "projects.delete")} canReset={hasPermission(session, "projects.resetToUpcoming")} />
         </div>
 
         {project.description && (

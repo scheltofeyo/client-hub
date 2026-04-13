@@ -8,16 +8,18 @@ export default function PageHeader({
   title,
   actions,
   tertiaryNav,
+  sticky,
 }: {
   breadcrumbs: Crumb[];
   title: string;
   actions?: ReactNode;
   tertiaryNav?: ReactNode;
+  sticky?: boolean;
 }) {
   return (
     <div
-      className={`px-7 pt-6 shrink-0${tertiaryNav ? " pb-0" : " pb-5 border-b"}`}
-      style={{ borderColor: "var(--border)" }}
+      className={`px-7 pt-6 shrink-0${tertiaryNav ? " pb-0" : " pb-5 border-b"}${sticky ? " sticky top-0 z-10" : ""}`}
+      style={{ borderColor: "var(--border)", ...(sticky ? { background: "var(--bg-surface)" } : {}) }}
     >
       <nav className="flex items-center gap-1.5 mb-2">
         {breadcrumbs.flatMap((crumb, i) => {
@@ -34,7 +36,7 @@ export default function PageHeader({
       </nav>
 
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold" style={{ color: "var(--text-primary)" }}>
+        <h1 className="typo-page-title" style={{ color: "var(--text-primary)" }}>
           {title}
         </h1>
         {actions && <div className="flex items-center gap-2">{actions}</div>}

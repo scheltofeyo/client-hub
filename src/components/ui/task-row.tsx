@@ -17,8 +17,6 @@ export const inputStyle = {
   borderColor: "var(--border)",
   color: "var(--text-primary)",
 };
-export const labelClass = "block text-xs font-medium mb-1";
-export const labelStyle = { color: "var(--text-muted)" };
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -228,7 +226,7 @@ export function TaskForm({
     <form onSubmit={handleSubmit} className="space-y-4">
       {parentTaskTitle && (
         <div>
-          <label className={labelClass} style={labelStyle}>Parent task</label>
+          <label className="typo-label">Parent task</label>
           <p className="text-sm px-3 py-2 rounded-lg" style={{ background: "var(--bg-sidebar)", color: "var(--text-primary)" }}>
             {parentTaskTitle}
           </p>
@@ -236,8 +234,8 @@ export function TaskForm({
       )}
 
       <div>
-        <label className={labelClass} style={labelStyle}>
-          Title <span className="text-red-400">*</span>
+        <label className="typo-label">
+          Title <span className="text-[var(--danger)]">*</span>
         </label>
         <input
           type="text"
@@ -251,7 +249,7 @@ export function TaskForm({
       </div>
 
       <div>
-        <label className={labelClass} style={labelStyle}>Description</label>
+        <label className="typo-label">Description</label>
         <textarea
           value={form.description}
           onChange={(e) => set("description", e.target.value)}
@@ -263,7 +261,7 @@ export function TaskForm({
       </div>
 
       <div>
-        <label className={labelClass} style={labelStyle}>Due date</label>
+        <label className="typo-label">Due date</label>
         <input
           type="date"
           value={form.completionDate}
@@ -277,7 +275,7 @@ export function TaskForm({
       </div>
 
       <div>
-        <label className={labelClass} style={labelStyle}>Assignees</label>
+        <label className="typo-label">Assignees</label>
 
         {/* Locked parent-inherited assignees */}
         {isSubtask && (parentAssignees ?? []).length > 0 && (
@@ -376,7 +374,7 @@ export function TaskForm({
         </div>
       </div>
 
-      {error && <p className="text-xs text-red-500">{error}</p>}
+      {error && <p className="text-xs text-[var(--danger)]">{error}</p>}
 
       <div className="flex justify-end gap-2 pt-1">
         <button type="button" onClick={onClose} className="px-3 py-1.5 rounded-lg text-sm font-medium btn-ghost">
@@ -456,6 +454,9 @@ export function SubtaskRow({
   onDelete,
   userImages,
   readOnly,
+  canEdit = true,
+  canDelete = true,
+  today: todayProp,
   isDraggable,
   isDragOver,
   isDragOverBottom,
@@ -471,6 +472,9 @@ export function SubtaskRow({
   onDelete: (taskId: string, hasSubtasks: boolean) => void;
   userImages?: Record<string, string>;
   readOnly?: boolean;
+  canEdit?: boolean;
+  canDelete?: boolean;
+  today?: string;
   isDraggable?: boolean;
   isDragOver?: boolean;
   /** When true, the drop indicator renders at the bottom (item will be placed after this one) */
@@ -486,7 +490,7 @@ export function SubtaskRow({
   const ghostRef = useRef<HTMLDivElement>(null);
   const dragFromHandle = useRef(false);
   const isDone = !!task.completedAt;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayProp ?? new Date().toISOString().slice(0, 10);
   const isOverdue = !isDone && !!task.completionDate && task.completionDate < today;
 
   const handleDragStart = useCallback((e: React.DragEvent) => {
@@ -501,7 +505,7 @@ export function SubtaskRow({
 
   const dragBorderStyle = isDragOver
     ? isDragInvalid
-      ? { borderTop: "2px solid var(--destructive, #ef4444)" }
+      ? { borderTop: "2px solid var(--destructive)" }
       : isDragOverBottom
         ? { borderBottom: "2px solid var(--primary)" }
         : { borderTop: "2px solid var(--primary)" }
@@ -522,13 +526,13 @@ export function SubtaskRow({
       } : undefined}
       onDrop={isDraggable && onDrop ? (e) => { e.preventDefault(); e.stopPropagation(); onDrop(task.id); } : undefined}
       onDragEnd={isDraggable && onDragEnd ? (e) => { e.stopPropagation(); dragFromHandle.current = false; onDragEnd(); } : undefined}
-      onClick={() => onEdit(task)}
+      onClick={canEdit ? () => onEdit(task) : undefined}
     >
       {/* Ghost for custom drag image */}
       <DragGhost ghostRef={ghostRef} title={task.title} assignees={task.assignees} userImages={userImages} />
 
       {/* Drag handle */}
-      {isDraggable && (
+      {isDraggable && canEdit && (
         <div
           className="flex-shrink-0 w-4 flex items-center justify-center opacity-0 group-hover:opacity-40 cursor-grab active:cursor-grabbing"
           style={{ color: "var(--text-muted)" }}
@@ -541,11 +545,12 @@ export function SubtaskRow({
 
       <button
         type="button"
-        onClick={(e) => { e.stopPropagation(); onToggleComplete(task); }}
+        onClick={canEdit ? (e) => { e.stopPropagation(); onToggleComplete(task); } : (e) => e.stopPropagation()}
         className="flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors"
         style={{
           borderColor: isDone ? "var(--primary-light)" : "var(--border)",
           background: isDone ? "var(--primary-light)" : "transparent",
+          cursor: canEdit ? "pointer" : "default",
         }}
       >
         {isDone && <Check size={14} color="var(--primary)" strokeWidth={3} />}
@@ -582,14 +587,14 @@ export function SubtaskRow({
             </div>
             <AssigneeAvatars assignees={task.assignees} userImages={userImages} />
             {task.completionDate && (
-              <span className="text-xs" style={{ color: isOverdue ? "var(--destructive, #ef4444)" : "var(--text-muted)" }}>
+              <span className="text-xs" style={{ color: isOverdue ? "var(--destructive)" : "var(--text-muted)" }}>
                 {task.completionDate}
               </span>
             )}
           </>
         )}
 
-        {!readOnly && !isDone && (
+        {!readOnly && !isDone && canDelete && (
           <div className="relative">
             <button
               type="button"
@@ -608,7 +613,7 @@ export function SubtaskRow({
                   <button
                     type="button"
                     onClick={() => { setMenuOpen(false); onDelete(task.id, false); }}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:opacity-80 transition-opacity text-red-500"
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:opacity-80 transition-opacity text-[var(--danger)]"
                   >
                     <Trash2 size={13} /> Delete
                   </button>
@@ -640,7 +645,12 @@ export function TaskRow({
   onInlineSubtaskCancel,
   userImages,
   readOnly,
+  canEdit = true,
+  canDelete = true,
+  titlePrefix,
+  displayTitle,
   onViewInLogbook,
+  today: todayProp,
   isDraggable,
   draggingId,
   draggingHasChildren,
@@ -664,7 +674,12 @@ export function TaskRow({
   onInlineSubtaskCancel: () => void;
   userImages?: Record<string, string>;
   readOnly?: boolean;
+  canEdit?: boolean;
+  canDelete?: boolean;
+  titlePrefix?: string;
+  displayTitle?: string;
   onViewInLogbook?: () => void;
+  today?: string;
   isDraggable?: boolean;
   /** ID of the task currently being dragged (for computing subtask drop-indicator direction) */
   draggingId?: string | null;
@@ -684,7 +699,7 @@ export function TaskRow({
   const dragFromHandle = useRef(false);
   const hasSubtasks = subtasks.length > 0;
   const isDone = !!task.completedAt;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayProp ?? new Date().toISOString().slice(0, 10);
   const isOverdue = !isDone && !!task.completionDate && task.completionDate < today;
   const hasOverdueSubtask = subtasks.some(
     (s) => !s.completedAt && !!s.completionDate && s.completionDate < today
@@ -734,14 +749,14 @@ export function TaskRow({
 
       {/* Main task row — also a drop target (top-level reorder + subtask→parent) */}
       <div
-        className="flex items-center gap-2 py-2.5 group cursor-pointer rounded-lg -mx-2 px-2"
-        style={rowBorderStyle}
-        onClick={() => onEdit(task)}
+        className="flex items-center gap-2 py-2.5 group rounded-lg -mx-2 px-2"
+        style={{ ...rowBorderStyle, cursor: canEdit ? "pointer" : "default" }}
+        onClick={canEdit ? () => onEdit(task) : undefined}
         onDragOver={onDragOver ? (e) => { e.preventDefault(); e.stopPropagation(); onDragOver(task.id); } : undefined}
         onDrop={onDrop ? (e) => { e.preventDefault(); e.stopPropagation(); onDrop(task.id); } : undefined}
       >
         {/* Drag handle */}
-        {isDraggable && (
+        {isDraggable && canEdit && (
           <div
             className="flex-shrink-0 w-4 flex items-center justify-center opacity-0 group-hover:opacity-40 cursor-grab active:cursor-grabbing"
             style={{ color: "var(--text-muted)" }}
@@ -761,7 +776,7 @@ export function TaskRow({
             <span className="transition-colors text-[var(--text-muted)] hover:text-[var(--primary)]">
               {isExpanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
             </span>
-          ) : !readOnly && !isDone && (
+          ) : !readOnly && canEdit && !isDone && (
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); onAddSubtask(task.id); }}
@@ -777,11 +792,12 @@ export function TaskRow({
         {/* Checkbox */}
         <button
           type="button"
-          onClick={(e) => { e.stopPropagation(); onToggleComplete(task); }}
+          onClick={canEdit ? (e) => { e.stopPropagation(); onToggleComplete(task); } : (e) => e.stopPropagation()}
           className="flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors"
           style={{
             borderColor: isDone ? "var(--primary-light)" : "var(--border)",
             background: isDone ? "var(--primary-light)" : "transparent",
+            cursor: canEdit ? "pointer" : "default",
           }}
           aria-label={isDone ? "Mark incomplete" : "Mark complete"}
         >
@@ -798,7 +814,10 @@ export function TaskRow({
               {task.logId && (
                 <span className="mr-1 font-normal" style={{ color: "var(--text-muted)" }}>Follow up:</span>
               )}
-              {task.title}
+              {titlePrefix && !task.logId && (
+                <span className="mr-1 font-normal" style={{ color: "var(--text-muted)" }}>{titlePrefix}</span>
+              )}
+              {displayTitle ?? task.title}
               {task.logId && (
                 <BookOpen size={11} className="inline ml-1.5 mb-0.5" style={{ color: "var(--text-muted)" }} />
               )}
@@ -828,10 +847,10 @@ export function TaskRow({
                   </div>
                   <AssigneeAvatars assignees={task.assignees} userImages={userImages} />
                   {hasOverdueSubtask && (
-                    <AlertTriangle size={13} style={{ color: "var(--destructive, #ef4444)" }} aria-label="Subtask overdue" />
+                    <AlertTriangle size={13} style={{ color: "var(--destructive)" }} aria-label="Subtask overdue" />
                   )}
                   {task.completionDate && (
-                    <span className="text-xs" style={{ color: isOverdue ? "var(--destructive, #ef4444)" : "var(--text-muted)" }}>
+                    <span className="text-xs" style={{ color: isOverdue ? "var(--destructive)" : "var(--text-muted)" }}>
                       {task.completionDate}
                     </span>
                   )}
@@ -839,7 +858,7 @@ export function TaskRow({
               )}
 
               {/* Kebab menu */}
-              {!isDone && (
+              {!isDone && (canEdit || canDelete || onViewInLogbook) && (
                 <div className="relative">
                   <button
                     type="button"
@@ -866,7 +885,7 @@ export function TaskRow({
                           </button>
                         ) : (
                           <>
-                            {!readOnly && (
+                            {!readOnly && canEdit && (
                               <button
                                 type="button"
                                 onClick={() => { setMenuOpen(false); onAddSubtask(task.id); }}
@@ -876,13 +895,15 @@ export function TaskRow({
                                 <ListPlus size={13} /> Add subtask
                               </button>
                             )}
-                            <button
-                              type="button"
-                              onClick={() => { setMenuOpen(false); onDelete(task.id, hasSubtasks); }}
-                              className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:opacity-80 transition-opacity text-red-500"
-                            >
-                              <Trash2 size={13} /> Delete
-                            </button>
+                            {canDelete && (
+                              <button
+                                type="button"
+                                onClick={() => { setMenuOpen(false); onDelete(task.id, hasSubtasks); }}
+                                className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:opacity-80 transition-opacity text-[var(--danger)]"
+                              >
+                                <Trash2 size={13} /> Delete
+                              </button>
+                            )}
                           </>
                         )}
                       </div>
@@ -912,7 +933,7 @@ export function TaskRow({
           className="pl-14 pb-1 rounded-b-lg transition-colors"
           style={
             draggingHasChildren && dragOverId && openSubtasks.some((s) => s.id === dragOverId)
-              ? { background: "color-mix(in srgb, var(--destructive, #ef4444) 6%, transparent)" }
+              ? { background: "color-mix(in srgb, var(--destructive) 6%, transparent)" }
               : undefined
           }
         >
@@ -928,7 +949,10 @@ export function TaskRow({
                 onDelete={onDelete}
                 userImages={userImages}
                 readOnly={readOnly}
-                isDraggable={!readOnly && !sub.completedAt}
+                canEdit={canEdit}
+                canDelete={canDelete}
+                today={today}
+                isDraggable={!readOnly && canEdit && !sub.completedAt}
                 isDragOver={dragOverId === sub.id}
                 isDragOverBottom={dragOverId === sub.id ? isSubDragOverBottom : undefined}
                 isDragInvalid={!!draggingHasChildren}
@@ -969,6 +993,9 @@ export function TaskRow({
               onDelete={onDelete}
               userImages={userImages}
               readOnly={readOnly}
+              canEdit={canEdit}
+              canDelete={canDelete}
+              today={today}
             />
           ))}
         </div>

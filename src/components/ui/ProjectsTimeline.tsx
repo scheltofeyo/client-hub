@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronDown, ChevronRight } from "lucide-react";
-import GanttTimeline, { GanttRow, GanttSection, GanttVariant } from "@/components/ui/GanttTimeline";
+import GanttTimeline, { GanttBar, GanttRow, GanttSection, GanttVariant } from "@/components/ui/GanttTimeline";
 import type { Project } from "@/types";
 
 interface Props {
@@ -26,67 +26,127 @@ function fmtLong(d: Date): string {
   });
 }
 
+const VARIANT_PRIORITY: Record<GanttVariant, number> = { active: 2, upcoming: 1, muted: 0 };
+
+function topVariant(bars: GanttBar[]): GanttVariant {
+  let best: GanttVariant = "muted";
+  for (const b of bars) {
+    if (VARIANT_PRIORITY[b.variant] > VARIANT_PRIORITY[best]) best = b.variant;
+  }
+  return best;
+}
+
+/** Determine which section a project belongs to. */
+function projectSection(p: Project): "current" | "upcoming" | "completed" | null {
+  if (p.status === "completed" && p.kickedOffAt && p.completedDate) return "completed";
+  if (p.kickedOffAt) return "current";
+  if (p.scheduledStartDate && p.scheduledEndDate) return "upcoming";
+  return null;
+}
+
+/** Convert a project to a GanttBar. */
+function projectToBar(p: Project, today: Date): GanttBar | null {
+  const section = projectSection(p);
+  if (!section) return null;
+
+  if (section === "completed") {
+    return {
+      id: p.id,
+      label: p.title,
+      start: parseDate(p.kickedOffAt!),
+      end: parseDate(p.completedDate!),
+      variant: "muted",
+    };
+  }
+
+  if (section === "current") {
+    const start = parseDate(p.kickedOffAt!);
+    const rawEnd = p.deliveryDate
+      ? parseDate(p.deliveryDate)
+      : new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000);
+    const end = rawEnd < start
+      ? new Date(start.getTime() + 24 * 60 * 60 * 1000)
+      : rawEnd;
+    return { id: p.id, label: p.title, start, end, variant: "active" };
+  }
+
+  // upcoming
+  const start = parseDate(p.scheduledStartDate!);
+  const rawEnd = parseDate(p.scheduledEndDate!);
+  const end = rawEnd < start
+    ? new Date(start.getTime() + 24 * 60 * 60 * 1000)
+    : rawEnd;
+  return { id: p.id, label: p.title, start, end, variant: "upcoming" };
+}
+
+/** Section priority: current > upcoming > completed. */
+const SECTION_PRIORITY: Record<string, number> = { current: 2, upcoming: 1, completed: 0 };
+
 function buildSections(
   projects: Project[],
   today: Date
 ): { sections: GanttSection[]; noDates: Project[] } {
-  const current: GanttRow[] = [];
-  const upcoming: GanttRow[] = [];
-  const completed: GanttRow[] = [];
   const noDates: Project[] = [];
 
+  // Group projects by service, tracking bars and which section
+  const serviceGroups = new Map<
+    string,
+    { name: string; bars: GanttBar[]; bestSection: string }
+  >();
+
   for (const p of projects) {
-    if (p.status === "completed" && p.kickedOffAt && p.completedDate) {
-      completed.push({
-        id: p.id,
-        label: p.title,
-        sublabel: p.service,
-        start: parseDate(p.kickedOffAt),
-        end: parseDate(p.completedDate),
-        variant: "muted",
-      });
-    } else if (p.kickedOffAt) {
-      const start = parseDate(p.kickedOffAt);
-      const rawEnd = p.deliveryDate
-        ? parseDate(p.deliveryDate)
-        : new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000);
-      const end = rawEnd < start
-        ? new Date(start.getTime() + 24 * 60 * 60 * 1000)
-        : rawEnd;
-      current.push({
-        id: p.id,
-        label: p.title,
-        sublabel: p.service,
-        start,
-        end,
-        variant: "active",
-      });
-    } else if (p.scheduledStartDate && p.scheduledEndDate) {
-      const start = parseDate(p.scheduledStartDate);
-      const rawEnd = parseDate(p.scheduledEndDate);
-      const end = rawEnd < start
-        ? new Date(start.getTime() + 24 * 60 * 60 * 1000)
-        : rawEnd;
-      upcoming.push({
-        id: p.id,
-        label: p.title,
-        sublabel: p.service,
-        start,
-        end,
-        variant: "upcoming",
-      });
-    } else {
+    const sec = projectSection(p);
+    if (!sec) {
       noDates.push(p);
+      continue;
     }
+
+    const bar = projectToBar(p, today);
+    if (!bar) continue;
+
+    const key = p.serviceId ?? p.service ?? p.id;
+    const name = p.service ?? p.title;
+    const group = serviceGroups.get(key);
+
+    if (group) {
+      group.bars.push(bar);
+      // Promote to higher-priority section
+      if (SECTION_PRIORITY[sec] > SECTION_PRIORITY[group.bestSection]) {
+        group.bestSection = sec;
+      }
+    } else {
+      serviceGroups.set(key, { name, bars: [bar], bestSection: sec });
+    }
+  }
+
+  // Build section buckets
+  const buckets: Record<string, GanttRow[]> = {
+    current: [],
+    upcoming: [],
+    completed: [],
+  };
+
+  for (const [serviceKey, { name, bars, bestSection }] of serviceGroups) {
+    bars.sort((a, b) => a.start.getTime() - b.start.getTime());
+    const minStart = new Date(Math.min(...bars.map((b) => b.start.getTime())));
+    const maxEnd = new Date(Math.max(...bars.map((b) => b.end.getTime())));
+    buckets[bestSection].push({
+      id: serviceKey,
+      label: name,
+      start: minStart,
+      end: maxEnd,
+      variant: topVariant(bars),
+      bars,
+    });
   }
 
   const byStart = (a: GanttRow, b: GanttRow) =>
     a.start.getTime() - b.start.getTime();
 
   const sections: GanttSection[] = [
-    { key: "current",   label: "Current",   rows: current.sort(byStart),   defaultCollapsed: false },
-    { key: "upcoming",  label: "Upcoming",  rows: upcoming.sort(byStart),  defaultCollapsed: false },
-    { key: "completed", label: "Completed", rows: completed.sort(byStart), defaultCollapsed: true  },
+    { key: "current",   label: "Current",   rows: buckets.current.sort(byStart),   defaultCollapsed: false },
+    { key: "upcoming",  label: "Upcoming",  rows: buckets.upcoming.sort(byStart),  defaultCollapsed: false },
+    { key: "completed", label: "Completed", rows: buckets.completed.sort(byStart), defaultCollapsed: true  },
   ].filter((s) => s.rows.length > 0);
 
   return { sections, noDates };
@@ -112,24 +172,30 @@ export default function ProjectsTimeline({
     [projects, today]
   );
 
-  const handleRowClick = useCallback(
-    (rowId: string) => {
-      router.push(`/clients/${clientId}/projects/${rowId}/tasks`);
+  const handleBarClick = useCallback(
+    (barId: string) => {
+      router.push(`/clients/${clientId}/projects/${barId}/tasks`);
     },
     [router, clientId]
   );
 
   const renderHoverCard = useCallback(
-    (row: GanttRow, x: number, y: number) => {
-      const project = projects.find((p) => p.id === row.id);
+    (barId: string, x: number, y: number) => {
+      const project = projects.find((p) => p.id === barId);
       if (!project) return null;
+      const variant: GanttVariant =
+        project.status === "completed"
+          ? "muted"
+          : project.kickedOffAt
+          ? "active"
+          : "upcoming";
       return (
         <ProjectHoverCard
           project={project}
-          variant={row.variant}
+          variant={variant}
           x={x}
           y={y}
-          openTasks={openTaskCounts[row.id]}
+          openTasks={openTaskCounts[barId]}
         />
       );
     },
@@ -159,7 +225,7 @@ export default function ProjectsTimeline({
           >
             <Chevron size={12} style={{ color: "var(--text-muted)" }} />
             <span
-              className="text-xs font-semibold uppercase tracking-wide"
+              className="typo-section-header"
               style={{ color: "var(--text-muted)" }}
             >
               Timeline
@@ -168,7 +234,7 @@ export default function ProjectsTimeline({
           {timelineVisible && (
             <GanttTimeline
               sections={sections}
-              onRowClick={handleRowClick}
+              onBarClick={handleBarClick}
               renderHoverCard={renderHoverCard}
             />
           )}
@@ -178,7 +244,7 @@ export default function ProjectsTimeline({
       {noDates.length > 0 && (
         <div className="space-y-2">
           <h3
-            className="text-xs font-semibold uppercase tracking-wide"
+            className="typo-section-header"
             style={{ color: "var(--text-muted)" }}
           >
             No dates set

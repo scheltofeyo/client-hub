@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import { cache } from "react";
 import { connectDB } from "./mongodb";
 import { ClientModel } from "./models/Client";
@@ -17,7 +18,13 @@ import { ClientEventModel } from "./models/ClientEvent";
 import { ClientStatusOptionModel, DEFAULT_CLIENT_STATUSES } from "./models/ClientStatusOption";
 import { ClientPlatformOptionModel, DEFAULT_CLIENT_PLATFORMS } from "./models/ClientPlatformOption";
 import { ProjectLabelModel } from "./models/ProjectLabel";
-import type { Archetype, Client, ClientPlatformOption, ClientStatusOption, DashboardStats, EventType, Log, LogSignal, Project, ProjectLabel, ProjectTemplate, RecurrenceUnit, Service, Sheet, Task, TemplateTask, TimelineEvent } from "@/types";
+import { RoleModel } from "./models/Role";
+import { LeaveTypeModel, DEFAULT_LEAVE_TYPES } from "./models/LeaveType";
+import { TimeOffModel } from "./models/TimeOff";
+import { CompanyHolidayModel } from "./models/CompanyHoliday";
+import type { Archetype, BirthdayItem, Client, ClientLead, ClientPlatformOption, ClientStatusOption, CompanyHoliday, Contact, DashboardStats, EventType, LeaveType, Log, LogSignal, MyDayFollowUpData, MyDayTaskData, MyDayUserInfo, MyProjectOverview, Project, ProjectLabel, ProjectTemplate, RecurrenceUnit, Service, Sheet, Task, TemplateTask, TimelineEvent, TimeOffEntry, TimeOffBalance, WeekTeamData } from "@/types";
+import type { WeekCalendarItem } from "@/lib/utils";
+import { mapToWeekday } from "@/lib/utils";
 
 function mapClient(doc: ReturnType<typeof Object.assign>, archetypeMap?: Map<string, string>, platformLabelMap?: Map<string, string>): Client {
   return {
@@ -1250,4 +1257,858 @@ export async function getProjectsByAllClients(): Promise<Map<string, Project[]>>
     map.get(cid)!.push(project);
   }
   return map;
+}
+
+// ── "This Week" dashboard data ──────────────────────────────────────────────
+
+/**
+ * Returns all calendar items for the week calendar view,
+ * categorized by type (deadline, delivery, kickoff, followup, event).
+ */
+export async function getWeekCalendarItems(start: string, end: string): Promise<WeekCalendarItem[]> {
+  await connectDB();
+
+  // Build client lookup for names and leads
+  const clients = await getClients();
+  const clientMap = new Map<string, { company: string; leads: ClientLead[] }>();
+  for (const c of clients) {
+    clientMap.set(c.id, { company: c.company, leads: c.leads ?? [] });
+  }
+
+  function resolve(clientId: string | undefined): { clientName: string; leads: ClientLead[] } {
+    if (!clientId) return { clientName: "General", leads: [] };
+    const c = clientMap.get(clientId.toString());
+    return c ? { clientName: c.company, leads: c.leads } : { clientName: "General", leads: [] };
+  }
+
+  const [deadlineTasks, deliveryProjects, kickoffProjects, followUpLogs, customDocs] = await Promise.all([
+    // Deadlines: open tasks with completionDate in range
+    TaskModel.find({
+      completionDate: { $gte: start, $lte: end },
+      completedAt: null,
+    }).lean(),
+    // Deliveries: projects with deliveryDate in range
+    ProjectModel.find({
+      deliveryDate: { $gte: start, $lte: end },
+      status: { $ne: "completed" },
+    }).lean(),
+    // Kick-offs: projects with scheduledStartDate in range and not yet started
+    ProjectModel.find({
+      scheduledStartDate: { $gte: start, $lte: end },
+      status: "not_started",
+    }).lean(),
+    // Follow-ups: open follow-ups with deadline in range
+    LogModel.find({
+      followUp: true,
+      followedUpAt: null,
+      followUpDeadline: { $gte: start, $lte: end },
+    }).lean(),
+    // Events: all custom events (need full set for recurrence expansion)
+    ClientEventModel.find({}).sort({ date: 1 }).lean(),
+  ]);
+
+  const items: WeekCalendarItem[] = [];
+
+  // Deadlines (tasks)
+  for (const t of deadlineTasks) {
+    const cid = t.clientId?.toString();
+    const { clientName, leads } = resolve(cid);
+    const projectId = t.projectId?.toString();
+    items.push({
+      id: `task_${t._id.toString()}`,
+      type: "deadline",
+      date: mapToWeekday(t.completionDate as string, end),
+      title: t.title as string,
+      clientId: cid ?? "",
+      clientName,
+      leads,
+      linkHref: projectId
+        ? `/clients/${cid}/projects/${projectId}`
+        : cid ? `/clients/${cid}?tab=Tasks` : "/tasks",
+      meta: projectId ? undefined : undefined,
+    });
+  }
+
+  // Deliveries (projects)
+  for (const p of deliveryProjects) {
+    const cid = (p.clientId as string).toString();
+    const { clientName, leads } = resolve(cid);
+    items.push({
+      id: `delivery_${p._id.toString()}`,
+      type: "delivery",
+      date: mapToWeekday(p.deliveryDate as string, end),
+      title: p.title as string,
+      clientId: cid,
+      clientName,
+      leads,
+      linkHref: `/clients/${cid}/projects/${p._id.toString()}`,
+    });
+  }
+
+  // Kick-offs (projects)
+  for (const p of kickoffProjects) {
+    const cid = (p.clientId as string).toString();
+    const { clientName, leads } = resolve(cid);
+    items.push({
+      id: `kickoff_${p._id.toString()}`,
+      type: "kickoff",
+      date: mapToWeekday(p.scheduledStartDate as string, end),
+      title: p.title as string,
+      clientId: cid,
+      clientName,
+      leads,
+      linkHref: `/clients/${cid}/projects/${p._id.toString()}`,
+    });
+  }
+
+  // Follow-ups (logs)
+  for (const l of followUpLogs) {
+    // Skip follow-ups that have already generated a task (avoid duplication)
+    if (l.followUpTaskId) continue;
+    const cid = (l.clientId as string).toString();
+    const { clientName, leads } = resolve(cid);
+    items.push({
+      id: `followup_${l._id.toString()}`,
+      type: "followup",
+      date: mapToWeekday(l.followUpDeadline as string, end),
+      title: (l.followUpAction as string | undefined)?.trim() || (l.summary as string).slice(0, 60),
+      clientId: cid,
+      clientName,
+      leads,
+      linkHref: `/clients/${cid}?tab=Logbook`,
+    });
+  }
+
+  // Events (custom, with recurrence expansion bounded to this week)
+  for (const doc of customDocs) {
+    const rec = resolveRecurrence(doc);
+    const docId = doc._id.toString();
+    const cid = (doc.clientId as string).toString();
+    const { clientName, leads } = resolve(cid);
+
+    if (!rec) {
+      // One-off event
+      const d = doc.date as string;
+      if (d >= start && d <= end) {
+        items.push({
+          id: `event_${docId}`,
+          type: "event",
+          date: mapToWeekday(d, end),
+          title: doc.title as string,
+          clientId: cid,
+          clientName,
+          leads,
+          linkHref: `/clients/${cid}?tab=Events`,
+        });
+      }
+    } else {
+      // Recurring event — expand only within the week window
+      const occurrences = expandOccurrences(
+        doc.date as string, rec.interval, rec.unit,
+        start, end,
+        doc.repetitions as number | null
+      );
+      for (const occ of occurrences) {
+        items.push({
+          id: `event_${docId}_${occ}`,
+          type: "event",
+          date: mapToWeekday(occ, end),
+          title: doc.title as string,
+          clientId: cid,
+          clientName,
+          leads,
+          linkHref: `/clients/${cid}?tab=Events`,
+        });
+      }
+    }
+  }
+
+  // Sort by date, then by type priority
+  const typePriority: Record<string, number> = { kickoff: 0, event: 1, followup: 2, deadline: 3, delivery: 4 };
+  items.sort((a, b) => a.date.localeCompare(b.date) || (typePriority[a.type] ?? 5) - (typePriority[b.type] ?? 5));
+
+  return items;
+}
+
+/**
+ * Returns active projects grouped by client, ready for the Gantt timeline.
+ */
+export async function getActiveProjectsForGantt(): Promise<{ clients: Client[]; projectsByClient: Record<string, Project[]> }> {
+  await connectDB();
+  const [clients, projectMap] = await Promise.all([
+    getClients(),
+    getProjectsByAllClients(),
+  ]);
+
+  const projectsByClient: Record<string, Project[]> = {};
+  for (const [cid, projects] of projectMap.entries()) {
+    const active = projects.filter((p) => p.status !== "completed");
+    if (active.length > 0) {
+      projectsByClient[cid] = active;
+    }
+  }
+
+  return { clients, projectsByClient };
+}
+
+/** Like getActiveProjectsForGantt but filtered to clients where userId is a lead. */
+export async function getMyActiveProjectsForGantt(
+  userId: string
+): Promise<{ clients: Client[]; projectsByClient: Record<string, Project[]> }> {
+  await connectDB();
+  const [allClients, projectMap] = await Promise.all([
+    getClients(),
+    getProjectsByAllClients(),
+  ]);
+
+  const myClients = allClients.filter((c) =>
+    c.leads?.some((l) => l.userId === userId)
+  );
+
+  const projectsByClient: Record<string, Project[]> = {};
+  for (const client of myClients) {
+    const projects = projectMap.get(client.id) ?? [];
+    const active = projects.filter((p) => p.status !== "completed");
+    if (active.length > 0) {
+      projectsByClient[client.id] = active;
+    }
+  }
+
+  const clientsWithProjects = myClients.filter((c) => projectsByClient[c.id]);
+  return { clients: clientsWithProjects, projectsByClient };
+}
+
+/* ─── My Day helpers ─────────────────────────────────────────────── */
+
+const fetchClientNameMap = cache(async (): Promise<Map<string, string>> => {
+  await connectDB();
+  const docs = await ClientModel.find({}, { _id: 1, company: 1 }).lean();
+  return new Map(docs.map((d) => [d._id.toString(), d.company]));
+});
+
+export async function getMyOverdueAndTodayTasks(
+  userId: string
+): Promise<(Task & { clientName: string })[]> {
+  await connectDB();
+  const today = new Date().toISOString().slice(0, 10);
+  const [docs, clientMap] = await Promise.all([
+    TaskModel.find({
+      "assignees.userId": userId,
+      completedAt: null,
+      completionDate: { $lte: today },
+    })
+      .sort({ completionDate: 1 })
+      .lean(),
+    fetchClientNameMap(),
+  ]);
+  return docs.map((d) => ({
+    ...mapTask(d),
+    clientName: clientMap.get(d.clientId as string) ?? "",
+  }));
+}
+
+export async function getMyOpenFollowUps(
+  userId: string
+): Promise<(Log & { clientName: string })[]> {
+  await connectDB();
+  const [docs, clientMap] = await Promise.all([
+    LogModel.find({
+      createdById: userId,
+      followUp: true,
+      followedUpAt: null,
+      followUpAction: { $exists: true, $nin: [null, ""] },
+    })
+      .sort({ followUpDeadline: 1 })
+      .lean(),
+    fetchClientNameMap(),
+  ]);
+  return docs.map((doc) => ({
+    id: doc._id.toString(),
+    clientId: doc.clientId,
+    contactIds: doc.contactIds?.length ? doc.contactIds : doc.contactId ? [doc.contactId] : [],
+    date: doc.date,
+    summary: doc.summary,
+    signalIds: doc.signalIds ?? [],
+    followUp: doc.followUp ?? false,
+    followUpAction: doc.followUpAction ?? undefined,
+    followUpDeadline: doc.followUpDeadline ?? undefined,
+    followedUpAt: doc.followedUpAt ?? undefined,
+    followedUpByName: doc.followedUpByName ?? undefined,
+    isSystemGenerated: doc.isSystemGenerated ?? false,
+    createdById: doc.createdById,
+    createdByName: doc.createdByName,
+    createdAt: doc.createdAt?.toISOString().split("T")[0],
+    clientName: clientMap.get(doc.clientId as string) ?? "",
+  }));
+}
+
+export async function getMyProjectsOverview(
+  userId: string
+): Promise<MyProjectOverview[]> {
+  await connectDB();
+  const clientDocs = await ClientModel.find(
+    { "leads.userId": userId },
+    { _id: 1, company: 1 }
+  ).lean();
+  if (clientDocs.length === 0) return [];
+
+  const clientIds = clientDocs.map((c) => c._id.toString());
+  const clientNameMap = new Map(clientDocs.map((c) => [c._id.toString(), c.company as string]));
+
+  const projects = await ProjectModel.find({
+    clientId: { $in: clientIds },
+    status: { $ne: "completed" },
+  }).lean();
+  if (projects.length === 0) return [];
+
+  const projectIds = projects.map((p) => p._id.toString());
+  const [taskStats, nextDeadlines] = await Promise.all([
+    getTaskStatsByProjectIds(projectIds),
+    (async () => {
+      const today = new Date().toISOString().slice(0, 10);
+      const tasks = await TaskModel.find(
+        {
+          projectId: { $in: projectIds },
+          completedAt: null,
+          completionDate: { $gte: today },
+        },
+        { projectId: 1, completionDate: 1 }
+      ).lean();
+      const map = new Map<string, string>();
+      for (const t of tasks) {
+        const pid = t.projectId as string;
+        const cd = t.completionDate as string;
+        const existing = map.get(pid);
+        if (!existing || cd < existing) map.set(pid, cd);
+      }
+      return map;
+    })(),
+  ]);
+
+  return projects.map((p) => {
+    const pid = p._id.toString();
+    const stats = taskStats.get(pid) ?? { total: 0, completed: 0 };
+    return {
+      projectId: pid,
+      projectTitle: p.title as string,
+      clientId: p.clientId as string,
+      clientName: clientNameMap.get(p.clientId as string) ?? "",
+      status: p.status as "not_started" | "in_progress" | "completed",
+      taskTotal: stats.total,
+      taskCompleted: stats.completed,
+      nextDeadline: nextDeadlines.get(pid),
+      deliveryDate: (p.deliveryDate as string) ?? undefined,
+    };
+  });
+}
+
+export async function getMyUpcomingDeadlines(
+  userId: string
+): Promise<(Task & { clientName: string })[]> {
+  await connectDB();
+  const today = new Date().toISOString().slice(0, 10);
+  const d = new Date();
+  d.setDate(d.getDate() + 7);
+  const weekEnd = d.toISOString().slice(0, 10);
+
+  const [docs, clientMap] = await Promise.all([
+    TaskModel.find({
+      "assignees.userId": userId,
+      completedAt: null,
+      completionDate: { $gt: today, $lte: weekEnd },
+    })
+      .sort({ completionDate: 1 })
+      .lean(),
+    fetchClientNameMap(),
+  ]);
+  return docs.map((d) => ({
+    ...mapTask(d),
+    clientName: clientMap.get(d.clientId as string) ?? "",
+  }));
+}
+
+async function buildProjectNameMap(projectIds: string[]): Promise<Map<string, string>> {
+  if (projectIds.length === 0) return new Map();
+  const docs = await ProjectModel.find(
+    { _id: { $in: projectIds } },
+    { _id: 1, title: 1 }
+  ).lean();
+  return new Map(docs.map((d) => [d._id.toString(), d.title as string]));
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function buildMyDayTaskData(
+  docs: any[],
+  subtaskDocs: any[],
+  clientMap: Map<string, string>,
+  projectNameMap: Map<string, string>,
+  imageMap: Map<string, string>,
+): MyDayTaskData {
+  const subtasksByParent: Record<string, Task[]> = {};
+  for (const sd of subtaskDocs) {
+    const pid = sd.parentTaskId as string;
+    if (!subtasksByParent[pid]) subtasksByParent[pid] = [];
+    subtasksByParent[pid].push(mapTask(sd));
+  }
+
+  const userImages: Record<string, string> = {};
+  for (const [id, img] of imageMap) userImages[id] = img;
+
+  return {
+    tasks: docs.map((d) => ({
+      ...mapTask(d),
+      clientName: clientMap.get(d.clientId as string) ?? "",
+      projectName: d.projectId ? projectNameMap.get(d.projectId as string) : undefined,
+    })),
+    subtasksByParent,
+    userImages,
+  };
+}
+
+export async function getMyDayTasks(userId: string): Promise<MyDayTaskData> {
+  await connectDB();
+  const [docs, clientMap, imageMap] = await Promise.all([
+    TaskModel.find({
+      "assignees.userId": userId,
+      completedAt: null,
+      parentTaskId: { $exists: false },
+    })
+      .sort({ completionDate: 1, createdAt: 1 })
+      .lean(),
+    fetchClientNameMap(),
+    buildUserImageMap(),
+  ]);
+
+  const projectIds = [...new Set(docs.map((d) => d.projectId as string).filter(Boolean))];
+  const [projectNameMap, subtaskDocs] = await Promise.all([
+    buildProjectNameMap(projectIds),
+    docs.length > 0
+      ? TaskModel.find({ parentTaskId: { $in: docs.map((d) => d._id.toString()) } }).sort({ order: 1, createdAt: 1 }).lean()
+      : Promise.resolve([]),
+  ]);
+
+  return buildMyDayTaskData(docs, subtaskDocs, clientMap, projectNameMap, imageMap);
+}
+
+/** Fetch all open tasks for clients where userId is a lead OR has assigned tasks. */
+export async function getMyLeadClientTasks(userId: string): Promise<MyDayTaskData> {
+  await connectDB();
+
+  // 1. Clients the user leads
+  const leadClientDocs = await ClientModel.find(
+    { "leads.userId": userId },
+    { _id: 1, company: 1 }
+  ).lean();
+  const leadClientIds = new Set(leadClientDocs.map((c) => c._id.toString()));
+
+  // 2. Find any additional clientIds from tasks assigned to the user
+  const assignedDocs = await TaskModel.find(
+    { "assignees.userId": userId, completedAt: null, parentTaskId: { $exists: false } },
+    { clientId: 1 }
+  ).lean();
+  const extraClientIds = [...new Set(
+    assignedDocs.map((d) => d.clientId as string).filter((id) => id && !leadClientIds.has(id))
+  )];
+
+  // 3. Build full client name map
+  const clientMap = new Map(leadClientDocs.map((c) => [c._id.toString(), c.company as string]));
+  if (extraClientIds.length > 0) {
+    const extraDocs = await ClientModel.find(
+      { _id: { $in: extraClientIds } },
+      { _id: 1, company: 1 }
+    ).lean();
+    for (const c of extraDocs) clientMap.set(c._id.toString(), c.company as string);
+  }
+
+  const allClientIds = [...clientMap.keys()];
+  if (allClientIds.length === 0) {
+    return { tasks: [], subtasksByParent: {}, userImages: {} };
+  }
+
+  const [docs, imageMap] = await Promise.all([
+    TaskModel.find({
+      clientId: { $in: allClientIds },
+      completedAt: null,
+      parentTaskId: { $exists: false },
+    })
+      .sort({ completionDate: 1, createdAt: 1 })
+      .lean(),
+    buildUserImageMap(),
+  ]);
+
+  const projectIds = [...new Set(docs.map((d) => d.projectId as string).filter(Boolean))];
+  const [projectNameMap, subtaskDocs] = await Promise.all([
+    buildProjectNameMap(projectIds),
+    docs.length > 0
+      ? TaskModel.find({ parentTaskId: { $in: docs.map((d) => d._id.toString()) } }).sort({ order: 1, createdAt: 1 }).lean()
+      : Promise.resolve([]),
+  ]);
+
+  return buildMyDayTaskData(docs, subtaskDocs, clientMap, projectNameMap, imageMap);
+}
+
+export async function getMyDayFollowUps(userId: string): Promise<MyDayFollowUpData> {
+  await connectDB();
+  const [docs, clientMap, signalMap] = await Promise.all([
+    LogModel.find({
+      createdById: userId,
+      followUp: true,
+      followedUpAt: null,
+    })
+      .sort({ followUpDeadline: 1 })
+      .lean(),
+    fetchClientNameMap(),
+    buildLogSignalMap(),
+  ]);
+
+  const uniqueClientIds = [...new Set(docs.map((d) => d.clientId as string))];
+  const clientDocs = uniqueClientIds.length > 0
+    ? await ClientModel.find({ _id: { $in: uniqueClientIds } }, { _id: 1, contacts: 1 }).lean()
+    : [];
+
+  const contactsByClient: Record<string, Contact[]> = {};
+  for (const c of clientDocs) {
+    contactsByClient[c._id.toString()] = (c.contacts ?? []).map((ct: { id: string; firstName: string; lastName: string; role?: string; email?: string; phone?: string }) => ({
+      id: ct.id,
+      firstName: ct.firstName,
+      lastName: ct.lastName,
+      role: ct.role,
+      email: ct.email,
+      phone: ct.phone,
+    }));
+  }
+
+  const signalDocs = await fetchLogSignalDocs();
+  const signals = signalDocs.map((d) => ({
+    id: d._id.toString(),
+    name: d.name,
+    rank: d.rank ?? 0,
+    createdAt: d.createdAt?.toISOString().split("T")[0],
+  }));
+
+  return {
+    logs: docs.map((doc) => ({
+      id: doc._id.toString(),
+      clientId: doc.clientId,
+      contactIds: doc.contactIds?.length ? doc.contactIds : doc.contactId ? [doc.contactId] : [],
+      date: doc.date,
+      summary: doc.summary,
+      signalIds: doc.signalIds ?? [],
+      signals: (doc.signalIds ?? []).map((sid: string) => signalMap.get(sid) ?? sid),
+      followUp: doc.followUp ?? false,
+      followUpAction: doc.followUpAction ?? undefined,
+      followUpDeadline: doc.followUpDeadline ?? undefined,
+      followedUpAt: doc.followedUpAt ?? undefined,
+      followedUpByName: doc.followedUpByName ?? undefined,
+      isSystemGenerated: doc.isSystemGenerated ?? false,
+      createdById: doc.createdById,
+      createdByName: doc.createdByName,
+      createdAt: doc.createdAt?.toISOString().split("T")[0],
+      clientName: clientMap.get(doc.clientId as string) ?? "",
+    })),
+    contactsByClient,
+    signals,
+  };
+}
+
+export async function getMyDayUserInfo(userId: string): Promise<MyDayUserInfo> {
+  await connectDB();
+  const [user, clientDocs, openTaskCount, openFollowUpCount] = await Promise.all([
+    UserModel.findById(userId, { name: 1, image: 1, email: 1, role: 1 }).lean(),
+    ClientModel.find({ "leads.userId": userId }, { _id: 1 }).lean(),
+    TaskModel.countDocuments({ "assignees.userId": userId, completedAt: null, parentTaskId: { $exists: false } }),
+    LogModel.countDocuments({ createdById: userId, followUp: true, followedUpAt: null }),
+  ]);
+
+  if (!user) {
+    return { name: "", image: null, email: "", roleName: "", activeClientCount: 0, activeProjectCount: 0, openTaskCount: 0, openFollowUpCount: 0 };
+  }
+
+  const roleSlug = (user.role as string) ?? "";
+  const roleDoc = roleSlug ? await RoleModel.findOne({ slug: roleSlug }, { name: 1 }).lean() : null;
+
+  const clientIds = clientDocs.map((c) => c._id.toString());
+  const activeProjectCount = clientIds.length > 0
+    ? await ProjectModel.countDocuments({ clientId: { $in: clientIds }, status: { $ne: "completed" } })
+    : 0;
+
+  return {
+    name: (user.name as string) ?? "",
+    image: (user.image as string) ?? null,
+    email: (user.email as string) ?? "",
+    roleName: roleDoc ? (roleDoc.name as string) : roleSlug,
+    activeClientCount: clientDocs.length,
+    activeProjectCount,
+    openTaskCount,
+    openFollowUpCount,
+  };
+}
+
+// ── Team / Holiday Calendar ─────────────────────────────────────────
+
+export async function getLeaveTypes(): Promise<LeaveType[]> {
+  await connectDB();
+
+  // Upsert any missing defaults (preserves existing customised entries)
+  await Promise.all(
+    DEFAULT_LEAVE_TYPES.map((lt, i) =>
+      LeaveTypeModel.updateOne(
+        { slug: lt.slug },
+        { $setOnInsert: { ...lt, rank: i } },
+        { upsert: true }
+      )
+    )
+  );
+
+  const docs = await LeaveTypeModel.find().sort({ rank: 1, createdAt: 1 }).lean();
+  return docs.map((d) => ({
+    id: d._id.toString(),
+    slug: d.slug,
+    label: d.label,
+    color: d.color,
+    icon: d.icon,
+    rank: d.rank ?? 0,
+    countsAgainstAllowance: d.countsAgainstAllowance ?? false,
+  }));
+}
+
+export async function getCompanyHolidays(year: number): Promise<CompanyHoliday[]> {
+  await connectDB();
+  const startDate = `${year}-01-01`;
+  const endDate = `${year}-12-31`;
+  const docs = await CompanyHolidayModel.find({
+    date: { $gte: startDate, $lte: endDate },
+  }).sort({ date: 1 }).lean();
+  return docs.map((d) => ({
+    id: d._id.toString(),
+    date: d.date,
+    label: d.label,
+  }));
+}
+
+export const getTimeOffByMonth = cache(async (year: number, month: number): Promise<{ entries: TimeOffEntry[]; users: { id: string; name: string; image: string | null; role: string }[] }> => {
+  await connectDB();
+  const monthStart = `${year}-${String(month).padStart(2, "0")}-01`;
+  const lastDay = new Date(year, month, 0).getDate();
+  const monthEnd = `${year}-${String(month).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+
+  const [timeOffDocs, userDocs] = await Promise.all([
+    TimeOffModel.find({
+      startDate: { $lte: monthEnd },
+      endDate: { $gte: monthStart },
+      status: "confirmed",
+    }).lean(),
+    UserModel.find({ status: "active" }, { _id: 1, name: 1, image: 1, role: 1 }).sort({ name: 1 }).lean(),
+  ]);
+
+  const userMap = new Map<string, { name: string; image: string | null }>();
+  for (const u of userDocs) {
+    userMap.set(u._id.toString(), { name: (u.name as string) ?? "", image: (u.image as string) ?? null });
+  }
+
+  const entries: TimeOffEntry[] = timeOffDocs.map((d) => {
+    const uid = (d.userId as mongoose.Types.ObjectId).toString();
+    const user = userMap.get(uid);
+    return {
+      id: d._id.toString(),
+      userId: uid,
+      userName: user?.name,
+      userImage: user?.image ?? undefined,
+      startDate: d.startDate,
+      endDate: d.endDate,
+      startDayPortion: d.startDayPortion,
+      endDayPortion: d.endDayPortion,
+      leaveTypeSlug: d.leaveTypeSlug,
+      notes: d.notes,
+      status: d.status,
+      createdById: (d.createdById as mongoose.Types.ObjectId).toString(),
+      createdByName: d.createdByName,
+      createdAt: d.createdAt?.toISOString().split("T")[0],
+    };
+  });
+
+  const users = userDocs.map((u) => ({
+    id: u._id.toString(),
+    name: (u.name as string) ?? "",
+    image: (u.image as string) ?? null,
+    role: (u.role as string) ?? "",
+  }));
+
+  return { entries, users };
+});
+
+/** Count business days (Mon–Fri) used per leave type for a set of entries within a year. */
+export function calculateDaysUsed(
+  entries: TimeOffEntry[],
+): Record<string, number> {
+  const result: Record<string, number> = {};
+
+  for (const entry of entries) {
+    const start = new Date(entry.startDate + "T00:00:00");
+    const end = new Date(entry.endDate + "T00:00:00");
+    let days = 0;
+
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      const dow = d.getDay();
+      if (dow === 0 || dow === 6) continue; // skip weekends
+
+      let dayValue = 1;
+      const dateStr = d.toISOString().split("T")[0];
+      if (dateStr === entry.startDate && entry.startDayPortion !== "full") {
+        dayValue = 0.5;
+      } else if (dateStr === entry.endDate && entry.endDayPortion !== "full") {
+        dayValue = 0.5;
+      }
+      days += dayValue;
+    }
+
+    result[entry.leaveTypeSlug] = (result[entry.leaveTypeSlug] ?? 0) + days;
+  }
+
+  return result;
+}
+
+export const getTimeOffBalances = cache(async (year: number): Promise<TimeOffBalance[]> => {
+  await connectDB();
+  const yearStart = `${year}-01-01`;
+  const yearEnd = `${year}-12-31`;
+
+  const [userDocs, timeOffDocs, leaveTypes, roleDocs] = await Promise.all([
+    UserModel.find({ status: "active" }, { _id: 1, name: 1, image: 1, role: 1, vacationDays: 1 }).sort({ name: 1 }).lean(),
+    TimeOffModel.find({
+      startDate: { $lte: yearEnd },
+      endDate: { $gte: yearStart },
+      status: "confirmed",
+    }).lean(),
+    getLeaveTypes(),
+    RoleModel.find({}, { slug: 1, name: 1 }).lean(),
+  ]);
+
+  const roleMap = new Map<string, string>();
+  for (const r of roleDocs) roleMap.set(r.slug as string, r.name as string);
+
+  // Group time-off entries by user
+  const entriesByUser = new Map<string, TimeOffEntry[]>();
+  for (const d of timeOffDocs) {
+    const uid = (d.userId as mongoose.Types.ObjectId).toString();
+    const entry: TimeOffEntry = {
+      id: d._id.toString(),
+      userId: uid,
+      startDate: d.startDate,
+      endDate: d.endDate,
+      startDayPortion: d.startDayPortion,
+      endDayPortion: d.endDayPortion,
+      leaveTypeSlug: d.leaveTypeSlug,
+      status: d.status,
+      createdById: (d.createdById as mongoose.Types.ObjectId).toString(),
+      createdByName: d.createdByName,
+    };
+    if (!entriesByUser.has(uid)) entriesByUser.set(uid, []);
+    entriesByUser.get(uid)!.push(entry);
+  }
+
+  // Find which leave types count against allowance
+  const countingSlugs = new Set(leaveTypes.filter((lt) => lt.countsAgainstAllowance).map((lt) => lt.slug));
+
+  return userDocs.map((u) => {
+    const uid = u._id.toString();
+    const entries = entriesByUser.get(uid) ?? [];
+    const usedByType = calculateDaysUsed(entries);
+    const allowance = (u.vacationDays as number) ?? 0;
+
+    // Sum only leave types that count against allowance
+    let countingUsed = 0;
+    for (const [slug, days] of Object.entries(usedByType)) {
+      if (countingSlugs.has(slug)) countingUsed += days;
+    }
+
+    return {
+      userId: uid,
+      name: (u.name as string) ?? "",
+      image: (u.image as string) ?? null,
+      role: roleMap.get(u.role as string) ?? (u.role as string) ?? "",
+      allowance,
+      usedByType,
+      remaining: allowance - countingUsed,
+    };
+  });
+});
+
+// ── Week Team Data (dashboard) ─────────────────────────────────────
+
+export async function getWeekTeamData(start: string, end: string): Promise<WeekTeamData> {
+  await connectDB();
+
+  const [timeOffDocs, holidayDocs, userDocs, leaveTypes] = await Promise.all([
+    TimeOffModel.find({
+      startDate: { $lte: end },
+      endDate: { $gte: start },
+      status: "confirmed",
+    }).lean(),
+    CompanyHolidayModel.find({
+      date: { $gte: start, $lte: end },
+    }).sort({ date: 1 }).lean(),
+    UserModel.find({ status: "active" }, { _id: 1, name: 1, image: 1, dateOfBirth: 1 }).sort({ name: 1 }).lean(),
+    getLeaveTypes(),
+  ]);
+
+  // Build user map for enriching time-off entries
+  const userMap = new Map<string, { name: string; image: string | null }>();
+  for (const u of userDocs) {
+    userMap.set(u._id.toString(), { name: (u.name as string) ?? "", image: (u.image as string) ?? null });
+  }
+
+  const timeOff: TimeOffEntry[] = timeOffDocs.map((d) => {
+    const uid = (d.userId as mongoose.Types.ObjectId).toString();
+    const user = userMap.get(uid);
+    return {
+      id: d._id.toString(),
+      userId: uid,
+      userName: user?.name,
+      userImage: user?.image ?? undefined,
+      startDate: d.startDate,
+      endDate: d.endDate,
+      startDayPortion: d.startDayPortion,
+      endDayPortion: d.endDayPortion,
+      leaveTypeSlug: d.leaveTypeSlug,
+      notes: d.notes,
+      status: d.status,
+      createdById: (d.createdById as mongoose.Types.ObjectId).toString(),
+      createdByName: d.createdByName,
+      createdAt: d.createdAt?.toISOString().split("T")[0],
+    };
+  });
+
+  const companyHolidays: CompanyHoliday[] = holidayDocs.map((d) => ({
+    id: d._id.toString(),
+    date: d.date,
+    label: d.label,
+  }));
+
+  // Find birthdays that fall within the week (match month+day)
+  const startDate = new Date(start + "T00:00:00");
+  const endDate = new Date(end + "T00:00:00");
+  const birthdays: BirthdayItem[] = [];
+
+  for (const u of userDocs) {
+    if (!u.dateOfBirth) continue;
+    const dob = u.dateOfBirth as Date;
+    // Check each day in the week range for a birthday match
+    const cursor = new Date(startDate);
+    while (cursor <= endDate) {
+      if (cursor.getMonth() === dob.getMonth() && cursor.getDate() === dob.getDate()) {
+        const dateStr = cursor.toISOString().split("T")[0];
+        birthdays.push({
+          userId: u._id.toString(),
+          userName: (u.name as string) ?? "",
+          userImage: (u.image as string) ?? null,
+          date: dateStr,
+        });
+        break;
+      }
+      cursor.setDate(cursor.getDate() + 1);
+    }
+  }
+
+  return { timeOff, companyHolidays, birthdays, leaveTypes };
 }

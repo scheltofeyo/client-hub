@@ -3,21 +3,11 @@
 import React, { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronDown, ChevronRight } from "lucide-react";
-import GanttTimeline, { GanttRow, GanttSection, GanttVariant } from "@/components/ui/GanttTimeline";
+import GanttTimeline, { GanttBar, GanttRow, GanttSection, GanttVariant } from "@/components/ui/GanttTimeline";
 import type { Client, Project } from "@/types";
+import { accentColor } from "@/lib/styles";
 
 // ── Avatar helper ─────────────────────────────────────────────────────────────
-
-const ACCENT_COLORS = [
-  "#7C3AED", "#2563EB", "#059669", "#D97706",
-  "#DC2626", "#DB2777", "#0891B2", "#0D9488",
-];
-
-function accentColor(name: string): string {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  return ACCENT_COLORS[Math.abs(hash) % ACCENT_COLORS.length];
-}
 
 function ClientIcon({ company }: { company: string }) {
   const abbr = company.split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("");
@@ -34,6 +24,12 @@ function ClientIcon({ company }: { company: string }) {
 interface Props {
   clients: Client[];
   projectsByClient: Record<string, Project[]>;
+  /** Override pixels per day to zoom in/out. */
+  pxPerDay?: number;
+  /** Custom title for the section header. Default: "Timeline". */
+  title?: string;
+  /** Whether the timeline can be collapsed. Default: true. */
+  collapsible?: boolean;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -50,7 +46,7 @@ function fmtLong(d: Date): string {
   });
 }
 
-function projectToRow(p: Project, today: Date): GanttRow | null {
+function projectToBar(p: Project, today: Date): GanttBar | null {
   if (p.status === "completed") return null;
 
   if (p.kickedOffAt) {
@@ -61,14 +57,7 @@ function projectToRow(p: Project, today: Date): GanttRow | null {
     const end = rawEnd < start
       ? new Date(start.getTime() + 24 * 60 * 60 * 1000)
       : rawEnd;
-    return {
-      id: p.id,
-      label: p.title,
-      sublabel: p.service,
-      start,
-      end,
-      variant: "active",
-    };
+    return { id: p.id, label: p.title, start, end, variant: "active" };
   }
 
   if (p.scheduledStartDate && p.scheduledEndDate) {
@@ -77,17 +66,20 @@ function projectToRow(p: Project, today: Date): GanttRow | null {
     const end = rawEnd < start
       ? new Date(start.getTime() + 24 * 60 * 60 * 1000)
       : rawEnd;
-    return {
-      id: p.id,
-      label: p.title,
-      sublabel: p.service,
-      start,
-      end,
-      variant: "upcoming",
-    };
+    return { id: p.id, label: p.title, start, end, variant: "upcoming" };
   }
 
   return null;
+}
+
+const VARIANT_PRIORITY: Record<GanttVariant, number> = { active: 2, upcoming: 1, muted: 0 };
+
+function topVariant(bars: GanttBar[]): GanttVariant {
+  let best: GanttVariant = "muted";
+  for (const b of bars) {
+    if (VARIANT_PRIORITY[b.variant] > VARIANT_PRIORITY[best]) best = b.variant;
+  }
+  return best;
 }
 
 function buildClientSections(
@@ -99,26 +91,55 @@ function buildClientSections(
 
   for (const client of clients) {
     const projects = projectsByClient[client.id] ?? [];
-    const rows: GanttRow[] = [];
+
+    // Group bars by service
+    const serviceGroups = new Map<string, { name: string; bars: GanttBar[] }>();
     for (const p of projects) {
-      const row = projectToRow(p, today);
-      if (row) rows.push(row);
+      const bar = projectToBar(p, today);
+      if (!bar) continue;
+      const key = p.serviceId ?? p.service ?? p.id;
+      const name = p.service ?? "Other";
+      const group = serviceGroups.get(key);
+      if (group) {
+        group.bars.push(bar);
+      } else {
+        serviceGroups.set(key, { name, bars: [bar] });
+      }
     }
-    if (rows.length === 0) continue;
+
+    if (serviceGroups.size === 0) continue;
+
+    const rows: GanttRow[] = [];
+    const allBars: GanttBar[] = [];
+
+    for (const [serviceKey, { name, bars }] of serviceGroups) {
+      bars.sort((a, b) => a.start.getTime() - b.start.getTime());
+      const minStart = new Date(Math.min(...bars.map((b) => b.start.getTime())));
+      const maxEnd = new Date(Math.max(...bars.map((b) => b.end.getTime())));
+      rows.push({
+        id: `${client.id}::${serviceKey}`,
+        label: name,
+        start: minStart,
+        end: maxEnd,
+        variant: topVariant(bars),
+        bars,
+      });
+      allBars.push(...bars);
+    }
 
     rows.sort((a, b) => a.start.getTime() - b.start.getTime());
 
-    const summaryBars = rows.map((r) => ({
-      start: r.start,
-      end: r.end,
-      variant: r.variant,
+    const summaryBars = allBars.map((b) => ({
+      start: b.start,
+      end: b.end,
+      variant: b.variant,
     }));
 
     sections.push({
       key: client.id,
       label: client.company,
       rows,
-      defaultCollapsed: true,
+      defaultCollapsed: false,
       summaryBars,
       icon: <ClientIcon company={client.company} />,
     });
@@ -135,7 +156,7 @@ function buildClientSections(
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function ClientsTimeline({ clients, projectsByClient }: Props) {
+export default function ClientsTimeline({ clients, projectsByClient, pxPerDay, title = "Timeline", collapsible = true }: Props) {
   const router = useRouter();
 
   const today = useMemo(() => {
@@ -160,22 +181,23 @@ export default function ClientsTimeline({ clients, projectsByClient }: Props) {
     return map;
   }, [clients, projectsByClient]);
 
-  const handleRowClick = useCallback(
-    (rowId: string) => {
-      const entry = projectLookup.get(rowId);
+  const handleBarClick = useCallback(
+    (barId: string) => {
+      const entry = projectLookup.get(barId);
       if (entry) {
-        router.push(`/clients/${entry.clientId}/projects/${rowId}/tasks`);
+        router.push(`/clients/${entry.clientId}/projects/${barId}/tasks`);
       }
     },
     [router, projectLookup]
   );
 
   const renderHoverCard = useCallback(
-    (row: GanttRow, x: number, y: number) => {
-      const entry = projectLookup.get(row.id);
+    (barId: string, x: number, y: number) => {
+      const entry = projectLookup.get(barId);
       if (!entry) return null;
+      const variant: GanttVariant = entry.project.kickedOffAt ? "active" : "upcoming";
       return (
-        <ProjectHoverCard project={entry.project} variant={row.variant} x={x} y={y} />
+        <ProjectHoverCard project={entry.project} variant={variant} x={x} y={y} />
       );
     },
     [projectLookup]
@@ -183,30 +205,41 @@ export default function ClientsTimeline({ clients, projectsByClient }: Props) {
 
   const [timelineVisible, setTimelineVisible] = useState(true);
   const Chevron = timelineVisible ? ChevronDown : ChevronRight;
+  const isVisible = collapsible ? timelineVisible : true;
 
   if (sections.length === 0) return null;
 
   return (
     <div className="space-y-3">
-      <button
-        type="button"
-        className="flex items-center gap-1.5 cursor-pointer select-none"
-        style={{ background: "none", border: "none", padding: 0 }}
-        onClick={() => setTimelineVisible((v) => !v)}
-      >
-        <Chevron size={12} style={{ color: "var(--text-muted)" }} />
-        <span
-          className="text-xs font-semibold uppercase tracking-wide"
-          style={{ color: "var(--text-muted)" }}
+      {collapsible ? (
+        <button
+          type="button"
+          className="flex items-center gap-1.5 cursor-pointer select-none"
+          style={{ background: "none", border: "none", padding: 0 }}
+          onClick={() => setTimelineVisible((v) => !v)}
         >
-          Timeline
-        </span>
-      </button>
-      {timelineVisible && (
+          <Chevron size={12} style={{ color: "var(--text-muted)" }} />
+          <span
+            className="typo-section-header"
+            style={{ color: "var(--text-muted)" }}
+          >
+            {title}
+          </span>
+        </button>
+      ) : (
+        <h2
+          className="typo-section-title"
+          style={{ color: "var(--text-primary)" }}
+        >
+          {title}
+        </h2>
+      )}
+      {isVisible && (
         <GanttTimeline
           sections={sections}
-          onRowClick={handleRowClick}
+          onBarClick={handleBarClick}
           renderHoverCard={renderHoverCard}
+          pxPerDay={pxPerDay}
         />
       )}
     </div>

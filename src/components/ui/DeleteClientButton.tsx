@@ -45,7 +45,7 @@ export default function DeleteClientButton({ id, company }: { id: string; compan
             style={{ background: "var(--bg-surface)", borderColor: "var(--border)" }}
           >
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+              <h2 className="typo-card-title" style={{ color: "var(--text-primary)" }}>
                 Delete client
               </h2>
               <button
@@ -64,7 +64,7 @@ export default function DeleteClientButton({ id, company }: { id: string; compan
               ? This cannot be undone.
             </p>
 
-            {error && <p className="text-xs text-red-500">{error}</p>}
+            {error && <p className="text-xs text-[var(--danger)]">{error}</p>}
 
             <div className="flex justify-end gap-2">
               <button

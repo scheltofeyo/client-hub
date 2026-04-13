@@ -2,24 +2,21 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, CheckSquare, Search } from "lucide-react";
+import { Sun, CalendarDays } from "lucide-react";
 
 const navItems = [
-  { href: "/dashboard", label: "Home", icon: Home },
-  { href: "/tasks", label: "My Tasks", icon: CheckSquare },
-  { href: "/search", label: "Browse", icon: Search },
+  { href: "/my-day", label: "My Day", icon: Sun },
+  { href: "/dashboard", label: "This week", icon: CalendarDays },
 ];
 
 export default function PanelNav() {
   const pathname = usePathname();
 
   const hasSecondaryNav =
+    pathname === "/my-day" ||
+    pathname.startsWith("/my-day/") ||
     pathname === "/dashboard" ||
-    pathname.startsWith("/dashboard/") ||
-    pathname === "/tasks" ||
-    pathname.startsWith("/tasks/") ||
-    pathname === "/search" ||
-    pathname.startsWith("/search/");
+    pathname.startsWith("/dashboard/");
 
   if (!hasSecondaryNav) return null;
 

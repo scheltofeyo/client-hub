@@ -2,12 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { connectDB } from "@/lib/mongodb";
 import { UserModel } from "@/lib/models/User";
+import { requirePermission } from "@/lib/auth-helpers";
 
 export async function GET() {
   const session = await auth();
-  if (!session?.user?.isAdmin) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const forbidden = requirePermission(session, "employees.view");
+  if (forbidden) return forbidden;
 
   await connectDB();
   const users = await UserModel.find().sort({ createdAt: 1 }).lean();
@@ -18,7 +18,6 @@ export async function GET() {
       name: u.name,
       email: u.email,
       image: u.image,
-      isAdmin: u.isAdmin,
       role: u.role ?? "member",
       status: u.status ?? "active",
       firstName: u.firstName,
@@ -33,9 +32,9 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const session = await auth();
-  if (!session?.user?.isAdmin) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const forbidden = requirePermission(session, "employees.invite");
+  if (forbidden) return forbidden;
 
   const body = await req.json();
   const { email, firstName, preposition, lastName, role, displayName } = body;
@@ -62,12 +61,11 @@ export async function POST(req: NextRequest) {
     preposition: preposition || undefined,
     lastName: lastName || undefined,
     displayName: displayName || undefined,
-    role: role === "admin" ? "admin" : "member",
+    role: role || "member",
     status: "invited",
     invitedBy: session.user.id,
     invitedAt: new Date(),
     name: computedName,
-    isAdmin: role === "admin",
   });
 
   return NextResponse.json(

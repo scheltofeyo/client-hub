@@ -4,6 +4,7 @@ import { connectDB } from "@/lib/mongodb";
 import { ClientModel } from "@/lib/models/Client";
 import { ProjectModel } from "@/lib/models/Project";
 import { recordActivity } from "@/lib/activity";
+import { hasPermission, hasPermissionOrIsLead, requirePermission } from "@/lib/auth-helpers";
 
 export async function PATCH(
   req: NextRequest,
@@ -15,10 +16,11 @@ export async function PATCH(
   const { id, projectId } = await params;
   await connectDB();
 
-  if (!session.user.isAdmin) {
+  {
     const client = await ClientModel.findById(id).lean();
-    const isLead = (client?.leads ?? []).some((l) => l.userId === session.user.id);
-    if (!isLead) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (!hasPermissionOrIsLead(session, "projects.edit", client?.leads ?? [])) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
   }
 
   const body = await req.json();
@@ -28,9 +30,9 @@ export async function PATCH(
     return NextResponse.json({ error: "Title cannot be empty" }, { status: 400 });
   }
 
-  // Admin-only: reset project back to upcoming (un-kick-off)
+  // Reset project back to upcoming (un-kick-off) — requires specific permission
   if (kickedOffAt === null) {
-    if (!session.user.isAdmin) {
+    if (!hasPermission(session, "projects.resetToUpcoming")) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
     const doc = await ProjectModel.findByIdAndUpdate(
@@ -100,6 +102,19 @@ export async function PATCH(
       type: "project.status_changed",
       metadata: { projectId, title: doc.title, status: doc.status },
     });
+  } else {
+    // Track meaningful field changes (skip when status change or reset is the primary action)
+    const trackFields = ["title", "description", "soldPrice", "serviceId", "labelId", "deliveryDate", "scheduledStartDate", "scheduledEndDate"] as const;
+    const updatedFields = trackFields.filter((f) => body[f] !== undefined);
+    if (updatedFields.length > 0) {
+      await recordActivity({
+        clientId: id,
+        actorId: session.user.id,
+        actorName: session.user.name ?? "Unknown",
+        type: "project.updated",
+        metadata: { projectId, title: doc.title, fields: updatedFields },
+      });
+    }
   }
 
   return NextResponse.json({
@@ -124,9 +139,9 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string; projectId: string }> }
 ) {
   const session = await auth();
-  if (!session?.user?.isAdmin) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const forbidden = requirePermission(session, "projects.delete");
+  if (forbidden) return forbidden;
 
   const { id, projectId } = await params;
   await connectDB();

@@ -43,7 +43,7 @@ export default async function LoginPage({
               <rect x="14" y="14" width="7" height="7" rx="1.5" fill="var(--primary)" />
             </svg>
           </div>
-          <h1 className="text-xl font-semibold" style={{ color: "var(--text-primary)" }}>
+          <h1 className="typo-page-title" style={{ color: "var(--text-primary)" }}>
             Client Hub
           </h1>
           <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>
@@ -55,8 +55,8 @@ export default async function LoginPage({
           <div
             className="mb-6 rounded-lg px-4 py-3 text-sm text-center"
             style={{
-              background: "var(--danger-light, #fef2f2)",
-              color: "var(--danger, #dc2626)",
+              background: "var(--danger-light)",
+              color: "var(--danger)",
             }}
           >
             {errorMessage}

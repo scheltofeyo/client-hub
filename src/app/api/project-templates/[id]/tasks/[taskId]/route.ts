@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { requirePermission } from "@/lib/auth-helpers";
 import { connectDB } from "@/lib/mongodb";
 import { TemplateTaskModel } from "@/lib/models/TemplateTask";
 
@@ -8,9 +9,8 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string; taskId: string }> }
 ) {
   const session = await auth();
-  if (!session?.user?.isAdmin) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const forbidden = requirePermission(session, "admin.projectTemplates");
+  if (forbidden) return forbidden;
 
   const { taskId } = await params;
   await connectDB();
@@ -52,9 +52,8 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string; taskId: string }> }
 ) {
   const session = await auth();
-  if (!session?.user?.isAdmin) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const forbidden = requirePermission(session, "admin.projectTemplates");
+  if (forbidden) return forbidden;
 
   const { taskId } = await params;
   await connectDB();

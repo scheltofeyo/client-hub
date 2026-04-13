@@ -36,17 +36,16 @@ export interface IUser extends Document {
   notes?: string;
 
   // Role & status
-  role: "admin" | "member";
+  role: string;
   status: "invited" | "active" | "inactive";
 
   // Invitation tracking
   invitedBy?: Types.ObjectId;
   invitedAt?: Date;
 
-  // Computed (backward compat, auto-synced via hooks)
+  // Computed (auto-synced via hooks)
   name: string;
   image?: string;
-  isAdmin: boolean;
 
   createdAt: Date;
   updatedAt: Date;
@@ -67,10 +66,6 @@ function computeImage(doc: any): string | undefined {
   return (doc.displayImage as string) ?? (doc.googleImage as string) ?? undefined;
 }
 
-/** Compute isAdmin from role */
-function computeIsAdmin(doc: any): boolean {
-  return doc.role === "admin";
-}
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 const UserSchema = new Schema<IUser>(
@@ -110,17 +105,16 @@ const UserSchema = new Schema<IUser>(
     notes: { type: String },
 
     // Role & status
-    role: { type: String, enum: ["admin", "member"], default: "member" },
+    role: { type: String, default: "member" },
     status: { type: String, enum: ["invited", "active", "inactive"], default: "active" },
 
     // Invitation tracking
     invitedBy: { type: Schema.Types.ObjectId, ref: "User" },
     invitedAt: { type: Date },
 
-    // Computed (backward compat)
+    // Computed
     name: { type: String, required: true },
     image: { type: String },
-    isAdmin: { type: Boolean, default: false },
   },
   { timestamps: true }
 );
@@ -129,7 +123,6 @@ const UserSchema = new Schema<IUser>(
 UserSchema.pre("save", function () {
   this.name = computeName(this.toObject());
   this.image = computeImage(this.toObject());
-  this.isAdmin = computeIsAdmin(this.toObject());
 });
 
 // Recompute derived fields on findOneAndUpdate
@@ -144,11 +137,8 @@ UserSchema.pre("findOneAndUpdate", function () {
   // Check if any name-relevant or image-relevant fields are being updated
   const nameFields = ["displayName", "googleName", "firstName", "preposition", "lastName", "email"];
   const imageFields = ["displayImage", "googleImage"];
-  const roleFields = ["role"];
-
   const touchesName = nameFields.some((f) => f in merged);
   const touchesImage = imageFields.some((f) => f in merged);
-  const touchesRole = roleFields.some((f) => f in merged);
 
   // We can only recompute if we have the full doc context, so we use
   // the update values. For partial updates, the pre-save hook on the
@@ -158,9 +148,6 @@ UserSchema.pre("findOneAndUpdate", function () {
   }
   if (touchesImage) {
     (update.$set as Record<string, unknown>).image = computeImage(merged);
-  }
-  if (touchesRole) {
-    (update.$set as Record<string, unknown>).isAdmin = merged.role === "admin";
   }
 });
 

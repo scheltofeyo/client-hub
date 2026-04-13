@@ -82,7 +82,7 @@ export function RightPanelProvider({ children }: { children: ReactNode }) {
           className="flex items-center justify-between px-6 py-4 border-b shrink-0"
           style={{ borderColor: "var(--border)" }}
         >
-          <h2 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+          <h2 className="typo-card-title" style={{ color: "var(--text-primary)" }}>
             {panel.title}
           </h2>
           <button onClick={closePanel} className="p-1 rounded-md btn-icon">
