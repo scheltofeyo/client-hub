@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { Search, X } from "lucide-react";
 import StatusBadge from "@/components/ui/StatusBadge";
@@ -226,14 +226,20 @@ export default function ClientsOverviewTable({ rows, statusOptions = [] }: { row
     );
   }
 
-  const getWindow = (row: OverviewRow) =>
-    (row.client.status ? statusWindowMap.get(row.client.status) : undefined) ?? DEFAULT_CHECK_IN_WINDOW;
+  const getWindow = useCallback(
+    (row: OverviewRow) =>
+      (row.client.status ? statusWindowMap.get(row.client.status) : undefined) ?? DEFAULT_CHECK_IN_WINDOW,
+    [statusWindowMap]
+  );
 
-  const urgencyScore = (row: OverviewRow) => {
-    const window = getWindow(row);
-    const daysElapsed = row.lastActivityAt ? daysSinceISO(row.lastActivityAt) : window;
-    return window - daysElapsed;
-  };
+  const urgencyScore = useCallback(
+    (row: OverviewRow) => {
+      const w = getWindow(row);
+      const daysElapsed = row.lastActivityAt ? daysSinceISO(row.lastActivityAt) : w;
+      return w - daysElapsed;
+    },
+    [getWindow]
+  );
 
   const filtered = useMemo(() => {
     return rows.filter((row) => {
@@ -264,7 +270,7 @@ export default function ClientsOverviewTable({ rows, statusOptions = [] }: { row
       }
       return sort.dir === "asc" ? cmp : -cmp;
     });
-  }, [filtered, sort]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [filtered, sort, urgencyScore]);
 
   const columns: ColumnDef<OverviewRow>[] = [
     {

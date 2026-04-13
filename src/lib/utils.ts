@@ -137,7 +137,7 @@ export function getDayColumns(start: string, end: string): DayColumn[] {
 }
 
 /** Map a weekend date (Sat/Sun) to the preceding Friday. */
-export function mapToWeekday(dateStr: string, weekEnd: string): string {
+export function mapToWeekday(dateStr: string): string {
   const [y, m, d] = dateStr.split("-").map(Number);
   const date = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
   const day = tzDay(date);

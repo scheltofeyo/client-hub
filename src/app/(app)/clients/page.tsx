@@ -28,7 +28,6 @@ export default async function ClientsPage({
   ]);
 
   const tab = resolvedParams?.tab ?? "all";
-  const isAdmin = hasPermission(session, "admin.access");
   const canViewOverview = hasPermission(session, "dashboard.viewOverview");
   const isOverview = canViewOverview && tab === "overview";
 

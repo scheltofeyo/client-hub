@@ -13,7 +13,6 @@ export default function EditProjectButton({
   clientId,
   services,
   labels,
-  isAdmin = false,
   canDelete = false,
   canReset = false,
 }: {

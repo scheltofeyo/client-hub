@@ -69,7 +69,7 @@ interface Props {
 
 // ── Component ────────────────────────────────────────────────────────────────
 
-export default function MyDayTasksSection({ myTasks, allTasks, currentUserId, today }: Props & { today?: string }) {
+export default function MyDayTasksSection({ myTasks, allTasks, today }: Props & { today?: string }) {
   const router = useRouter();
   const [filter, setFilter] = useState<"mine" | "all">("mine");
   const activeData = filter === "mine" ? myTasks : allTasks;
@@ -220,7 +220,7 @@ export default function MyDayTasksSection({ myTasks, allTasks, currentUserId, to
                       className="w-full flex items-center gap-2 px-2 py-2 text-left transition-colors hover:bg-[var(--bg-hover)] rounded-lg"
                       onClick={() => setCollapsedProjects((prev) => {
                         const next = new Set(prev);
-                        next.has(sectionKey) ? next.delete(sectionKey) : next.add(sectionKey);
+                        if (next.has(sectionKey)) next.delete(sectionKey); else next.add(sectionKey);
                         return next;
                       })}
                     >
@@ -258,7 +258,7 @@ export default function MyDayTasksSection({ myTasks, allTasks, currentUserId, to
                             isExpanded={expandedTasks.has(task.id)}
                             onToggleExpand={() => setExpandedTasks((prev) => {
                               const next = new Set(prev);
-                              next.has(task.id) ? next.delete(task.id) : next.add(task.id);
+                              if (next.has(task.id)) next.delete(task.id); else next.add(task.id);
                               return next;
                             })}
                             onToggleComplete={handleToggleComplete}

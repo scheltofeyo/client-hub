@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { connectDB } from "@/lib/mongodb";
 import { UserModel } from "@/lib/models/User";
-import { hasPermission, requirePermission } from "@/lib/auth-helpers";
+import { hasPermission } from "@/lib/auth-helpers";
 
 export async function GET(
   _req: NextRequest,

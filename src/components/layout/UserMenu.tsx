@@ -20,8 +20,10 @@ export default function UserMenu() {
   const canAccessAdmin = (session?.user?.permissions ?? []).includes("admin.access");
 
   useEffect(() => {
-    setDark(document.documentElement.classList.contains("dark"));
-    setMounted(true);
+    queueMicrotask(() => {
+      setDark(document.documentElement.classList.contains("dark"));
+      setMounted(true);
+    });
   }, []);
 
   const toggleTheme = () => {

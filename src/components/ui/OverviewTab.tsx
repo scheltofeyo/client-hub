@@ -220,7 +220,7 @@ export default function OverviewTab({
         body: JSON.stringify({ title: taskTitle, completionDate }),
       });
     })();
-  }, [clientId, isOverdue]);
+  }, [clientId, isOverdue, client.company]);
 
   // ── Derived ──────────────────────────────────────────────
 
@@ -512,7 +512,7 @@ export default function OverviewTab({
                   <TaskForm
                     clientId={clientId}
                     users={assignableUsers}
-                    onSaved={(_task: Task) => { router.refresh(); closePanel(); }}
+                    onSaved={() => { router.refresh(); closePanel(); }}
                     onClose={closePanel}
                   />
                 ))

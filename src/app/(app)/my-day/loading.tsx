@@ -23,7 +23,7 @@ function SkeletonTaskRow() {
   return (
     <div className="flex items-center gap-3 py-2">
       <div className="w-4 h-4 rounded border flex-none" style={{ borderColor: "var(--border)" }} />
-      <div className="h-3.5 rounded flex-none" style={{ background: "var(--border)", width: `${45 + Math.floor(Math.random() * 30)}%` }} />
+      <div className="h-3.5 rounded flex-none" style={{ background: "var(--border)", width: "60%" }} />
     </div>
   );
 }

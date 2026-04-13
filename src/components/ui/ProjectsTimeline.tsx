@@ -202,6 +202,8 @@ export default function ProjectsTimeline({
     [projects, openTaskCounts]
   );
 
+  const [timelineVisible, setTimelineVisible] = useState(true);
+
   if (sections.length === 0 && noDates.length === 0) {
     return (
       <p className="text-sm" style={{ color: "var(--text-muted)" }}>
@@ -210,7 +212,6 @@ export default function ProjectsTimeline({
     );
   }
 
-  const [timelineVisible, setTimelineVisible] = useState(true);
   const Chevron = timelineVisible ? ChevronDown : ChevronRight;
 
   return (

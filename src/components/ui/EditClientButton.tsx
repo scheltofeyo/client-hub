@@ -19,7 +19,6 @@ const inputStyle = {
 function EditClientForm({
   client,
   archetypes,
-  isAdmin,
   canDelete = false,
   onClose,
 }: {

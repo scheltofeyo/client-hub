@@ -345,7 +345,7 @@ function Section({
                     setInlineSubtaskFor(parentTaskId);
                     if (!expandedIds.has(parentTaskId)) toggleExpand(parentTaskId);
                   }}
-                  onDelete={(taskId, _hasSubtasks) => onDelete(taskId)}
+                  onDelete={(taskId) => onDelete(taskId)}
                   showInlineSubtask={inlineSubtaskFor === task.id}
                   onInlineSubtaskSave={(title) => createSubtask(task, title)}
                   onInlineSubtaskCancel={() => setInlineSubtaskFor(null)}

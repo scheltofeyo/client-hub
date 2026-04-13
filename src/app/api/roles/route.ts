@@ -3,7 +3,7 @@ import { auth } from "@/auth";
 import { connectDB } from "@/lib/mongodb";
 import { RoleModel } from "@/lib/models/Role";
 import { UserModel } from "@/lib/models/User";
-import { hasPermission, requirePermission } from "@/lib/auth-helpers";
+import { requirePermission } from "@/lib/auth-helpers";
 import { ALL_PERMISSIONS } from "@/lib/permissions";
 
 export async function GET() {

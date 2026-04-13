@@ -32,11 +32,9 @@ export default function KickOffProjectButton({
   const [error, setError] = useState("");
   const router = useRouter();
 
-  // Fetch services + labels and pre-fill when modal opens
+  // Fetch services + labels when modal opens
   useEffect(() => {
     if (!open) return;
-    setStep(0);
-    setError("");
 
     Promise.all([
       fetch("/api/services").then((r) => r.json()),
@@ -47,45 +45,7 @@ export default function KickOffProjectButton({
         setLabels(Array.isArray(lblData) ? lblData : []);
       })
       .catch(() => {});
-
-    // Pre-fill from template defaults
-    let deliveryDate = "";
-    let soldPrice = "";
-    try {
-      const raw = localStorage.getItem(`kickoff_defaults_${project.id}`);
-      if (raw) {
-        const defaults = JSON.parse(raw) as {
-          defaultDeliveryDays?: number | null;
-          defaultSoldPrice?: number | null;
-        };
-        if (defaults.defaultDeliveryDays) {
-          const d = new Date();
-          d.setDate(d.getDate() + defaults.defaultDeliveryDays);
-          deliveryDate = d.toISOString().slice(0, 10);
-        }
-        if (defaults.defaultSoldPrice != null) {
-          soldPrice = String(defaults.defaultSoldPrice);
-        }
-      }
-    } catch {
-      // localStorage not available
-    }
-
-    // Fall back to scheduled end date
-    if (!deliveryDate && project.scheduledEndDate) {
-      deliveryDate = project.scheduledEndDate;
-    }
-
-    setForm({
-      title: project.title,
-      description: project.description ?? "",
-      serviceId: project.serviceId ?? "",
-      deliveryDate,
-      startDate: "",
-      soldPrice,
-      labelId: "",
-    });
-  }, [open, project.id, project.title, project.description, project.serviceId, project.scheduledEndDate]);
+  }, [open]);
 
   function handleClose() {
     setOpen(false);
@@ -210,7 +170,49 @@ export default function KickOffProjectButton({
   return (
     <>
       <button
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          setStep(0);
+          setError("");
+
+          // Pre-fill from template defaults
+          let deliveryDate = "";
+          let soldPrice = "";
+          try {
+            const raw = localStorage.getItem(`kickoff_defaults_${project.id}`);
+            if (raw) {
+              const defaults = JSON.parse(raw) as {
+                defaultDeliveryDays?: number | null;
+                defaultSoldPrice?: number | null;
+              };
+              if (defaults.defaultDeliveryDays) {
+                const d = new Date();
+                d.setDate(d.getDate() + defaults.defaultDeliveryDays);
+                deliveryDate = d.toISOString().slice(0, 10);
+              }
+              if (defaults.defaultSoldPrice != null) {
+                soldPrice = String(defaults.defaultSoldPrice);
+              }
+            }
+          } catch {
+            // localStorage not available
+          }
+
+          // Fall back to scheduled end date
+          if (!deliveryDate && project.scheduledEndDate) {
+            deliveryDate = project.scheduledEndDate;
+          }
+
+          setForm({
+            title: project.title,
+            description: project.description ?? "",
+            serviceId: project.serviceId ?? "",
+            deliveryDate,
+            startDate: "",
+            soldPrice,
+            labelId: "",
+          });
+          setOpen(true);
+        }}
         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium btn-primary"
       >
         <Rocket size={13} />

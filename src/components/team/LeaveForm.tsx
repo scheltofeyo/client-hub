@@ -134,8 +134,6 @@ export default function LeaveForm({
     }
   }
 
-  const selectedLeaveType = leaveTypes.find((lt) => lt.slug === leaveTypeSlug);
-
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4 px-1 py-2">
       {/* User selector — only for admins */}

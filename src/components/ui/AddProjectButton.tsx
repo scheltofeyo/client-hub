@@ -41,11 +41,13 @@ export function AddProjectModal({
   // Reset state + fetch when modal opens
   useEffect(() => {
     if (!open) return;
-    setStep(0);
-    setSelectedTemplate(null);
-    setForm({ title: "", description: "", serviceId: "", scheduledStartDate: "", scheduledEndDate: "" });
-    setError("");
-    setLoading(true);
+    queueMicrotask(() => {
+      setStep(0);
+      setSelectedTemplate(null);
+      setForm({ title: "", description: "", serviceId: "", scheduledStartDate: "", scheduledEndDate: "" });
+      setError("");
+      setLoading(true);
+    });
     Promise.all([
       fetch("/api/project-templates").then((r) => r.json()),
       fetch("/api/services").then((r) => r.json()),

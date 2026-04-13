@@ -635,15 +635,6 @@ function expandPastOccurrences(
   return occurrences;
 }
 
-/** Build a human-readable label like "Every 2 weeks" */
-function recurrenceLabel(interval: number, unit: RecurrenceUnit): string {
-  if (interval === 1) {
-    const singular: Record<RecurrenceUnit, string> = { days: "day", weeks: "week", months: "month", years: "year" };
-    return `Every ${singular[unit]}`;
-  }
-  return `Every ${interval} ${unit}`;
-}
-
 /**
  * Returns the latest followedUpAt date per serviceId for a given client.
  * Used by OverviewTab to reset the service expiry timer display.
@@ -1317,7 +1308,7 @@ export async function getWeekCalendarItems(start: string, end: string): Promise<
     items.push({
       id: `task_${t._id.toString()}`,
       type: "deadline",
-      date: mapToWeekday(t.completionDate as string, end),
+      date: mapToWeekday(t.completionDate as string),
       title: t.title as string,
       clientId: cid ?? "",
       clientName,
@@ -1336,7 +1327,7 @@ export async function getWeekCalendarItems(start: string, end: string): Promise<
     items.push({
       id: `delivery_${p._id.toString()}`,
       type: "delivery",
-      date: mapToWeekday(p.deliveryDate as string, end),
+      date: mapToWeekday(p.deliveryDate as string),
       title: p.title as string,
       clientId: cid,
       clientName,
@@ -1352,7 +1343,7 @@ export async function getWeekCalendarItems(start: string, end: string): Promise<
     items.push({
       id: `kickoff_${p._id.toString()}`,
       type: "kickoff",
-      date: mapToWeekday(p.scheduledStartDate as string, end),
+      date: mapToWeekday(p.scheduledStartDate as string),
       title: p.title as string,
       clientId: cid,
       clientName,
@@ -1370,7 +1361,7 @@ export async function getWeekCalendarItems(start: string, end: string): Promise<
     items.push({
       id: `followup_${l._id.toString()}`,
       type: "followup",
-      date: mapToWeekday(l.followUpDeadline as string, end),
+      date: mapToWeekday(l.followUpDeadline as string),
       title: (l.followUpAction as string | undefined)?.trim() || (l.summary as string).slice(0, 60),
       clientId: cid,
       clientName,
@@ -1393,7 +1384,7 @@ export async function getWeekCalendarItems(start: string, end: string): Promise<
         items.push({
           id: `event_${docId}`,
           type: "event",
-          date: mapToWeekday(d, end),
+          date: mapToWeekday(d),
           title: doc.title as string,
           clientId: cid,
           clientName,
@@ -1412,7 +1403,7 @@ export async function getWeekCalendarItems(start: string, end: string): Promise<
         items.push({
           id: `event_${docId}_${occ}`,
           type: "event",
-          date: mapToWeekday(occ, end),
+          date: mapToWeekday(occ),
           title: doc.title as string,
           clientId: cid,
           clientName,
@@ -1636,9 +1627,10 @@ async function buildProjectNameMap(projectIds: string[]): Promise<Map<string, st
   return new Map(docs.map((d) => [d._id.toString(), d.title as string]));
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function buildMyDayTaskData(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   docs: any[],
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   subtaskDocs: any[],
   clientMap: Map<string, string>,
   projectNameMap: Map<string, string>,

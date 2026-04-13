@@ -26,7 +26,7 @@ import Link from "next/link";
 import { FolderOpen } from "lucide-react";
 import { notFound } from "next/navigation";
 import ScrollReset from "@/components/ui/ScrollReset";
-import type { Archetype, Client, ClientStatusOption, Log, LogSignal, Project, Service, Sheet, Task } from "@/types";
+import type { Archetype, Client, ClientStatusOption, LogSignal, Project, Service, Sheet, Task } from "@/types";
 import { getGeneralTasksByClientId, getTasksByProjectIds } from "@/lib/data";
 import { fmtDate } from "@/lib/utils";
 
@@ -581,9 +581,7 @@ async function DashboardTabWrapper({
   eventTypes,
   statusOptions,
   currentUserId,
-  currentUserName,
   isAdmin,
-  permissions,
 }: {
   clientId: string;
   client: Client;
@@ -638,8 +636,6 @@ async function DashboardTabWrapper({
 
 async function EventsTabWrapper({
   clientId,
-  currentUserId,
-  currentUserName,
   eventTypes,
 }: {
   clientId: string;
@@ -657,7 +653,6 @@ async function TasksTabWrapper({
   clientId,
   projects,
   currentUserId,
-  currentUserName: _currentUserName,
   permissions = [],
 }: {
   clientId: string;

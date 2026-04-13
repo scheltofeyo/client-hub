@@ -22,7 +22,6 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { useRightPanel } from "@/components/layout/RightPanel";
-import { fmtDate } from "@/lib/utils";
 import type { EventType, TimelineEvent, RecurrenceUnit } from "@/types";
 
 /** System event type slugs that should not be user-selectable */
@@ -42,16 +41,6 @@ function daysBetween(fromDate: string, toDate: string): number {
   return Math.round((to.getTime() - from.getTime()) / 86400000);
 }
 
-function relativeLabel(days: number): string {
-  if (days === 0) return "Today";
-  if (days === 1) return "Tomorrow";
-  if (days < 7) return `In ${days} days`;
-  if (days < 14) return "In 1 week";
-  if (days < 31) return `In ${Math.round(days / 7)} weeks`;
-  if (days < 60) return "In ~1 month";
-  return `In ~${Math.round(days / 30)} months`;
-}
-
 function eventNavUrl(clientId: string, event: TimelineEvent): string | null {
   switch (event.source) {
     case "log_followup":
@@ -68,15 +57,6 @@ function eventNavUrl(clientId: string, event: TimelineEvent): string | null {
   }
 }
 
-function sourceLabel(event: TimelineEvent): string {
-  switch (event.source) {
-    case "log_followup": return "Logbook follow-up";
-    case "task":         return "Task deadline";
-    case "project":      return "Project";
-    case "custom":         return "";
-    default:               return "";
-  }
-}
 
 // ── Recurrence ───────────────────────────────────────────────
 

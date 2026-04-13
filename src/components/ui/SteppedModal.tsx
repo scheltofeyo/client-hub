@@ -37,7 +37,7 @@ export default function SteppedModal({
   const modalRef = useRef<HTMLDivElement>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
 
-  // Animate in
+  // Animate in/out
   useEffect(() => {
     if (open) {
       previousFocus.current = document.activeElement as HTMLElement;
@@ -45,7 +45,7 @@ export default function SteppedModal({
         requestAnimationFrame(() => setVisible(true));
       });
     } else {
-      setVisible(false);
+      requestAnimationFrame(() => setVisible(false));
     }
   }, [open]);
 

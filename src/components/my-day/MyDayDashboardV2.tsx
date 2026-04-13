@@ -4,7 +4,7 @@ import UserInfoCard from "./UserInfoCard";
 import MyDayTasksSection from "./MyDayTasksSection";
 import MyDayFollowUpsSection from "./MyDayFollowUpsSection";
 import ClientsTimeline from "@/components/ui/ClientsTimeline";
-import type { Task, Log, Client, Project, MyDayUserInfo, MyDayTaskData } from "@/types";
+import type { Log, Client, Project, MyDayUserInfo, MyDayTaskData } from "@/types";
 
 function getGreeting() {
   const h = new Date().getHours();
@@ -30,22 +30,6 @@ interface Props {
   firstName: string;
 }
 
-function SectionHeader({ title, count }: { title: string; count: number }) {
-  return (
-    <div className="flex items-center gap-2 mb-3">
-      <h2 className="typo-section-title" style={{ color: "var(--text-primary)" }}>{title}</h2>
-      {count > 0 && (
-        <span
-          className="text-xs font-semibold px-2 py-0.5 rounded-full"
-          style={{ background: "var(--primary-light)", color: "var(--primary)" }}
-        >
-          {count}
-        </span>
-      )}
-    </div>
-  );
-}
-
 export default function MyDayDashboardV2({
   myTasks,
   allTasks,
@@ -54,7 +38,6 @@ export default function MyDayDashboardV2({
   ganttProjectsByClient,
   userInfo,
   currentUserId,
-  currentUserName,
   firstName,
   todayISO,
 }: Props & { todayISO?: string }) {

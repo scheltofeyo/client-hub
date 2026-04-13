@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { requirePermission, hasPermission } from "@/lib/auth-helpers";
+import { requirePermission } from "@/lib/auth-helpers";
 import { connectDB } from "@/lib/mongodb";
 import { TimeOffModel } from "@/lib/models/TimeOff";
 import { UserModel } from "@/lib/models/User";

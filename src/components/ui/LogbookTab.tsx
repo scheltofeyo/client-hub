@@ -376,9 +376,6 @@ export function LogCardMenu({
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
-  // Hide menu entirely when there are no actions
-  if (!canEdit && !canDelete && !hasFollowUp) return null;
-
   useEffect(() => {
     if (!open) return;
     function handleClick(e: MouseEvent) {
@@ -389,6 +386,9 @@ export function LogCardMenu({
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, [open]);
+
+  // Hide menu entirely when there are no actions
+  if (!canEdit && !canDelete && !hasFollowUp) return null;
 
   return (
     <div ref={ref} className="relative shrink-0">
@@ -608,7 +608,6 @@ export default function LogbookTab({
   contacts,
   currentUserId,
   currentUserName,
-  isAdmin,
   canCreateLog = true,
   canEditAnyLog = false,
   canDeleteAnyLog = false,
