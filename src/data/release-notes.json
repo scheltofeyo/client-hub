@@ -1,6 +1,14 @@
 [
   {
     "date": "2026-04-13",
+    "title": "Improved loading experience across the app",
+    "details": [
+      "Full-screen loading state on initial app load — no more half-loaded navigation popping in",
+      "Custom skeleton loading states for My Day and This Week pages"
+    ]
+  },
+  {
+    "date": "2026-04-13",
     "title": "Fix sign out not working — session is now properly cleared"
   },
   {
