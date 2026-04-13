@@ -2,7 +2,6 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useSession } from "next-auth/react";
-import { handleSignOut } from "@/app/actions/auth";
 import { LogOut, UserPen, Moon, Sun, FileText } from "lucide-react";
 import Link from "next/link";
 import UserAvatar from "@/components/ui/UserAvatar";
@@ -107,7 +106,7 @@ export default function UserMenu() {
             <FileText size={13} />
             Release Notes
           </Link>
-          <form action={handleSignOut}>
+          <form action="/api/auth/sign-out" method="POST">
             <button
               type="submit"
               className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left transition-colors btn-ghost"
