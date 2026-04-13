@@ -107,7 +107,7 @@ export default function UserMenu() {
             Release Notes
           </Link>
           <button
-            onClick={() => signOut({ callbackUrl: "/login" })}
+            onClick={async () => { await signOut({ redirect: false }); window.location.href = "/login"; }}
             className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left transition-colors btn-ghost"
           >
             <LogOut size={13} />
