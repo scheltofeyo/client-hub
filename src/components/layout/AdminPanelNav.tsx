@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { Users, LayoutTemplate, Tag, Palette, ChevronRight, Shield, UserCheck } from "lucide-react";
@@ -29,16 +29,35 @@ const standaloneItems = [
   { href: "/admin/stylesheet", label: "Stylesheet", icon: Palette },
 ];
 
+const validTabNames: string[] = tabItems.map((t) => t.tab);
+
 export default function AdminPanelNav() {
   const { data: session } = useSession();
   const perms = session?.user?.permissions ?? [];
 
-  const searchParams = useSearchParams();
   const pathname = usePathname();
 
   const visibleTabs = tabItems.filter((t) => perms.includes(t.requires));
-  const rawTab = searchParams.get("tab")?.toLowerCase() ?? "users";
-  const activeTab = visibleTabs.some((t) => t.tab === rawTab) ? rawTab : (visibleTabs[0]?.tab ?? "users");
+
+  // Track active tab locally (updated via URL reads and admin-tab-change events)
+  const [activeTab, setActiveTab] = useState(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const tab = params.get("tab")?.toLowerCase() ?? "users";
+      return validTabNames.includes(tab) ? tab : (visibleTabs[0]?.tab ?? "users");
+    }
+    return visibleTabs[0]?.tab ?? "users";
+  });
+
+  // Listen for admin-tab-change events to keep active state in sync
+  useEffect(() => {
+    function handleTabChange(e: Event) {
+      const { tab } = (e as CustomEvent).detail ?? {};
+      if (tab && validTabNames.includes(tab)) setActiveTab(tab);
+    }
+    window.addEventListener("admin-tab-change", handleTabChange);
+    return () => window.removeEventListener("admin-tab-change", handleTabChange);
+  }, []);
 
   const showLabels = labelsPermissions.some((p) => perms.includes(p));
 
@@ -74,6 +93,13 @@ export default function AdminPanelNav() {
   const employeeDetailMatch = pathname.match(/\/admin\/employees\/([^/]+)/);
   const activeEmployeeId = employeeDetailMatch?.[1] ?? null;
 
+  function handleTabClick(e: React.MouseEvent, tab: string) {
+    e.preventDefault();
+    setActiveTab(tab);
+    window.history.replaceState(null, "", `/admin?tab=${tab}`);
+    window.dispatchEvent(new CustomEvent("admin-tab-change", { detail: { tab } }));
+  }
+
   return (
     <aside
       className="w-56 shrink-0 flex flex-col border-r overflow-y-auto"
@@ -98,6 +124,7 @@ export default function AdminPanelNav() {
             <div key={tab}>
               <Link
                 href={`/admin?tab=${tab}`}
+                onClick={(e) => handleTabClick(e, tab)}
                 data-active={active}
                 className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm transition-colors nav-panel-item"
               >

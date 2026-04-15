@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams, usePathname } from "next/navigation";
+import { usePathname } from "next/navigation";
 import React, { useEffect, useState } from "react";
 import { Settings, Briefcase, Sheet, BookOpen, Activity, ChevronRight, ChevronDown, LayoutDashboard, CalendarDays, CheckSquare } from "lucide-react";
 import type { Client, Project, Sheet as SheetType } from "@/types";
@@ -20,6 +20,8 @@ const tabItems = [
   { tab: "settings", label: "Settings", icon: Settings },
 ] as const;
 
+const validTabs: string[] = tabItems.filter((t) => !t.tab.startsWith("divider")).map((t) => t.tab);
+
 export default function ClientPanelNav({
   client,
   projects = [],
@@ -29,10 +31,19 @@ export default function ClientPanelNav({
   projects?: Pick<Project, "id" | "title" | "status">[];
   sheets?: Pick<SheetType, "id" | "name">[];
 }) {
-  const searchParams = useSearchParams();
   const pathname = usePathname();
   const [localSheets, setLocalSheets] = useState(sheets);
   const [showCompleted, setShowCompleted] = useState(false);
+
+  // Track active tab locally (updated via URL reads and tab-change events)
+  const [activeTab, setActiveTab] = useState(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const tab = params.get("tab")?.toLowerCase() ?? "dashboard";
+      return validTabs.includes(tab) ? tab : "dashboard";
+    }
+    return "dashboard";
+  });
 
   useEffect(() => {
     function fetchSheets() {
@@ -54,9 +65,15 @@ export default function ClientPanelNav({
     return () => window.removeEventListener("sheets-updated", handleSheetsUpdated);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const rawTab = searchParams.get("tab")?.toLowerCase() ?? "dashboard";
-  const navTabs = tabItems.filter((t) => !t.tab.startsWith("divider"));
-  const activeTab = navTabs.some((t) => t.tab === rawTab) ? rawTab : "dashboard";
+  // Listen for tab-change events to keep active state in sync
+  useEffect(() => {
+    function handleTabChange(e: Event) {
+      const { tab } = (e as CustomEvent).detail ?? {};
+      if (tab && validTabs.includes(tab)) setActiveTab(tab);
+    }
+    window.addEventListener("tab-change", handleTabChange);
+    return () => window.removeEventListener("tab-change", handleTabChange);
+  }, []);
 
   const isOnProjectDetail = !!pathname.match(new RegExp(`/clients/${client.id}/projects/[^/]+`));
   const isOnProjectsArea = activeTab === "projects" || isOnProjectDetail;
@@ -75,6 +92,13 @@ export default function ClientPanelNav({
     new RegExp(`/clients/${client.id}/sheets/([^/]+)`)
   );
   const activeSheetId = sheetDetailMatch?.[1] ?? null;
+
+  function handleTabClick(e: React.MouseEvent, tab: string) {
+    e.preventDefault();
+    setActiveTab(tab);
+    window.history.replaceState(null, "", `/clients/${client.id}?tab=${tab}`);
+    window.dispatchEvent(new CustomEvent("tab-change", { detail: { tab } }));
+  }
 
   return (
     <aside
@@ -114,6 +138,7 @@ export default function ClientPanelNav({
             <div key={tab}>
               <Link
                 href={`/clients/${client.id}?tab=${tab}`}
+                onClick={(e) => handleTabClick(e, tab)}
                 data-active={active}
                 className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm transition-colors nav-panel-item"
               >

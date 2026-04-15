@@ -1,7 +1,6 @@
 "use client";
 
-import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useState, useEffect } from "react";
 
 const sections = [
   { label: "General",       value: "about"    },
@@ -11,8 +10,29 @@ const sections = [
 ];
 
 export default function AboutTertiaryNav({ clientId }: { clientId: string }) {
-  const searchParams = useSearchParams();
-  const section = searchParams.get("section") ?? "about";
+  const [section, setSection] = useState(() => {
+    if (typeof window !== "undefined") {
+      return new URLSearchParams(window.location.search).get("section") ?? "about";
+    }
+    return "about";
+  });
+
+  // Listen for section changes from the shell
+  useEffect(() => {
+    function handleSectionChange(e: Event) {
+      const { section: sec } = (e as CustomEvent).detail ?? {};
+      if (sec) setSection(sec);
+    }
+    window.addEventListener("section-change", handleSectionChange);
+    return () => window.removeEventListener("section-change", handleSectionChange);
+  }, []);
+
+  function handleClick(e: React.MouseEvent, value: string) {
+    e.preventDefault();
+    setSection(value);
+    window.history.replaceState(null, "", `/clients/${clientId}?tab=settings&section=${value}`);
+    window.dispatchEvent(new CustomEvent("section-change", { detail: { section: value } }));
+  }
 
   return (
     <div
@@ -22,9 +42,10 @@ export default function AboutTertiaryNav({ clientId }: { clientId: string }) {
       {sections.map(({ label, value }) => {
         const active = section === value;
         return (
-          <Link
+          <a
             key={value}
             href={`/clients/${clientId}?tab=settings&section=${value}`}
+            onClick={(e) => handleClick(e, value)}
             className="px-1 py-3 mr-5 text-sm font-medium border-b-2 transition-colors"
             style={{
               borderColor: active ? "var(--primary)" : "transparent",
@@ -32,7 +53,7 @@ export default function AboutTertiaryNav({ clientId }: { clientId: string }) {
             }}
           >
             {label}
-          </Link>
+          </a>
         );
       })}
     </div>

@@ -1,5 +1,22 @@
 [
   {
+    "date": "2026-04-16",
+    "title": "Instant tab switching on admin pages",
+    "details": [
+      "Switching between Employees, Roles, Lead Settings, and Project Templates tabs is now instant",
+      "Same cached tab pattern as client pages"
+    ]
+  },
+  {
+    "date": "2026-04-16",
+    "title": "Instant tab switching on client pages",
+    "details": [
+      "Switching between Dashboard, Tasks, Logbook, Events, and other tabs is now instant",
+      "Tab data is fetched on first visit and cached — returning to a tab loads immediately",
+      "Skeleton loading states shown while each tab loads its data"
+    ]
+  },
+  {
     "date": "2026-04-13",
     "title": "Improved loading experience across the app",
     "details": [
