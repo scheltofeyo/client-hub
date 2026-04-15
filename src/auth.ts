@@ -4,7 +4,6 @@ import { connectDB } from "@/lib/mongodb";
 import { UserModel } from "@/lib/models/User";
 import { RoleModel } from "@/lib/models/Role";
 import { getLeadSettings } from "@/lib/models/LeadSettings";
-import { seedRoles } from "@/lib/seed-roles";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   ...authConfig,
@@ -68,38 +67,37 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       // On first sign-in, enrich token from DB
       if (account?.provider === "google") {
         await connectDB();
-        await seedRoles();
         const dbUser = await UserModel.findOne({ googleId: account.providerAccountId }).lean();
         if (dbUser) {
           token.userId = dbUser._id.toString();
           token.role = dbUser.role;
           token.image = dbUser.image ?? null;
 
-          // Load role permissions
-          const role = await RoleModel.findOne({ slug: dbUser.role }).lean();
+          const [role, leadPerms] = await Promise.all([
+            RoleModel.findOne({ slug: dbUser.role }).lean(),
+            getLeadSettings(),
+          ]);
           token.permissions = role?.permissions ?? [];
-
-          // Load global lead settings (same for all users)
-          token.leadPermissions = await getLeadSettings();
+          token.leadPermissions = leadPerms;
         }
       } else if (token.userId) {
         // Periodic re-check: refresh permissions and invalidate if archived
         const now = Date.now();
         const lastCheck = (token.statusCheckedAt as number) ?? 0;
-        if (now - lastCheck > 5 * 60 * 1000) {
+        if (now - lastCheck > 15 * 60 * 1000) {
           await connectDB();
-          await seedRoles();
           const dbUser = await UserModel.findById(token.userId, { status: 1, role: 1 }).lean();
           if (!dbUser || dbUser.status === "inactive") {
             token.userId = "";
             token.permissions = [];
             token.leadPermissions = [];
           } else {
-            // Reload permissions so role/permission changes take effect
-            // without requiring the user to sign out and back in
-            const role = await RoleModel.findOne({ slug: dbUser.role }).lean();
+            const [role, leadPerms] = await Promise.all([
+              RoleModel.findOne({ slug: dbUser.role }).lean(),
+              getLeadSettings(),
+            ]);
             token.permissions = role?.permissions ?? [];
-            token.leadPermissions = await getLeadSettings();
+            token.leadPermissions = leadPerms;
           }
           token.statusCheckedAt = now;
         }

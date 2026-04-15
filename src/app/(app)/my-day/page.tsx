@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
-import { connectDB } from "@/lib/mongodb";
 import {
   getMyDayTasks,
   getMyLeadClientTasks,
@@ -13,7 +12,7 @@ import MyDayDashboardV2 from "@/components/my-day/MyDayDashboardV2";
 export const dynamic = "force-dynamic";
 
 export default async function MyDayPage() {
-  const [session] = await Promise.all([auth(), connectDB()]);
+  const session = await auth();
   if (!session?.user?.id) redirect("/api/auth/signin");
 
   const userId = session.user.id;

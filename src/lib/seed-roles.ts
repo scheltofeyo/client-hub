@@ -44,15 +44,32 @@ export async function seedRoles(): Promise<void> {
     await RoleModel.insertMany(toInsert);
   }
 
-  // Ensure new permissions are present on existing system roles
-  await RoleModel.updateOne(
-    { slug: "admin", isSystem: true },
-    { $addToSet: { permissions: { $each: [...ADMIN_PERMISSIONS] } } }
-  );
-  await RoleModel.updateOne(
-    { slug: "member", isSystem: true },
-    { $addToSet: { permissions: { $each: [...MEMBER_PERMISSIONS] } } }
-  );
+  // Only update existing roles if they're missing permissions
+  const updates: Promise<unknown>[] = [];
+
+  const adminRole = existing.find((r) => r.slug === "admin");
+  if (adminRole && !ADMIN_PERMISSIONS.every((p) => adminRole.permissions.includes(p))) {
+    updates.push(
+      RoleModel.updateOne(
+        { slug: "admin", isSystem: true },
+        { $addToSet: { permissions: { $each: [...ADMIN_PERMISSIONS] } } }
+      )
+    );
+  }
+
+  const memberRole = existing.find((r) => r.slug === "member");
+  if (memberRole && !MEMBER_PERMISSIONS.every((p) => memberRole.permissions.includes(p))) {
+    updates.push(
+      RoleModel.updateOne(
+        { slug: "member", isSystem: true },
+        { $addToSet: { permissions: { $each: [...MEMBER_PERMISSIONS] } } }
+      )
+    );
+  }
+
+  if (updates.length > 0) {
+    await Promise.all(updates);
+  }
 
   // Ensure lead settings singleton exists (creates with defaults if missing)
   await getLeadSettings();
