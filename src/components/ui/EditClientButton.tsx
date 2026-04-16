@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Pencil } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useRightPanel } from "@/components/layout/RightPanel";
-import type { Archetype, Client, ClientStatusOption, ClientPlatformOption } from "@/types";
+import type { Client, ClientStatusOption, ClientPlatformOption } from "@/types";
 
 
 const inputClass =
@@ -18,12 +18,10 @@ const inputStyle = {
 
 function EditClientForm({
   client,
-  archetypes,
   canDelete = false,
   onClose,
 }: {
   client: Client;
-  archetypes: Archetype[];
   isAdmin: boolean;
   canDelete?: boolean;
   onClose: () => void;
@@ -36,7 +34,6 @@ function EditClientForm({
     employees: client.employees != null ? String(client.employees) : "",
     website: client.website ?? "",
     description: client.description ?? "",
-    archetypeId: client.archetypeId ?? "",
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -69,7 +66,6 @@ function EditClientForm({
       body: JSON.stringify({
         ...form,
         employees: form.employees ? Number(form.employees) : undefined,
-        archetypeId: form.archetypeId || undefined,
       }),
     });
 
@@ -213,26 +209,6 @@ function EditClientForm({
         </div>
       </div>
 
-      <div>
-        <label htmlFor="ec-archetype" className="typo-label">
-          Archetype
-        </label>
-        <select
-          id="ec-archetype"
-          value={form.archetypeId}
-          onChange={(e) => set("archetypeId", e.target.value)}
-          className={inputClass}
-          style={inputStyle}
-        >
-          <option value="">— None —</option>
-          {archetypes.map((a) => (
-            <option key={a.id} value={a.id}>
-              {a.name}
-            </option>
-          ))}
-        </select>
-      </div>
-
       {error && <p className="text-xs text-[var(--danger)]">{error}</p>}
 
       <div className="flex justify-end gap-2 pt-1">
@@ -300,12 +276,10 @@ function EditClientForm({
 
 export default function EditClientButton({
   client,
-  archetypes,
   isAdmin = false,
   canDelete = false,
 }: {
   client: Client;
-  archetypes: Archetype[];
   isAdmin?: boolean;
   canDelete?: boolean;
 }) {
@@ -316,7 +290,7 @@ export default function EditClientButton({
       onClick={() =>
         openPanel(
           "Edit Client",
-          <EditClientForm client={client} archetypes={archetypes} isAdmin={isAdmin} canDelete={canDelete} onClose={closePanel} />
+          <EditClientForm client={client} isAdmin={isAdmin} canDelete={canDelete} onClose={closePanel} />
         )
       }
       className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border btn-secondary"

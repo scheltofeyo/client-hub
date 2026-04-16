@@ -260,14 +260,23 @@ function PermissionSection({
             >
               {group.permissions.map((p, i) => {
                 const disabled = !!(showDependencyHints && isMissingDependency?.(p.key));
+                const groupKeys = new Set(group.permissions.map((gp) => gp.key));
+                let depth = 0;
+                let cur: Permission | undefined = PERMISSION_DEPENDENCIES[p.key];
+                while (cur && groupKeys.has(cur)) {
+                  depth++;
+                  cur = PERMISSION_DEPENDENCIES[cur];
+                }
                 return (
                   <div
                     key={p.key}
-                    className="flex items-center justify-between px-4 py-2.5"
+                    className="flex items-center justify-between py-2.5"
                     style={{
                       background: "var(--bg-surface)",
                       borderTop: i > 0 ? "1px solid var(--border)" : undefined,
                       opacity: disabled ? 0.4 : 1,
+                      paddingLeft: `${16 + depth * 20}px`,
+                      paddingRight: "16px",
                     }}
                   >
                     <span className="text-sm" style={{ color: "var(--text-primary)" }}>

@@ -21,6 +21,8 @@ export async function GET() {
     createdAt: doc.createdAt.toISOString().split("T")[0],
     contacts: doc.contacts ?? [],
     leads: doc.leads ?? [],
+    culturalDna: doc.culturalDna ?? [],
+    culturalLevels: doc.culturalLevels ?? [],
   }));
   return NextResponse.json(clients);
 }

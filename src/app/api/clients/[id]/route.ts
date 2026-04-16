@@ -32,7 +32,7 @@ export async function PATCH(
   }
 
   const body = await req.json();
-  const { company, status, platform, clientSince, employees, website, description, contacts, leads, archetypeId } = body;
+  const { company, status, platform, clientSince, employees, website, description, contacts, leads, archetypeId, culturalDna, culturalLevels } = body;
 
   if (company !== undefined && !company?.trim()) {
     return NextResponse.json({ error: "Company name cannot be empty" }, { status: 400 });
@@ -54,6 +54,8 @@ export async function PATCH(
   if (contacts !== undefined) update.contacts = contacts;
   if (leads !== undefined) update.leads = leads;
   if (archetypeId !== undefined) update.archetypeId = archetypeId || null;
+  if (culturalDna !== undefined) update.culturalDna = culturalDna;
+  if (culturalLevels !== undefined) update.culturalLevels = culturalLevels;
 
   const doc = await ClientModel.findByIdAndUpdate(id, { $set: update }, { new: true }).lean();
   if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -163,6 +165,8 @@ export async function PATCH(
     description: doc.description,
     contacts: doc.contacts ?? [],
     leads: doc.leads ?? [],
+    culturalDna: doc.culturalDna ?? [],
+    culturalLevels: doc.culturalLevels ?? [],
   });
 }
 

@@ -77,6 +77,13 @@ export const ALL_PERMISSIONS = [
 
   // Role management
   "roles.manage",
+
+  // Tools
+  "tools.access",
+  "tools.ranking.access",
+  "tools.rankingValues",
+  "tools.ranking.editAny",
+  "tools.ranking.deleteAny",
 ] as const;
 
 export type Permission = (typeof ALL_PERMISSIONS)[number];
@@ -93,7 +100,8 @@ export const PERMISSION_DEPENDENCIES: Partial<Record<Permission, Permission>> = 
   "employees.edit": "employees.view",
   "employees.archive": "employees.edit",
 
-  // Team permissions
+  // Team permissions (under tools)
+  "team.viewCalendar": "tools.access",
   "team.viewBalances": "team.viewCalendar",
   "team.manageOwnLeave": "team.viewCalendar",
   "team.manageAnyLeave": "team.manageOwnLeave",
@@ -111,6 +119,12 @@ export const PERMISSION_DEPENDENCIES: Partial<Record<Permission, Permission>> = 
   "admin.leaveTypes": "admin.access",
   "admin.companyHolidays": "admin.access",
   "roles.manage": "admin.access",
+
+  // Tools sub-features require tools access
+  "tools.ranking.access": "tools.access",
+  "tools.rankingValues": "tools.ranking.access",
+  "tools.ranking.editAny": "tools.rankingValues",
+  "tools.ranking.deleteAny": "tools.rankingValues",
 };
 
 /** Given a permission, return all permissions it transitively depends on. */
@@ -212,16 +226,6 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
     ],
   },
   {
-    label: "Team",
-    description: "Holiday calendar and time-off management for the team page.",
-    permissions: [
-      { key: "team.viewCalendar", label: "View holiday calendar" },
-      { key: "team.viewBalances", label: "View leave balances", requires: "team.viewCalendar" },
-      { key: "team.manageOwnLeave", label: "Manage own time off", requires: "team.viewCalendar" },
-      { key: "team.manageAnyLeave", label: "Manage any team member's time off", requires: "team.manageOwnLeave" },
-    ],
-  },
-  {
     label: "Admin Settings",
     description: "Access to the admin panel, employee management, roles, templates, and reference data.",
     permissions: [
@@ -255,6 +259,21 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
     description: "The team overview dashboard on the clients page with aggregated metrics.",
     permissions: [
       { key: "dashboard.viewOverview", label: "View team overview dashboard" },
+    ],
+  },
+  {
+    label: "Tools",
+    description: "Workshop tools, holiday planner, and facilitation features.",
+    permissions: [
+      { key: "tools.access", label: "Access the tools section" },
+      { key: "team.viewCalendar", label: "View holiday calendar", requires: "tools.access" },
+      { key: "team.viewBalances", label: "View leave balances", requires: "team.viewCalendar" },
+      { key: "team.manageOwnLeave", label: "Manage own time off", requires: "team.viewCalendar" },
+      { key: "team.manageAnyLeave", label: "Manage any team member's time off", requires: "team.manageOwnLeave" },
+      { key: "tools.ranking.access", label: "Access Ranking the Values", requires: "tools.access" },
+      { key: "tools.rankingValues", label: "View sessions from others", requires: "tools.ranking.access" },
+      { key: "tools.ranking.editAny", label: "Edit anyone's sessions", requires: "tools.rankingValues" },
+      { key: "tools.ranking.deleteAny", label: "Delete anyone's sessions", requires: "tools.rankingValues" },
     ],
   },
 ];
@@ -354,8 +373,12 @@ export const LEAD_PERMISSION_GROUPS: PermissionGroup[] = [
 
 // ── Default permission sets for seeded roles ─────────────────────────
 export const ADMIN_PERMISSIONS: Permission[] = [...ALL_PERMISSIONS];
+// Note: tools.access and tools.rankingValues are included via ALL_PERMISSIONS for admin role.
 
 export const MEMBER_PERMISSIONS: Permission[] = [
+  // Tools access — needed for team/holiday planner
+  "tools.access",
+
   // Team — view calendar + manage own leave
   "team.viewCalendar",
   "team.manageOwnLeave",
