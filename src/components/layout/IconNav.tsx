@@ -6,16 +6,16 @@ import { useSession } from "next-auth/react";
 import {
   LayoutDashboard,
   Building2,
-  Users,
   ShieldCheck,
   Calendar,
+  Wrench,
 } from "lucide-react";
 import UserMenu from "./UserMenu";
 
 const topItems: { href: string; label: string; icon: typeof LayoutDashboard; requires?: string }[] = [
   { href: "/my-day", label: "Dashboard", icon: LayoutDashboard },
   { href: "/clients", label: "Clients", icon: Building2 },
-  { href: "/team", label: "Team", icon: Users, requires: "team.viewCalendar" },
+  { href: "/tools", label: "Tools", icon: Wrench, requires: "tools.access" },
 ];
 
 function openCalendarPopup() {
@@ -34,7 +34,8 @@ export default function IconNav() {
   const pathname = usePathname();
   const { data: session } = useSession();
   const isActive = (href: string) => pathname.startsWith(href);
-  const canAccessAdmin = (session?.user?.permissions ?? []).includes("admin.access");
+  const perms = session?.user?.permissions ?? [];
+  const canAccessAdmin = perms.includes("admin.access");
 
   return (
     <nav

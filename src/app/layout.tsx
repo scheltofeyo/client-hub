@@ -1,5 +1,11 @@
 import type { Metadata } from "next";
+import { Ubuntu_Sans } from "next/font/google";
 import "./globals.css";
+
+const ubuntuSans = Ubuntu_Sans({
+  subsets: ["latin"],
+  variable: "--font-ubuntu-sans",
+});
 
 export const metadata: Metadata = {
   title: "SUMM Client Hub",
@@ -20,7 +26,7 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" className={ubuntuSans.variable} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>

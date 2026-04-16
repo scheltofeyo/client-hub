@@ -14,6 +14,7 @@ import SheetsTab, { ManageSheetsButton } from "@/components/ui/SheetsTab";
 import LogbookTab from "@/components/ui/LogbookTab";
 import EventsTab from "@/components/ui/EventsTab";
 import ActivityTab from "@/components/ui/ActivityTab";
+import ContentTab from "@/components/ui/ContentTab";
 import SettingsTab from "@/components/ui/SettingsTab";
 import AddProjectButton from "@/components/ui/AddProjectButton";
 import AddEventButton from "@/components/ui/AddEventButton";
@@ -23,7 +24,7 @@ import { DashboardSkeleton, TasksSkeleton, LogbookSkeleton, SheetsSkeleton } fro
 
 import type { Client, ProjectStatus, Task, Sheet, TimelineEvent } from "@/types";
 
-const tabs = ["Dashboard", "Projects", "Tasks", "Sheets", "Logbook", "Events", "Activity", "Settings"] as const;
+const tabs = ["Dashboard", "Projects", "Tasks", "Content", "Sheets", "Logbook", "Events", "Activity", "Settings"] as const;
 type Tab = (typeof tabs)[number];
 
 interface ClientDetailShellProps {
@@ -287,6 +288,15 @@ export default function ClientDetailShell({
               canDeleteAnyTask={permissions.includes("tasks.deleteAny")}
             />
           )
+        )}
+
+        {activeTab === "Content" && (
+          <ContentTab
+            clientId={clientId}
+            initialDna={client.culturalDna ?? []}
+            initialLevels={client.culturalLevels ?? []}
+            canEdit={canEdit}
+          />
         )}
 
         {activeTab === "Sheets" && (

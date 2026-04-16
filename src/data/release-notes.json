@@ -1,6 +1,17 @@
 [
   {
     "date": "2026-04-16",
+    "title": "Ranking the Values tool + Client Cultural DNA",
+    "details": [
+      "New 'Tools' section in the sidebar with role-based permission gating",
+      "Ranking the Values: create sessions, share public links, auto-match participants by opposing values",
+      "New 'Content' tab on client pages for managing cultural DNA (values, mantras, descriptions)",
+      "Session creation auto-fills values from client DNA; wizard for clients without DNA",
+      "Public participant form with drag-to-rank values and real-time match results"
+    ]
+  },
+  {
+    "date": "2026-04-16",
     "title": "Instant tab switching on admin pages",
     "details": [
       "Switching between Employees, Roles, Lead Settings, and Project Templates tabs is now instant",

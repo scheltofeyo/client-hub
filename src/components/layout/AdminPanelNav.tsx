@@ -85,15 +85,43 @@ export default function AdminPanelNav() {
     }
   }, [activeTab, pathname, canViewEmployees]);
 
+  // Track selected employee (client-side, within admin root)
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(() => {
+    if (typeof window !== "undefined") {
+      return new URLSearchParams(window.location.search).get("employee") ?? null;
+    }
+    return null;
+  });
+
+  // Listen for employee select/deselect events
+  useEffect(() => {
+    function handleEmployeeSelect(e: Event) {
+      const { employeeId } = (e as CustomEvent).detail ?? {};
+      if (employeeId) setSelectedEmployeeId(employeeId);
+    }
+    function handleTabChange() {
+      setSelectedEmployeeId(null);
+    }
+    window.addEventListener("admin-employee-select", handleEmployeeSelect);
+    window.addEventListener("admin-tab-change", handleTabChange);
+    return () => {
+      window.removeEventListener("admin-employee-select", handleEmployeeSelect);
+      window.removeEventListener("admin-tab-change", handleTabChange);
+    };
+  }, []);
+
   const isOnEmployeeDetail = pathname.startsWith("/admin/employees/");
   const isOnAdminRoot = pathname === "/admin";
   const isInEmployeesArea = isOnEmployeeDetail || (activeTab === "users" && isOnAdminRoot);
 
-  // Detect active employee id from pathname
+  // Detect active employee id from pathname or client-side selection
   const employeeDetailMatch = pathname.match(/\/admin\/employees\/([^/]+)/);
-  const activeEmployeeId = employeeDetailMatch?.[1] ?? null;
+  const activeEmployeeId = selectedEmployeeId ?? employeeDetailMatch?.[1] ?? null;
 
   function handleTabClick(e: React.MouseEvent, tab: string) {
+    // Only intercept when on admin root — on sub-routes (e.g. /admin/employees/[id]),
+    // let the <Link> navigate normally back to /admin
+    if (!isOnAdminRoot) return;
     e.preventDefault();
     setActiveTab(tab);
     window.history.replaceState(null, "", `/admin?tab=${tab}`);
@@ -152,6 +180,13 @@ export default function AdminPanelNav() {
                       <Link
                         key={emp.id}
                         href={`/admin/employees/${emp.id}`}
+                        onClick={(e) => {
+                          if (!isOnAdminRoot) return;
+                          e.preventDefault();
+                          setSelectedEmployeeId(emp.id);
+                          window.history.pushState(null, "", `/admin?tab=users&employee=${emp.id}`);
+                          window.dispatchEvent(new CustomEvent("admin-employee-select", { detail: { employeeId: emp.id } }));
+                        }}
                         data-active={empActive}
                         className="flex items-center gap-2 pl-4 pr-2 py-1.5 ml-4 rounded-lg text-sm transition-colors nav-panel-item truncate"
                       >

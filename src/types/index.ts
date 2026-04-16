@@ -58,6 +58,20 @@ export interface ClientLead {
   image?: string;
 }
 
+export interface CulturalBehavior {
+  level: string;
+  content: string;
+}
+
+export interface CulturalDnaValue {
+  id: string;
+  title: string;
+  color: string;
+  mantra: string;
+  description: string;
+  behaviors?: CulturalBehavior[];
+}
+
 export interface Client {
   id: string;
   company: string;
@@ -69,6 +83,8 @@ export interface Client {
   description?: string;
   contacts?: Contact[];
   leads?: ClientLead[];
+  culturalDna?: CulturalDnaValue[];
+  culturalLevels?: string[];
   platform?: ClientPlatform;
   platformLabel?: string;
   clientSince?: string;

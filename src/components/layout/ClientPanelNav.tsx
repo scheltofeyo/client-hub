@@ -3,13 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import React, { useEffect, useState } from "react";
-import { Settings, Briefcase, Sheet, BookOpen, Activity, ChevronRight, ChevronDown, LayoutDashboard, CalendarDays, CheckSquare } from "lucide-react";
+import { Settings, Briefcase, Sheet, BookOpen, Activity, ChevronRight, ChevronDown, LayoutDashboard, CalendarDays, CheckSquare, Dna } from "lucide-react";
 import type { Client, Project, Sheet as SheetType } from "@/types";
 
 const tabItems = [
   { tab: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { tab: "tasks", label: "Tasks", icon: CheckSquare },
   { tab: "projects", label: "Projects", icon: Briefcase },
+  { tab: "content", label: "Content", icon: Dna },
   { tab: "divider-1" },
   { tab: "sheets", label: "Sheets", icon: Sheet },
   { tab: "divider-2" },
@@ -93,7 +94,12 @@ export default function ClientPanelNav({
   );
   const activeSheetId = sheetDetailMatch?.[1] ?? null;
 
+  const isOnClientRoot = pathname === `/clients/${client.id}`;
+
   function handleTabClick(e: React.MouseEvent, tab: string) {
+    // Only intercept when on client root — on sub-routes (e.g. /clients/[id]/projects/[pid]),
+    // let the <Link> navigate normally back to the client page
+    if (!isOnClientRoot) return;
     e.preventDefault();
     setActiveTab(tab);
     window.history.replaceState(null, "", `/clients/${client.id}?tab=${tab}`);

@@ -54,6 +54,15 @@ function mapClient(doc: ReturnType<typeof Object.assign>, archetypeMap?: Map<str
       name: l.name,
       email: l.email,
     })),
+    culturalDna: (doc.culturalDna ?? []).map((v: { id: string; title: string; color: string; mantra: string; description: string; behaviors?: { level: string; content: string }[] }) => ({
+      id: v.id,
+      title: v.title,
+      color: v.color,
+      mantra: v.mantra,
+      description: v.description,
+      behaviors: v.behaviors ?? [],
+    })),
+    culturalLevels: doc.culturalLevels ?? [],
   };
 }
 

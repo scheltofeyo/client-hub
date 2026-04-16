@@ -9,12 +9,12 @@ type AdminTab = (typeof validTabs)[number];
 export default async function AdminPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; employee?: string }>;
 }) {
   const session = await auth();
   if (!session || !hasPermission(session, "admin.access")) redirect("/dashboard");
 
-  const { tab } = await searchParams;
+  const { tab, employee } = await searchParams;
   const initialTab: AdminTab = (validTabs as readonly string[]).includes(tab ?? "")
     ? (tab as AdminTab)
     : "users";
@@ -23,6 +23,7 @@ export default async function AdminPage({
     <AdminShell
       currentUserId={session.user.id}
       initialTab={initialTab}
+      initialEmployeeId={employee ?? null}
     />
   );
 }

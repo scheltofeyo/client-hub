@@ -1,0 +1,881 @@
+"use client";
+
+import { useState, useEffect, useMemo, useRef } from "react";
+import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
+import PageHeader from "@/components/layout/PageHeader";
+import { useRightPanel } from "@/components/layout/RightPanel";
+import { Plus, Pencil, Trash2, ChevronRight, ChevronDown, Dna, ClipboardPaste } from "lucide-react";
+import { accentColor } from "@/lib/styles";
+import { parseCulturalDnaTsv } from "@/lib/ranking/parseTsv";
+import type { CulturalDnaValue } from "@/types";
+
+interface ClientOption {
+  id: string;
+  company: string;
+  culturalDna: CulturalDnaValue[];
+  leads: { userId: string; name: string; email: string }[];
+}
+
+function initials(company: string): string {
+  return company
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase() ?? "")
+    .join("");
+}
+
+const DEFAULT_COLORS = [
+  "#7C5CFC", "#3B82F6", "#06B6D4", "#10B981", "#F59E0B",
+  "#EF4444", "#EC4899", "#8B5CF6", "#6366F1", "#14B8A6",
+];
+
+// ── DNA badge ────────────────────────────────────────────────────────────
+
+function DnaBadge({ count }: { count: number }) {
+  return count > 0 ? (
+    <span
+      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium shrink-0"
+      style={{ background: "var(--success-light)", color: "var(--success)" }}
+    >
+      <Dna size={11} />
+      {count}
+    </span>
+  ) : (
+    <span
+      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium shrink-0"
+      style={{ background: "var(--bg-hover)", color: "var(--text-muted)" }}
+    >
+      <Dna size={11} />
+      —
+    </span>
+  );
+}
+
+// ── custom client dropdown ───────────────────────────────────────────────
+
+function ClientDropdown({
+  clients,
+  myClients,
+  otherClients,
+  hasSections,
+  selectedClientId,
+  onSelect,
+  loading,
+}: {
+  clients: ClientOption[];
+  myClients: ClientOption[];
+  otherClients: ClientOption[];
+  hasSections: boolean;
+  selectedClientId: string;
+  onSelect: (id: string) => void;
+  loading: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const ref = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  const selected = clients.find((c) => c.id === selectedClientId);
+
+  // Close on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    if (open) document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [open]);
+
+  // Focus search when opening
+  useEffect(() => {
+    if (open) setTimeout(() => searchRef.current?.focus(), 0);
+  }, [open]);
+
+  const q = search.toLowerCase();
+  const filterList = (list: ClientOption[]) =>
+    q ? list.filter((c) => c.company.toLowerCase().includes(q)) : list;
+
+  const filteredMy = filterList(myClients);
+  const filteredOther = filterList(otherClients);
+  const filteredAll = filterList(clients);
+
+  function select(id: string) {
+    onSelect(id);
+    setOpen(false);
+    setSearch("");
+  }
+
+  function renderRow(c: ClientOption) {
+    const color = accentColor(c.company);
+    const abbr = initials(c.company);
+    const isSelected = c.id === selectedClientId;
+    return (
+      <button
+        key={c.id}
+        type="button"
+        onClick={() => select(c.id)}
+        className="flex items-center gap-2.5 w-full px-3 py-2 text-left transition-colors rounded-md"
+        style={{
+          background: isSelected ? "var(--primary-light)" : undefined,
+        }}
+        onMouseEnter={(e) => {
+          if (!isSelected) e.currentTarget.style.background = "var(--bg-hover)";
+        }}
+        onMouseLeave={(e) => {
+          if (!isSelected) e.currentTarget.style.background = "";
+        }}
+      >
+        <div
+          className="w-6 h-6 rounded-md flex items-center justify-center text-white text-[9px] font-bold shrink-0"
+          style={{ background: color }}
+        >
+          {abbr}
+        </div>
+        <span
+          className="text-sm truncate flex-1 min-w-0"
+          style={{ color: "var(--text-primary)", fontWeight: isSelected ? 600 : 400 }}
+        >
+          {c.company}
+        </span>
+        <DnaBadge count={c.culturalDna.length} />
+      </button>
+    );
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      {/* Trigger */}
+      <button
+        type="button"
+        onClick={() => !loading && setOpen(!open)}
+        disabled={loading}
+        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-button border text-sm transition-colors"
+        style={{
+          borderColor: open ? "var(--primary)" : "var(--border)",
+          background: "var(--bg-surface)",
+          color: selected ? "var(--text-primary)" : "var(--text-muted)",
+          boxShadow: open ? "0 0 0 1px var(--primary)" : undefined,
+        }}
+      >
+        {selected ? (
+          <>
+            <div
+              className="w-6 h-6 rounded-md flex items-center justify-center text-white text-[9px] font-bold shrink-0"
+              style={{ background: accentColor(selected.company) }}
+            >
+              {initials(selected.company)}
+            </div>
+            <span className="font-medium truncate flex-1 text-left">{selected.company}</span>
+            <DnaBadge count={selected.culturalDna.length} />
+          </>
+        ) : (
+          <span className="flex-1 text-left">Select a client...</span>
+        )}
+        <ChevronDown
+          size={16}
+          className="shrink-0 transition-transform"
+          style={{
+            color: "var(--text-muted)",
+            transform: open ? "rotate(180deg)" : undefined,
+          }}
+        />
+      </button>
+
+      {/* Dropdown panel */}
+      {open && (
+        <div
+          className="absolute z-50 mt-1 w-full rounded-card border shadow-dropdown overflow-hidden"
+          style={{ background: "var(--bg-surface)", borderColor: "var(--border)" }}
+        >
+          {/* Search */}
+          <div className="p-2 border-b" style={{ borderColor: "var(--border)" }}>
+            <input
+              ref={searchRef}
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search client..."
+              className="w-full px-2.5 py-1.5 rounded-button border text-sm"
+              style={{
+                borderColor: "var(--border)",
+                background: "var(--bg-elevated)",
+                color: "var(--text-primary)",
+              }}
+            />
+          </div>
+
+          {/* Options */}
+          <div className="max-h-72 overflow-y-auto p-1.5">
+            {hasSections ? (
+              <>
+                {filteredMy.length > 0 && (
+                  <div className="mb-1">
+                    <div
+                      className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide"
+                      style={{ color: "var(--text-muted)" }}
+                    >
+                      My clients
+                    </div>
+                    {filteredMy.map(renderRow)}
+                  </div>
+                )}
+                {filteredOther.length > 0 && (
+                  <div>
+                    {filteredMy.length > 0 && (
+                      <div className="mx-2 my-1 border-t" style={{ borderColor: "var(--border)" }} />
+                    )}
+                    <div
+                      className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide"
+                      style={{ color: "var(--text-muted)" }}
+                    >
+                      Other clients
+                    </div>
+                    {filteredOther.map(renderRow)}
+                  </div>
+                )}
+                {filteredMy.length === 0 && filteredOther.length === 0 && (
+                  <div className="px-3 py-4 text-center text-sm" style={{ color: "var(--text-muted)" }}>
+                    No results
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                {filteredAll.length > 0 ? (
+                  filteredAll.map(renderRow)
+                ) : (
+                  <div className="px-3 py-4 text-center text-sm" style={{ color: "var(--text-muted)" }}>
+                    No results
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── main page ────────────────────────────────────────────────────────────
+
+export default function CreateRankingSessionPage() {
+  const router = useRouter();
+  const { data: authSession } = useSession();
+  const currentUserId = authSession?.user?.id;
+
+  const [clients, setClients] = useState<ClientOption[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const [selectedClientId, setSelectedClientId] = useState("");
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [showBehaviors, setShowBehaviors] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // DNA wizard state (when client has no DNA)
+  const [wizardDna, setWizardDna] = useState<CulturalDnaValue[]>([]);
+  const [showWizard, setShowWizard] = useState(false);
+  const [showImport, setShowImport] = useState(false);
+  const { openPanel, closePanel } = useRightPanel();
+
+  useEffect(() => {
+    fetch("/api/clients")
+      .then((r) => r.json())
+      .then((data) => {
+        setClients(
+          data
+            .map((c: { id: string; company: string; culturalDna?: CulturalDnaValue[]; leads?: { userId: string; name: string; email: string }[] }) => ({
+              id: c.id,
+              company: c.company,
+              culturalDna: c.culturalDna ?? [],
+              leads: c.leads ?? [],
+            }))
+            .sort((a: ClientOption, b: ClientOption) => a.company.localeCompare(b.company))
+        );
+        setLoading(false);
+      });
+  }, []);
+
+  const myClients = useMemo(
+    () => (currentUserId ? clients.filter((c) => c.leads.some((l) => l.userId === currentUserId)) : []),
+    [clients, currentUserId]
+  );
+
+  const otherClients = useMemo(
+    () => (currentUserId ? clients.filter((c) => !c.leads.some((l) => l.userId === currentUserId)) : clients),
+    [clients, currentUserId]
+  );
+
+  const hasSections = myClients.length > 0;
+
+  const selectedClient = clients.find((c) => c.id === selectedClientId);
+  const clientDna = selectedClient?.culturalDna ?? [];
+  const hasDna = clientDna.length >= 2;
+
+  function handleClientSelect(clientId: string) {
+    setSelectedClientId(clientId);
+    setShowWizard(false);
+    setWizardDna([]);
+    setError(null);
+  }
+
+  function openAddValuePanel() {
+    openPanel(
+      "Add value",
+      <WizardDnaValueForm
+        defaultColor={DEFAULT_COLORS[wizardDna.length % DEFAULT_COLORS.length]}
+        onSave={(value) => {
+          setWizardDna((prev) => [...prev, value]);
+          closePanel();
+        }}
+        onCancel={closePanel}
+      />
+    );
+  }
+
+  function openEditValuePanel(value: CulturalDnaValue) {
+    openPanel(
+      "Edit value",
+      <WizardDnaValueForm
+        initial={value}
+        onSave={(updated) => {
+          setWizardDna((prev) => prev.map((v) => (v.id === updated.id ? updated : v)));
+          closePanel();
+        }}
+        onCancel={closePanel}
+        onDelete={() => {
+          setWizardDna((prev) => prev.filter((v) => v.id !== value.id));
+          closePanel();
+        }}
+      />
+    );
+  }
+
+  async function handleSaveDnaAndCreate() {
+    const validValues = wizardDna.filter((v) => v.title.trim());
+    if (validValues.length < 2) {
+      setError("Add at least 2 values.");
+      return;
+    }
+    if (!title.trim()) {
+      setError("Enter a session title.");
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+
+    const dnaRes = await fetch(`/api/clients/${selectedClientId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ culturalDna: validValues }),
+    });
+    if (!dnaRes.ok) {
+      setError("Could not save values to the client.");
+      setSaving(false);
+      return;
+    }
+
+    const sessionRes = await fetch("/api/ranking-sessions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ clientId: selectedClientId, title: title.trim(), description: description.trim() || undefined, showBehaviors }),
+    });
+    if (!sessionRes.ok) {
+      const data = await sessionRes.json();
+      setError(data.error ?? "Could not create session.");
+      setSaving(false);
+      return;
+    }
+
+    const session = await sessionRes.json();
+    router.push(`/tools/ranking/${session.id}`);
+  }
+
+  async function handleCreate() {
+    if (!selectedClientId || !title.trim()) {
+      setError("Select a client and enter a title.");
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+
+    const res = await fetch("/api/ranking-sessions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ clientId: selectedClientId, title: title.trim(), description: description.trim() || undefined, showBehaviors }),
+    });
+
+    if (!res.ok) {
+      const data = await res.json();
+      setError(data.error ?? "Could not create session.");
+      setSaving(false);
+      return;
+    }
+
+    const session = await res.json();
+    router.push(`/tools/ranking/${session.id}`);
+  }
+
+  return (
+    <div className="flex-1 overflow-y-auto">
+      <PageHeader
+        breadcrumbs={[{ label: "Tools", href: "/tools" }, { label: "Ranking the Values", href: "/tools/ranking" }, { label: "New session" }]}
+        title="New session"
+      />
+
+      <div className="px-7 pb-7 pt-5 max-w-2xl">
+        {/* Client picker */}
+        <div className="mb-5">
+          <label className="typo-label" style={{ color: "var(--text-muted)" }}>Client *</label>
+          <ClientDropdown
+            clients={clients}
+            myClients={myClients}
+            otherClients={otherClients}
+            hasSections={hasSections}
+            selectedClientId={selectedClientId}
+            onSelect={handleClientSelect}
+            loading={loading}
+          />
+        </div>
+
+        {/* DNA preview or wizard */}
+        {selectedClient && (
+          <>
+            {hasDna ? (
+              <div className="mb-5 p-4 rounded-card border" style={{ borderColor: "var(--border)", background: "var(--bg-elevated)" }}>
+                <h3 className="typo-section-header mb-2" style={{ color: "var(--text-muted)" }}>
+                  Cultural DNA ({clientDna.length} values)
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {clientDna.map((v) => (
+                    <span
+                      key={v.id}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-badge text-xs font-medium"
+                      style={{ background: "var(--bg-surface)", color: "var(--text-primary)", border: "1px solid var(--border)" }}
+                    >
+                      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: v.color }} />
+                      {v.title}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ) : !showWizard ? (
+              <div className="mb-5 p-5 rounded-card border text-center" style={{ borderColor: "var(--border)", background: "var(--bg-elevated)" }}>
+                <p className="text-sm mb-3" style={{ color: "var(--text-muted)" }}>
+                  {selectedClient.company} does not have cultural DNA yet.
+                </p>
+                <div className="flex items-center justify-center gap-2">
+                  <button
+                    onClick={() => { setShowWizard(true); openAddValuePanel(); }}
+                    className="btn-primary rounded-lg text-sm px-4 py-2 inline-flex items-center gap-1.5"
+                  >
+                    <Plus size={14} />
+                    Add values
+                  </button>
+                  <button
+                    onClick={() => { setShowWizard(true); setShowImport(true); }}
+                    className="btn-secondary border rounded-lg text-sm px-4 py-2 inline-flex items-center gap-1.5"
+                  >
+                    <ClipboardPaste size={14} />
+                    Import from spreadsheet
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="mb-5 p-4 rounded-card border" style={{ borderColor: "var(--border)", background: "var(--bg-elevated)" }}>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="typo-section-header" style={{ color: "var(--text-muted)" }}>
+                    Cultural DNA ({wizardDna.length} {wizardDna.length === 1 ? "value" : "values"})
+                  </h3>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => setShowImport(true)} className="flex items-center gap-1.5 text-xs py-1.5 px-2 rounded-lg btn-tertiary">
+                      <ClipboardPaste size={12} />
+                      Import
+                    </button>
+                    <button onClick={openAddValuePanel} className="flex items-center gap-1.5 text-xs py-1.5 px-2 rounded-lg btn-tertiary">
+                      <Plus size={12} />
+                      Add value
+                    </button>
+                  </div>
+                </div>
+                {wizardDna.length === 0 ? (
+                  <p className="text-sm py-3 text-center" style={{ color: "var(--text-muted)" }}>
+                    No values added yet. Click &ldquo;Add value&rdquo; to get started.
+                  </p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {wizardDna.map((value) => (
+                      <div
+                        key={value.id}
+                        className="flex items-center gap-2.5 px-3 py-2 rounded-button group transition-colors"
+                        style={{ background: "var(--bg-surface)" }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = "var(--bg-hover)"; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = "var(--bg-surface)"; }}
+                      >
+                        <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: value.color }} />
+                        <span className="text-sm font-medium flex-1 min-w-0 truncate" style={{ color: "var(--text-primary)" }}>
+                          {value.title}
+                        </span>
+                        {value.mantra && (
+                          <span className="text-xs truncate max-w-[140px]" style={{ color: "var(--text-muted)" }}>
+                            {value.mantra}
+                          </span>
+                        )}
+                        <button
+                          onClick={() => openEditValuePanel(value)}
+                          className="btn-icon p-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                          title="Edit"
+                        >
+                          <Pencil size={12} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Session details */}
+            {(hasDna || showWizard) && (
+              <>
+                <div className="mb-4">
+                  <label className="typo-label" style={{ color: "var(--text-muted)" }}>Session title *</label>
+                  <input
+                    type="text"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    placeholder="e.g. Quarterly values session Q2 2026"
+                    className="w-full px-3 py-2 rounded-button border text-sm"
+                    style={{ borderColor: "var(--border)", background: "var(--bg-surface)", color: "var(--text-primary)" }}
+                  />
+                </div>
+
+                <div className="mb-5">
+                  <label className="typo-label" style={{ color: "var(--text-muted)" }}>Description</label>
+                  <textarea
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="Optional context for participants"
+                    rows={2}
+                    className="w-full px-3 py-2 rounded-button border text-sm resize-none"
+                    style={{ borderColor: "var(--border)", background: "var(--bg-surface)", color: "var(--text-primary)" }}
+                  />
+                </div>
+
+                {/* Show behaviors toggle — only if client has behavior data */}
+                {clientDna.some((v) => v.behaviors && v.behaviors.length > 0) && (
+                  <div className="mb-5 flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setShowBehaviors(!showBehaviors)}
+                      className="relative w-9 h-5 rounded-full transition-colors"
+                      style={{ background: showBehaviors ? "var(--primary)" : "var(--border-strong)" }}
+                    >
+                      <span
+                        className="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform"
+                        style={{ transform: showBehaviors ? "translateX(16px)" : "translateX(0)" }}
+                      />
+                    </button>
+                    <span className="text-sm" style={{ color: "var(--text-primary)" }}>
+                      Show behavioral examples to participants
+                    </span>
+                  </div>
+                )}
+
+                {error && (
+                  <div className="mb-4 p-3 rounded-button text-sm" style={{ background: "var(--danger-light)", color: "var(--danger)" }}>
+                    {error}
+                  </div>
+                )}
+
+                <button
+                  onClick={showWizard ? handleSaveDnaAndCreate : handleCreate}
+                  disabled={saving}
+                  className="btn-primary rounded-lg text-sm px-5 py-2.5 inline-flex items-center gap-1.5"
+                >
+                  {saving ? "Creating..." : "Create session"}
+                  <ChevronRight size={14} />
+                </button>
+              </>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Import modal */}
+      {showImport && (
+        <WizardImportModal
+          onConfirm={(values) => {
+            setWizardDna((prev) => [...prev, ...values]);
+            setShowImport(false);
+          }}
+          onClose={() => setShowImport(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── Wizard import modal ─────────────────────────────────────────────
+
+function WizardImportModal({
+  onConfirm,
+  onClose,
+}: {
+  onConfirm: (values: CulturalDnaValue[]) => void;
+  onClose: () => void;
+}) {
+  const [raw, setRaw] = useState("");
+  const [parsed, setParsed] = useState<ReturnType<typeof parseCulturalDnaTsv> | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    function handleEsc(e: KeyboardEvent) { if (e.key === "Escape") onClose(); }
+    window.addEventListener("keydown", handleEsc);
+    return () => window.removeEventListener("keydown", handleEsc);
+  }, [onClose]);
+
+  function handleParse() {
+    setError(null);
+    const result = parseCulturalDnaTsv(raw);
+    if (result.values.length === 0) {
+      setError("No values found. Paste tab-separated content with columns: Title, Mantra, Description, [Levels...]");
+      return;
+    }
+    setParsed(result);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0" style={{ background: "rgba(0,0,0,0.5)" }} onClick={onClose} />
+      <div
+        className="relative w-full max-w-2xl rounded-card shadow-dropdown flex flex-col"
+        style={{ background: "var(--bg-surface)", maxHeight: "85vh" }}
+      >
+        <div className="px-6 py-4 border-b" style={{ borderColor: "var(--border)" }}>
+          <h2 className="typo-modal-title" style={{ color: "var(--text-primary)" }}>
+            Import from spreadsheet
+          </h2>
+          <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+            Paste tab-separated content (TSV) from Google Sheets. Columns: Title, Mantra, Description, then one column per behavior level.
+          </p>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+          {!parsed ? (
+            <>
+              <textarea
+                value={raw}
+                onChange={(e) => setRaw(e.target.value)}
+                placeholder={"Creativity\tWe think outside the box\tWe encourage...\t\"- Bullet 1\\n- Bullet 2\"\t..."}
+                rows={10}
+                autoFocus
+                className="w-full px-3 py-2 rounded-button border text-sm font-mono resize-none"
+                style={{ borderColor: "var(--border)", background: "var(--bg-elevated)", color: "var(--text-primary)" }}
+              />
+              {error && (
+                <div className="p-3 rounded-button text-sm" style={{ background: "var(--danger-light)", color: "var(--danger)" }}>
+                  {error}
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="p-3 rounded-card border" style={{ borderColor: "var(--border)", background: "var(--bg-elevated)" }}>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="typo-section-header" style={{ color: "var(--text-muted)" }}>
+                  {parsed.values.length} values found
+                </span>
+                {parsed.levels.length > 0 && (
+                  <span className="px-2 py-0.5 rounded-badge text-[10px] font-medium" style={{ background: "var(--info-light)", color: "var(--info)" }}>
+                    {parsed.levels.length} levels: {parsed.levels.join(", ")}
+                  </span>
+                )}
+              </div>
+              <div className="space-y-1.5">
+                {parsed.values.map((v) => (
+                  <div key={v.id} className="flex items-center gap-2.5 px-3 py-2 rounded-button" style={{ background: "var(--bg-surface)" }}>
+                    <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: v.color }} />
+                    <span className="text-sm font-medium min-w-0 truncate" style={{ color: "var(--text-primary)" }}>{v.title}</span>
+                    {v.mantra && <span className="text-xs truncate max-w-[200px]" style={{ color: "var(--text-muted)" }}>{v.mantra}</span>}
+                    {(v.behaviors?.length ?? 0) > 0 && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-badge shrink-0" style={{ background: "var(--primary-light)", color: "var(--primary)" }}>
+                        {v.behaviors!.length} levels
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="px-6 py-4 border-t flex items-center justify-end gap-2" style={{ borderColor: "var(--border)" }}>
+          {parsed && (
+            <button onClick={() => { setParsed(null); setError(null); }} className="btn-ghost rounded-lg px-4 py-2 text-sm mr-auto">
+              Back
+            </button>
+          )}
+          <button onClick={onClose} className="btn-ghost rounded-lg px-4 py-2 text-sm">Cancel</button>
+          {!parsed ? (
+            <button onClick={handleParse} disabled={!raw.trim()} className="btn-primary rounded-lg px-4 py-2 text-sm">
+              Parse
+            </button>
+          ) : (
+            <button onClick={() => onConfirm(parsed.values)} className="btn-primary rounded-lg px-4 py-2 text-sm">
+              Import {parsed.values.length} values
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── DNA value form (right panel) ────────────────────────────────────
+
+function WizardDnaValueForm({
+  initial,
+  defaultColor,
+  onSave,
+  onCancel,
+  onDelete,
+}: {
+  initial?: CulturalDnaValue;
+  defaultColor?: string;
+  onSave: (value: CulturalDnaValue) => void;
+  onCancel: () => void;
+  onDelete?: () => void;
+}) {
+  const [title, setTitle] = useState(initial?.title ?? "");
+  const [color, setColor] = useState(initial?.color ?? defaultColor ?? DEFAULT_COLORS[0]);
+  const [mantra, setMantra] = useState(initial?.mantra ?? "");
+  const [description, setDescription] = useState(initial?.description ?? "");
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!title.trim()) return;
+    onSave({
+      id: initial?.id ?? crypto.randomUUID(),
+      title: title.trim(),
+      color,
+      mantra: mantra.trim(),
+      description: description.trim(),
+    });
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="flex flex-col h-full">
+      <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+        {/* Title */}
+        <div>
+          <label className="typo-label" style={{ color: "var(--text-muted)" }}>Title *</label>
+          <input
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="e.g. Ownership"
+            autoFocus
+            className="w-full px-3 py-2 rounded-button border text-sm"
+            style={{
+              borderColor: "var(--border)",
+              background: "var(--bg-surface)",
+              color: "var(--text-primary)",
+            }}
+          />
+        </div>
+
+        {/* Color */}
+        <div>
+          <label className="typo-label" style={{ color: "var(--text-muted)" }}>Color</label>
+          <div className="flex gap-2 flex-wrap">
+            {DEFAULT_COLORS.map((c) => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => setColor(c)}
+                className="w-7 h-7 rounded-full border-2 transition-transform"
+                style={{
+                  backgroundColor: c,
+                  borderColor: color === c ? "var(--text-primary)" : "transparent",
+                  transform: color === c ? "scale(1.15)" : "scale(1)",
+                }}
+              />
+            ))}
+            <label
+              className="w-7 h-7 rounded-full border-2 flex items-center justify-center cursor-pointer overflow-hidden"
+              style={{ borderColor: "var(--border)" }}
+            >
+              <input
+                type="color"
+                value={color}
+                onChange={(e) => setColor(e.target.value)}
+                className="absolute w-8 h-8 opacity-0 cursor-pointer"
+              />
+              <span className="text-xs" style={{ color: "var(--text-muted)" }}>+</span>
+            </label>
+          </div>
+        </div>
+
+        {/* Mantra */}
+        <div>
+          <label className="typo-label" style={{ color: "var(--text-muted)" }}>Mantra</label>
+          <input
+            type="text"
+            value={mantra}
+            onChange={(e) => setMantra(e.target.value)}
+            placeholder="Short tagline"
+            className="w-full px-3 py-2 rounded-button border text-sm"
+            style={{
+              borderColor: "var(--border)",
+              background: "var(--bg-surface)",
+              color: "var(--text-primary)",
+            }}
+          />
+        </div>
+
+        {/* Description */}
+        <div>
+          <label className="typo-label" style={{ color: "var(--text-muted)" }}>Description</label>
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="What does this value mean for the company?"
+            rows={3}
+            className="w-full px-3 py-2 rounded-button border text-sm resize-none"
+            style={{
+              borderColor: "var(--border)",
+              background: "var(--bg-surface)",
+              color: "var(--text-primary)",
+            }}
+          />
+        </div>
+      </div>
+
+      {/* Actions */}
+      <div className="px-5 py-4 border-t flex items-center gap-2" style={{ borderColor: "var(--border)" }}>
+        {onDelete && (
+          <button
+            type="button"
+            onClick={onDelete}
+            className="btn-icon p-2 rounded-lg hover:!text-[var(--danger)] hover:!bg-[var(--danger-light)]"
+            aria-label="Delete"
+          >
+            <Trash2 size={16} />
+          </button>
+        )}
+        <div className="flex-1" />
+        <button type="button" onClick={onCancel} className="btn-ghost rounded-lg px-4 py-2 text-sm">
+          Cancel
+        </button>
+        <button type="submit" disabled={!title.trim()} className="btn-primary rounded-lg px-4 py-2 text-sm">
+          {initial ? "Save" : "Add"}
+        </button>
+      </div>
+    </form>
+  );
+}
