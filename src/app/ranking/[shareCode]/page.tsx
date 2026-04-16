@@ -20,7 +20,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { MATCH_PROMPTS, t, type Locale } from "@/lib/ranking/translations";
+import { MATCH_PROMPTS, TRIO_PROMPTS, t, type Locale } from "@/lib/ranking/translations";
 import BehaviorDisplay from "@/components/ui/BehaviorDisplay";
 
 interface RankingValue {
@@ -649,28 +649,102 @@ function StepMatchContent({
   const data = matchData as {
     pairs: { participant1: { id: string; participantName: string }; participant2: { id: string; participantName: string }; opposition: number }[];
     unmatched: { id: string; participantName: string } | null;
+    bestDuo: { pairParticipant1: string; pairParticipant1Id: string; pairParticipant2: string; pairParticipant2Id: string; avgOpposition: number } | null;
     submissions: { id: string; participantName: string; rankings: string[] }[];
     values: RankingValue[];
   };
 
   if (!existingSubmission) return null;
 
-  // Find my match
-  const myPair = data.pairs.find(
-    (p) => p.participant1.id === existingSubmission.id || p.participant2.id === existingSubmission.id
-  );
+  // Determine if I'm part of a trio (either the unmatched person or one of the bestDuo pair)
   const isUnmatched = data.unmatched?.id === existingSubmission.id;
+  const isInTrioDuo = data.bestDuo && (
+    data.bestDuo.pairParticipant1Id === existingSubmission.id ||
+    data.bestDuo.pairParticipant2Id === existingSubmission.id
+  );
+  const isInTrio = isUnmatched || isInTrioDuo;
 
-  if (isUnmatched) {
+  if (isInTrio && data.bestDuo && data.unmatched) {
+    // Collect all three trio member IDs
+    const trioIds = [data.bestDuo.pairParticipant1Id, data.bestDuo.pairParticipant2Id, data.unmatched.id];
+    const otherIds = trioIds.filter((id) => id !== existingSubmission.id);
+    const otherSubs = otherIds.map((id) => data.submissions.find((s) => s.id === id)).filter(Boolean) as { id: string; participantName: string; rankings: string[] }[];
+
+    const trioPrompt = TRIO_PROMPTS[locale][matchPromptIndex % TRIO_PROMPTS[locale].length];
+
     return (
-      <div className="text-center py-8">
-        <h2 className="text-lg font-bold mb-2" style={{ color: "var(--text-primary)" }}>{t(locale, "match.noMatch")}</h2>
-        <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-          {t(locale, "match.noMatchExplain")}
-        </p>
+      <div className="space-y-4">
+        {/* Trio header */}
+        <div className="p-5 rounded-card border text-center" style={{ borderColor: "var(--border)", background: "var(--bg-elevated)" }}>
+          <p className="typo-section-header mb-4" style={{ color: "var(--text-muted)" }}>{t(locale, "match.yourGroup")}</p>
+          <div className="flex justify-center mb-4">
+            <div className="flex -space-x-3">
+              {/* Me */}
+              <div className="w-12 h-12 rounded-full flex items-center justify-center text-lg font-semibold ring-2 ring-white"
+                style={{ background: "var(--primary-light)", color: "var(--primary)" }}>
+                {data.submissions.find((s) => s.id === existingSubmission.id)?.participantName.charAt(0).toUpperCase()}
+              </div>
+              {/* Other two */}
+              {otherSubs.map((s) => (
+                <div key={s.id} className="w-12 h-12 rounded-full flex items-center justify-center text-lg font-semibold ring-2 ring-white"
+                  style={{ background: "var(--bg-hover)", color: "var(--text-primary)" }}>
+                  {s.participantName.charAt(0).toUpperCase()}
+                </div>
+              ))}
+            </div>
+          </div>
+          <p className="text-sm" style={{ color: "var(--text-primary)" }}>
+            <span className="font-medium">{data.submissions.find((s) => s.id === existingSubmission.id)?.participantName}</span>
+            {otherSubs.map((s, i) => (
+              <span key={s.id}>
+                <span className="mx-1.5" style={{ color: "var(--text-muted)" }}>{i === otherSubs.length - 1 ? "&" : ","}</span>
+                <span className="font-medium">{s.participantName}</span>
+              </span>
+            ))}
+          </p>
+          <p className="text-xs mt-2" style={{ color: "var(--text-muted)" }}>
+            {t(locale, "match.trioExplain")}
+          </p>
+          <p className="text-xs mt-3 leading-relaxed" style={{ color: "var(--text-muted)" }}>{trioPrompt}</p>
+        </div>
+
+        {/* Three-column ranking comparison */}
+        {otherSubs.length > 0 && (
+          <div className="p-5 rounded-card border" style={{ borderColor: "var(--border)", background: "var(--bg-elevated)" }}>
+            <h3 className="typo-card-title mb-4" style={{ color: "var(--text-primary)" }}>{t(locale, "match.compareTitleTrio")}</h3>
+            <div className="grid grid-cols-3 gap-4">
+              {[
+                { label: t(locale, "match.you"), rankings: existingSubmission.rankings },
+                ...otherSubs.map((s) => ({ label: s.participantName, rankings: s.rankings })),
+              ].map(({ label, rankings }) => (
+                <div key={label}>
+                  <p className="text-xs font-medium mb-2 truncate" style={{ color: "var(--text-muted)" }}>{label}</p>
+                  <ol className="space-y-1.5">
+                    {rankings.map((valueId, j) => {
+                      const v = valueMap[valueId];
+                      if (!v) return null;
+                      return (
+                        <li key={valueId} className="flex items-center gap-1.5 text-xs">
+                          <span className="w-3 text-right tabular-nums shrink-0" style={{ color: "var(--text-muted)", fontSize: "10px" }}>{j + 1}.</span>
+                          <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: v.color }} />
+                          <span className="truncate" style={{ color: "var(--text-primary)" }}>{v.title}</span>
+                        </li>
+                      );
+                    })}
+                  </ol>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     );
   }
+
+  // Find my match (regular duo)
+  const myPair = data.pairs.find(
+    (p) => p.participant1.id === existingSubmission.id || p.participant2.id === existingSubmission.id
+  );
 
   if (!myPair) {
     return (

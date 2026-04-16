@@ -49,7 +49,9 @@ export async function GET(
     bestDuo: bestDuo
       ? {
           pairParticipant1: bestDuo.pair.participant1.participantName,
+          pairParticipant1Id: bestDuo.pair.participant1.id,
           pairParticipant2: bestDuo.pair.participant2.participantName,
+          pairParticipant2Id: bestDuo.pair.participant2.id,
           avgOpposition: bestDuo.avgOpposition,
         }
       : null,

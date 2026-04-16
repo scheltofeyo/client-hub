@@ -51,6 +51,11 @@ const translations = {
 
   // Step 3 — results
   "match.yourMatch": { nl: "Jouw match", en: "Your match" },
+  "match.yourGroup": { nl: "Jouw groepje", en: "Your group" },
+  "match.trioExplain": {
+    nl: "Door een oneven aantal deelnemers is er een groepje van drie gevormd. Bespreek de waarden samen!",
+    en: "Due to an odd number of participants, a group of three has been formed. Discuss the values together!",
+  },
   "match.noMatch": { nl: "Geen match gevonden", en: "No match found" },
   "match.noMatchExplain": {
     nl: "Door een oneven aantal deelnemers heb je helaas geen match gekregen. De begeleider kan je alsnog koppelen.",
@@ -61,6 +66,7 @@ const translations = {
     en: "No match could be calculated.",
   },
   "match.compareTitle": { nl: "Jullie rankings vergeleken", en: "Your rankings compared" },
+  "match.compareTitleTrio": { nl: "Jullie rankings vergeleken", en: "Your rankings compared" },
   "match.you": { nl: "Jij", en: "You" },
 
   // Error states
@@ -122,5 +128,33 @@ export const MATCH_PROMPTS: Record<Locale, string[]> = {
     "Seek each other out! Ask your match: which value would you like to give more attention to?",
     "Start a conversation with your match. Discuss: how do your values influence the way you collaborate?",
     "Find your match and discover: what can you learn from each other's perspective on the company values?",
+  ],
+};
+
+/** Conversation prompts for trio groups (odd participant count), per locale. */
+export const TRIO_PROMPTS: Record<Locale, string[]> = {
+  nl: [
+    "Zoek je groepje op en bespreek met z'n drieën: welke waarde vinden jullie het sterkst terug in je eigen werk?",
+    "Ga met z'n drieën in gesprek. Vertel: hoe merk je jouw topwaarde in de praktijk?",
+    "Zoek elkaar op! Bespreek samen wat jullie belangrijkste waarden concreet betekenen in het werk.",
+    "Ga bij je groepje zitten. Bespreek: in welke situaties komt jouw sterkste waarde het meest naar voren?",
+    "Zoek je groepje op en deel: waar ben je trots op als het gaat om hoe je waarden toepast?",
+    "Ga met z'n drieën zitten. Bespreek: welke waarde zou je graag nog sterker willen maken in je werk?",
+    "Zoek elkaar op en vergelijk jullie lijstjes. Bespreek wat de verschillen en overeenkomsten jullie vertellen.",
+    "Vind je groepje in de ruimte. Vraag: wat betekent jouw nummer 1 waarde in de dagelijkse samenwerking?",
+    "Zoek je groepje op! Bespreek samen: hoe helpt jouw sterkste waarde het team?",
+    "Ga met z'n drieën in gesprek: welke waarde geeft jullie de meeste energie in het werk?",
+  ],
+  en: [
+    "Find your group and discuss together: which value do you each recognize most in your own work?",
+    "Start a conversation as a trio. Share: how does your top value show up in practice?",
+    "Seek each other out! Discuss what your most important values mean concretely in your work.",
+    "Sit down with your group. Ask: in which situations does your strongest value come through the most?",
+    "Find your group and share: what are you proud of when it comes to living your values?",
+    "Sit down as a trio. Discuss: which value would you like to strengthen even more in your work?",
+    "Find each other and compare your lists. Discuss what the differences and similarities tell you.",
+    "Find your group in the room. Ask: what does your number 1 value mean in day-to-day collaboration?",
+    "Find your group! Discuss together: how does your strongest value help the team?",
+    "Start a conversation as a trio: which value gives each of you the most energy in your work?",
   ],
 };
