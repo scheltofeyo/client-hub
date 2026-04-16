@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Pencil, Trash2, Plus, Check, X, ChevronUp, ChevronDown,
   Sun, Thermometer, User, Circle, Palmtree, Baby, GraduationCap, Heart, Briefcase, Plane,
@@ -29,12 +29,6 @@ const ICON_MAP: Record<string, React.ElementType> = Object.fromEntries(
   ICON_OPTIONS.map(({ name, Icon }) => [name, Icon])
 );
 
-const PRESET_COLORS = [
-  "#7c3aed", "#dc2626", "#0891b2", "#16a34a",
-  "#2563eb", "#d97706", "#ea580c", "#db2777",
-  "#6366f1", "#94a3b8",
-];
-
 const inputClass =
   "w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--primary)]/40";
 const inputStyle = {
@@ -48,19 +42,33 @@ function ColorIconPicker({
 }: {
   color: string; icon: string; onColorChange: (c: string) => void; onIconChange: (i: string) => void;
 }) {
+  const [hexInput, setHexInput] = useState(color.replace("#", ""));
+  useEffect(() => { setHexInput(color.replace("#", "")); }, [color]);
   return (
     <div className="space-y-3">
       <div>
         <p className="typo-label">Color</p>
-        <div className="flex flex-wrap gap-2">
-          {PRESET_COLORS.map((c) => (
-            <button key={c} type="button" onClick={() => onColorChange(c)}
-              className="w-6 h-6 rounded-full border-2 transition-all"
-              style={{ background: c, borderColor: color === c ? "var(--text-primary)" : "transparent", transform: color === c ? "scale(1.15)" : undefined }}
-            />
-          ))}
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs font-mono" style={{ color: "var(--text-muted)" }}>#</span>
+          <input
+            type="text"
+            value={hexInput}
+            onChange={(e) => {
+              const clean = e.target.value.replace("#", "").slice(0, 6);
+              if (/^[0-9a-fA-F]{0,6}$/.test(clean)) {
+                setHexInput(clean);
+                if (/^[0-9a-fA-F]{6}$/.test(clean)) onColorChange(`#${clean}`);
+              }
+            }}
+            onBlur={() => { if (!/^[0-9a-fA-F]{6}$/.test(hexInput)) setHexInput(color.replace("#", "")); }}
+            maxLength={6}
+            className="w-20 px-2 py-1 rounded-button border text-xs font-mono"
+            style={{ borderColor: "var(--border)", background: "var(--bg-elevated)", color: "var(--text-primary)" }}
+            placeholder="7c3aed"
+          />
           <input type="color" value={color} onChange={(e) => onColorChange(e.target.value)}
-            className="w-6 h-6 rounded cursor-pointer border" style={{ borderColor: "var(--border)" }} />
+            className="w-6 h-6 rounded-full cursor-pointer border-0 p-0" style={{ backgroundColor: "transparent" }}
+            title="Pick a colour" />
         </div>
       </div>
       <div>

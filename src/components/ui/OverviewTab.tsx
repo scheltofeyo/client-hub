@@ -17,6 +17,34 @@ import { EventForm } from "@/components/ui/EventsTab";
 import { SheetManagerPanel } from "@/components/ui/SheetsTab";
 
 
+function hexToHsl(hex: string): [number, number] {
+  const r = parseInt(hex.slice(1, 3), 16) / 255;
+  const g = parseInt(hex.slice(3, 5), 16) / 255;
+  const b = parseInt(hex.slice(5, 7), 16) / 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  const d = max - min;
+  let h = 0;
+  if (d) {
+    if (max === r) h = ((g - b) / d + 6) % 6;
+    else if (max === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    h *= 60;
+  }
+  const l = (max + min) / 2;
+  const s = d ? d / (1 - Math.abs(2 * l - 1)) : 0;
+  return [Math.round(h), Math.round(s * 100)];
+}
+
+function valueBg(hex: string) {
+  const [h, s] = hexToHsl(hex);
+  return `hsl(${h}, ${s}%, 92%)`;
+}
+
+function valueText(hex: string) {
+  const [h, s] = hexToHsl(hex);
+  return `hsl(${h}, ${s}%, 20%)`;
+}
+
 function today() {
   const d = new Date();
   const y = d.getFullYear();
@@ -423,6 +451,22 @@ export default function OverviewTab({
                   >
                     {client.archetype}
                   </span>
+                </div>
+              )}
+              {client.culturalDna && client.culturalDna.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mt-1">
+                  {client.culturalDna.map((value) => (
+                    <span
+                      key={value.id}
+                      className="px-2 py-0.5 rounded-full text-xs font-medium"
+                      style={{
+                        backgroundColor: valueBg(value.color),
+                        color: valueText(value.color),
+                      }}
+                    >
+                      {value.title}
+                    </span>
+                  ))}
                 </div>
               )}
             </div>

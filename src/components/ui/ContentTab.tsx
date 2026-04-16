@@ -784,10 +784,7 @@ function ImportDnaModal({
 
 // ── Color picker popover ───────────────────────────────────────────
 
-const DEFAULT_COLORS = [
-  "#7C5CFC", "#3B82F6", "#06B6D4", "#10B981", "#F59E0B",
-  "#EF4444", "#EC4899", "#8B5CF6", "#6366F1", "#14B8A6",
-];
+const DEFAULT_COLOR = "#7C5CFC";
 
 function ColorPickerPopover({
   color,
@@ -824,21 +821,6 @@ function ColorPickerPopover({
       style={{ background: "var(--bg-surface)", borderColor: "var(--border)", width: 220 }}
       onClick={(e) => e.stopPropagation()}
     >
-      <div className="flex gap-1.5 flex-wrap mb-2">
-        {DEFAULT_COLORS.map((c) => (
-          <button
-            key={c}
-            type="button"
-            onClick={() => { onChange(c); setHexInput(c.replace("#", "")); }}
-            className="w-6 h-6 rounded-full border-2 transition-transform"
-            style={{
-              backgroundColor: c,
-              borderColor: color === c ? "var(--text-primary)" : "transparent",
-              transform: color === c ? "scale(1.15)" : "scale(1)",
-            }}
-          />
-        ))}
-      </div>
       <div className="flex items-center gap-1.5">
         <span className="text-xs font-mono" style={{ color: "var(--text-muted)" }}>#</span>
         <input
@@ -855,9 +837,13 @@ function ColorPickerPopover({
           }}
           placeholder="7C5CFC"
         />
-        <div
-          className="w-6 h-6 rounded-full shrink-0 border"
-          style={{ backgroundColor: color, borderColor: "var(--border)" }}
+        <input
+          type="color"
+          value={color}
+          onChange={(e) => { onChange(e.target.value); setHexInput(e.target.value.replace("#", "")); }}
+          className="w-6 h-6 rounded-full shrink-0 cursor-pointer border-0 p-0"
+          style={{ backgroundColor: "transparent" }}
+          title="Pick a colour"
         />
       </div>
     </div>
@@ -880,8 +866,8 @@ function DnaValueForm({
   onDelete?: () => void;
 }) {
   const [title, setTitle] = useState(initial?.title ?? "");
-  const [color, setColor] = useState(initial?.color ?? DEFAULT_COLORS[0]);
-  const [hexInput, setHexInput] = useState((initial?.color ?? DEFAULT_COLORS[0]).replace("#", ""));
+  const [color, setColor] = useState(initial?.color ?? DEFAULT_COLOR);
+  const [hexInput, setHexInput] = useState((initial?.color ?? DEFAULT_COLOR).replace("#", ""));
   const [mantra, setMantra] = useState(initial?.mantra ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
 
@@ -919,22 +905,7 @@ function DnaValueForm({
         {/* Color */}
         <div>
           <label className="typo-label" style={{ color: "var(--text-muted)" }}>Color</label>
-          <div className="flex gap-2 flex-wrap">
-            {DEFAULT_COLORS.map((c) => (
-              <button
-                key={c}
-                type="button"
-                onClick={() => { setColor(c); setHexInput(c.replace("#", "")); }}
-                className="w-7 h-7 rounded-full border-2 transition-transform"
-                style={{
-                  backgroundColor: c,
-                  borderColor: color === c ? "var(--text-primary)" : "transparent",
-                  transform: color === c ? "scale(1.15)" : "scale(1)",
-                }}
-              />
-            ))}
-          </div>
-          <div className="flex items-center gap-1.5 mt-2">
+          <div className="flex items-center gap-1.5">
             <span className="text-xs font-mono" style={{ color: "var(--text-muted)" }}>#</span>
             <input
               type="text"
@@ -954,9 +925,13 @@ function DnaValueForm({
               }}
               placeholder="7C5CFC"
             />
-            <div
-              className="w-6 h-6 rounded-full shrink-0 border"
-              style={{ backgroundColor: color, borderColor: "var(--border)" }}
+            <input
+              type="color"
+              value={color}
+              onChange={(e) => { setColor(e.target.value); setHexInput(e.target.value.replace("#", "")); }}
+              className="w-6 h-6 rounded-full shrink-0 cursor-pointer border-0 p-0"
+              style={{ backgroundColor: "transparent" }}
+              title="Pick a colour"
             />
           </div>
         </div>

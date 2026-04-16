@@ -46,7 +46,9 @@ export default function ProjectsTab({ clientId }: { clientId: string }) {
 
   return (
     <div className="space-y-8">
-      <ProjectsTimeline projects={projects} clientId={clientId} openTaskCounts={openTaskCounts} />
+      {(inProgress.length > 0 || upcomingProjects.length > 0 || notStarted.length > 0) && (
+        <ProjectsTimeline projects={projects} clientId={clientId} openTaskCounts={openTaskCounts} />
+      )}
 
       {inProgress.length > 0 && (
         <ProjectSection title="Currently" projects={inProgress} clientId={clientId} perProject={perProject} overduePerProject={overduePerProject} />
