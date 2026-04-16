@@ -1,6 +1,16 @@
 [
   {
     "date": "2026-04-16",
+    "title": "Spin the Wheel tool",
+    "details": [
+      "New workshop tool: randomly select participants using a spinning wheel or slot machine animation",
+      "Side panel for managing participants with add, remove, and restore functionality",
+      "Winner overlay with confetti animation and winner history tracking",
+      "Toggle to automatically remove winners from the participant list"
+    ]
+  },
+  {
+    "date": "2026-04-16",
     "title": "Ranking the Values tool + Client Cultural DNA",
     "details": [
       "New 'Tools' section in the sidebar with role-based permission gating",

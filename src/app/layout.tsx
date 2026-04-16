@@ -8,7 +8,10 @@ const ubuntuSans = Ubuntu_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "SUMM Client Hub",
+  title: {
+    default: "SUMM Client Hub",
+    template: "%s",
+  },
   description: "Agency client management dashboard",
   icons: {
     icon: [

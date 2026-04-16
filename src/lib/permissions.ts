@@ -84,6 +84,7 @@ export const ALL_PERMISSIONS = [
   "tools.rankingValues",
   "tools.ranking.editAny",
   "tools.ranking.deleteAny",
+  "tools.spinTheWheel.access",
 ] as const;
 
 export type Permission = (typeof ALL_PERMISSIONS)[number];
@@ -125,6 +126,7 @@ export const PERMISSION_DEPENDENCIES: Partial<Record<Permission, Permission>> = 
   "tools.rankingValues": "tools.ranking.access",
   "tools.ranking.editAny": "tools.rankingValues",
   "tools.ranking.deleteAny": "tools.rankingValues",
+  "tools.spinTheWheel.access": "tools.access",
 };
 
 /** Given a permission, return all permissions it transitively depends on. */
@@ -274,6 +276,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       { key: "tools.rankingValues", label: "View sessions from others", requires: "tools.ranking.access" },
       { key: "tools.ranking.editAny", label: "Edit anyone's sessions", requires: "tools.rankingValues" },
       { key: "tools.ranking.deleteAny", label: "Delete anyone's sessions", requires: "tools.rankingValues" },
+      { key: "tools.spinTheWheel.access", label: "Access Spin the Wheel", requires: "tools.access" },
     ],
   },
 ];
@@ -415,4 +418,7 @@ export const MEMBER_PERMISSIONS: Permission[] = [
 
   // Profile — self-service
   "profile.editOwn",
+
+  // Workshop tools
+  "tools.spinTheWheel.access",
 ];

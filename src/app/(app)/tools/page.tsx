@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSession } from "next-auth/react";
-import { CalendarDays, ListOrdered } from "lucide-react";
+import { CalendarDays, ListOrdered, Dices } from "lucide-react";
 import PageHeader from "@/components/layout/PageHeader";
 
 const categories = [
@@ -27,6 +27,13 @@ const categories = [
         description: "Create and facilitate value-ranking sessions with live matching.",
         icon: ListOrdered,
         requires: "tools.ranking.access",
+      },
+      {
+        href: "/tools/spin-the-wheel",
+        label: "Spin the Wheel",
+        description: "Randomly select participants using a spinning wheel or slot machine.",
+        icon: Dices,
+        requires: "tools.spinTheWheel.access",
       },
     ],
   },
