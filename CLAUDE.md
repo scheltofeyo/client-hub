@@ -54,12 +54,16 @@ src/
     (app)/admin/stylesheet/     # Visual reference page — renders all button variants and task row states using real components
     (app)/profile/              # Self-service profile editing (reuses EmployeeDetailEditor in "self" mode)
     (app)/settings/             # App info + release notes display
+    (app)/tools/                 # Tools landing — permission-gated tool grid (Team, Workshops categories)
+    (app)/tools/team/            # Holiday Planner — calendar + balances tabs (requires team.viewCalendar)
+    (app)/tools/ranking/         # Ranking the Values — session CRUD, rich text editor (requires tools.ranking.access)
     (app)/projects/             # Cross-client project list
     api/                        # Route handlers (see API layer below)
   components/
     layout/                     # Shell components (nav, panels, header)
     ui/                         # Feature components (tabs, forms, shared primitives)
     my-day/                     # My Day dashboard components (tasks, follow-ups, projects/Gantt, user card)
+    team/                       # Holiday Planner components (HolidayCalendar, BalancesTable)
   lib/
     mongodb.ts                  # Global Mongoose connection (singleton, dev-safe)
     data.ts                     # Server-side data helpers with React cache() deduplication
@@ -79,7 +83,7 @@ src/
 
 Three-column layout within `(app)/layout.tsx`:
 1. **IconNav** (`w-14`) — icon-only sidebar, far left
-2. **PanelNav** (`w-56`) — contextual second panel. Becomes **ClientPanelNav** on client pages, **AdminPanelNav** on admin pages
+2. **PanelNav** (`w-56`) — contextual second panel. Becomes **ClientPanelNav** on client pages, **AdminPanelNav** on admin pages, **ToolsPanelNav** on tools landing
 3. **Main** (`flex-1`) — scrollable page content
 
 Right-side slide-in panel is managed by **RightPanel** context (`src/components/layout/RightPanel.tsx`) — used for task forms, log forms, event forms, etc.
@@ -140,6 +144,11 @@ All in `src/lib/models/`. Models delete and recompile on hot reload (dev pattern
 | `ProjectTemplate` | name, defaults for new projects |
 | `TemplateTask` | templateId, parentTaskId (subtasks), title, assignToClientLead, order |
 | `LeadSettings` | Singleton — configurable lead permissions per role (defaults: clients.edit, projects.create/edit/kickoff) |
+| `LeaveType` | name, rank — configurable leave categories (sick, personal, etc.) |
+| `TimeOff` | userId, leaveTypeId, date, hours — individual time-off entries |
+| `CompanyHoliday` | name, date — company-wide holidays shown on team calendar |
+| `RankingSession` | clientId, title, values[], culturalLevels[], status (`draft`\|`open`\|`closed`\|`archived`), shareCode — workshop value-ranking sessions |
+| `RankingSubmission` | sessionId, participantName, rankings[] — participant responses to ranking sessions |
 
 Reference data models (Archetype, Service, LogSignal, EventType, ClientStatusOption, ClientPlatformOption, ProjectLabel) all support `rank` and a `/reorder` POST endpoint for drag-to-reorder in the admin UI.
 
@@ -183,6 +192,15 @@ RESTful nesting under `src/app/api/`:
 /api/users                          GET, POST
 /api/users/[id]                     GET, PATCH
 /api/users/assignable               GET — users eligible for task assignment
+/api/leave-types                    GET, POST + /reorder + /[id]
+/api/time-off                       GET, POST
+/api/time-off/[id]                  PATCH, DELETE
+/api/time-off/balances              GET — per-user leave balance summaries
+/api/company-holidays               GET, POST
+/api/company-holidays/[id]          PATCH, DELETE
+/api/ranking-sessions               GET, POST
+/api/ranking-sessions/[id]          PATCH, DELETE
+/api/ranking-sessions/[id]/submissions  GET, POST
 ```
 
 All routes call `auth()` and return 401/403 as appropriate. Permission checks use `requirePermission(session, "permission.key")` or `hasPermission(session, "permission.key")` from `src/lib/auth-helpers.ts`. Contextual checks (lead-based, creator-based) combine with permissions via `hasPermissionOrIsLead()` / `hasPermissionOrIsCreator()`.
@@ -197,7 +215,7 @@ The session carries two permission sets: `permissions` (global) and `leadPermiss
 
 Users must be invited (via admin) before they can log in. `POST /api/users` creates a User with `status: "invited"`. On first Google OAuth login, the user auto-activates if their email matches an invited record. Admin can set display name/image overrides, employment details, and role. The profile page (`/profile`) lets users edit their own personal details using the same `EmployeeDetailEditor` component.
 
-**Exception:** `/api/internal/` routes are excluded from the auth middleware (`auth.config.ts`) and are secured by shared secret instead. Do not add `auth()` calls to these routes.
+**Exception:** `/api/internal/` routes are excluded from the auth middleware (`auth.config.ts`) and are secured by shared secret instead. Do not add `auth()` calls to these routes. The `/ranking/[shareCode]` page is also public (outside the `(app)` group) — participants access it without logging in.
 
 ```
 /api/internal/folder-callback   POST — called by GAS after Drive folder creation
