@@ -68,6 +68,7 @@ const translations = {
   "match.compareTitle": { nl: "Jullie rankings vergeleken", en: "Your rankings compared" },
   "match.compareTitleTrio": { nl: "Jullie rankings vergeleken", en: "Your rankings compared" },
   "match.you": { nl: "Jij", en: "You" },
+  "match.readAgain": { nl: "Lees opnieuw", en: "Read again" },
 
   // Error states
   "error.notFound": { nl: "Sessie niet gevonden", en: "Session not found" },

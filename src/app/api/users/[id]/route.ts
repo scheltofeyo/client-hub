@@ -43,6 +43,7 @@ export async function GET(
     contractType: user.contractType,
     contractHours: user.contractHours,
     contractEndDate: user.contractEndDate,
+    jobTitle: user.jobTitle,
     phone: user.phone,
     emergencyContactName: user.emergencyContactName,
     emergencyContactPhone: user.emergencyContactPhone,
@@ -93,6 +94,7 @@ export async function PATCH(
     ...PERSONAL_FIELDS,
     "dateStarted", "employeeNumber",
     "vacationDays", "contractType", "contractHours", "contractEndDate",
+    "jobTitle",
     "notes", "role", "status",
   ];
 
@@ -138,6 +140,7 @@ export async function PATCH(
     contractType: user.contractType,
     contractHours: user.contractHours,
     contractEndDate: user.contractEndDate,
+    jobTitle: user.jobTitle,
     phone: user.phone,
     emergencyContactName: user.emergencyContactName,
     emergencyContactPhone: user.emergencyContactPhone,

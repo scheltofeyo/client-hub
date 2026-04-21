@@ -163,6 +163,49 @@ function SortableValueCard({ value, index, onShowDetail, locale }: { value: Rank
   );
 }
 
+// ── Read-again value card (match step, no drag, tap to open detail) ─
+
+function ValueReadAgainCard({ value, onShowDetail, locale }: { value: RankingValue; onShowDetail: (v: RankingValue) => void; locale: Locale }) {
+  const hasDetail = !!(value.mantra || value.description);
+
+  const content = (
+    <>
+      <span className="w-4 h-4 rounded-full shrink-0" style={{ backgroundColor: value.color }} />
+      <div className="flex-1 min-w-0 text-left">
+        <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>{value.title}</p>
+      </div>
+      {hasDetail && (
+        <span
+          className="w-6 h-6 rounded-full flex items-center justify-center shrink-0"
+          style={{ background: "var(--bg-hover)", color: "var(--text-muted)" }}
+          aria-hidden="true"
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
+          </svg>
+        </span>
+      )}
+    </>
+  );
+
+  const baseClass = "flex items-center gap-3 px-4 py-3 rounded-card border border-border-default bg-elevated w-full";
+
+  if (!hasDetail) {
+    return <div className={baseClass}>{content}</div>;
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => onShowDetail(value)}
+      className={`${baseClass} cursor-pointer transition-colors hover:bg-hover`}
+      aria-label={t(locale, "aria.viewDetails")}
+    >
+      {content}
+    </button>
+  );
+}
+
 // ── Color utilities ────────────────────────────────────────────────
 
 function darkenHex(hex: string, factor: number): string {
@@ -572,6 +615,7 @@ export default function PublicRankingPage() {
             matchPromptIndex={matchPromptIndex}
             valueMap={valueMap}
             locale={locale}
+            onShowDetail={setDetailValue}
           />
         )}
       </div>
@@ -605,6 +649,7 @@ function StepMatchContent({
   matchPromptIndex,
   valueMap,
   locale,
+  onShowDetail,
 }: {
   session: SessionData;
   existingSubmission: { id: string; rankings: string[] } | null;
@@ -612,8 +657,20 @@ function StepMatchContent({
   matchPromptIndex: number;
   valueMap: Record<string, RankingValue>;
   locale: Locale;
+  onShowDetail: (v: RankingValue) => void;
 }) {
   const matchPrompt = MATCH_PROMPTS[locale][matchPromptIndex];
+
+  const readAgainSection = (
+    <div>
+      <h3 className="typo-card-title mb-3" style={{ color: "var(--text-primary)" }}>{t(locale, "match.readAgain")}</h3>
+      <div className="space-y-1.5">
+        {session.values.map((v) => (
+          <ValueReadAgainCard key={v.id} value={v} onShowDetail={onShowDetail} locale={locale} />
+        ))}
+      </div>
+    </div>
+  );
 
   // Waiting for session to close
   if (session.status !== "closed" && session.status !== "archived") {
@@ -737,6 +794,8 @@ function StepMatchContent({
             </div>
           </div>
         )}
+
+        {readAgainSection}
       </div>
     );
   }
@@ -812,6 +871,8 @@ function StepMatchContent({
           </div>
         </div>
       )}
+
+      {readAgainSection}
     </div>
   );
 }

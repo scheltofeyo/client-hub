@@ -26,6 +26,7 @@ export interface IUser extends Document {
   contractType?: string;
   contractHours?: number;
   contractEndDate?: Date;
+  jobTitle?: string;
 
   // Contact
   phone?: string;
@@ -95,6 +96,7 @@ const UserSchema = new Schema<IUser>(
     contractType: { type: String },
     contractHours: { type: Number },
     contractEndDate: { type: Date },
+    jobTitle: { type: String },
 
     // Contact
     phone: { type: String },

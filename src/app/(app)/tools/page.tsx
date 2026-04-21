@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSession } from "next-auth/react";
-import { CalendarDays, ListOrdered, Dices } from "lucide-react";
+import { CalendarDays, ListOrdered, Dices, Mail } from "lucide-react";
 import PageHeader from "@/components/layout/PageHeader";
 
 const categories = [
@@ -15,6 +15,13 @@ const categories = [
         description: "View the team calendar, manage time off, and track leave balances.",
         icon: CalendarDays,
         requires: "team.viewCalendar",
+      },
+      {
+        href: "/tools/email-signature",
+        label: "Email Signature",
+        description: "Generate your SUMM email signature from your profile in seconds.",
+        icon: Mail,
+        requires: "tools.emailSignature.access",
       },
     ],
   },

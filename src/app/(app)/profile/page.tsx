@@ -33,6 +33,7 @@ export default async function ProfilePage() {
     contractType: user.contractType ?? "",
     contractHours: user.contractHours ?? null,
     contractEndDate: user.contractEndDate ? user.contractEndDate.toISOString().split("T")[0] : "",
+    jobTitle: user.jobTitle ?? "",
     phone: user.phone ?? "",
     emergencyContactName: user.emergencyContactName ?? "",
     emergencyContactPhone: user.emergencyContactPhone ?? "",

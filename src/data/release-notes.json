@@ -1,5 +1,34 @@
 [
   {
+    "date": "2026-04-21",
+    "title": "Balanced chevron on all native dropdowns"
+  },
+  {
+    "date": "2026-04-21",
+    "title": "Edit draft ranking sessions: change the client and toggle behaviors",
+    "details": [
+      "While a ranking session is still a draft, you can now pick a different company — the values update to match the new client's cultural DNA",
+      "The 'Show behavioral examples' toggle is also editable on draft sessions"
+    ]
+  },
+  {
+    "date": "2026-04-21",
+    "title": "Email signature generator added to the Toolbox",
+    "details": [
+      "Generate your SUMM email signature from your profile in seconds — copy or download the HTML",
+      "Admins can generate signatures for any team member from the same tool",
+      "New 'Job title' field on the Employment tab (managed by admins) feeds the signature"
+    ]
+  },
+  {
+    "date": "2026-04-20",
+    "title": "Read again: value details on the ranking match screen",
+    "details": [
+      "After matching, participants see a 'Read again' section below the comparison with every value in the session",
+      "Tap a value to reopen its mantra, description, and cultural behaviors — the same detail view available during ranking"
+    ]
+  },
+  {
     "date": "2026-04-16",
     "title": "Spin the Wheel tool",
     "details": [

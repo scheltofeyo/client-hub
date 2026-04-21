@@ -41,6 +41,8 @@ export async function GET(
     title: doc.title,
     description: doc.description,
     values: doc.values,
+    culturalLevels: doc.culturalLevels ?? [],
+    showBehaviors: !!doc.showBehaviors,
     status: doc.status,
     shareCode: doc.shareCode,
     createdBy: doc.createdBy,
@@ -73,10 +75,51 @@ export async function PATCH(
 
   const body = await req.json();
   const update: Record<string, unknown> = {};
+  const isDraft = existing.status === "draft";
 
   if (body.title !== undefined) update.title = body.title.trim();
   if (body.description !== undefined) update.description = body.description?.trim() || null;
   if (body.status !== undefined) update.status = body.status;
+
+  if (body.clientId !== undefined && body.clientId !== existing.clientId) {
+    if (!isDraft) {
+      return NextResponse.json(
+        { error: "Client can only be changed while the session is a draft" },
+        { status: 400 }
+      );
+    }
+    const newClient = await ClientModel.findById(body.clientId).lean();
+    if (!newClient) return NextResponse.json({ error: "Client not found" }, { status: 404 });
+    const dna = newClient.culturalDna ?? [];
+    if (dna.length < 2) {
+      return NextResponse.json(
+        { error: "Client must have at least 2 cultural DNA values" },
+        { status: 400 }
+      );
+    }
+    update.clientId = body.clientId;
+    update.values = dna.map((v) => ({
+      id: v.id,
+      title: v.title,
+      color: v.color,
+      mantra: v.mantra,
+      description: v.description,
+      behaviors: v.behaviors ?? [],
+    }));
+    update.culturalLevels = newClient.culturalLevels ?? [];
+    const hasAnyBehaviors = dna.some((v) => (v.behaviors?.length ?? 0) > 0);
+    if (!hasAnyBehaviors) update.showBehaviors = false;
+  }
+
+  if (body.showBehaviors !== undefined) {
+    if (!isDraft) {
+      return NextResponse.json(
+        { error: "Behaviors visibility can only be changed while the session is a draft" },
+        { status: 400 }
+      );
+    }
+    if (update.showBehaviors === undefined) update.showBehaviors = !!body.showBehaviors;
+  }
 
   const doc = await RankingSessionModel.findByIdAndUpdate(
     id,
@@ -91,6 +134,8 @@ export async function PATCH(
     title: doc.title,
     description: doc.description,
     values: doc.values,
+    culturalLevels: doc.culturalLevels ?? [],
+    showBehaviors: !!doc.showBehaviors,
     status: doc.status,
     shareCode: doc.shareCode,
     createdAt: doc.createdAt?.toISOString(),

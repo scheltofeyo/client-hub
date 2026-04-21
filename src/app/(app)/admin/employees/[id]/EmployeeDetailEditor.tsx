@@ -30,6 +30,7 @@ interface EmployeeData {
   contractType: string;
   contractHours: number | null;
   contractEndDate: string;
+  jobTitle: string;
   phone: string;
   emergencyContactName: string;
   emergencyContactPhone: string;
@@ -57,6 +58,7 @@ const TAB_FIELDS: Record<TabKey, string[]> = {
   employment: [
     "dateStarted", "employeeNumber",
     "vacationDays", "contractType", "contractHours", "contractEndDate",
+    "jobTitle",
   ],
   access: ["role", "status"],
   notes: ["notes"],
@@ -178,6 +180,7 @@ export default function EmployeeDetailEditor({
   const [contractType, setContractType] = useState(employee.contractType);
   const [contractHours, setContractHours] = useState(employee.contractHours);
   const [contractEndDate, setContractEndDate] = useState(employee.contractEndDate);
+  const [jobTitle, setJobTitle] = useState(employee.jobTitle);
   const [phone, setPhone] = useState(employee.phone);
   const [emergencyContactName, setEmergencyContactName] = useState(employee.emergencyContactName);
   const [emergencyContactPhone, setEmergencyContactPhone] = useState(employee.emergencyContactPhone);
@@ -269,6 +272,7 @@ export default function EmployeeDetailEditor({
     contractType: contractType || null,
     contractHours,
     contractEndDate: contractEndDate || null,
+    jobTitle: jobTitle || null,
     notes: notes || null,
     role,
     status,
@@ -572,7 +576,10 @@ export default function EmployeeDetailEditor({
         {activeTab === "employment" && (
           <>
             <SectionHeading>Employment</SectionHeading>
-            <div className="grid grid-cols-2 gap-3">
+            <Field label="Job title" hint="Shown publicly (e.g. in email signatures)">
+              <TextInput value={jobTitle} onChange={setJobTitle} placeholder="Design & Experience Lead" />
+            </Field>
+            <div className="grid grid-cols-2 gap-3 mt-3">
               <Field label="Employee number">
                 <TextInput value={employeeNumber} onChange={setEmployeeNumber} placeholder="EMP-001" />
               </Field>

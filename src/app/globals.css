@@ -242,6 +242,27 @@ textarea {
   border-radius: var(--radius-input);
 }
 
+/* Native <select>: replace browser chevron with a balanced custom one.
+   The native chevron sits at a fixed offset from the right border, which
+   makes it look cramped against rounded borders and asymmetrical to the
+   left padding. Opt-out by adding `appearance-none` (custom dropdowns
+   manage their own chevron). !important on chevron props ensures inline
+   `background:` shorthand doesn't clobber the chevron image. */
+select:not(.appearance-none):not([multiple]):not([size]) {
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  appearance: none !important;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 0.625rem center !important;
+  background-size: 14px 14px !important;
+  padding-right: 2rem !important;
+}
+
+.dark select:not(.appearance-none):not([multiple]):not([size]) {
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") !important;
+}
+
 .hover-row:hover {
   background: var(--bg-sidebar);
 }

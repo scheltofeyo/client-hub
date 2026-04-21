@@ -85,6 +85,8 @@ export const ALL_PERMISSIONS = [
   "tools.ranking.editAny",
   "tools.ranking.deleteAny",
   "tools.spinTheWheel.access",
+  "tools.emailSignature.access",
+  "tools.emailSignature.generateAny",
 ] as const;
 
 export type Permission = (typeof ALL_PERMISSIONS)[number];
@@ -127,6 +129,8 @@ export const PERMISSION_DEPENDENCIES: Partial<Record<Permission, Permission>> = 
   "tools.ranking.editAny": "tools.rankingValues",
   "tools.ranking.deleteAny": "tools.rankingValues",
   "tools.spinTheWheel.access": "tools.access",
+  "tools.emailSignature.access": "tools.access",
+  "tools.emailSignature.generateAny": "tools.emailSignature.access",
 };
 
 /** Given a permission, return all permissions it transitively depends on. */
@@ -277,6 +281,8 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       { key: "tools.ranking.editAny", label: "Edit anyone's sessions", requires: "tools.rankingValues" },
       { key: "tools.ranking.deleteAny", label: "Delete anyone's sessions", requires: "tools.rankingValues" },
       { key: "tools.spinTheWheel.access", label: "Access Spin the Wheel", requires: "tools.access" },
+      { key: "tools.emailSignature.access", label: "Access email signature generator", requires: "tools.access" },
+      { key: "tools.emailSignature.generateAny", label: "Generate signatures for others", requires: "tools.emailSignature.access" },
     ],
   },
 ];
@@ -421,4 +427,5 @@ export const MEMBER_PERMISSIONS: Permission[] = [
 
   // Workshop tools
   "tools.spinTheWheel.access",
+  "tools.emailSignature.access",
 ];
