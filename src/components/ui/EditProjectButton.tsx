@@ -20,7 +20,6 @@ export default function EditProjectButton({
   clientId: string;
   services: Service[];
   labels: ProjectLabel[];
-  isAdmin?: boolean;
   canDelete?: boolean;
   canReset?: boolean;
 }) {

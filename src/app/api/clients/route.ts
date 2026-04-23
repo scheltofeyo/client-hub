@@ -18,6 +18,7 @@ export async function GET() {
     employees: doc.employees,
     website: doc.website,
     description: doc.description,
+    primaryColor: doc.primaryColor ?? undefined,
     createdAt: doc.createdAt.toISOString().split("T")[0],
     contacts: doc.contacts ?? [],
     leads: doc.leads ?? [],
@@ -33,7 +34,7 @@ export async function POST(req: NextRequest) {
   if (forbidden) return forbidden;
 
   const body = await req.json();
-  const { company, status, platform, clientSince, employees, website, description, createFolder } = body;
+  const { company, status, platform, clientSince, employees, website, description, primaryColor, createFolder } = body;
 
   if (!company?.trim()) {
     return NextResponse.json({ error: "Company name is required" }, { status: 400 });
@@ -48,6 +49,7 @@ export async function POST(req: NextRequest) {
     employees: employees ? Number(employees) : undefined,
     website: website?.trim() || undefined,
     description: description?.trim() || undefined,
+    primaryColor: primaryColor?.trim() || undefined,
     contacts: [],
     leads: [],
     folderStatus: createFolder ? "pending" : undefined,
@@ -93,6 +95,7 @@ export async function POST(req: NextRequest) {
       employees: doc.employees,
       website: doc.website,
       description: doc.description,
+      primaryColor: doc.primaryColor ?? undefined,
       contacts: [],
       leads: [],
       folderStatus: doc.folderStatus,

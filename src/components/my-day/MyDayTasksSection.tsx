@@ -1,12 +1,11 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useMemo, useRef, useEffect } from "react";
 import Link from "next/link";
 import { ChevronDown, ChevronRight, CheckSquare } from "lucide-react";
 import { TaskRow } from "@/components/ui/task-row";
 import type { Task, MyDayTaskData } from "@/types";
-import { accentColor } from "@/lib/styles";
+import { resolveClientColor } from "@/lib/styles";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -14,22 +13,23 @@ function monogram(name: string): string {
   return name.split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("");
 }
 
-type EnrichedTask = Task & { clientName: string; projectName?: string };
+type EnrichedTask = Task & { clientName: string; clientPrimaryColor?: string; projectName?: string };
 
 interface ClientGroup {
   clientId: string;
   clientName: string;
+  clientPrimaryColor?: string;
   projects: { projectId: string | null; projectName: string; tasks: EnrichedTask[] }[];
   totalOpen: number;
 }
 
 function groupByClientAndProject(tasks: EnrichedTask[]): ClientGroup[] {
-  const clientMap = new Map<string, { clientName: string; projectMap: Map<string | null, { name: string; tasks: EnrichedTask[] }> }>();
+  const clientMap = new Map<string, { clientName: string; clientPrimaryColor?: string; projectMap: Map<string | null, { name: string; tasks: EnrichedTask[] }> }>();
 
   for (const t of tasks) {
     const cid = t.clientId ?? "unknown";
     if (!clientMap.has(cid)) {
-      clientMap.set(cid, { clientName: t.clientName, projectMap: new Map() });
+      clientMap.set(cid, { clientName: t.clientName, clientPrimaryColor: t.clientPrimaryColor, projectMap: new Map() });
     }
     const client = clientMap.get(cid)!;
     const pid = t.projectId ?? null;
@@ -40,7 +40,7 @@ function groupByClientAndProject(tasks: EnrichedTask[]): ClientGroup[] {
   }
 
   const groups: ClientGroup[] = [];
-  for (const [clientId, { clientName, projectMap }] of clientMap) {
+  for (const [clientId, { clientName, clientPrimaryColor, projectMap }] of clientMap) {
     const projects: ClientGroup["projects"] = [];
     let totalOpen = 0;
     // Put "General" (null projectId) last
@@ -53,7 +53,7 @@ function groupByClientAndProject(tasks: EnrichedTask[]): ClientGroup[] {
       projects.push({ projectId, projectName: name, tasks });
       totalOpen += tasks.length;
     }
-    groups.push({ clientId, clientName, projects, totalOpen });
+    groups.push({ clientId, clientName, clientPrimaryColor, projects, totalOpen });
   }
 
   return groups;
@@ -70,17 +70,25 @@ interface Props {
 // ── Component ────────────────────────────────────────────────────────────────
 
 export default function MyDayTasksSection({ myTasks, allTasks, today }: Props & { today?: string }) {
-  const router = useRouter();
   const [filter, setFilter] = useState<"mine" | "all">("mine");
-  const activeData = filter === "mine" ? myTasks : allTasks;
-  const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
+  const [myTasksState, setMyTasksState] = useState<MyDayTaskData>(myTasks);
+  const [allTasksState, setAllTasksState] = useState<MyDayTaskData>(allTasks);
+  const inFlightRef = useRef<Set<string>>(new Set());
   const [activeClientId, setActiveClientId] = useState<string | null>(null);
   const [collapsedProjects, setCollapsedProjects] = useState<Set<string>>(new Set());
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
 
+  // Sync props → state when the server re-renders the page (navigation, etc.).
+  // We do not call router.refresh() from this component, so prop changes here
+  // represent genuine fresh data and it's safe to overwrite local state.
+  useEffect(() => { setMyTasksState(myTasks); }, [myTasks]);
+  useEffect(() => { setAllTasksState(allTasks); }, [allTasks]);
+
+  const activeData = filter === "mine" ? myTasksState : allTasksState;
+
   const visibleTasks = useMemo(
-    () => activeData.tasks.filter((t) => !dismissedIds.has(t.id)),
-    [activeData.tasks, dismissedIds]
+    () => activeData.tasks.filter((t) => !t.completedAt),
+    [activeData.tasks]
   );
 
   const clientGroups = useMemo(() => groupByClientAndProject(visibleTasks), [visibleTasks]);
@@ -94,9 +102,39 @@ export default function MyDayTasksSection({ myTasks, allTasks, today }: Props & 
 
   const selectedGroup = clientGroups.find((g) => g.clientId === selectedClientId) ?? null;
 
+  function applyCompletedAt(taskId: string, completedAt: string | undefined) {
+    const patch = (prev: MyDayTaskData): MyDayTaskData => {
+      const topIdx = prev.tasks.findIndex((t) => t.id === taskId);
+      if (topIdx !== -1) {
+        const nextTasks = [...prev.tasks];
+        nextTasks[topIdx] = { ...nextTasks[topIdx], completedAt };
+        return { ...prev, tasks: nextTasks };
+      }
+      const nextSubs = { ...prev.subtasksByParent };
+      for (const [pid, subs] of Object.entries(nextSubs)) {
+        const subIdx = subs.findIndex((s) => s.id === taskId);
+        if (subIdx !== -1) {
+          const nextSubList = [...subs];
+          nextSubList[subIdx] = { ...nextSubList[subIdx], completedAt };
+          nextSubs[pid] = nextSubList;
+          return { ...prev, subtasksByParent: nextSubs };
+        }
+      }
+      return prev;
+    };
+    setMyTasksState(patch);
+    setAllTasksState(patch);
+  }
+
   async function handleToggleComplete(task: Task) {
+    if (inFlightRef.current.has(task.id)) return;
+    inFlightRef.current.add(task.id);
+
     const isCompleting = !task.completedAt;
-    setDismissedIds((prev) => new Set(prev).add(task.id));
+    const originalCompletedAt = task.completedAt;
+    const nextCompletedAt = isCompleting ? new Date().toISOString() : undefined;
+
+    applyCompletedAt(task.id, nextCompletedAt);
 
     const base = `/api/clients/${task.clientId}`;
     const url = task.projectId
@@ -110,17 +148,17 @@ export default function MyDayTasksSection({ myTasks, allTasks, today }: Props & 
         body: JSON.stringify({ completed: isCompleting }),
       });
       if (!res.ok) throw new Error();
-      router.refresh();
     } catch {
-      setDismissedIds((prev) => {
-        const next = new Set(prev);
-        next.delete(task.id);
-        return next;
-      });
+      applyCompletedAt(task.id, originalCompletedAt);
+    } finally {
+      inFlightRef.current.delete(task.id);
     }
   }
 
-  const totalCount = filter === "mine" ? myTasks.tasks.length : allTasks.tasks.length;
+  const totalCount = useMemo(
+    () => (filter === "mine" ? myTasksState.tasks : allTasksState.tasks).filter((t) => !t.completedAt).length,
+    [filter, myTasksState.tasks, allTasksState.tasks]
+  );
 
   return (
     <div>
@@ -171,7 +209,7 @@ export default function MyDayTasksSection({ myTasks, allTasks, today }: Props & 
           <div className="flex items-center gap-3 mb-4 border-b" style={{ borderColor: "var(--border)" }}>
             {clientGroups.map((group) => {
               const isActive = group.clientId === selectedClientId;
-              const color = accentColor(group.clientName);
+              const { bg, fg } = resolveClientColor(group.clientName, group.clientPrimaryColor);
               return (
                 <button
                   key={group.clientId}
@@ -186,8 +224,8 @@ export default function MyDayTasksSection({ myTasks, allTasks, today }: Props & 
                   onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.borderBottomColor = "transparent"; }}
                 >
                   <div
-                    className="w-5 h-5 rounded flex-none flex items-center justify-center text-white text-[8px] font-bold"
-                    style={{ background: color }}
+                    className="w-5 h-5 rounded flex-none flex items-center justify-center text-[8px] font-bold"
+                    style={{ background: bg, color: fg }}
                   >
                     {monogram(group.clientName)}
                   </div>

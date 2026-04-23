@@ -1,5 +1,63 @@
 [
   {
+    "date": "2026-04-23",
+    "title": "Taken afvinken voelt nu direct en stabiel",
+    "details": [
+      "Een taak afvinken verplaatst hem meteen zonder flikkering",
+      "Dubbele klikken tijdens het afvinken worden genegeerd"
+    ]
+  },
+  {
+    "date": "2026-04-23",
+    "title": "Task reordering available to everyone",
+    "details": [
+      "Drag-and-drop is no longer tied to edit permissions — anyone with access to a client's tasks can reorder them"
+    ]
+  },
+  {
+    "date": "2026-04-23",
+    "title": "Completed tasks now sort with the most recent first"
+  },
+  {
+    "date": "2026-04-23",
+    "title": "Task form assignees are now chip toggles",
+    "details": [
+      "All active users show as chips — click to select or deselect instead of hunting through a dropdown",
+      "Selected assignees get a highlighted border and an × to remove",
+      "Clicking anywhere on a task row (including the name or due date) now opens the edit panel"
+    ]
+  },
+  {
+    "date": "2026-04-23",
+    "title": "Pick a custom primary color for each client",
+    "details": [
+      "Set a client's accent color in the Edit Client panel; it applies to their avatar everywhere in the app",
+      "Text on the avatar automatically switches to dark or white for best contrast with the chosen color",
+      "Leave empty to keep the automatic color"
+    ]
+  },
+  {
+    "date": "2026-04-23",
+    "title": "Reorder tasks in project templates by drag and drop"
+  },
+  {
+    "date": "2026-04-21",
+    "title": "Permission buttons on client and project pages now match what the server actually allows",
+    "details": [
+      "Edit button on a client's Settings tab respects the 'Edit client details' permission for any role, not just admins and leads",
+      "Add Project button shows based on the 'Create projects' permission instead of requiring client edit access",
+      "Edit Project button on the project page is now hidden when the user lacks permission, instead of showing a button that would 403 on save"
+    ]
+  },
+  {
+    "date": "2026-04-21",
+    "title": "Lead Settings now only offers permissions that actually apply to leads",
+    "details": [
+      "Leads are granted extra access on clients they're assigned to. Previously the admin page offered 24 permissions, but only 4 were enforced anywhere — the other 20 did nothing.",
+      "Lead Settings now shows only the four that work: edit client details, create projects, edit projects, and kick off projects."
+    ]
+  },
+  {
     "date": "2026-04-21",
     "title": "Balanced chevron on all native dropdowns"
   },

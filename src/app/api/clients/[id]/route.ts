@@ -32,7 +32,7 @@ export async function PATCH(
   }
 
   const body = await req.json();
-  const { company, status, platform, clientSince, employees, website, description, contacts, leads, archetypeId, culturalDna, culturalLevels } = body;
+  const { company, status, platform, clientSince, employees, website, description, primaryColor, contacts, leads, archetypeId, culturalDna, culturalLevels } = body;
 
   if (company !== undefined && !company?.trim()) {
     return NextResponse.json({ error: "Company name cannot be empty" }, { status: 400 });
@@ -51,6 +51,7 @@ export async function PATCH(
   if (employees !== undefined) update.employees = employees ? Number(employees) : null;
   if (website !== undefined) update.website = website.trim() || null;
   if (description !== undefined) update.description = description.trim() || null;
+  if (primaryColor !== undefined) update.primaryColor = primaryColor?.trim() || null;
   if (contacts !== undefined) update.contacts = contacts;
   if (leads !== undefined) update.leads = leads;
   if (archetypeId !== undefined) update.archetypeId = archetypeId || null;
@@ -144,7 +145,7 @@ export async function PATCH(
   }
 
   // Emit activity for remaining company data changes (non-contact, non-status, non-platform, non-leads)
-  const companyFields = ["company", "clientSince", "employees", "website", "description", "archetypeId"] as const;
+  const companyFields = ["company", "clientSince", "employees", "website", "description", "primaryColor", "archetypeId"] as const;
   const changedFields = companyFields.filter((f) => body[f] !== undefined);
   if (changedFields.length > 0) {
     await recordActivity({
@@ -163,6 +164,7 @@ export async function PATCH(
     employees: doc.employees,
     website: doc.website,
     description: doc.description,
+    primaryColor: doc.primaryColor ?? undefined,
     contacts: doc.contacts ?? [],
     leads: doc.leads ?? [],
     culturalDna: doc.culturalDna ?? [],

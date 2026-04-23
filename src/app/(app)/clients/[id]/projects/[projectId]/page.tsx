@@ -1,6 +1,6 @@
-import { getProjectById, getServices, getProjectLabels } from "@/lib/data";
+import { getClientById, getProjectById, getServices, getProjectLabels } from "@/lib/data";
 import { auth } from "@/auth";
-import { hasPermission } from "@/lib/auth-helpers";
+import { hasPermission, hasPermissionOrIsLead } from "@/lib/auth-helpers";
 import { notFound } from "next/navigation";
 import StatusBadge from "@/components/ui/StatusBadge";
 import EditProjectButton from "@/components/ui/EditProjectButton";
@@ -14,13 +14,16 @@ export default async function ProjectOverviewPage({
   params: Promise<{ id: string; projectId: string }>;
 }) {
   const { id, projectId } = await params;
-  const [project, services, labels, session] = await Promise.all([
+  const [client, project, services, labels, session] = await Promise.all([
+    getClientById(id),
     getProjectById(projectId),
     getServices(),
     getProjectLabels(),
     auth(),
   ]);
   if (!project) notFound();
+
+  const canEditProject = hasPermissionOrIsLead(session, "projects.edit", client?.leads ?? []);
 
   const details: [string, string | undefined][] = [
     ["Status", undefined],
@@ -46,7 +49,9 @@ export default async function ProjectOverviewPage({
           >
             Project details
           </h2>
-          <EditProjectButton project={project} clientId={id} services={services} labels={labels} isAdmin={hasPermission(session, "admin.access")} canDelete={hasPermission(session, "projects.delete")} canReset={hasPermission(session, "projects.resetToUpcoming")} />
+          {canEditProject && (
+            <EditProjectButton project={project} clientId={id} services={services} labels={labels} canDelete={hasPermission(session, "projects.delete")} canReset={hasPermission(session, "projects.resetToUpcoming")} />
+          )}
         </div>
 
         {project.description && (

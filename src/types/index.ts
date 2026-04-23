@@ -81,6 +81,7 @@ export interface Client {
   employees?: number;
   website?: string;
   description?: string;
+  primaryColor?: string;
   contacts?: Contact[];
   leads?: ClientLead[];
   culturalDna?: CulturalDnaValue[];
@@ -243,6 +244,7 @@ export interface MyProjectOverview {
   projectTitle: string;
   clientId: string;
   clientName: string;
+  clientPrimaryColor?: string;
   status: ProjectStatus;
   taskTotal: number;
   taskCompleted: number;
@@ -262,13 +264,13 @@ export interface MyDayUserInfo {
 }
 
 export interface MyDayTaskData {
-  tasks: (Task & { clientName: string; projectName?: string })[];
+  tasks: (Task & { clientName: string; clientPrimaryColor?: string; projectName?: string })[];
   subtasksByParent: Record<string, Task[]>;
   userImages: Record<string, string>;
 }
 
 export interface MyDayFollowUpData {
-  logs: (Log & { clientName: string; signals?: string[] })[];
+  logs: (Log & { clientName: string; clientPrimaryColor?: string; signals?: string[] })[];
   contactsByClient: Record<string, Contact[]>;
   signals: LogSignal[];
 }

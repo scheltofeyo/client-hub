@@ -9,7 +9,7 @@ import DataTable, { type ColumnDef, type SortState } from "@/components/ui/DataT
 import { fmtDate } from "@/lib/utils";
 import type { Client, ClientLead, ClientStatusOption } from "@/types";
 import type { FirstEventResult } from "@/lib/data";
-import { accentColor } from "@/lib/styles";
+import { clientColor } from "@/lib/styles";
 
 export type OverviewRow = {
   client: Client;
@@ -279,26 +279,29 @@ export default function ClientsOverviewTable({ rows, statusOptions = [] }: { row
       minWidth: 200,
       sortable: true,
       sticky: true,
-      render: (row) => (
-        <Link
-          href={`/clients/${row.client.id}`}
-          className="flex items-center gap-2.5 min-w-0"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <span
-            className="inline-flex items-center justify-center rounded-lg shrink-0 text-white text-xs font-bold"
-            style={{ width: 28, height: 28, background: accentColor(row.client.company) }}
+      render: (row) => {
+        const { bg, fg } = clientColor(row.client);
+        return (
+          <Link
+            href={`/clients/${row.client.id}`}
+            className="flex items-center gap-2.5 min-w-0"
+            onClick={(e) => e.stopPropagation()}
           >
-            {initials(row.client.company)}
-          </span>
-          <span
-            className="font-medium group-hover:underline truncate"
-            style={{ color: "var(--text-primary)" }}
-          >
-            {row.client.company}
-          </span>
-        </Link>
-      ),
+            <span
+              className="inline-flex items-center justify-center rounded-lg shrink-0 text-xs font-bold"
+              style={{ width: 28, height: 28, background: bg, color: fg }}
+            >
+              {initials(row.client.company)}
+            </span>
+            <span
+              className="font-medium group-hover:underline truncate"
+              style={{ color: "var(--text-primary)" }}
+            >
+              {row.client.company}
+            </span>
+          </Link>
+        );
+      },
     },
     {
       key: "status",

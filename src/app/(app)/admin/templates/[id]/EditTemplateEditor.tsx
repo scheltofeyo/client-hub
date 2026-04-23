@@ -6,10 +6,28 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
+  GripVertical,
   MoreHorizontal,
   Plus,
   UserCheck,
 } from "lucide-react";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import type { ProjectTemplate, Service, TemplateTask } from "@/types";
 import { useRightPanel } from "@/components/layout/RightPanel";
 import PageHeader from "@/components/layout/PageHeader";
@@ -62,7 +80,7 @@ function InlineTaskInput({
 
   return (
     <div className="flex items-center gap-2 py-2 -mx-2 px-2">
-      <div className={`flex-shrink-0 ${spacerClass ?? "w-[3.25rem]"}`} />
+      <div className={`flex-shrink-0 ${spacerClass ?? "w-[4.75rem]"}`} />
       <input
         ref={inputRef}
         type="text"
@@ -246,13 +264,36 @@ function TaskRow({
   onAddSubtask?: (parentTask: TemplateTask) => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: task.id });
+
+  const dragStyle = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 10 : undefined,
+    position: isDragging ? ("relative" as const) : undefined,
+  };
 
   return (
     <div
+      ref={setNodeRef}
+      style={dragStyle}
       className={`flex items-start gap-2 py-2 group cursor-pointer rounded-lg -mx-2 px-2 ${isSubtask ? "ml-8" : ""}`}
       onClick={() => onEdit(task)}
     >
-      {/* Chevron slot (top-level only) */}
+      {/* Drag handle */}
+      <div
+        className="flex-shrink-0 w-4 mt-0.5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing"
+        style={{ color: "var(--text-muted)" }}
+        onClick={(e) => e.stopPropagation()}
+        {...attributes}
+        {...listeners}
+      >
+        <GripVertical size={14} />
+      </div>
+
+      {/* Chevron / add-subtask slot (top-level only) */}
       {!isSubtask && (
         <div
           className="flex-shrink-0 w-4 mt-0.5 flex items-center justify-center"
@@ -265,6 +306,16 @@ function TaskRow({
               className="flex items-center justify-center transition-colors text-[var(--text-muted)] hover:text-[var(--primary)]"
             >
               {isExpanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+            </button>
+          ) : onAddSubtask ? (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onAddSubtask(task); }}
+              className="flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+              style={{ color: "var(--primary)" }}
+              title="Add subtask"
+            >
+              <Plus size={13} />
             </button>
           ) : null}
         </div>
@@ -366,6 +417,45 @@ function TaskListSection({
   const [showingAddInput, setShowingAddInput] = useState(false);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  async function reorderIds(ids: string[]) {
+    await fetch(`/api/project-templates/${templateId}/tasks/reorder`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids }),
+    });
+  }
+
+  async function handleTopLevelDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const top = tasks.filter((t) => !t.parentTaskId);
+    const oldIndex = top.findIndex((t) => t.id === active.id);
+    const newIndex = top.findIndex((t) => t.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+    const newTop = arrayMove(top, oldIndex, newIndex);
+    const subs = tasks.filter((t) => t.parentTaskId);
+    onTasksChange([...newTop, ...subs]);
+    await reorderIds(newTop.map((t) => t.id));
+  }
+
+  async function handleSubtaskDragEnd(event: DragEndEvent, parentId: string) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const parentSubs = tasks.filter((t) => t.parentTaskId === parentId);
+    const oldIndex = parentSubs.findIndex((t) => t.id === active.id);
+    const newIndex = parentSubs.findIndex((t) => t.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+    const newSubs = arrayMove(parentSubs, oldIndex, newIndex);
+    const others = tasks.filter((t) => t.parentTaskId !== parentId);
+    onTasksChange([...others, ...newSubs]);
+    await reorderIds(newSubs.map((t) => t.id));
+  }
+
   function toggleExpand(id: string) {
     setExpandedIds((prev) => {
       const next = new Set(prev);
@@ -420,62 +510,86 @@ function TaskListSection({
   return (
     <div>
       <div>
-        {topLevel.map((task) => {
-          const subs = subtasksOf(task.id);
-          const isExpanded = expandedIds.has(task.id);
-          const showInlineSub = addingSubtaskForId === task.id;
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleTopLevelDragEnd}
+        >
+          <SortableContext
+            items={topLevel.map((t) => t.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            {topLevel.map((task) => {
+              const subs = subtasksOf(task.id);
+              const isExpanded = expandedIds.has(task.id);
+              const showInlineSub = addingSubtaskForId === task.id;
 
-          return (
-            <div key={task.id} className="border-b" style={{ borderColor: "var(--border)" }}>
-              <TaskRow
-                task={task}
-                hasSubtasks={subs.length > 0}
-                isExpanded={isExpanded}
-                onToggleExpand={() => toggleExpand(task.id)}
-                onEdit={(t) => openEditPanel(t)}
-                onDelete={handleDelete}
-                onAddSubtask={(parent) => {
-                  setAddingSubtaskForId(parent.id);
-                  setExpandedIds((prev) => new Set([...prev, parent.id]));
-                  setShowingAddInput(false);
-                }}
-              />
-              {(isExpanded || showInlineSub) && (
-                <div className="pb-2">
-                  {isExpanded && subs.map((sub) => (
-                    <TaskRow
-                      key={sub.id}
-                      task={sub}
-                      isSubtask
-                      onEdit={(t) => openEditPanel(t, task)}
-                      onDelete={handleDelete}
-                    />
-                  ))}
-                  {isExpanded && subs.length > 0 && !showInlineSub && (
-                    <button
-                      type="button"
-                      onClick={() => setAddingSubtaskForId(task.id)}
-                      className="flex items-center gap-1.5 ml-8 text-sm py-1 px-2 rounded-lg btn-tertiary"
-                    >
-                      <Plus size={12} />
-                      Add subtask
-                    </button>
-                  )}
-                  {showInlineSub && (
-                    <InlineTaskInput
-                      spacerClass="w-[3.75rem]"
-                      placeholder="Subtask title…"
-                      onSave={async (title) => {
-                        await handleInlineAdd(title, task.id);
-                      }}
-                      onCancel={() => setAddingSubtaskForId(null)}
-                    />
+              return (
+                <div key={task.id} className="border-b" style={{ borderColor: "var(--border)" }}>
+                  <TaskRow
+                    task={task}
+                    hasSubtasks={subs.length > 0}
+                    isExpanded={isExpanded}
+                    onToggleExpand={() => toggleExpand(task.id)}
+                    onEdit={(t) => openEditPanel(t)}
+                    onDelete={handleDelete}
+                    onAddSubtask={(parent) => {
+                      setAddingSubtaskForId(parent.id);
+                      setExpandedIds((prev) => new Set([...prev, parent.id]));
+                      setShowingAddInput(false);
+                    }}
+                  />
+                  {(isExpanded || showInlineSub) && (
+                    <div className="pb-2">
+                      {isExpanded && subs.length > 0 && (
+                        <DndContext
+                          sensors={sensors}
+                          collisionDetection={closestCenter}
+                          onDragEnd={(e) => handleSubtaskDragEnd(e, task.id)}
+                        >
+                          <SortableContext
+                            items={subs.map((s) => s.id)}
+                            strategy={verticalListSortingStrategy}
+                          >
+                            {subs.map((sub) => (
+                              <TaskRow
+                                key={sub.id}
+                                task={sub}
+                                isSubtask
+                                onEdit={(t) => openEditPanel(t, task)}
+                                onDelete={handleDelete}
+                              />
+                            ))}
+                          </SortableContext>
+                        </DndContext>
+                      )}
+                      {isExpanded && subs.length > 0 && !showInlineSub && (
+                        <button
+                          type="button"
+                          onClick={() => setAddingSubtaskForId(task.id)}
+                          className="flex items-center gap-1.5 ml-8 text-sm py-1 px-2 rounded-lg btn-tertiary"
+                        >
+                          <Plus size={12} />
+                          Add subtask
+                        </button>
+                      )}
+                      {showInlineSub && (
+                        <InlineTaskInput
+                          spacerClass="w-[5.25rem]"
+                          placeholder="Subtask title…"
+                          onSave={async (title) => {
+                            await handleInlineAdd(title, task.id);
+                          }}
+                          onCancel={() => setAddingSubtaskForId(null)}
+                        />
+                      )}
+                    </div>
                   )}
                 </div>
-              )}
-            </div>
-          );
-        })}
+              );
+            })}
+          </SortableContext>
+        </DndContext>
       </div>
 
       {tasks.length === 0 && !showingAddInput && (

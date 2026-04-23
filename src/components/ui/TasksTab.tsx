@@ -237,6 +237,7 @@ export default function TasksTab({
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
   const [users, setUsers] = useState<UserOption[]>([]);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const toggleInFlightRef = useRef<Set<string>>(new Set());
 
   const taskCanEdit = (task: Task) => canEditAnyTask || (canEditOwnTask && task.createdById === currentUserId);
   const taskCanDelete = (task: Task) => canDeleteAnyTask || (canDeleteOwnTask && task.createdById === currentUserId);
@@ -249,9 +250,25 @@ export default function TasksTab({
   const { openPanel, closePanel } = useRightPanel();
   const router = useRouter();
 
-  // Sync local task state when server re-renders (e.g. after router.refresh())
+  // Merge fresh server tasks into local state without clobbering optimistic updates.
+  // If a PATCH for a task is still in flight, keep the local (optimistic) copy;
+  // otherwise take the server copy. Preserves any locally-created tasks that the
+  // server hasn't returned yet.
   useEffect(() => {
-    setTasks(initialTasks);
+    setTasks((prev) => {
+      const prevById = new Map(prev.map((t) => [t.id, t]));
+      const serverIds = new Set(initialTasks.map((t) => t.id));
+      const merged: Task[] = initialTasks.map((serverTask) => {
+        if (toggleInFlightRef.current.has(serverTask.id)) {
+          return prevById.get(serverTask.id) ?? serverTask;
+        }
+        return serverTask;
+      });
+      for (const local of prev) {
+        if (!serverIds.has(local.id)) merged.push(local);
+      }
+      return merged;
+    });
   }, [initialTasks]);
 
   useEffect(() => {
@@ -327,7 +344,9 @@ export default function TasksTab({
   const openTopLevel = topLevel
     .filter((t) => !isFullyCompleted(t))
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-  const completedTopLevel = topLevel.filter((t) => isFullyCompleted(t));
+  const completedTopLevel = topLevel
+    .filter((t) => isFullyCompleted(t))
+    .sort((a, b) => (b.completedAt ?? "").localeCompare(a.completedAt ?? ""));
 
   function toggleExpand(id: string) {
     setExpandedIds((prev) => {
@@ -404,9 +423,12 @@ export default function TasksTab({
   }
 
   async function handleToggleComplete(task: Task) {
+    if (toggleInFlightRef.current.has(task.id)) return;
+
     const completed = !task.completedAt;
     // For top-level tasks, cascade to all subtasks
     const affected = task.parentTaskId ? [task] : [task, ...subtasksOf(task.id)];
+    for (const a of affected) toggleInFlightRef.current.add(a.id);
 
     // Optimistic update for all affected tasks
     const now = new Date().toISOString();
@@ -417,23 +439,26 @@ export default function TasksTab({
       })
     );
 
-    const results = await Promise.all(
-      affected.map((t) =>
-        fetch(`/api/clients/${clientId}/projects/${projectId}/tasks/${t.id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ completed }),
-        }).then((r) => (r.ok ? r.json() : null))
-      )
-    );
+    try {
+      const results = await Promise.all(
+        affected.map((t) =>
+          fetch(`/api/clients/${clientId}/projects/${projectId}/tasks/${t.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ completed }),
+          }).then((r) => (r.ok ? r.json() : null))
+        )
+      );
 
-    const saved = results.filter(Boolean) as Task[];
-    if (saved.length === affected.length) {
-      setTasks((prev) => prev.map((t) => saved.find((s) => s.id === t.id) ?? t));
-      router.refresh();
-    } else {
-      // Revert all on any failure
-      setTasks((prev) => prev.map((t) => affected.find((a) => a.id === t.id) ?? t));
+      const saved = results.filter(Boolean) as Task[];
+      if (saved.length === affected.length) {
+        setTasks((prev) => prev.map((t) => saved.find((s) => s.id === t.id) ?? t));
+      } else {
+        // Revert all on any failure
+        setTasks((prev) => prev.map((t) => affected.find((a) => a.id === t.id) ?? t));
+      }
+    } finally {
+      for (const a of affected) toggleInFlightRef.current.delete(a.id);
     }
   }
 
@@ -647,7 +672,7 @@ export default function TasksTab({
               titlePrefix={task.title === deliveryTitle ? "Deliver:" : undefined}
               displayTitle={task.title === deliveryTitle ? project!.title : undefined}
               today={today}
-              isDraggable={taskCanEdit(task)}
+              isDraggable={!task.completedAt}
               draggingId={draggingId}
               draggingHasChildren={!!draggingId && subtasksOf(draggingId).length > 0}
               dragOverId={dragOverId}

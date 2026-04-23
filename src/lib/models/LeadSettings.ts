@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document, Model } from "mongoose";
+import { LEAD_ELIGIBLE_PERMISSIONS } from "@/lib/permissions";
 
 export interface ILeadSettings extends Document {
   permissions: string[];
@@ -34,5 +35,6 @@ export async function getLeadSettings(): Promise<string[]> {
   if (!doc) {
     doc = await LeadSettingsModel.create({ permissions: DEFAULT_LEAD_PERMISSIONS });
   }
-  return doc.permissions;
+  const eligible = new Set<string>(LEAD_ELIGIBLE_PERMISSIONS);
+  return doc.permissions.filter((p) => eligible.has(p));
 }

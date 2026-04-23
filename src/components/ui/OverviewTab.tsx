@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { Client, ClientStatusOption, Contact, EventType, LogSignal, Project, Service, Sheet, Task, TimelineEvent } from "@/types";
 import { fmtDate } from "@/lib/utils";
-import { accentColor } from "@/lib/styles";
+import { clientColor } from "@/lib/styles";
 import StatusBadge from "@/components/ui/StatusBadge";
 import UserAvatar from "@/components/ui/UserAvatar";
 import { useRightPanel } from "@/components/layout/RightPanel";
@@ -381,7 +381,7 @@ export default function OverviewTab({
     router.refresh();
   }
 
-  const cardColor = accentColor(client.company);
+  const { bg: cardColor, fg: cardFg } = clientColor(client);
   const abbr = monogramInitials(client.company);
 
   return (
@@ -416,8 +416,8 @@ export default function OverviewTab({
             )}
             {/* Monogram avatar — hangs below header */}
             <div
-              className="w-12 h-12 rounded-xl flex items-center justify-center text-white text-base font-bold shadow-sm flex-none relative"
-              style={{ background: cardColor, marginBottom: "-24px", zIndex: 10 }}
+              className="w-12 h-12 rounded-xl flex items-center justify-center text-base font-bold shadow-sm flex-none relative"
+              style={{ background: cardColor, color: cardFg, marginBottom: "-24px", zIndex: 10 }}
             >
               {abbr}
             </div>

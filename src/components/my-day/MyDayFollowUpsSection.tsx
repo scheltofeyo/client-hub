@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { BookOpen } from "lucide-react";
 import type { Log } from "@/types";
-import { accentColor } from "@/lib/styles";
+import { resolveClientColor } from "@/lib/styles";
 
 function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
@@ -16,7 +16,7 @@ function monogram(name: string): string {
 type Filter = "week" | "month";
 
 interface Props {
-  logs: (Log & { clientName: string })[];
+  logs: (Log & { clientName: string; clientPrimaryColor?: string })[];
 }
 
 export default function MyDayFollowUpsSection({ logs }: Props) {
@@ -102,7 +102,7 @@ export default function MyDayFollowUpsSection({ logs }: Props) {
           <tbody>
             {filtered.map((log) => {
               const overdue = log.followUpDeadline ? log.followUpDeadline < today : false;
-              const color = accentColor(log.clientName);
+              const { bg, fg } = resolveClientColor(log.clientName, log.clientPrimaryColor);
               return (
                 <tr key={log.id} className="border-b last:border-b-0 hover-row" style={{ borderColor: "var(--border)" }}>
                   <td className="px-4 py-2.5">
@@ -120,8 +120,8 @@ export default function MyDayFollowUpsSection({ logs }: Props) {
                       className="flex items-center gap-2 hover:underline"
                     >
                       <div
-                        className="w-5 h-5 rounded flex-none flex items-center justify-center text-white text-[9px] font-bold"
-                        style={{ background: color }}
+                        className="w-5 h-5 rounded flex-none flex items-center justify-center text-[9px] font-bold"
+                        style={{ background: bg, color: fg }}
                       >
                         {monogram(log.clientName)}
                       </div>

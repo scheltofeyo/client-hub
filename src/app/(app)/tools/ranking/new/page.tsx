@@ -41,9 +41,10 @@ export default function CreateRankingSessionPage() {
       .then((data) => {
         setClients(
           data
-            .map((c: { id: string; company: string; culturalDna?: CulturalDnaValue[]; leads?: { userId: string; name: string; email: string }[] }) => ({
+            .map((c: { id: string; company: string; primaryColor?: string; culturalDna?: CulturalDnaValue[]; leads?: { userId: string; name: string; email: string }[] }) => ({
               id: c.id,
               company: c.company,
+              primaryColor: c.primaryColor,
               culturalDna: c.culturalDna ?? [],
               leads: c.leads ?? [],
             }))

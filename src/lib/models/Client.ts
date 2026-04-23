@@ -37,6 +37,7 @@ export interface IClient extends Document {
   employees?: number;
   website?: string;
   description?: string;
+  primaryColor?: string;
   contacts?: IContact[];
   leads?: IClientLead[];
   culturalDna?: ICulturalDnaValue[];
@@ -97,6 +98,7 @@ const ClientSchema = new Schema<IClient>(
     employees: { type: Number },
     website: { type: String, trim: true },
     description: { type: String, trim: true },
+    primaryColor: { type: String, trim: true },
     contacts: { type: [ContactSchema], default: [] },
     leads: { type: [ClientLeadSchema], default: [] },
     culturalDna: { type: [CulturalDnaValueSchema], default: [] },

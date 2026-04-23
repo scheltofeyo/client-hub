@@ -5,16 +5,17 @@ import { useRouter } from "next/navigation";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import GanttTimeline, { GanttBar, GanttRow, GanttSection, GanttVariant } from "@/components/ui/GanttTimeline";
 import type { Client, Project } from "@/types";
-import { accentColor } from "@/lib/styles";
+import { clientColor } from "@/lib/styles";
 
 // ── Avatar helper ─────────────────────────────────────────────────────────────
 
-function ClientIcon({ company }: { company: string }) {
+function ClientIcon({ company, primaryColor }: { company: string; primaryColor?: string }) {
   const abbr = company.split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("");
+  const { bg, fg } = clientColor({ company, primaryColor });
   return (
     <div
-      className="rounded flex items-center justify-center text-white text-[8px] font-bold shrink-0"
-      style={{ width: 18, height: 18, background: accentColor(company) }}
+      className="rounded flex items-center justify-center text-[8px] font-bold shrink-0"
+      style={{ width: 18, height: 18, background: bg, color: fg }}
     >
       {abbr}
     </div>
@@ -141,7 +142,7 @@ function buildClientSections(
       rows,
       defaultCollapsed: false,
       summaryBars,
-      icon: <ClientIcon company={client.company} />,
+      icon: <ClientIcon company={client.company} primaryColor={client.primaryColor} />,
     });
   }
 

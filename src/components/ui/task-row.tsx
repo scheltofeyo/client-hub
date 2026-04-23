@@ -159,7 +159,6 @@ export function TaskForm({
   const [selectedAssignees, setSelectedAssignees] = useState<TaskAssignee[]>(
     task?.assignees ?? parentAssignees ?? []
   );
-  const [assigneePickerOpen, setAssigneePickerOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -276,101 +275,32 @@ export function TaskForm({
 
       <div>
         <label className="typo-label">Assignees</label>
-
-        {/* Locked parent-inherited assignees */}
-        {isSubtask && (parentAssignees ?? []).length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mb-2">
-            {(parentAssignees ?? []).map((a) => (
-              <span
-                key={a.userId}
-                className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium"
-                style={{ background: "var(--border)", color: "var(--text-muted)" }}
-                title="Inherited from parent task — remove from parent to unassign"
-              >
-                {a.name.split(" ")[0]}
-              </span>
-            ))}
-          </div>
-        )}
-
-        {/* Subtask: removable non-parent-inherited assignees */}
-        {isSubtask && selectedAssignees.filter((a) => !(parentAssignees ?? []).some((p) => p.userId === a.userId)).length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mb-2">
-            {selectedAssignees
-              .filter((a) => !(parentAssignees ?? []).some((p) => p.userId === a.userId))
-              .map((a) => (
-                <button
-                  key={a.userId}
-                  type="button"
-                  onClick={() => toggleAssignee({ id: a.userId, name: a.name, image: a.image ?? null })}
-                  className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium"
-                  style={{ background: "var(--primary-light)", color: "var(--primary)" }}
-                >
-                  {a.name.split(" ")[0]}
-                  <span className="opacity-50">×</span>
-                </button>
-              ))}
-          </div>
-        )}
-
-        {/* Non-subtask: all removable assignees */}
-        {!isSubtask && selectedAssignees.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mb-2">
-            {selectedAssignees.map((a) => (
+        <div className="flex flex-wrap gap-1.5">
+          {sortedUsers.map((u) => {
+            const isLockedByParent = isSubtask && (parentAssignees ?? []).some((a) => a.userId === u.id);
+            const isSelected = selectedAssignees.some((a) => a.userId === u.id);
+            const isActive = isSelected || isLockedByParent;
+            return (
               <button
-                key={a.userId}
+                key={u.id}
                 type="button"
-                onClick={() => toggleAssignee({ id: a.userId, name: a.name, image: a.image ?? null })}
-                className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium"
-                style={{ background: "var(--primary-light)", color: "var(--primary)" }}
+                onClick={() => toggleAssignee(u)}
+                disabled={isLockedByParent}
+                title={isLockedByParent ? "Inherited from parent task — remove from parent to unassign" : undefined}
+                className="flex items-center gap-1.5 pl-1 pr-2 py-0.5 rounded-full text-xs font-medium border transition-colors disabled:cursor-not-allowed"
+                style={{
+                  borderColor: isActive ? "var(--primary)" : "var(--border)",
+                  color: isActive ? "var(--primary)" : "var(--text-muted)",
+                  background: isActive ? "var(--primary-light)" : "transparent",
+                  opacity: isLockedByParent ? 0.7 : 1,
+                }}
               >
-                {a.name.split(" ")[0]}
-                <span className="opacity-50">×</span>
+                <UserAvatar name={u.name} image={u.image} size={18} />
+                {u.name.split(" ")[0]}
+                {isActive && <span style={{ color: "var(--primary)" }}>×</span>}
               </button>
-            ))}
-          </div>
-        )}
-
-        <div className="relative">
-          <button
-            type="button"
-            onClick={() => setAssigneePickerOpen((v) => !v)}
-            className="w-full flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm transition-colors"
-            style={{ borderColor: "var(--border)", background: "var(--bg-sidebar)", color: "var(--text-muted)" }}
-          >
-            <Plus size={13} />
-            Add assignee
-          </button>
-          {assigneePickerOpen && (
-            <>
-              <div className="fixed inset-0 z-10" onClick={() => setAssigneePickerOpen(false)} />
-              <div
-                className="absolute top-full left-0 right-0 mt-1 z-20 rounded-xl border shadow-lg overflow-y-auto max-h-52"
-                style={{ background: "var(--bg-sidebar)", borderColor: "var(--border)" }}
-              >
-                {sortedUsers.map((u) => {
-                  const isLockedByParent = isSubtask && (parentAssignees ?? []).some((a) => a.userId === u.id);
-                  const isSelected = selectedAssignees.some((a) => a.userId === u.id);
-                  return (
-                    <button
-                      key={u.id}
-                      type="button"
-                      onClick={() => !isLockedByParent && toggleAssignee(u)}
-                      disabled={isLockedByParent}
-                      className="w-full flex items-center justify-between px-3 py-2 text-sm hover:opacity-80 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
-                      style={{ color: "var(--text-primary)" }}
-                    >
-                      <div className="flex items-center gap-2">
-                        <UserAvatar name={u.name} image={u.image} size={24} />
-                        <span>{u.name.split(" ")[0]}</span>
-                      </div>
-                      {isSelected && <Check size={13} style={{ color: isLockedByParent ? "var(--text-muted)" : "var(--primary)" }} />}
-                    </button>
-                  );
-                })}
-              </div>
-            </>
-          )}
+            );
+          })}
         </div>
       </div>
 
@@ -532,7 +462,7 @@ export function SubtaskRow({
       <DragGhost ghostRef={ghostRef} title={task.title} assignees={task.assignees} userImages={userImages} />
 
       {/* Drag handle */}
-      {isDraggable && canEdit && (
+      {isDraggable && (
         <div
           className="flex-shrink-0 w-4 flex items-center justify-center opacity-0 group-hover:opacity-40 cursor-grab active:cursor-grabbing"
           style={{ color: "var(--text-muted)" }}
@@ -563,7 +493,7 @@ export function SubtaskRow({
         {task.title}
       </span>
 
-      <div className="flex items-center gap-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+      <div className="flex items-center gap-2 flex-shrink-0">
         {isDone ? (
           <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
             {task.completedAt && (
@@ -595,7 +525,7 @@ export function SubtaskRow({
         )}
 
         {!readOnly && !isDone && canDelete && (
-          <div className="relative">
+          <div className="relative" onClick={(e) => e.stopPropagation()}>
             <button
               type="button"
               onClick={() => setMenuOpen((v) => !v)}
@@ -756,7 +686,7 @@ export function TaskRow({
         onDrop={onDrop ? (e) => { e.preventDefault(); e.stopPropagation(); onDrop(task.id); } : undefined}
       >
         {/* Drag handle */}
-        {isDraggable && canEdit && (
+        {isDraggable && (
           <div
             className="flex-shrink-0 w-4 flex items-center justify-center opacity-0 group-hover:opacity-40 cursor-grab active:cursor-grabbing"
             style={{ color: "var(--text-muted)" }}
@@ -823,7 +753,7 @@ export function TaskRow({
               )}
             </span>
 
-            <div className="flex items-center gap-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-2 flex-shrink-0">
               {isDone ? (
                 <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                   {task.completedAt && (
@@ -859,7 +789,7 @@ export function TaskRow({
 
               {/* Kebab menu */}
               {!isDone && (canEdit || canDelete || onViewInLogbook) && (
-                <div className="relative">
+                <div className="relative" onClick={(e) => e.stopPropagation()}>
                   <button
                     type="button"
                     onClick={() => setMenuOpen((v) => !v)}
@@ -952,7 +882,7 @@ export function TaskRow({
                 canEdit={canEdit}
                 canDelete={canDelete}
                 today={today}
-                isDraggable={!readOnly && canEdit && !sub.completedAt}
+                isDraggable={!readOnly && !sub.completedAt}
                 isDragOver={dragOverId === sub.id}
                 isDragOverBottom={dragOverId === sub.id ? isSubDragOverBottom : undefined}
                 isDragInvalid={!!draggingHasChildren}

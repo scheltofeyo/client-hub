@@ -33,10 +33,16 @@ export default async function ClientDetailPage({
 
   const isAdmin = hasPermission(session, "admin.access");
   const userPermissions = session?.user?.permissions ?? [];
+  const leadPermissions = session?.user?.leadPermissions ?? [];
   const currentUserId = session?.user?.id ?? "";
 
   const isLead = (client.leads ?? []).some((l) => l.userId === currentUserId);
-  const canEdit = isAdmin || isLead;
+  const canEdit =
+    userPermissions.includes("clients.edit") ||
+    (isLead && leadPermissions.includes("clients.edit"));
+  const canCreateProject =
+    userPermissions.includes("projects.create") ||
+    (isLead && leadPermissions.includes("projects.create"));
   const canAssignLeads = userPermissions.includes("clients.assignLeads");
 
   let allUsers: { id: string; name: string; email: string; image: string | null }[] = [];
@@ -60,6 +66,7 @@ export default async function ClientDetailPage({
       currentUserName={session?.user?.name ?? ""}
       isAdmin={isAdmin}
       canEdit={canEdit}
+      canCreateProject={canCreateProject}
       canAssignLeads={canAssignLeads}
       allUsers={allUsers}
       initialTab={activeTab}

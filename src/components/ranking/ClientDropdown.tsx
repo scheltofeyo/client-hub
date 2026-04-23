@@ -3,12 +3,13 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { ChevronDown, Dna } from "lucide-react";
-import { accentColor } from "@/lib/styles";
+import { clientColor } from "@/lib/styles";
 import type { CulturalDnaValue } from "@/types";
 
 export interface ClientOption {
   id: string;
   company: string;
+  primaryColor?: string;
   culturalDna: CulturalDnaValue[];
   leads: { userId: string; name: string; email: string }[];
 }
@@ -99,7 +100,7 @@ export function ClientDropdown({
   }
 
   function renderRow(c: ClientOption) {
-    const color = accentColor(c.company);
+    const { bg, fg } = clientColor(c);
     const abbr = initials(c.company);
     const isSelected = c.id === selectedClientId;
     return (
@@ -119,8 +120,8 @@ export function ClientDropdown({
         }}
       >
         <div
-          className="w-6 h-6 rounded-md flex items-center justify-center text-white text-[9px] font-bold shrink-0"
-          style={{ background: color }}
+          className="w-6 h-6 rounded-md flex items-center justify-center text-[9px] font-bold shrink-0"
+          style={{ background: bg, color: fg }}
         >
           {abbr}
         </div>
@@ -151,12 +152,17 @@ export function ClientDropdown({
       >
         {selected ? (
           <>
-            <div
-              className="w-6 h-6 rounded-md flex items-center justify-center text-white text-[9px] font-bold shrink-0"
-              style={{ background: accentColor(selected.company) }}
-            >
-              {initials(selected.company)}
-            </div>
+            {(() => {
+              const { bg, fg } = clientColor(selected);
+              return (
+                <div
+                  className="w-6 h-6 rounded-md flex items-center justify-center text-[9px] font-bold shrink-0"
+                  style={{ background: bg, color: fg }}
+                >
+                  {initials(selected.company)}
+                </div>
+              );
+            })()}
             <span className="font-medium truncate flex-1 text-left">{selected.company}</span>
             <DnaBadge count={selected.culturalDna.length} />
           </>

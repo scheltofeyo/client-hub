@@ -288,33 +288,14 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
 ];
 
 // ── Lead-eligible permissions ────────────────────────────────────────
-// Subset of ALL_PERMISSIONS that make sense as lead permissions.
-// Admin/system permissions are excluded — they are global-only.
+// Only permissions whose API routes honor lead scope via hasPermissionOrIsLead.
+// Other permissions are enforced globally in the API, so granting them here
+// would have no effect.
 export const LEAD_ELIGIBLE_PERMISSIONS: Permission[] = [
   "clients.edit",
-  "clients.delete",
-  "clients.assignLeads",
   "projects.create",
   "projects.edit",
-  "projects.delete",
   "projects.kickoff",
-  "projects.resetToUpcoming",
-  "tasks.create",
-  "tasks.editOwn",
-  "tasks.editAny",
-  "tasks.deleteOwn",
-  "tasks.deleteAny",
-  "logs.create",
-  "logs.editOwn",
-  "logs.editAny",
-  "logs.deleteOwn",
-  "logs.deleteAny",
-  "events.create",
-  "events.edit",
-  "events.delete",
-  "sheets.create",
-  "sheets.edit",
-  "sheets.delete",
 ];
 
 export const LEAD_PERMISSION_GROUPS: PermissionGroup[] = [
@@ -323,8 +304,6 @@ export const LEAD_PERMISSION_GROUPS: PermissionGroup[] = [
     description: "What leads can do with client records they are assigned to.",
     permissions: [
       { key: "clients.edit", label: "Edit client details" },
-      { key: "clients.delete", label: "Delete clients" },
-      { key: "clients.assignLeads", label: "Assign / reassign leads" },
     ],
   },
   {
@@ -333,49 +312,7 @@ export const LEAD_PERMISSION_GROUPS: PermissionGroup[] = [
     permissions: [
       { key: "projects.create", label: "Create projects" },
       { key: "projects.edit", label: "Edit projects" },
-      { key: "projects.delete", label: "Delete projects" },
       { key: "projects.kickoff", label: "Kick off projects" },
-      { key: "projects.resetToUpcoming", label: "Reset projects to upcoming" },
-    ],
-  },
-  {
-    label: "Tasks",
-    description: "Task management on assigned clients.",
-    permissions: [
-      { key: "tasks.create", label: "Create tasks" },
-      { key: "tasks.editOwn", label: "Edit own tasks" },
-      { key: "tasks.editAny", label: "Edit any task" },
-      { key: "tasks.deleteOwn", label: "Delete own tasks" },
-      { key: "tasks.deleteAny", label: "Delete any task" },
-    ],
-  },
-  {
-    label: "Logs",
-    description: "Logbook access on assigned clients.",
-    permissions: [
-      { key: "logs.create", label: "Create log entries" },
-      { key: "logs.editOwn", label: "Edit own log entries" },
-      { key: "logs.editAny", label: "Edit any log entry" },
-      { key: "logs.deleteOwn", label: "Delete own log entries" },
-      { key: "logs.deleteAny", label: "Delete any log entry" },
-    ],
-  },
-  {
-    label: "Events",
-    description: "Timeline events on assigned clients.",
-    permissions: [
-      { key: "events.create", label: "Create events" },
-      { key: "events.edit", label: "Edit events" },
-      { key: "events.delete", label: "Delete events" },
-    ],
-  },
-  {
-    label: "Sheets",
-    description: "Linked documents and sheets on assigned clients.",
-    permissions: [
-      { key: "sheets.create", label: "Create sheets" },
-      { key: "sheets.edit", label: "Edit sheets" },
-      { key: "sheets.delete", label: "Delete sheets" },
     ],
   },
 ];

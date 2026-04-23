@@ -12,7 +12,7 @@ import type { SortState, ColumnDef } from "@/components/ui/DataTable";
 import type { Client, ClientStatusOption, ClientPlatformOption, Project } from "@/types";
 import type { OverviewRow } from "./ClientsOverviewTable";
 
-import { accentColor } from "@/lib/styles";
+import { accentColor, clientColor } from "@/lib/styles";
 
 // ── helpers ────────────────────────────────────────────────────────────────
 
@@ -30,7 +30,7 @@ function leadInitials(name: string): string {
 // ── card ──────────────────────────────────────────────────────────────────
 
 function ClientCard({ client }: { client: Client }) {
-  const color = accentColor(client.company);
+  const { bg, fg } = clientColor(client);
   const abbr = initials(client.company);
 
   return (
@@ -41,11 +41,11 @@ function ClientCard({ client }: { client: Client }) {
     >
       <div
         className="flex items-start px-4 pt-4 pb-0"
-        style={{ background: `color-mix(in srgb, ${color} 8%, transparent)`, height: "40px" }}
+        style={{ background: `color-mix(in srgb, ${bg} 8%, transparent)`, height: "40px" }}
       >
         <div
-          className="w-12 h-12 rounded-xl flex items-center justify-center text-white text-base font-bold shadow-sm mb-[-24px] z-10"
-          style={{ background: color }}
+          className="w-12 h-12 rounded-xl flex items-center justify-center text-base font-bold shadow-sm mb-[-24px] z-10"
+          style={{ background: bg, color: fg }}
         >
           {abbr}
         </div>
@@ -243,12 +243,12 @@ function OtherClientsTable({ clients }: { clients: Client[] }) {
         sortable: true,
         sticky: true,
         render: (row) => {
-          const color = accentColor(row.company);
+          const { bg, fg } = clientColor(row);
           return (
             <div className="flex items-center gap-3">
               <div
-                className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold shrink-0"
-                style={{ background: color }}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold shrink-0"
+                style={{ background: bg, color: fg }}
               >
                 {initials(row.company)}
               </div>

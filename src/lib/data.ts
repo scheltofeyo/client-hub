@@ -37,6 +37,7 @@ function mapClient(doc: ReturnType<typeof Object.assign>, archetypeMap?: Map<str
     employees: doc.employees,
     website: doc.website,
     description: doc.description,
+    primaryColor: doc.primaryColor ?? undefined,
     createdAt: doc.createdAt?.toISOString().split("T")[0],
     archetypeId: doc.archetypeId ?? undefined,
     archetype: doc.archetypeId && archetypeMap ? archetypeMap.get(doc.archetypeId) : undefined,
@@ -1480,15 +1481,22 @@ export async function getMyActiveProjectsForGantt(
 
 /* ─── My Day helpers ─────────────────────────────────────────────── */
 
-const fetchClientNameMap = cache(async (): Promise<Map<string, string>> => {
+type ClientInfo = { name: string; primaryColor?: string };
+
+const fetchClientInfoMap = cache(async (): Promise<Map<string, ClientInfo>> => {
   await connectDB();
-  const docs = await ClientModel.find({}, { _id: 1, company: 1 }).lean();
-  return new Map(docs.map((d) => [d._id.toString(), d.company]));
+  const docs = await ClientModel.find({}, { _id: 1, company: 1, primaryColor: 1 }).lean();
+  return new Map(
+    docs.map((d) => [
+      d._id.toString(),
+      { name: d.company as string, primaryColor: (d.primaryColor as string | undefined) ?? undefined },
+    ])
+  );
 });
 
 export async function getMyOverdueAndTodayTasks(
   userId: string
-): Promise<(Task & { clientName: string })[]> {
+): Promise<(Task & { clientName: string; clientPrimaryColor?: string })[]> {
   await connectDB();
   const today = new Date().toISOString().slice(0, 10);
   const [docs, clientMap] = await Promise.all([
@@ -1499,17 +1507,21 @@ export async function getMyOverdueAndTodayTasks(
     })
       .sort({ completionDate: 1 })
       .lean(),
-    fetchClientNameMap(),
+    fetchClientInfoMap(),
   ]);
-  return docs.map((d) => ({
-    ...mapTask(d),
-    clientName: clientMap.get(d.clientId as string) ?? "",
-  }));
+  return docs.map((d) => {
+    const info = clientMap.get(d.clientId as string);
+    return {
+      ...mapTask(d),
+      clientName: info?.name ?? "",
+      clientPrimaryColor: info?.primaryColor,
+    };
+  });
 }
 
 export async function getMyOpenFollowUps(
   userId: string
-): Promise<(Log & { clientName: string })[]> {
+): Promise<(Log & { clientName: string; clientPrimaryColor?: string })[]> {
   await connectDB();
   const [docs, clientMap] = await Promise.all([
     LogModel.find({
@@ -1520,26 +1532,30 @@ export async function getMyOpenFollowUps(
     })
       .sort({ followUpDeadline: 1 })
       .lean(),
-    fetchClientNameMap(),
+    fetchClientInfoMap(),
   ]);
-  return docs.map((doc) => ({
-    id: doc._id.toString(),
-    clientId: doc.clientId,
-    contactIds: doc.contactIds?.length ? doc.contactIds : doc.contactId ? [doc.contactId] : [],
-    date: doc.date,
-    summary: doc.summary,
-    signalIds: doc.signalIds ?? [],
-    followUp: doc.followUp ?? false,
-    followUpAction: doc.followUpAction ?? undefined,
-    followUpDeadline: doc.followUpDeadline ?? undefined,
-    followedUpAt: doc.followedUpAt ?? undefined,
-    followedUpByName: doc.followedUpByName ?? undefined,
-    isSystemGenerated: doc.isSystemGenerated ?? false,
-    createdById: doc.createdById,
-    createdByName: doc.createdByName,
-    createdAt: doc.createdAt?.toISOString().split("T")[0],
-    clientName: clientMap.get(doc.clientId as string) ?? "",
-  }));
+  return docs.map((doc) => {
+    const info = clientMap.get(doc.clientId as string);
+    return {
+      id: doc._id.toString(),
+      clientId: doc.clientId,
+      contactIds: doc.contactIds?.length ? doc.contactIds : doc.contactId ? [doc.contactId] : [],
+      date: doc.date,
+      summary: doc.summary,
+      signalIds: doc.signalIds ?? [],
+      followUp: doc.followUp ?? false,
+      followUpAction: doc.followUpAction ?? undefined,
+      followUpDeadline: doc.followUpDeadline ?? undefined,
+      followedUpAt: doc.followedUpAt ?? undefined,
+      followedUpByName: doc.followedUpByName ?? undefined,
+      isSystemGenerated: doc.isSystemGenerated ?? false,
+      createdById: doc.createdById,
+      createdByName: doc.createdByName,
+      createdAt: doc.createdAt?.toISOString().split("T")[0],
+      clientName: info?.name ?? "",
+      clientPrimaryColor: info?.primaryColor,
+    };
+  });
 }
 
 export async function getMyProjectsOverview(
@@ -1548,12 +1564,17 @@ export async function getMyProjectsOverview(
   await connectDB();
   const clientDocs = await ClientModel.find(
     { "leads.userId": userId },
-    { _id: 1, company: 1 }
+    { _id: 1, company: 1, primaryColor: 1 }
   ).lean();
   if (clientDocs.length === 0) return [];
 
   const clientIds = clientDocs.map((c) => c._id.toString());
-  const clientNameMap = new Map(clientDocs.map((c) => [c._id.toString(), c.company as string]));
+  const clientInfoMap = new Map<string, ClientInfo>(
+    clientDocs.map((c) => [
+      c._id.toString(),
+      { name: c.company as string, primaryColor: (c.primaryColor as string | undefined) ?? undefined },
+    ])
+  );
 
   const projects = await ProjectModel.find({
     clientId: { $in: clientIds },
@@ -1588,11 +1609,13 @@ export async function getMyProjectsOverview(
   return projects.map((p) => {
     const pid = p._id.toString();
     const stats = taskStats.get(pid) ?? { total: 0, completed: 0 };
+    const info = clientInfoMap.get(p.clientId as string);
     return {
       projectId: pid,
       projectTitle: p.title as string,
       clientId: p.clientId as string,
-      clientName: clientNameMap.get(p.clientId as string) ?? "",
+      clientName: info?.name ?? "",
+      clientPrimaryColor: info?.primaryColor,
       status: p.status as "not_started" | "in_progress" | "completed",
       taskTotal: stats.total,
       taskCompleted: stats.completed,
@@ -1604,7 +1627,7 @@ export async function getMyProjectsOverview(
 
 export async function getMyUpcomingDeadlines(
   userId: string
-): Promise<(Task & { clientName: string })[]> {
+): Promise<(Task & { clientName: string; clientPrimaryColor?: string })[]> {
   await connectDB();
   const today = new Date().toISOString().slice(0, 10);
   const d = new Date();
@@ -1619,12 +1642,16 @@ export async function getMyUpcomingDeadlines(
     })
       .sort({ completionDate: 1 })
       .lean(),
-    fetchClientNameMap(),
+    fetchClientInfoMap(),
   ]);
-  return docs.map((d) => ({
-    ...mapTask(d),
-    clientName: clientMap.get(d.clientId as string) ?? "",
-  }));
+  return docs.map((d) => {
+    const info = clientMap.get(d.clientId as string);
+    return {
+      ...mapTask(d),
+      clientName: info?.name ?? "",
+      clientPrimaryColor: info?.primaryColor,
+    };
+  });
 }
 
 async function buildProjectNameMap(projectIds: string[]): Promise<Map<string, string>> {
@@ -1641,7 +1668,7 @@ function buildMyDayTaskData(
   docs: any[],
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   subtaskDocs: any[],
-  clientMap: Map<string, string>,
+  clientMap: Map<string, ClientInfo>,
   projectNameMap: Map<string, string>,
   imageMap: Map<string, string>,
 ): MyDayTaskData {
@@ -1656,11 +1683,15 @@ function buildMyDayTaskData(
   for (const [id, img] of imageMap) userImages[id] = img;
 
   return {
-    tasks: docs.map((d) => ({
-      ...mapTask(d),
-      clientName: clientMap.get(d.clientId as string) ?? "",
-      projectName: d.projectId ? projectNameMap.get(d.projectId as string) : undefined,
-    })),
+    tasks: docs.map((d) => {
+      const info = clientMap.get(d.clientId as string);
+      return {
+        ...mapTask(d),
+        clientName: info?.name ?? "",
+        clientPrimaryColor: info?.primaryColor,
+        projectName: d.projectId ? projectNameMap.get(d.projectId as string) : undefined,
+      };
+    }),
     subtasksByParent,
     userImages,
   };
@@ -1676,7 +1707,7 @@ export async function getMyDayTasks(userId: string): Promise<MyDayTaskData> {
     })
       .sort({ completionDate: 1, createdAt: 1 })
       .lean(),
-    fetchClientNameMap(),
+    fetchClientInfoMap(),
     buildUserImageMap(),
   ]);
 
@@ -1698,7 +1729,7 @@ export async function getMyLeadClientTasks(userId: string): Promise<MyDayTaskDat
   // 1. Clients the user leads
   const leadClientDocs = await ClientModel.find(
     { "leads.userId": userId },
-    { _id: 1, company: 1 }
+    { _id: 1, company: 1, primaryColor: 1 }
   ).lean();
   const leadClientIds = new Set(leadClientDocs.map((c) => c._id.toString()));
 
@@ -1711,14 +1742,24 @@ export async function getMyLeadClientTasks(userId: string): Promise<MyDayTaskDat
     assignedDocs.map((d) => d.clientId as string).filter((id) => id && !leadClientIds.has(id))
   )];
 
-  // 3. Build full client name map
-  const clientMap = new Map(leadClientDocs.map((c) => [c._id.toString(), c.company as string]));
+  // 3. Build full client info map
+  const clientMap = new Map<string, ClientInfo>(
+    leadClientDocs.map((c) => [
+      c._id.toString(),
+      { name: c.company as string, primaryColor: (c.primaryColor as string | undefined) ?? undefined },
+    ])
+  );
   if (extraClientIds.length > 0) {
     const extraDocs = await ClientModel.find(
       { _id: { $in: extraClientIds } },
-      { _id: 1, company: 1 }
+      { _id: 1, company: 1, primaryColor: 1 }
     ).lean();
-    for (const c of extraDocs) clientMap.set(c._id.toString(), c.company as string);
+    for (const c of extraDocs) {
+      clientMap.set(c._id.toString(), {
+        name: c.company as string,
+        primaryColor: (c.primaryColor as string | undefined) ?? undefined,
+      });
+    }
   }
 
   const allClientIds = [...clientMap.keys()];
@@ -1758,7 +1799,7 @@ export async function getMyDayFollowUps(userId: string): Promise<MyDayFollowUpDa
     })
       .sort({ followUpDeadline: 1 })
       .lean(),
-    fetchClientNameMap(),
+    fetchClientInfoMap(),
     buildLogSignalMap(),
   ]);
 
@@ -1788,25 +1829,29 @@ export async function getMyDayFollowUps(userId: string): Promise<MyDayFollowUpDa
   }));
 
   return {
-    logs: docs.map((doc) => ({
-      id: doc._id.toString(),
-      clientId: doc.clientId,
-      contactIds: doc.contactIds?.length ? doc.contactIds : doc.contactId ? [doc.contactId] : [],
-      date: doc.date,
-      summary: doc.summary,
-      signalIds: doc.signalIds ?? [],
-      signals: (doc.signalIds ?? []).map((sid: string) => signalMap.get(sid) ?? sid),
-      followUp: doc.followUp ?? false,
-      followUpAction: doc.followUpAction ?? undefined,
-      followUpDeadline: doc.followUpDeadline ?? undefined,
-      followedUpAt: doc.followedUpAt ?? undefined,
-      followedUpByName: doc.followedUpByName ?? undefined,
-      isSystemGenerated: doc.isSystemGenerated ?? false,
-      createdById: doc.createdById,
-      createdByName: doc.createdByName,
-      createdAt: doc.createdAt?.toISOString().split("T")[0],
-      clientName: clientMap.get(doc.clientId as string) ?? "",
-    })),
+    logs: docs.map((doc) => {
+      const info = clientMap.get(doc.clientId as string);
+      return {
+        id: doc._id.toString(),
+        clientId: doc.clientId,
+        contactIds: doc.contactIds?.length ? doc.contactIds : doc.contactId ? [doc.contactId] : [],
+        date: doc.date,
+        summary: doc.summary,
+        signalIds: doc.signalIds ?? [],
+        signals: (doc.signalIds ?? []).map((sid: string) => signalMap.get(sid) ?? sid),
+        followUp: doc.followUp ?? false,
+        followUpAction: doc.followUpAction ?? undefined,
+        followUpDeadline: doc.followUpDeadline ?? undefined,
+        followedUpAt: doc.followedUpAt ?? undefined,
+        followedUpByName: doc.followedUpByName ?? undefined,
+        isSystemGenerated: doc.isSystemGenerated ?? false,
+        createdById: doc.createdById,
+        createdByName: doc.createdByName,
+        createdAt: doc.createdAt?.toISOString().split("T")[0],
+        clientName: info?.name ?? "",
+        clientPrimaryColor: info?.primaryColor,
+      };
+    }),
     contactsByClient,
     signals,
   };

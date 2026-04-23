@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, ChevronDown, ChevronRight, AlertTriangle } from "lucide-react";
 import { useRightPanel } from "@/components/layout/RightPanel";
@@ -122,9 +122,13 @@ function Section({
       // completed tasks always last
       const doneSort = Number(!!a.completedAt) - Number(!!b.completedAt);
       if (doneSort !== 0) return doneSort;
+      // among completed tasks, most recently completed first
+      if (a.completedAt && b.completedAt) {
+        return b.completedAt.localeCompare(a.completedAt);
+      }
       // among incomplete tasks, sort by order (with localOrder overrides)
-      const aOrder = !a.completedAt ? (localOrder[a.id] ?? a.order ?? 0) : 0;
-      const bOrder = !b.completedAt ? (localOrder[b.id] ?? b.order ?? 0) : 0;
+      const aOrder = localOrder[a.id] ?? a.order ?? 0;
+      const bOrder = localOrder[b.id] ?? b.order ?? 0;
       return aOrder - bOrder;
     });
   const openCount = topLevelTasks.filter((t) => !t.completedAt).length;
@@ -354,7 +358,7 @@ function Section({
                   canDelete={taskCanDelete(task)}
                   onViewInLogbook={task.logId ? () => router.push(`/clients/${clientId}?tab=Logbook`) : undefined}
                   today={today}
-                  isDraggable={taskCanEdit(task) && !task.completedAt}
+                  isDraggable={!task.completedAt}
                   draggingId={draggingId}
                   draggingHasChildren={!!draggingId && getSubtasks(draggingId).length > 0}
                   dragOverId={dragOverId}
@@ -421,6 +425,7 @@ export default function ClientTasksTab({
   const [users, setUsers] = useState<UserOption[]>([]);
   const [showCompleted, setShowCompleted] = useState(false);
   const [showAll, setShowAll] = useState(false);
+  const toggleInFlightRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     fetch("/api/users/assignable")
@@ -491,6 +496,9 @@ export default function ClientTasksTab({
   }
 
   async function handleToggleComplete(task: Task) {
+    if (toggleInFlightRef.current.has(task.id)) return;
+    toggleInFlightRef.current.add(task.id);
+
     const completed = !task.completedAt;
     const now = new Date().toISOString();
 
@@ -508,36 +516,40 @@ export default function ClientTasksTab({
       }
     }
 
-    // PATCH parent
-    const res = await fetch(`/api/clients/${clientId}/tasks/${task.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ completed }),
-    });
+    try {
+      // PATCH parent
+      const res = await fetch(`/api/clients/${clientId}/tasks/${task.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ completed }),
+      });
 
-    if (!res.ok) {
-      upsertTask(task);
-      return;
-    }
-    const data = await res.json();
-    upsertTask(data);
-
-    // PATCH subtasks in parallel (persist cascade)
-    if (completed && subtasks.length > 0) {
-      const subResults = await Promise.all(
-        subtasks
-          .filter((s) => !s.completedAt)
-          .map((s) =>
-            fetch(`/api/clients/${clientId}/tasks/${s.id}`, {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ completed: true }),
-            }).then((r) => (r.ok ? r.json() : null))
-          )
-      );
-      for (const saved of subResults) {
-        if (saved) upsertTask(saved);
+      if (!res.ok) {
+        upsertTask(task);
+        return;
       }
+      const data = await res.json();
+      upsertTask(data);
+
+      // PATCH subtasks in parallel (persist cascade)
+      if (completed && subtasks.length > 0) {
+        const subResults = await Promise.all(
+          subtasks
+            .filter((s) => !s.completedAt)
+            .map((s) =>
+              fetch(`/api/clients/${clientId}/tasks/${s.id}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ completed: true }),
+              }).then((r) => (r.ok ? r.json() : null))
+            )
+        );
+        for (const saved of subResults) {
+          if (saved) upsertTask(saved);
+        }
+      }
+    } finally {
+      toggleInFlightRef.current.delete(task.id);
     }
   }
 

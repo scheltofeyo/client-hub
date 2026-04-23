@@ -35,6 +35,7 @@ interface ClientDetailShellProps {
   currentUserName: string;
   isAdmin: boolean;
   canEdit: boolean;
+  canCreateProject: boolean;
   canAssignLeads: boolean;
   allUsers: { id: string; name: string; email: string; image: string | null }[];
   initialTab: Tab;
@@ -52,6 +53,7 @@ export default function ClientDetailShell({
   currentUserName,
   isAdmin,
   canEdit,
+  canCreateProject,
   canAssignLeads,
   allUsers,
   initialTab,
@@ -199,7 +201,7 @@ export default function ClientDetailShell({
 
   // ── Action buttons per tab ──
   const actions = (() => {
-    if (activeTab === "Projects" && canEdit && permissions.includes("projects.create")) {
+    if (activeTab === "Projects" && canCreateProject) {
       return <AddProjectButton clientId={clientId} />;
     }
     if (activeTab === "Tasks" && permissions.includes("tasks.create")) {

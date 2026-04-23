@@ -18,7 +18,7 @@ interface Props {
   myTasks: MyDayTaskData;
   allTasks: MyDayTaskData;
   // Follow-ups
-  followUpLogs: (Log & { clientName: string })[];
+  followUpLogs: (Log & { clientName: string; clientPrimaryColor?: string })[];
   // Gantt timeline
   ganttClients: Client[];
   ganttProjectsByClient: Record<string, Project[]>;

@@ -26,6 +26,38 @@ export function accentColor(name: string): string {
   return ACCENT_COLORS[Math.abs(hash) % ACCENT_COLORS.length];
 }
 
+// WCAG-ish relative luminance; returns white or near-black for best contrast.
+// For non-hex input (like var(--accent-X)) we default to white — the curated
+// palette is designed to be readable with white text.
+function readableFg(bg: string): string {
+  const m = /^#?([0-9a-f]{6})$/i.exec(bg.trim());
+  if (!m) return "#ffffff";
+  const n = parseInt(m[1], 16);
+  const r = ((n >> 16) & 0xff) / 255;
+  const g = ((n >> 8) & 0xff) / 255;
+  const b = (n & 0xff) / 255;
+  const lin = (c: number) => (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+  const L = 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+  // Threshold tuned for small bold avatar text; 0.6 keeps mid-tones on white
+  // and only switches to dark text for genuinely pale backgrounds.
+  return L > 0.6 ? "#0f172a" : "#ffffff";
+}
+
+/**
+ * Resolve the avatar/badge color pair for a client. If a custom primaryColor
+ * is set, use it and pick a contrast-safe foreground; otherwise fall back to
+ * the hashed accent color (which is designed for white text).
+ */
+export function clientColor(client: { company: string; primaryColor?: string }): { bg: string; fg: string } {
+  if (client.primaryColor) return { bg: client.primaryColor, fg: readableFg(client.primaryColor) };
+  return { bg: accentColor(client.company), fg: "#ffffff" };
+}
+
+/** Variant for callsites that only have a name + optional color. */
+export function resolveClientColor(name: string, primaryColor?: string): { bg: string; fg: string } {
+  return clientColor({ company: name, primaryColor });
+}
+
 // ── Status badge styles ─────────────────────────────────────────────────────
 // Maps status slugs to CSS variable pairs for background and text color.
 // Used by StatusBadge component and status color helpers.
