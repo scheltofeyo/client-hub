@@ -46,25 +46,25 @@ export default function ClientPanelNav({
     return "dashboard";
   });
 
+  // Keep localSheets in sync with props on navigation (layout re-renders with fresh data)
   useEffect(() => {
-    function fetchSheets() {
+    setLocalSheets(sheets);
+  }, [sheets]);
+
+  // Refresh only when a sheet is added/removed elsewhere in the UI
+  useEffect(() => {
+    function handleSheetsUpdated(e: Event) {
+      const { clientId } = (e as CustomEvent).detail ?? {};
+      if (clientId !== client.id) return;
       fetch(`/api/clients/${client.id}/sheets`)
         .then((r) => r.json())
         .then((data: SheetType[]) =>
           setLocalSheets(data.map((s) => ({ id: s.id, name: s.name })))
         );
     }
-
-    fetchSheets();
-
-    function handleSheetsUpdated(e: Event) {
-      const { clientId } = (e as CustomEvent).detail ?? {};
-      if (clientId !== client.id) return;
-      fetchSheets();
-    }
     window.addEventListener("sheets-updated", handleSheetsUpdated);
     return () => window.removeEventListener("sheets-updated", handleSheetsUpdated);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [client.id]);
 
   // Listen for tab-change events to keep active state in sync
   useEffect(() => {

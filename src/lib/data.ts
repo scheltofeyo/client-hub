@@ -150,6 +150,7 @@ export async function getClients(): Promise<Client[]> {
 }
 
 export const getClientById = cache(async (id: string): Promise<Client | undefined> => {
+  if (!mongoose.Types.ObjectId.isValid(id)) return undefined;
   await connectDB();
   const [doc, archetypeMap, imageMap, platformLabelMap] = await Promise.all([
     ClientModel.findById(id).lean(),
@@ -239,7 +240,7 @@ function mapProject(doc: ReturnType<typeof Object.assign>, serviceMap?: Map<stri
   };
 }
 
-export async function getProjectsByClientId(clientId: string): Promise<Project[]> {
+export const getProjectsByClientId = cache(async (clientId: string): Promise<Project[]> => {
   await connectDB();
   const [docs, serviceDocs, labelMap] = await Promise.all([
     ProjectModel.find({ clientId }).sort({ createdAt: -1 }).lean(),
@@ -260,7 +261,7 @@ export async function getProjectsByClientId(clientId: string): Promise<Project[]
     return ra - rb;
   });
   return projects;
-}
+});
 
 export const getProjectById = cache(async (projectId: string): Promise<Project | null> => {
   await connectDB();
@@ -361,7 +362,7 @@ export async function getLogsByClientId(clientId: string): Promise<Log[]> {
   }));
 }
 
-export async function getSheetsByClientId(clientId: string): Promise<Sheet[]> {
+export const getSheetsByClientId = cache(async (clientId: string): Promise<Sheet[]> => {
   await connectDB();
   const docs = await SheetModel.find({ clientId }).sort({ createdAt: 1 }).lean();
   return docs.map((doc) => ({
@@ -371,7 +372,7 @@ export async function getSheetsByClientId(clientId: string): Promise<Sheet[]> {
     url: doc.url,
     createdAt: doc.createdAt?.toISOString().split("T")[0],
   }));
-}
+});
 
 export const getSheetById = cache(async (sheetId: string): Promise<Sheet | null> => {
   await connectDB();
@@ -1171,7 +1172,15 @@ export async function getFirstUpcomingEventByAllClients(): Promise<Map<string, F
     ProjectModel.find({ status: { $ne: "completed" }, kickedOffAt: { $exists: true, $ne: null }, completedDate: { $gte: today } }).lean(),
     ProjectModel.find({ status: { $ne: "completed" }, kickedOffAt: { $exists: true, $ne: null }, deliveryDate: { $gte: today } }).lean(),
     TaskModel.find({ completedAt: null, completionDate: { $gte: today }, logId: { $exists: false } }).lean(),
-    ClientEventModel.find({}).sort({ date: 1 }).lean(),
+    // Skip non-recurring events whose start date is already in the past; keep all recurring
+    // events (their occurrences may still fall inside the expansion window).
+    ClientEventModel.find({
+      $or: [
+        { date: { $gte: today } },
+        { recurrenceInterval: { $gte: 1 } },
+        { recurrence: { $in: ["weekly", "biweekly", "monthly", "quarterly", "yearly"] } },
+      ],
+    }).sort({ date: 1 }).lean(),
   ]);
 
   // Collect candidates per client: { clientId -> [{date, title, source}] }
@@ -1304,8 +1313,15 @@ export async function getWeekCalendarItems(start: string, end: string): Promise<
       followedUpAt: null,
       followUpDeadline: { $gte: start, $lte: end },
     }).lean(),
-    // Events: all custom events (need full set for recurrence expansion)
-    ClientEventModel.find({}).sort({ date: 1 }).lean(),
+    // Events: non-recurring ones inside the window, plus all recurring events
+    // (their occurrences may land in the window regardless of start date).
+    ClientEventModel.find({
+      $or: [
+        { date: { $gte: start, $lte: end } },
+        { recurrenceInterval: { $gte: 1 } },
+        { recurrence: { $in: ["weekly", "biweekly", "monthly", "quarterly", "yearly"] } },
+      ],
+    }).sort({ date: 1 }).lean(),
   ]);
 
   const items: WeekCalendarItem[] = [];

@@ -65,25 +65,16 @@ export default function AdminPanelNav() {
 
   const canViewEmployees = perms.includes("employees.view" as Permission);
 
-  // Fetch employees for the sidebar list
+  // Fetch employees on mount and when navigating back to /admin from employee detail.
+  // Skip while on employee detail pages to avoid a wasted fetch during drill-down.
   useEffect(() => {
     if (!canViewEmployees) return;
+    if (pathname.startsWith("/admin/employees/")) return;
     fetch("/api/users")
       .then((r) => (r.ok ? r.json() : []))
       .then((data: EmployeeItem[]) => setEmployees(data))
       .catch(() => {});
-  }, [canViewEmployees]);
-
-  // Refresh when navigating back from employee detail
-  useEffect(() => {
-    if (!canViewEmployees) return;
-    if (activeTab === "users" && pathname === "/admin") {
-      fetch("/api/users")
-        .then((r) => (r.ok ? r.json() : []))
-        .then((data: EmployeeItem[]) => setEmployees(data))
-        .catch(() => {});
-    }
-  }, [activeTab, pathname, canViewEmployees]);
+  }, [canViewEmployees, pathname]);
 
   // Track selected employee (client-side, within admin root)
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(() => {

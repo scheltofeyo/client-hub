@@ -125,8 +125,9 @@ function UpcomingEventCard({ event, eventTypes, clientId }: { event: TimelineEve
 
   const href =
     event.source === "log_followup" ? `/clients/${clientId}?tab=logbook` :
+    event.source === "project" ? `/clients/${clientId}/projects/${event.sourceId}` :
+    event.source === "task" && event.projectId ? `/clients/${clientId}/projects/${event.projectId}` :
     event.source === "task" ? `/clients/${clientId}?tab=tasks` :
-    event.source === "project" ? `/clients/${clientId}?tab=projects` :
     `/clients/${clientId}?tab=events`;
 
   return (

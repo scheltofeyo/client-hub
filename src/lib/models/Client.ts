@@ -92,7 +92,7 @@ const CulturalDnaValueSchema = new Schema<ICulturalDnaValue>(
 const ClientSchema = new Schema<IClient>(
   {
     company: { type: String, required: true, trim: true },
-    status: { type: String, trim: true },
+    status: { type: String, trim: true, index: true },
     platform: { type: String, trim: true },
     clientSince: { type: String, trim: true },
     employees: { type: Number },
@@ -108,6 +108,8 @@ const ClientSchema = new Schema<IClient>(
   },
   { timestamps: true }
 );
+
+ClientSchema.index({ "leads.userId": 1 });
 
 // Always recompile the model so schema changes are picked up on hot reloads
 if (mongoose.models.Client) {

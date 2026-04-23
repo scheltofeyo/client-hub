@@ -23,7 +23,7 @@ const TaskSchema = new Schema<ITask>(
   {
     clientId: { type: String, index: true },
     projectId: { type: String, index: true },
-    parentTaskId: { type: String },
+    parentTaskId: { type: String, index: true },
     logId: { type: String, index: true },
     title: { type: String, required: true, trim: true },
     description: { type: String, trim: true },
@@ -37,8 +37,8 @@ const TaskSchema = new Schema<ITask>(
       ],
       default: [],
     },
-    completionDate: { type: String },
-    completedAt: { type: String },
+    completionDate: { type: String, index: true },
+    completedAt: { type: String, index: true },
     completedById: { type: String },
     completedByName: { type: String },
     order: { type: Number, default: 0 },
@@ -47,6 +47,8 @@ const TaskSchema = new Schema<ITask>(
   },
   { timestamps: true }
 );
+
+TaskSchema.index({ "assignees.userId": 1 });
 
 if (mongoose.models.Task) {
   mongoose.deleteModel("Task");

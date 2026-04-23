@@ -224,7 +224,7 @@ export default function MyDayTasksSection({ myTasks, allTasks, today }: Props & 
                   onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.borderBottomColor = "transparent"; }}
                 >
                   <div
-                    className="w-5 h-5 rounded flex-none flex items-center justify-center text-[8px] font-bold"
+                    className="w-5 h-5 rounded flex-none flex items-center justify-center text-[10px] font-bold"
                     style={{ background: bg, color: fg }}
                   >
                     {monogram(group.clientName)}
@@ -288,30 +288,36 @@ export default function MyDayTasksSection({ myTasks, allTasks, today }: Props & 
                     </button>
                     {!isCollapsed && (
                       <div className="px-2 pb-2">
-                        {tasks.map((task) => (
-                          <TaskRow
-                            key={task.id}
-                            task={task}
-                            subtasks={activeData.subtasksByParent[task.id] ?? []}
-                            isExpanded={expandedTasks.has(task.id)}
-                            onToggleExpand={() => setExpandedTasks((prev) => {
-                              const next = new Set(prev);
-                              if (next.has(task.id)) next.delete(task.id); else next.add(task.id);
-                              return next;
-                            })}
-                            onToggleComplete={handleToggleComplete}
-                            onEdit={() => {}}
-                            onAddSubtask={() => {}}
-                            onDelete={() => {}}
-                            showInlineSubtask={false}
-                            onInlineSubtaskSave={async () => {}}
-                            onInlineSubtaskCancel={() => {}}
-                            userImages={activeData.userImages}
-                            canEdit={false}
-                            canDelete={false}
-                            today={today}
-                          />
-                        ))}
+                        {tasks.map((task) => {
+                          const href = task.projectId
+                            ? `/clients/${selectedGroup.clientId}/projects/${task.projectId}/tasks`
+                            : `/clients/${selectedGroup.clientId}?tab=tasks`;
+                          return (
+                            <TaskRow
+                              key={task.id}
+                              task={task}
+                              subtasks={activeData.subtasksByParent[task.id] ?? []}
+                              isExpanded={expandedTasks.has(task.id)}
+                              onToggleExpand={() => setExpandedTasks((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(task.id)) next.delete(task.id); else next.add(task.id);
+                                return next;
+                              })}
+                              onToggleComplete={handleToggleComplete}
+                              onEdit={() => {}}
+                              onAddSubtask={() => {}}
+                              onDelete={() => {}}
+                              showInlineSubtask={false}
+                              onInlineSubtaskSave={async () => {}}
+                              onInlineSubtaskCancel={() => {}}
+                              userImages={activeData.userImages}
+                              canEdit={false}
+                              canDelete={false}
+                              navigateHref={href}
+                              today={today}
+                            />
+                          );
+                        })}
                       </div>
                     )}
                   </div>

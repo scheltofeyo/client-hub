@@ -1,6 +1,49 @@
 [
   {
     "date": "2026-04-23",
+    "title": "Snellere navigatie tussen tabbladen",
+    "details": [
+      "Database-queries zijn geïndexeerd op de meest gebruikte velden",
+      "Dubbele fetches in de zijbalken van client- en admin-pagina's zijn verwijderd",
+      "De tijdlijn op My Day laadt nu los van de rest, zodat de pagina sneller zichtbaar is"
+    ]
+  },
+  {
+    "date": "2026-04-23",
+    "title": "Event-kaartjes op het client-dashboard linken naar de juiste plek",
+    "details": [
+      "Project-deliveries openen nu direct de project-detailpagina",
+      "Taak-events met een project gaan naar de bijbehorende project-pagina",
+      "Follow-ups blijven naar het logbook gaan"
+    ]
+  },
+  {
+    "date": "2026-04-23",
+    "title": "My Day-taken zijn nu klikbaar en leiden direct naar de juiste pagina",
+    "details": [
+      "Het niet-werkende afvink-bolletje is weg",
+      "Aan de rechterkant staat nu een chevron; een klik op de taak opent de client- of projecttaakpagina"
+    ]
+  },
+  {
+    "date": "2026-04-23",
+    "title": "Taken uit project-templates horen weer bij hun client",
+    "details": [
+      "Nieuwe taken uit een project-template krijgen nu de juiste clientId mee — op My Day verschijnen ze onder de correcte client-avatar met naam",
+      "Bestaande 'wees'-taken kunnen worden hersteld met het backfill-script: npx tsx scripts/backfill-task-client-ids.ts",
+      "Een client-URL met een ongeldige ID crasht niet meer, maar laat netjes een 404 zien"
+    ]
+  },
+  {
+    "date": "2026-04-23",
+    "title": "Leesbaarder client-avatars op My Day",
+    "details": [
+      "Monogram-letters zijn groter en leesbaarder op de paarse en andere gekleurde avatars",
+      "Autocontrast schakelt nu eerder naar donkere tekst op lichte achtergrondkleuren"
+    ]
+  },
+  {
+    "date": "2026-04-23",
     "title": "Taken afvinken voelt nu direct en stabiel",
     "details": [
       "Een taak afvinken verplaatst hem meteen zonder flikkering",

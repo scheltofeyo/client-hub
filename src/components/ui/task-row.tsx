@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import {
   Plus, ChevronDown, ChevronRight, MoreHorizontal,
   Check, Trash2, ListPlus, AlertTriangle, BookOpen, GripVertical,
@@ -580,6 +581,7 @@ export function TaskRow({
   titlePrefix,
   displayTitle,
   onViewInLogbook,
+  navigateHref,
   today: todayProp,
   isDraggable,
   draggingId,
@@ -609,6 +611,8 @@ export function TaskRow({
   titlePrefix?: string;
   displayTitle?: string;
   onViewInLogbook?: () => void;
+  /** When set, hides the checkbox, shows a right-chevron, and clicking the row navigates to this URL. */
+  navigateHref?: string;
   today?: string;
   isDraggable?: boolean;
   /** ID of the task currently being dragged (for computing subtask drop-indicator direction) */
@@ -627,6 +631,7 @@ export function TaskRow({
   const [menuOpen, setMenuOpen] = useState(false);
   const ghostRef = useRef<HTMLDivElement>(null);
   const dragFromHandle = useRef(false);
+  const router = useRouter();
   const hasSubtasks = subtasks.length > 0;
   const isDone = !!task.completedAt;
   const today = todayProp ?? new Date().toISOString().slice(0, 10);
@@ -680,8 +685,8 @@ export function TaskRow({
       {/* Main task row — also a drop target (top-level reorder + subtask→parent) */}
       <div
         className="flex items-center gap-2 py-2.5 group rounded-lg -mx-2 px-2"
-        style={{ ...rowBorderStyle, cursor: canEdit ? "pointer" : "default" }}
-        onClick={canEdit ? () => onEdit(task) : undefined}
+        style={{ ...rowBorderStyle, cursor: (canEdit || navigateHref) ? "pointer" : "default" }}
+        onClick={navigateHref ? () => router.push(navigateHref) : canEdit ? () => onEdit(task) : undefined}
         onDragOver={onDragOver ? (e) => { e.preventDefault(); e.stopPropagation(); onDragOver(task.id); } : undefined}
         onDrop={onDrop ? (e) => { e.preventDefault(); e.stopPropagation(); onDrop(task.id); } : undefined}
       >
@@ -720,19 +725,21 @@ export function TaskRow({
         </div>
 
         {/* Checkbox */}
-        <button
-          type="button"
-          onClick={canEdit ? (e) => { e.stopPropagation(); onToggleComplete(task); } : (e) => e.stopPropagation()}
-          className="flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors"
-          style={{
-            borderColor: isDone ? "var(--primary-light)" : "var(--border)",
-            background: isDone ? "var(--primary-light)" : "transparent",
-            cursor: canEdit ? "pointer" : "default",
-          }}
-          aria-label={isDone ? "Mark incomplete" : "Mark complete"}
-        >
-          {isDone && <Check size={14} color="var(--primary)" strokeWidth={3} />}
-        </button>
+        {!navigateHref && (
+          <button
+            type="button"
+            onClick={canEdit ? (e) => { e.stopPropagation(); onToggleComplete(task); } : (e) => e.stopPropagation()}
+            className="flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors"
+            style={{
+              borderColor: isDone ? "var(--primary-light)" : "var(--border)",
+              background: isDone ? "var(--primary-light)" : "transparent",
+              cursor: canEdit ? "pointer" : "default",
+            }}
+            aria-label={isDone ? "Mark incomplete" : "Mark complete"}
+          >
+            {isDone && <Check size={14} color="var(--primary)" strokeWidth={3} />}
+          </button>
+        )}
 
         {/* Content */}
         <div className="flex-1 min-w-0">
@@ -785,6 +792,17 @@ export function TaskRow({
                     </span>
                   )}
                 </>
+              )}
+
+              {/* Navigate chevron */}
+              {navigateHref && (
+                <span
+                  className="flex-shrink-0 ml-0.5 transition-colors group-hover:text-[var(--primary)]"
+                  style={{ color: "var(--text-muted)" }}
+                  aria-hidden="true"
+                >
+                  <ChevronRight size={16} />
+                </span>
               )}
 
               {/* Kebab menu */}

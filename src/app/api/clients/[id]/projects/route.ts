@@ -109,6 +109,7 @@ export async function POST(
       const topLevel = templateTasks.filter((t) => !t.parentTaskId);
       for (const tt of topLevel) {
         const created = await TaskModel.create({
+          clientId: id,
           projectId,
           title: tt.title,
           description: tt.description || undefined,
@@ -125,6 +126,7 @@ export async function POST(
         const resolvedParentId = idMap[tt.parentTaskId!];
         if (!resolvedParentId) continue; // orphan — skip gracefully
         const created = await TaskModel.create({
+          clientId: id,
           projectId,
           parentTaskId: resolvedParentId,
           title: tt.title,

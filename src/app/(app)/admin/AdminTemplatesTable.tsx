@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Pencil, Trash2, Plus, ListTodo } from "lucide-react";
+import { Pencil, Trash2, Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import SteppedModal from "@/components/ui/SteppedModal";
 import ServicePills from "@/components/ui/ServicePills";
@@ -326,7 +326,7 @@ export default function AdminTemplatesTable({
                 className="p-1.5 rounded-md btn-icon"
                 title="Manage tasks"
               >
-                <ListTodo size={13} />
+                <Pencil size={13} />
               </button>
               <button
                 onClick={() => handleDelete(tpl.id, tpl.name)}

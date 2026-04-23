@@ -3,8 +3,8 @@
 import UserInfoCard from "./UserInfoCard";
 import MyDayTasksSection from "./MyDayTasksSection";
 import MyDayFollowUpsSection from "./MyDayFollowUpsSection";
-import ClientsTimeline from "@/components/ui/ClientsTimeline";
-import type { Log, Client, Project, MyDayUserInfo, MyDayTaskData } from "@/types";
+import type { Log, MyDayUserInfo, MyDayTaskData } from "@/types";
+import type { ReactNode } from "react";
 
 function getGreeting() {
   const h = new Date().getHours();
@@ -19,9 +19,8 @@ interface Props {
   allTasks: MyDayTaskData;
   // Follow-ups
   followUpLogs: (Log & { clientName: string; clientPrimaryColor?: string })[];
-  // Gantt timeline
-  ganttClients: Client[];
-  ganttProjectsByClient: Record<string, Project[]>;
+  // Gantt timeline — streamed separately via Suspense
+  ganttSlot: ReactNode;
   // User info
   userInfo: MyDayUserInfo;
   // Auth context
@@ -34,8 +33,7 @@ export default function MyDayDashboardV2({
   myTasks,
   allTasks,
   followUpLogs,
-  ganttClients,
-  ganttProjectsByClient,
+  ganttSlot,
   userInfo,
   currentUserId,
   firstName,
@@ -64,12 +62,7 @@ export default function MyDayDashboardV2({
         {/* LEFT: Content sections (2/3) */}
         <div className="flex-1 flex flex-col gap-8 min-w-0">
           {/* Timeline section */}
-          <section>
-            <ClientsTimeline
-              clients={ganttClients}
-              projectsByClient={ganttProjectsByClient}
-            />
-          </section>
+          <section>{ganttSlot}</section>
 
           {/* Follow-ups section */}
           <section>

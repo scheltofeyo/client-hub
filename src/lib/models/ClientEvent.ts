@@ -25,7 +25,7 @@ const ClientEventSchema = new Schema<IClientEvent>(
   {
     clientId:            { type: String, required: true, index: true },
     title:               { type: String, required: true, trim: true },
-    date:                { type: String, required: true },
+    date:                { type: String, required: true, index: true },
     type:                { type: String, required: true },
     recurrence:          { type: String, default: "none" },
     recurrenceInterval:  { type: Number },

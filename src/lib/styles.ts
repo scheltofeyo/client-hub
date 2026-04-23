@@ -38,9 +38,7 @@ function readableFg(bg: string): string {
   const b = (n & 0xff) / 255;
   const lin = (c: number) => (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
   const L = 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
-  // Threshold tuned for small bold avatar text; 0.6 keeps mid-tones on white
-  // and only switches to dark text for genuinely pale backgrounds.
-  return L > 0.6 ? "#0f172a" : "#ffffff";
+  return L > 0.4 ? "#0f172a" : "#ffffff";
 }
 
 /**

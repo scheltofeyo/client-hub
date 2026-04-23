@@ -120,7 +120,7 @@ export default function MyDayFollowUpsSection({ logs }: Props) {
                       className="flex items-center gap-2 hover:underline"
                     >
                       <div
-                        className="w-5 h-5 rounded flex-none flex items-center justify-center text-[9px] font-bold"
+                        className="w-5 h-5 rounded flex-none flex items-center justify-center text-[10px] font-bold"
                         style={{ background: bg, color: fg }}
                       >
                         {monogram(log.clientName)}
