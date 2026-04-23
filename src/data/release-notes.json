@@ -1,7 +1,15 @@
 [
   {
     "date": "2026-04-23",
-    "title": "Sign out werkt nu betrouwbaar voor admins en gebruikers met veel rechten"
+    "title": "Takenoverzicht van klanten laadt veel sneller",
+    "details": [
+      "Eén gecombineerde serveraanroep in plaats van een aparte aanroep per project",
+      "Profielfoto's worden nu bij het inloggen bijgewerkt in plaats van bij elke pagina-laadbeurt"
+    ]
+  },
+  {
+    "date": "2026-04-23",
+    "title": "Sign out werkt nu betrouwbaar in productie"
   },
   {
     "date": "2026-04-23",

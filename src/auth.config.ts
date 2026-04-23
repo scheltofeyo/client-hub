@@ -13,6 +13,7 @@ export const authConfig: NextAuthConfig = {
     signIn: "/login",
   },
   session: { strategy: "jwt" },
+  trustHost: true,
   callbacks: {
     authorized({ auth, request }) {
       const { pathname } = request.nextUrl;
