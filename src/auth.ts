@@ -3,6 +3,7 @@ import { authConfig } from "./auth.config";
 import { connectDB } from "@/lib/mongodb";
 import { UserModel } from "@/lib/models/User";
 import { RoleModel } from "@/lib/models/Role";
+import { TaskModel } from "@/lib/models/Task";
 import { getLeadSettings } from "@/lib/models/LeadSettings";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
@@ -59,6 +60,16 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         { _id: existing._id },
         { $set: update }
       );
+
+      // Propagate image change into task assignee snapshots so reads don't need a live lookup.
+      if (user.image && user.image !== existing.googleImage) {
+        const userId = existing._id.toString();
+        TaskModel.updateMany(
+          { "assignees.userId": userId },
+          { $set: { "assignees.$[elem].image": user.image } },
+          { arrayFilters: [{ "elem.userId": userId }] }
+        ).catch(() => {});
+      }
 
       return true;
     },

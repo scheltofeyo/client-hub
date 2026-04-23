@@ -135,25 +135,9 @@ export default function ClientDetailShell({
             break;
           }
           case "Tasks": {
-            const [projects, generalTasks] = await Promise.all([
-              fetch(`/api/clients/${clientId}/projects`).then((r) => r.json()),
-              fetch(`/api/clients/${clientId}/tasks`).then((r) => r.json()),
-            ]);
-            const projectIds = (projects as { id: string }[]).map((p) => p.id);
-            const projectTasks: Record<string, Task[]> = {};
-            if (projectIds.length > 0) {
-              const results = await Promise.all(
-                projectIds.map((pid) =>
-                  fetch(`/api/clients/${clientId}/projects/${pid}/tasks`)
-                    .then((r) => r.json())
-                    .then((tasks) => [pid, tasks] as const)
-                )
-              );
-              for (const [pid, tasks] of results) projectTasks[pid] = tasks;
-            }
-            const result = { generalTasks, projectTasks, projects };
-            dataCache.set(cacheKey, result);
-            setTasksData(result);
+            const data = await fetch(`/api/clients/${clientId}/tasks-board`).then((r) => r.json());
+            dataCache.set(cacheKey, data);
+            setTasksData(data);
             break;
           }
           case "Logbook": {

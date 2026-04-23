@@ -225,7 +225,9 @@ Users must be invited (via admin) before they can log in. `POST /api/users` crea
 ## Key Patterns
 
 ### User images
-`User.image` (Google profile photo URL) is the single source of truth, refreshed on every login. APIs that return user-linked data do a **batch lookup** of current `User.image` by userId at read time — never use stale snapshots. The shared `UserAvatar` component (`src/components/ui/UserAvatar.tsx`) is used everywhere. Props: `name`, `image`, `size` (px, default 24).
+`User.image` (Google profile photo URL) is refreshed on every login. To keep list endpoints fast, denormalized snapshots — like `Task.assignees[].image` — are the source of truth at read time; **do not** do live `UserModel.find` lookups inside list endpoints. Freshness is maintained by the `signIn` callback in `src/auth.ts`, which bulk-updates those snapshots (e.g. `TaskModel.updateMany` with `arrayFilters`) whenever the user's Google image changes. Writers (task POST/PATCH, etc.) must include the current `image` when storing an assignee/contact. The shared `UserAvatar` component (`src/components/ui/UserAvatar.tsx`) is used everywhere. Props: `name`, `image`, `size` (px, default 24).
+
+When introducing a new place where a user's image is denormalized, extend the `signIn` propagation so image updates flow through on next login.
 
 ### Activity recording
 `recordActivity()` in `src/lib/activity.ts` is fire-and-forget (errors are swallowed). Call it after any meaningful mutation.
