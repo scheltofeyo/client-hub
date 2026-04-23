@@ -1,6 +1,10 @@
 [
   {
     "date": "2026-04-23",
+    "title": "Sign out werkt nu betrouwbaar voor admins en gebruikers met veel rechten"
+  },
+  {
+    "date": "2026-04-23",
     "title": "Snellere navigatie tussen tabbladen",
     "details": [
       "Database-queries zijn geïndexeerd op de meest gebruikte velden",
