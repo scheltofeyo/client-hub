@@ -1,5 +1,67 @@
 [
   {
+    "date": "2026-05-05",
+    "title": "Dashboard event/task cards tonen nu grotere lead-avatars rechtsboven en gebruiken de client primary color voor de linker rand"
+  },
+  {
+    "date": "2026-05-05",
+    "title": "Voeg teamleden toe aan een project en beheer ze later",
+    "details": [
+      "In stap 2 van 'New Project' kun je een of meer SUMM-medewerkers selecteren",
+      "Bij projecten uit een template worden de geselecteerde medewerkers automatisch aan alle template-taken toegewezen, naast eventuele client leads",
+      "Teamleden kun je later via 'Edit project' aanpassen — bestaande taken blijven ongewijzigd zodat het simpel en veilig is",
+      "Op de projectkaarten in het Projects-tab zie je rechtsboven de avatars van de teamleden"
+    ]
+  },
+  {
+    "date": "2026-05-05",
+    "title": "Project beschrijving ondersteunt nu opmaak (vet, cursief, lijsten) met rich text editor en wordt opgemaakt getoond op de project overview"
+  },
+  {
+    "date": "2026-05-05",
+    "title": "Project templates hebben nu een 'Summary' veld dat onder de titel verschijnt in de templates lijst en bij het kiezen van een template voor een nieuw project"
+  },
+  {
+    "date": "2026-05-05",
+    "title": "Admin-pagina opent automatisch op een tab waar je toegang toe hebt"
+  },
+  {
+    "date": "2026-05-05",
+    "title": "Hover-tooltip op weekkaarten verwijderd op This Week dashboard"
+  },
+  {
+    "date": "2026-05-05",
+    "title": "Nieuwe taken via 'Add task' knop verschijnen direct in de lijst"
+  },
+  {
+    "date": "2026-05-04",
+    "title": "Deelnemers van sessies in apart paneel bewerken",
+    "details": [
+      "Bij aanmaken of bewerken van een sessie opent 'Participants' nu een gestapeld paneel met alleen de deelnemers",
+      "Hierdoor blijft het sessieformulier overzichtelijk en is er meer ruimte om deelnemers in te voeren"
+    ]
+  },
+  {
+    "date": "2026-05-04",
+    "title": "Sessies per project — workshops en meetings plannen",
+    "details": [
+      "Nieuwe Sessions tab op elk project: plan workshops en meetings met datum, locatie en deelnemers",
+      "Sessies zonder datum staan in een aparte Drafts-tabel zodat zichtbaar is wat nog gepland moet worden",
+      "Sessies met datum verschijnen automatisch op de client Events timeline met een nieuw Session-label",
+      "Project templates kunnen sessies bevatten — bij projectaanmaak komen die als drafts mee en wordt er automatisch een Plan-task gemaakt"
+    ]
+  },
+  {
+    "date": "2026-05-04",
+    "title": "Pagina's laden aanzienlijk sneller",
+    "details": [
+      "Geen witte flits meer bij navigatie: sessie wordt nu server-side geladen",
+      "Dashboard haalt klanten en projecten niet meer dubbel op",
+      "My Day versneld: meerdere queries draaien nu parallel in plaats van na elkaar",
+      "Clients-overzicht: activiteits-aggregatie geoptimaliseerd"
+    ]
+  },
+  {
     "date": "2026-04-23",
     "title": "Takenoverzicht van klanten laadt veel sneller",
     "details": [

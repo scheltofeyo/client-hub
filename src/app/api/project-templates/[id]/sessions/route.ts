@@ -1,0 +1,72 @@
+import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@/auth";
+import { requirePermission } from "@/lib/auth-helpers";
+import { connectDB } from "@/lib/mongodb";
+import { TemplateSessionModel } from "@/lib/models/TemplateSession";
+import { ProjectTemplateModel } from "@/lib/models/ProjectTemplate";
+
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await auth();
+  const forbidden = requirePermission(session, "admin.projectTemplates");
+  if (forbidden) return forbidden;
+
+  const { id } = await params;
+  await connectDB();
+
+  const docs = await TemplateSessionModel.find({ templateId: id }).sort({ order: 1 }).lean();
+  return NextResponse.json(
+    docs.map((doc) => ({
+      id: doc._id.toString(),
+      templateId: doc.templateId,
+      title: doc.title,
+      info: doc.info ?? undefined,
+      order: doc.order ?? 0,
+    }))
+  );
+}
+
+export async function POST(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await auth();
+  const forbidden = requirePermission(session, "admin.projectTemplates");
+  if (forbidden) return forbidden;
+
+  const { id: templateId } = await params;
+  await connectDB();
+
+  const template = await ProjectTemplateModel.findById(templateId).lean();
+  if (!template) return NextResponse.json({ error: "Template not found" }, { status: 404 });
+
+  const body = await req.json();
+  const { title, info } = body;
+
+  if (!title?.trim()) {
+    return NextResponse.json({ error: "Title is required" }, { status: 400 });
+  }
+
+  const last = await TemplateSessionModel.findOne({ templateId }).sort({ order: -1 }).lean();
+  const order = last ? (last.order ?? 0) + 1 : 0;
+
+  const doc = await TemplateSessionModel.create({
+    templateId,
+    title: title.trim(),
+    info: info?.trim() || undefined,
+    order,
+  });
+
+  return NextResponse.json(
+    {
+      id: doc._id.toString(),
+      templateId: doc.templateId,
+      title: doc.title,
+      info: doc.info ?? undefined,
+      order: doc.order ?? 0,
+    },
+    { status: 201 }
+  );
+}

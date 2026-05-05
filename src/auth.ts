@@ -4,6 +4,7 @@ import { connectDB } from "@/lib/mongodb";
 import { UserModel } from "@/lib/models/User";
 import { RoleModel } from "@/lib/models/Role";
 import { TaskModel } from "@/lib/models/Task";
+import { ProjectModel } from "@/lib/models/Project";
 import { getLeadSettings } from "@/lib/models/LeadSettings";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
@@ -67,6 +68,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         TaskModel.updateMany(
           { "assignees.userId": userId },
           { $set: { "assignees.$[elem].image": user.image } },
+          { arrayFilters: [{ "elem.userId": userId }] }
+        ).catch(() => {});
+        ProjectModel.updateMany(
+          { "members.userId": userId },
+          { $set: { "members.$[elem].image": user.image } },
           { arrayFilters: [{ "elem.userId": userId }] }
         ).catch(() => {});
       }

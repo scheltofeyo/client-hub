@@ -3,7 +3,9 @@ import { auth } from "@/auth";
 import { connectDB } from "@/lib/mongodb";
 import { ClientModel } from "@/lib/models/Client";
 import { ProjectModel } from "@/lib/models/Project";
+import { UserModel } from "@/lib/models/User";
 import { recordActivity } from "@/lib/activity";
+import type { TaskAssignee } from "@/types";
 import { hasPermission, hasPermissionOrIsLead, requirePermission } from "@/lib/auth-helpers";
 
 export async function PATCH(
@@ -24,7 +26,7 @@ export async function PATCH(
   }
 
   const body = await req.json();
-  const { title, description, status, completedDate, soldPrice, serviceId, labelId, deliveryDate, kickedOffAt, scheduledStartDate, scheduledEndDate } = body;
+  const { title, description, status, completedDate, soldPrice, serviceId, labelId, deliveryDate, kickedOffAt, scheduledStartDate, scheduledEndDate, members } = body;
 
   if (title !== undefined && !title?.trim()) {
     return NextResponse.json({ error: "Title cannot be empty" }, { status: 400 });
@@ -60,6 +62,7 @@ export async function PATCH(
       serviceId: doc.serviceId ?? null,
       labelId: doc.labelId ?? null,
       kickedOffAt: null,
+      members: doc.members ?? [],
     });
   }
 
@@ -73,6 +76,27 @@ export async function PATCH(
   if (scheduledStartDate !== undefined) update.scheduledStartDate = scheduledStartDate?.trim() || null;
   if (scheduledEndDate !== undefined) update.scheduledEndDate = scheduledEndDate?.trim() || null;
   if (kickedOffAt !== undefined && kickedOffAt !== null) update.kickedOffAt = kickedOffAt?.trim() || null;
+
+  if (members !== undefined) {
+    let resolved: TaskAssignee[] = [];
+    if (Array.isArray(members) && members.length > 0) {
+      const memberIds = members
+        .map((m: { userId?: string }) => m?.userId)
+        .filter((u): u is string => typeof u === "string" && u.length > 0);
+      if (memberIds.length > 0) {
+        const memberUsers = await UserModel.find(
+          { _id: { $in: memberIds } },
+          { _id: 1, name: 1, image: 1 }
+        ).lean();
+        resolved = memberUsers.map((u) => ({
+          userId: u._id.toString(),
+          name: u.name,
+          image: u.image ?? undefined,
+        }));
+      }
+    }
+    update.members = resolved;
+  }
 
   if (status !== undefined) {
     update.status = status;
@@ -104,7 +128,7 @@ export async function PATCH(
     });
   } else {
     // Track meaningful field changes (skip when status change or reset is the primary action)
-    const trackFields = ["title", "description", "soldPrice", "serviceId", "labelId", "deliveryDate", "scheduledStartDate", "scheduledEndDate"] as const;
+    const trackFields = ["title", "description", "soldPrice", "serviceId", "labelId", "deliveryDate", "scheduledStartDate", "scheduledEndDate", "members"] as const;
     const updatedFields = trackFields.filter((f) => body[f] !== undefined);
     if (updatedFields.length > 0) {
       await recordActivity({
@@ -131,6 +155,7 @@ export async function PATCH(
     kickedOffAt: doc.kickedOffAt ?? null,
     scheduledStartDate: doc.scheduledStartDate ?? null,
     scheduledEndDate: doc.scheduledEndDate ?? null,
+    members: doc.members ?? [],
   });
 }
 

@@ -35,6 +35,11 @@ export const ALL_PERMISSIONS = [
   "events.edit",
   "events.delete",
 
+  // Session management
+  "sessions.create",
+  "sessions.edit",
+  "sessions.delete",
+
   // Sheet management
   "sheets.create",
   "sheets.edit",
@@ -223,6 +228,15 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
     ],
   },
   {
+    label: "Sessions",
+    description: "Workshops and meetings with client participants, scoped to a project.",
+    permissions: [
+      { key: "sessions.create", label: "Create sessions" },
+      { key: "sessions.edit", label: "Edit sessions" },
+      { key: "sessions.delete", label: "Delete sessions" },
+    ],
+  },
+  {
     label: "Sheets",
     description: "Linked Google Sheets and documents attached to clients.",
     permissions: [
@@ -340,6 +354,11 @@ export const MEMBER_PERMISSIONS: Permission[] = [
   "events.create",
   "events.edit",
   "events.delete",
+
+  // Sessions — full access
+  "sessions.create",
+  "sessions.edit",
+  "sessions.delete",
 
   // Sheets — full access
   "sheets.create",

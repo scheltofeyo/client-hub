@@ -5,6 +5,7 @@ import { FolderKanban } from "lucide-react";
 import UserAvatar from "@/components/ui/UserAvatar";
 import { WEEK_CARD_TYPES } from "@/lib/utils";
 import type { WeekCalendarItem } from "@/lib/utils";
+import { resolveClientColor } from "@/lib/styles";
 
 interface Props {
   items: WeekCalendarItem[];
@@ -38,6 +39,7 @@ export default function ProjectEventsColumn({ items }: Props) {
         <div className="space-y-2">
           {items.map((item) => {
             const config = WEEK_CARD_TYPES[item.type];
+            const { bg: clientColor } = resolveClientColor(item.clientName, item.clientPrimaryColor);
             return (
               <Link
                 key={item.id}
@@ -46,40 +48,40 @@ export default function ProjectEventsColumn({ items }: Props) {
                 style={{
                   borderColor: "var(--border)",
                   borderLeftWidth: 3,
-                  borderLeftColor: config.color,
+                  borderLeftColor: clientColor,
                   background: "var(--bg-surface)",
                 }}
               >
-                <span
-                  className="typo-tag"
-                  style={{ color: config.color }}
-                >
-                  {config.label}
-                </span>
-                <p
-                  className="text-sm font-medium truncate mt-0.5"
-                  style={{ color: "var(--text-primary)" }}
-                >
-                  {item.title}
-                </p>
-                <div className="flex items-center justify-between mt-1">
-                  <span className="text-xs truncate" style={{ color: "var(--text-muted)" }}>
-                    {item.clientName}
+                <div className="flex items-start justify-between gap-2">
+                  <span
+                    className="typo-tag"
+                    style={{ color: config.color }}
+                  >
+                    {config.label}
                   </span>
                   {item.leads.length > 0 && (
-                    <div className="flex items-center -space-x-1.5 shrink-0 ml-2">
+                    <div className="flex items-center -space-x-1.5 shrink-0">
                       {item.leads.slice(0, 2).map((lead) => (
                         <div
                           key={lead.userId}
                           style={{ boxShadow: "0 0 0 2px var(--bg-surface)" }}
                           className="rounded-full"
                         >
-                          <UserAvatar name={lead.name} image={lead.image} size={16} />
+                          <UserAvatar name={lead.name} image={lead.image} size={24} />
                         </div>
                       ))}
                     </div>
                   )}
                 </div>
+                <p
+                  className="text-sm font-medium truncate mt-0.5"
+                  style={{ color: "var(--text-primary)" }}
+                >
+                  {item.title}
+                </p>
+                <span className="text-xs truncate block mt-1" style={{ color: "var(--text-muted)" }}>
+                  {item.clientName}
+                </span>
               </Link>
             );
           })}

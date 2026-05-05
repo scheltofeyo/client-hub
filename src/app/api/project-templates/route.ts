@@ -23,7 +23,7 @@ export async function GET() {
     docs.map((doc) => ({
       id: doc._id.toString(),
       name: doc.name,
-      description: doc.description,
+      summary: doc.summary ?? (doc as { description?: string }).description,
       defaultDescription: doc.defaultDescription,
       defaultSoldPrice: doc.defaultSoldPrice,
       defaultServiceId: doc.defaultServiceId,
@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
 
   await connectDB();
   const body = await req.json();
-  const { name, description, defaultDescription, defaultSoldPrice, defaultServiceId, defaultDeliveryDays } = body;
+  const { name, summary, defaultDescription, defaultSoldPrice, defaultServiceId, defaultDeliveryDays } = body;
 
   if (!name?.trim()) {
     return NextResponse.json({ error: "Name is required" }, { status: 400 });
@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
 
   const doc = await ProjectTemplateModel.create({
     name: name.trim(),
-    description: description?.trim() || undefined,
+    summary: summary?.trim() || undefined,
     defaultDescription: defaultDescription?.trim() || undefined,
     defaultSoldPrice: defaultSoldPrice ? Number(defaultSoldPrice) : undefined,
     defaultServiceId: defaultServiceId || undefined,
@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     id: doc._id.toString(),
     name: doc.name,
-    description: doc.description,
+    summary: doc.summary,
     defaultDescription: doc.defaultDescription,
     defaultSoldPrice: doc.defaultSoldPrice,
     defaultServiceId: doc.defaultServiceId,

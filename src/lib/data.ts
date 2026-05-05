@@ -15,6 +15,8 @@ import { TemplateTaskModel } from "./models/TemplateTask";
 import { ActivityEventModel } from "./models/ActivityEvent";
 import { EventTypeModel, DEFAULT_EVENT_TYPES } from "./models/EventType";
 import { ClientEventModel } from "./models/ClientEvent";
+import { SessionModel } from "./models/Session";
+import { TemplateSessionModel } from "./models/TemplateSession";
 import { ClientStatusOptionModel, DEFAULT_CLIENT_STATUSES } from "./models/ClientStatusOption";
 import { ClientPlatformOptionModel, DEFAULT_CLIENT_PLATFORMS } from "./models/ClientPlatformOption";
 import { ProjectLabelModel } from "./models/ProjectLabel";
@@ -22,7 +24,7 @@ import { RoleModel } from "./models/Role";
 import { LeaveTypeModel, DEFAULT_LEAVE_TYPES } from "./models/LeaveType";
 import { TimeOffModel } from "./models/TimeOff";
 import { CompanyHolidayModel } from "./models/CompanyHoliday";
-import type { Archetype, BirthdayItem, Client, ClientLead, ClientPlatformOption, ClientStatusOption, CompanyHoliday, Contact, DashboardStats, EventType, LeaveType, Log, LogSignal, MyDayFollowUpData, MyDayTaskData, MyDayUserInfo, MyProjectOverview, Project, ProjectLabel, ProjectTemplate, RecurrenceUnit, Service, Sheet, Task, TemplateTask, TimelineEvent, TimeOffEntry, TimeOffBalance, WeekTeamData } from "@/types";
+import type { Archetype, BirthdayItem, Client, ClientLead, ClientPlatformOption, ClientStatusOption, CompanyHoliday, Contact, DashboardStats, EventType, LeaveType, Log, LogSignal, MyDayFollowUpData, MyDayTaskData, MyDayUserInfo, MyProjectOverview, Project, ProjectLabel, ProjectTemplate, RecurrenceUnit, Service, Session, Sheet, Task, TemplateSession, TemplateTask, TimelineEvent, TimeOffEntry, TimeOffBalance, WeekTeamData } from "@/types";
 import type { WeekCalendarItem } from "@/lib/utils";
 import { mapToWeekday } from "@/lib/utils";
 
@@ -120,16 +122,16 @@ async function buildPlatformLabelMap(): Promise<Map<string, string>> {
   return map;
 }
 
-async function buildUserImageMap(): Promise<Map<string, string>> {
+const buildUserImageMap = cache(async (): Promise<Map<string, string>> => {
   const users = await UserModel.find({}, { _id: 1, image: 1 }).lean();
   const map = new Map<string, string>();
   for (const u of users) {
     if (u.image) map.set(u._id.toString(), u.image);
   }
   return map;
-}
+});
 
-export async function getClients(): Promise<Client[]> {
+export const getClients = cache(async (): Promise<Client[]> => {
   await connectDB();
   const [docs, imageMap, archetypeMap, platformLabelMap] = await Promise.all([
     ClientModel.find().sort({ createdAt: -1 }).lean(),
@@ -147,7 +149,7 @@ export async function getClients(): Promise<Client[]> {
     }
     return client;
   });
-}
+});
 
 export const getClientById = cache(async (id: string): Promise<Client | undefined> => {
   if (!mongoose.Types.ObjectId.isValid(id)) return undefined;
@@ -236,6 +238,13 @@ function mapProject(doc: ReturnType<typeof Object.assign>, serviceMap?: Map<stri
     kickedOffAt,
     scheduledStartDate: doc.scheduledStartDate ?? undefined,
     scheduledEndDate: doc.scheduledEndDate ?? undefined,
+    members: Array.isArray(doc.members)
+      ? doc.members.map((m: { userId: string; name: string; image?: string }) => ({
+          userId: m.userId,
+          name: m.name,
+          image: m.image ?? undefined,
+        }))
+      : [],
     createdAt: doc.createdAt?.toISOString().split("T")[0],
   };
 }
@@ -417,6 +426,41 @@ export async function getTasksByProjectId(projectId: string): Promise<Task[]> {
   return docs.map(mapTask);
 }
 
+export async function getSessionsByProjectId(projectId: string): Promise<Session[]> {
+  await connectDB();
+  const docs = await SessionModel.find({ projectId }).sort({ date: 1, createdAt: 1 }).lean();
+  return docs.map((doc) => ({
+    id: doc._id.toString(),
+    clientId: doc.clientId,
+    projectId: doc.projectId,
+    title: doc.title,
+    date: doc.date ?? undefined,
+    location: doc.location ?? undefined,
+    remoteLink: doc.remoteLink ?? undefined,
+    participants: (doc.participants ?? []).map((p) => ({
+      email: p.email,
+      ...(p.name ? { name: p.name } : {}),
+    })),
+    info: doc.info ?? undefined,
+    templateSessionId: doc.templateSessionId ?? undefined,
+    createdById: doc.createdById,
+    createdByName: doc.createdByName,
+    createdAt: doc.createdAt?.toISOString().split("T")[0],
+  }));
+}
+
+export async function getTemplateSessionsByTemplateId(templateId: string): Promise<TemplateSession[]> {
+  await connectDB();
+  const docs = await TemplateSessionModel.find({ templateId }).sort({ order: 1 }).lean();
+  return docs.map((doc) => ({
+    id: doc._id.toString(),
+    templateId: doc.templateId,
+    title: doc.title,
+    info: doc.info ?? undefined,
+    order: doc.order ?? 0,
+  }));
+}
+
 export async function getTaskStatsByProjectIds(
   projectIds: string[]
 ): Promise<Map<string, { total: number; completed: number }>> {
@@ -485,10 +529,11 @@ export async function getProjectTemplates(): Promise<ProjectTemplate[]> {
   return docs.map((doc) => ({
     id: doc._id.toString(),
     name: doc.name,
-    description: doc.description,
+    summary: doc.summary ?? (doc as { description?: string }).description,
     defaultDescription: doc.defaultDescription,
     defaultSoldPrice: doc.defaultSoldPrice,
     defaultServiceId: doc.defaultServiceId,
+    defaultDeliveryDays: doc.defaultDeliveryDays,
     createdAt: doc.createdAt?.toISOString().split("T")[0],
   }));
 }
@@ -500,10 +545,11 @@ export const getProjectTemplateById = cache(async (id: string): Promise<ProjectT
   return {
     id: doc._id.toString(),
     name: doc.name,
-    description: doc.description,
+    summary: doc.summary ?? (doc as { description?: string }).description,
     defaultDescription: doc.defaultDescription,
     defaultSoldPrice: doc.defaultSoldPrice,
     defaultServiceId: doc.defaultServiceId,
+    defaultDeliveryDays: doc.defaultDeliveryDays,
     createdAt: doc.createdAt?.toISOString().split("T")[0],
   };
 });
@@ -783,7 +829,7 @@ export async function getUpcomingEventsForClient(clientId: string): Promise<Time
     await ProjectModel.find({ clientId, status: { $ne: "completed" }, kickedOffAt: { $exists: true, $ne: null } }, { _id: 1 }).lean()
   ).map((p) => p._id.toString());
 
-  const [logs, completionProjects, deliveryProjects, projectTasks, generalTasks, customDocs, servicesWithTimer] =
+  const [logs, completionProjects, deliveryProjects, projectTasks, generalTasks, customDocs, servicesWithTimer, sessions] =
     await Promise.all([
       LogModel.find({
         clientId,
@@ -823,6 +869,10 @@ export async function getUpcomingEventsForClient(clientId: string): Promise<Time
       }).lean(),
       ClientEventModel.find({ clientId }).sort({ date: 1 }).lean(),
       ServiceModel.find({ checkInDays: { $ne: null } }).lean(),
+      SessionModel.find({
+        clientId,
+        date: { $exists: true, $ne: "", $gte: today },
+      }).lean(),
     ]);
 
   // Build service name lookup for service-linked log events
@@ -877,6 +927,17 @@ export async function getUpcomingEventsForClient(clientId: string): Promise<Time
       sourceId: p._id.toString(),
       deletable: false,
     })),
+    ...sessions.map((s) => ({
+      id: `session_${s._id.toString()}`,
+      date: s.date as string,
+      title: s.title as string,
+      type: "session" as const,
+      source: "session" as const,
+      sourceId: s._id.toString(),
+      projectId: (s.projectId as string | undefined)?.toString(),
+      notes: (s.info as string | undefined) ?? undefined,
+      deletable: false,
+    })),
     ...customDocs.flatMap((doc) => {
       const rec = resolveRecurrence(doc);
       const docId = doc._id.toString();
@@ -926,7 +987,7 @@ export async function getPastEventsForClient(clientId: string): Promise<Timeline
   lookbackDate.setDate(lookbackDate.getDate() - PAST_LOOKBACK_DAYS);
   const lookbackStart = lookbackDate.toISOString().slice(0, 10);
 
-  const [logs, completionProjects, deliveryProjects, projectTasks, generalTasks, customDocs, servicesWithTimer] =
+  const [logs, completionProjects, deliveryProjects, projectTasks, generalTasks, customDocs, servicesWithTimer, sessions] =
     await Promise.all([
       // Past follow-ups: either already followed up, or deadline has passed
       LogModel.find({
@@ -969,6 +1030,10 @@ export async function getPastEventsForClient(clientId: string): Promise<Timeline
       }).lean(),
       ClientEventModel.find({ clientId }).sort({ date: 1 }).lean(),
       ServiceModel.find({ checkInDays: { $ne: null } }).lean(),
+      SessionModel.find({
+        clientId,
+        date: { $exists: true, $ne: "", $lt: today, $gte: lookbackStart },
+      }).lean(),
     ]);
 
   const serviceNameMap = new Map<string, string>();
@@ -1022,6 +1087,17 @@ export async function getPastEventsForClient(clientId: string): Promise<Timeline
       type: "delivery" as const,
       source: "project" as const,
       sourceId: p._id.toString(),
+      deletable: false,
+    })),
+    ...sessions.map((s) => ({
+      id: `session_${s._id.toString()}`,
+      date: s.date as string,
+      title: s.title as string,
+      type: "session" as const,
+      source: "session" as const,
+      sourceId: s._id.toString(),
+      projectId: (s.projectId as string | undefined)?.toString(),
+      notes: (s.info as string | undefined) ?? undefined,
       deletable: false,
     })),
     ...customDocs.flatMap((doc) => {
@@ -1147,8 +1223,7 @@ export async function getOpenProjectCountsByClient(): Promise<Map<string, number
 export async function getLastActivityDateByAllClients(): Promise<Map<string, string | null>> {
   await connectDB();
   const results = await ActivityEventModel.aggregate([
-    { $sort: { createdAt: -1 } },
-    { $group: { _id: "$clientId", lastActivity: { $first: "$createdAt" } } },
+    { $group: { _id: "$clientId", lastActivity: { $max: "$createdAt" } } },
   ]);
   const map = new Map<string, string | null>();
   for (const r of results) {
@@ -1249,7 +1324,7 @@ export const getTemplateTasksByTemplateId = cache(async (templateId: string): Pr
   }));
 });
 
-export async function getProjectsByAllClients(): Promise<Map<string, Project[]>> {
+export const getProjectsByAllClients = cache(async (): Promise<Map<string, Project[]>> => {
   await connectDB();
   const [docs, serviceDocs, labelMap] = await Promise.all([
     ProjectModel.find({}).sort({ createdAt: -1 }).lean(),
@@ -1267,7 +1342,7 @@ export async function getProjectsByAllClients(): Promise<Map<string, Project[]>>
     map.get(cid)!.push(project);
   }
   return map;
-}
+});
 
 // ── "This Week" dashboard data ──────────────────────────────────────────────
 
@@ -1278,20 +1353,9 @@ export async function getProjectsByAllClients(): Promise<Map<string, Project[]>>
 export async function getWeekCalendarItems(start: string, end: string): Promise<WeekCalendarItem[]> {
   await connectDB();
 
-  // Build client lookup for names and leads
-  const clients = await getClients();
-  const clientMap = new Map<string, { company: string; leads: ClientLead[] }>();
-  for (const c of clients) {
-    clientMap.set(c.id, { company: c.company, leads: c.leads ?? [] });
-  }
-
-  function resolve(clientId: string | undefined): { clientName: string; leads: ClientLead[] } {
-    if (!clientId) return { clientName: "General", leads: [] };
-    const c = clientMap.get(clientId.toString());
-    return c ? { clientName: c.company, leads: c.leads } : { clientName: "General", leads: [] };
-  }
-
-  const [deadlineTasks, deliveryProjects, kickoffProjects, followUpLogs, customDocs] = await Promise.all([
+  const [clients, deadlineTasks, deliveryProjects, kickoffProjects, followUpLogs, customDocs] = await Promise.all([
+    // Client lookup for names and leads (runs in parallel with DB scans)
+    getClients(),
     // Deadlines: open tasks with completionDate in range
     TaskModel.find({
       completionDate: { $gte: start, $lte: end },
@@ -1324,12 +1388,23 @@ export async function getWeekCalendarItems(start: string, end: string): Promise<
     }).sort({ date: 1 }).lean(),
   ]);
 
+  const clientMap = new Map<string, { company: string; primaryColor?: string; leads: ClientLead[] }>();
+  for (const c of clients) {
+    clientMap.set(c.id, { company: c.company, primaryColor: c.primaryColor, leads: c.leads ?? [] });
+  }
+
+  function resolve(clientId: string | undefined): { clientName: string; clientPrimaryColor?: string; leads: ClientLead[] } {
+    if (!clientId) return { clientName: "General", leads: [] };
+    const c = clientMap.get(clientId.toString());
+    return c ? { clientName: c.company, clientPrimaryColor: c.primaryColor, leads: c.leads } : { clientName: "General", leads: [] };
+  }
+
   const items: WeekCalendarItem[] = [];
 
   // Deadlines (tasks)
   for (const t of deadlineTasks) {
     const cid = t.clientId?.toString();
-    const { clientName, leads } = resolve(cid);
+    const { clientName, clientPrimaryColor, leads } = resolve(cid);
     const projectId = t.projectId?.toString();
     items.push({
       id: `task_${t._id.toString()}`,
@@ -1338,6 +1413,7 @@ export async function getWeekCalendarItems(start: string, end: string): Promise<
       title: t.title as string,
       clientId: cid ?? "",
       clientName,
+      clientPrimaryColor,
       leads,
       linkHref: projectId
         ? `/clients/${cid}/projects/${projectId}`
@@ -1349,7 +1425,7 @@ export async function getWeekCalendarItems(start: string, end: string): Promise<
   // Deliveries (projects)
   for (const p of deliveryProjects) {
     const cid = (p.clientId as string).toString();
-    const { clientName, leads } = resolve(cid);
+    const { clientName, clientPrimaryColor, leads } = resolve(cid);
     items.push({
       id: `delivery_${p._id.toString()}`,
       type: "delivery",
@@ -1357,6 +1433,7 @@ export async function getWeekCalendarItems(start: string, end: string): Promise<
       title: p.title as string,
       clientId: cid,
       clientName,
+      clientPrimaryColor,
       leads,
       linkHref: `/clients/${cid}/projects/${p._id.toString()}`,
     });
@@ -1365,7 +1442,7 @@ export async function getWeekCalendarItems(start: string, end: string): Promise<
   // Kick-offs (projects)
   for (const p of kickoffProjects) {
     const cid = (p.clientId as string).toString();
-    const { clientName, leads } = resolve(cid);
+    const { clientName, clientPrimaryColor, leads } = resolve(cid);
     items.push({
       id: `kickoff_${p._id.toString()}`,
       type: "kickoff",
@@ -1373,6 +1450,7 @@ export async function getWeekCalendarItems(start: string, end: string): Promise<
       title: p.title as string,
       clientId: cid,
       clientName,
+      clientPrimaryColor,
       leads,
       linkHref: `/clients/${cid}/projects/${p._id.toString()}`,
     });
@@ -1383,7 +1461,7 @@ export async function getWeekCalendarItems(start: string, end: string): Promise<
     // Skip follow-ups that have already generated a task (avoid duplication)
     if (l.followUpTaskId) continue;
     const cid = (l.clientId as string).toString();
-    const { clientName, leads } = resolve(cid);
+    const { clientName, clientPrimaryColor, leads } = resolve(cid);
     items.push({
       id: `followup_${l._id.toString()}`,
       type: "followup",
@@ -1391,6 +1469,7 @@ export async function getWeekCalendarItems(start: string, end: string): Promise<
       title: (l.followUpAction as string | undefined)?.trim() || (l.summary as string).slice(0, 60),
       clientId: cid,
       clientName,
+      clientPrimaryColor,
       leads,
       linkHref: `/clients/${cid}?tab=Logbook`,
     });
@@ -1401,7 +1480,7 @@ export async function getWeekCalendarItems(start: string, end: string): Promise<
     const rec = resolveRecurrence(doc);
     const docId = doc._id.toString();
     const cid = (doc.clientId as string).toString();
-    const { clientName, leads } = resolve(cid);
+    const { clientName, clientPrimaryColor, leads } = resolve(cid);
 
     if (!rec) {
       // One-off event
@@ -1414,6 +1493,7 @@ export async function getWeekCalendarItems(start: string, end: string): Promise<
           title: doc.title as string,
           clientId: cid,
           clientName,
+          clientPrimaryColor,
           leads,
           linkHref: `/clients/${cid}?tab=Events`,
         });
@@ -1433,6 +1513,7 @@ export async function getWeekCalendarItems(start: string, end: string): Promise<
           title: doc.title as string,
           clientId: cid,
           clientName,
+          clientPrimaryColor,
           leads,
           linkHref: `/clients/${cid}?tab=Events`,
         });
@@ -1742,18 +1823,15 @@ export async function getMyDayTasks(userId: string): Promise<MyDayTaskData> {
 export async function getMyLeadClientTasks(userId: string): Promise<MyDayTaskData> {
   await connectDB();
 
-  // 1. Clients the user leads
-  const leadClientDocs = await ClientModel.find(
-    { "leads.userId": userId },
-    { _id: 1, company: 1, primaryColor: 1 }
-  ).lean();
+  // 1+2. Clients the user leads and assigned tasks run in parallel
+  const [leadClientDocs, assignedDocs] = await Promise.all([
+    ClientModel.find({ "leads.userId": userId }, { _id: 1, company: 1, primaryColor: 1 }).lean(),
+    TaskModel.find(
+      { "assignees.userId": userId, completedAt: null, parentTaskId: { $exists: false } },
+      { clientId: 1 }
+    ).lean(),
+  ]);
   const leadClientIds = new Set(leadClientDocs.map((c) => c._id.toString()));
-
-  // 2. Find any additional clientIds from tasks assigned to the user
-  const assignedDocs = await TaskModel.find(
-    { "assignees.userId": userId, completedAt: null, parentTaskId: { $exists: false } },
-    { clientId: 1 }
-  ).lean();
   const extraClientIds = [...new Set(
     assignedDocs.map((d) => d.clientId as string).filter((id) => id && !leadClientIds.has(id))
   )];
@@ -1887,12 +1965,14 @@ export async function getMyDayUserInfo(userId: string): Promise<MyDayUserInfo> {
   }
 
   const roleSlug = (user.role as string) ?? "";
-  const roleDoc = roleSlug ? await RoleModel.findOne({ slug: roleSlug }, { name: 1 }).lean() : null;
-
   const clientIds = clientDocs.map((c) => c._id.toString());
-  const activeProjectCount = clientIds.length > 0
-    ? await ProjectModel.countDocuments({ clientId: { $in: clientIds }, status: { $ne: "completed" } })
-    : 0;
+
+  const [roleDoc, activeProjectCount] = await Promise.all([
+    roleSlug ? RoleModel.findOne({ slug: roleSlug }, { name: 1 }).lean() : Promise.resolve(null),
+    clientIds.length > 0
+      ? ProjectModel.countDocuments({ clientId: { $in: clientIds }, status: { $ne: "completed" } })
+      : Promise.resolve(0),
+  ]);
 
   return {
     name: (user.name as string) ?? "",

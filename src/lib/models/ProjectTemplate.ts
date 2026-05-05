@@ -2,7 +2,7 @@ import mongoose, { Schema, Document, Model } from "mongoose";
 
 export interface IProjectTemplate extends Document {
   name: string;
-  description?: string;
+  summary?: string;
   defaultDescription?: string;
   defaultSoldPrice?: number;
   defaultServiceId?: string;
@@ -14,13 +14,13 @@ export interface IProjectTemplate extends Document {
 const ProjectTemplateSchema = new Schema<IProjectTemplate>(
   {
     name: { type: String, required: true, trim: true },
-    description: { type: String, trim: true },
+    summary: { type: String, trim: true },
     defaultDescription: { type: String, trim: true },
     defaultSoldPrice: { type: Number },
     defaultServiceId: { type: String },
     defaultDeliveryDays: { type: Number },
   },
-  { timestamps: true }
+  { timestamps: true, strict: false }
 );
 
 if (mongoose.models.ProjectTemplate) {

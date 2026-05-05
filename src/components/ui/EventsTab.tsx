@@ -19,13 +19,14 @@ import {
   Tag,
   PackageCheck,
   Pencil,
+  Presentation,
   RefreshCw,
 } from "lucide-react";
 import { useRightPanel } from "@/components/layout/RightPanel";
 import type { EventType, TimelineEvent, RecurrenceUnit } from "@/types";
 
 /** System event type slugs that should not be user-selectable */
-const SYSTEM_EVENT_TYPE_SLUGS: readonly string[] = ["deadline", "delivery", "follow_up", "expired_service"];
+const SYSTEM_EVENT_TYPE_SLUGS: readonly string[] = ["deadline", "delivery", "follow_up", "expired_service", "session"];
 
 // ── Helpers ──────────────────────────────────────────────────
 
@@ -51,6 +52,10 @@ function eventNavUrl(clientId: string, event: TimelineEvent): string | null {
         : null;
     case "project":
       return `/clients/${clientId}/projects/${event.sourceId}/tasks`;
+    case "session":
+      return event.projectId
+        ? `/clients/${clientId}/projects/${event.projectId}/sessions`
+        : null;
     case "custom":
     default:
       return null;
@@ -91,7 +96,7 @@ function legacyToIntervalUnit(recurrence: string): { interval: number; unit: Rec
 
 const ICON_REGISTRY: Record<string, React.ElementType> = {
   Users, Clock, Flag, Circle, CalendarDays, Star, Bell, Zap, Briefcase, Tag,
-  AlarmClock, CheckSquare, FolderOpen, PackageCheck,
+  AlarmClock, CheckSquare, FolderOpen, PackageCheck, Presentation,
 };
 
 const SYSTEM_TYPE_CONFIG: Record<string, { color: string; label: string; icon: React.ElementType }> = {

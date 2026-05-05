@@ -5,6 +5,8 @@ import { Pencil, Trash2, Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import SteppedModal from "@/components/ui/SteppedModal";
 import ServicePills from "@/components/ui/ServicePills";
+import RichTextEditor from "@/components/ui/RichTextEditor";
+import RichTextDisplay from "@/components/ui/RichTextDisplay";
 import { inputClass, inputStyle } from "@/components/ui/form-styles";
 import type { ProjectTemplate, Service } from "@/types";
 
@@ -12,7 +14,7 @@ import type { ProjectTemplate, Service } from "@/types";
 
 interface TemplateFormState {
   name: string;
-  description: string;
+  summary: string;
   defaultDescription: string;
   defaultSoldPrice: string;
   defaultServiceId: string;
@@ -54,32 +56,28 @@ function TemplateSettingsFields({
       />
 
       <div>
-        <label htmlFor="tpl-desc" className="typo-label">
-          Short description
+        <label htmlFor="tpl-summary" className="typo-label">
+          Summary
         </label>
         <input
-          id="tpl-desc"
+          id="tpl-summary"
           type="text"
-          value={form.description}
-          onChange={(e) => set("description", e.target.value)}
-          placeholder="Shown to employees when picking a template"
+          value={form.summary}
+          onChange={(e) => set("summary", e.target.value)}
+          placeholder="Shown under the title when picking a template"
           className={inputClass}
           style={inputStyle}
         />
       </div>
 
       <div>
-        <label htmlFor="tpl-default-desc" className="typo-label">
+        <label className="typo-label">
           Default project description
         </label>
-        <textarea
-          id="tpl-default-desc"
-          value={form.defaultDescription}
-          onChange={(e) => set("defaultDescription", e.target.value)}
-          rows={3}
+        <RichTextEditor
+          content={form.defaultDescription}
+          onChange={(html) => set("defaultDescription", html)}
           placeholder="Pre-fills the project description field…"
-          className={inputClass + " resize-none"}
-          style={inputStyle}
         />
       </div>
 
@@ -145,7 +143,7 @@ export default function AdminTemplatesTable({
   const [addOpen, setAddOpen] = useState(false);
   const [addForm, setAddForm] = useState<TemplateFormState>({
     name: "",
-    description: "",
+    summary: "",
     defaultDescription: "",
     defaultSoldPrice: "",
     defaultServiceId: "",
@@ -158,7 +156,7 @@ export default function AdminTemplatesTable({
   const [editingTemplate, setEditingTemplate] = useState<ProjectTemplate | null>(null);
   const [editForm, setEditForm] = useState<TemplateFormState>({
     name: "",
-    description: "",
+    summary: "",
     defaultDescription: "",
     defaultSoldPrice: "",
     defaultServiceId: "",
@@ -170,7 +168,7 @@ export default function AdminTemplatesTable({
   function openAdd() {
     setAddForm({
       name: "",
-      description: "",
+      summary: "",
       defaultDescription: "",
       defaultSoldPrice: "",
       defaultServiceId: "",
@@ -183,7 +181,7 @@ export default function AdminTemplatesTable({
   function openEdit(tpl: ProjectTemplate) {
     setEditForm({
       name: tpl.name,
-      description: tpl.description ?? "",
+      summary: tpl.summary ?? "",
       defaultDescription: tpl.defaultDescription ?? "",
       defaultSoldPrice: tpl.defaultSoldPrice != null ? String(tpl.defaultSoldPrice) : "",
       defaultServiceId: tpl.defaultServiceId ?? "",
@@ -206,7 +204,7 @@ export default function AdminTemplatesTable({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         name: addForm.name,
-        description: addForm.description || undefined,
+        summary: addForm.summary || undefined,
         defaultDescription: addForm.defaultDescription || undefined,
         defaultSoldPrice: addForm.defaultSoldPrice ? Number(addForm.defaultSoldPrice) : undefined,
         defaultServiceId: addForm.defaultServiceId || undefined,
@@ -242,7 +240,7 @@ export default function AdminTemplatesTable({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         name: editForm.name,
-        description: editForm.description || undefined,
+        summary: editForm.summary || undefined,
         defaultDescription: editForm.defaultDescription || undefined,
         defaultSoldPrice: editForm.defaultSoldPrice ? Number(editForm.defaultSoldPrice) : undefined,
         defaultServiceId: editForm.defaultServiceId || undefined,
@@ -290,10 +288,17 @@ export default function AdminTemplatesTable({
               <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
                 {tpl.name}
               </p>
-              {tpl.description && (
+              {tpl.summary && (
                 <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
-                  {tpl.description}
+                  {tpl.summary}
                 </p>
+              )}
+              {tpl.defaultDescription && (
+                <RichTextDisplay
+                  html={tpl.defaultDescription}
+                  className="text-xs mt-1.5 line-clamp-2"
+                  style={{ color: "var(--text-muted)" }}
+                />
               )}
               <div className="flex gap-4 mt-1.5">
                 {tpl.defaultSoldPrice != null && (
@@ -304,11 +309,6 @@ export default function AdminTemplatesTable({
                 {tpl.defaultServiceId && (
                   <span className="text-xs" style={{ color: "var(--text-muted)" }}>
                     Service: {services.find((s) => s.id === tpl.defaultServiceId)?.name ?? "—"}
-                  </span>
-                )}
-                {tpl.defaultDescription && (
-                  <span className="text-xs truncate max-w-xs" style={{ color: "var(--text-muted)" }}>
-                    Default desc: {tpl.defaultDescription}
                   </span>
                 )}
               </div>

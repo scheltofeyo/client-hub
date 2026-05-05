@@ -4,6 +4,7 @@ import { hasPermission, hasPermissionOrIsLead } from "@/lib/auth-helpers";
 import { notFound } from "next/navigation";
 import StatusBadge from "@/components/ui/StatusBadge";
 import EditProjectButton from "@/components/ui/EditProjectButton";
+import RichTextDisplay from "@/components/ui/RichTextDisplay";
 import { fmtDate } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -55,9 +56,11 @@ export default async function ProjectOverviewPage({
         </div>
 
         {project.description && (
-          <p className="text-sm leading-relaxed" style={{ color: "var(--text-primary)" }}>
-            {project.description}
-          </p>
+          <RichTextDisplay
+            html={project.description}
+            className="text-sm leading-relaxed"
+            style={{ color: "var(--text-primary)" }}
+          />
         )}
 
         <dl className="grid grid-cols-2 gap-x-8 gap-y-4 text-sm">

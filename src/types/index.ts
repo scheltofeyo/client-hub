@@ -113,13 +113,14 @@ export interface Project {
   kickedOffAt?: string;
   scheduledStartDate?: string;
   scheduledEndDate?: string;
+  members?: TaskAssignee[];
   createdAt?: string;
 }
 
 export interface ProjectTemplate {
   id: string;
   name: string;
-  description?: string;
+  summary?: string;
   defaultDescription?: string;
   defaultSoldPrice?: number;
   defaultServiceId?: string;
@@ -201,6 +202,7 @@ export interface Task {
   projectId?: string;
   parentTaskId?: string;
   logId?: string;
+  sessionId?: string;
   title: string;
   description?: string;
   assignees: TaskAssignee[];
@@ -215,7 +217,36 @@ export interface Task {
 }
 
 export type ClientEventType = string;
-export type TimelineEventSource = "log_followup" | "task" | "project" | "custom";
+export type TimelineEventSource = "log_followup" | "task" | "project" | "custom" | "session";
+
+export interface SessionParticipant {
+  email: string;
+  name?: string;
+}
+
+export interface Session {
+  id: string;
+  clientId: string;
+  projectId: string;
+  title: string;
+  date?: string;
+  location?: string;
+  remoteLink?: string;
+  participants: SessionParticipant[];
+  info?: string;
+  templateSessionId?: string;
+  createdById: string;
+  createdByName: string;
+  createdAt?: string;
+}
+
+export interface TemplateSession {
+  id: string;
+  templateId: string;
+  title: string;
+  info?: string;
+  order: number;
+}
 export type TimelineEventType = string;
 export type RecurrenceUnit = "days" | "weeks" | "months" | "years";
 /** @deprecated kept for backward compat with old ClientEvent docs */

@@ -5,8 +5,12 @@ import { Pencil, Trash2, RotateCcw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import SteppedModal from "@/components/ui/SteppedModal";
 import ServicePills from "@/components/ui/ServicePills";
+import RichTextEditor from "@/components/ui/RichTextEditor";
+import UserAvatar from "@/components/ui/UserAvatar";
 import { inputClass, inputStyle } from "@/components/ui/form-styles";
-import type { Project, ProjectLabel, Service } from "@/types";
+import type { Project, ProjectLabel, Service, TaskAssignee } from "@/types";
+
+type AssignableUser = { id: string; name: string; image: string | null };
 
 export default function EditProjectButton({
   project,
@@ -36,6 +40,9 @@ export default function EditProjectButton({
     scheduledEndDate: "",
     kickedOffAt: "",
   });
+  const [users, setUsers] = useState<AssignableUser[]>([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [selectedMembers, setSelectedMembers] = useState<TaskAssignee[]>([]);
   const [loading, setLoading] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [resetting, setResetting] = useState(false);
@@ -55,8 +62,27 @@ export default function EditProjectButton({
       scheduledEndDate: project.scheduledEndDate ?? "",
       kickedOffAt: project.kickedOffAt ?? "",
     });
+    setSelectedMembers(project.members ?? []);
     setError("");
     setOpen(true);
+    if (users.length === 0) {
+      setUsersLoading(true);
+      fetch("/api/users/assignable")
+        .then((r) => r.json())
+        .then((data) => {
+          setUsers(Array.isArray(data) ? data : []);
+        })
+        .finally(() => setUsersLoading(false));
+    }
+  }
+
+  function toggleMember(u: AssignableUser) {
+    setSelectedMembers((prev) => {
+      if (prev.some((m) => m.userId === u.id)) {
+        return prev.filter((m) => m.userId !== u.id);
+      }
+      return [...prev, { userId: u.id, name: u.name, image: u.image ?? undefined }];
+    });
   }
 
   function handleClose() {
@@ -86,6 +112,7 @@ export default function EditProjectButton({
         soldPrice: form.soldPrice ? Number(form.soldPrice) : undefined,
         serviceId: form.serviceId || undefined,
         labelId: form.labelId || undefined,
+        members: selectedMembers.map((m) => ({ userId: m.userId })),
         ...(!project.kickedOffAt
           ? {
               scheduledStartDate: form.scheduledStartDate || undefined,
@@ -213,17 +240,48 @@ export default function EditProjectButton({
           />
 
           <div>
-            <label htmlFor="ep-description" className="typo-label">
-              Short description
+            <label className="typo-label">
+              Description
             </label>
-            <textarea
-              id="ep-description"
-              value={form.description}
-              onChange={(e) => set("description", e.target.value)}
-              rows={3}
-              className={inputClass + " resize-none"}
-              style={inputStyle}
+            <RichTextEditor
+              content={form.description}
+              onChange={(html) => set("description", html)}
             />
+          </div>
+
+          <div>
+            <label className="typo-label">Project members</label>
+            {usersLoading && users.length === 0 ? (
+              <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                Loading members…
+              </p>
+            ) : (
+              <div className="flex flex-wrap gap-1.5">
+                {users.map((u) => {
+                  const isActive = selectedMembers.some((m) => m.userId === u.id);
+                  return (
+                    <button
+                      key={u.id}
+                      type="button"
+                      onClick={() => toggleMember(u)}
+                      className="flex items-center gap-1.5 pl-1 pr-2 py-0.5 rounded-full text-xs font-medium border transition-colors"
+                      style={{
+                        borderColor: isActive ? "var(--primary)" : "var(--border)",
+                        color: isActive ? "var(--primary)" : "var(--text-muted)",
+                        background: isActive ? "var(--primary-light)" : "transparent",
+                      }}
+                    >
+                      <UserAvatar name={u.name} image={u.image} size={18} />
+                      {u.name.split(" ")[0]}
+                      {isActive && <span style={{ color: "var(--primary)" }}>×</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            <p className="text-xs mt-1.5" style={{ color: "var(--text-muted)" }}>
+              Editing members updates the project only. Existing task assignees are not changed.
+            </p>
           </div>
 
           {/* Scheduled dates — before kick-off */}

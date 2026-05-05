@@ -434,6 +434,16 @@ export default function ClientTasksTab({
       .catch(() => {});
   }, []);
 
+  useEffect(() => {
+    function handleTaskSaved(e: Event) {
+      const task = (e as CustomEvent<Task>).detail;
+      if (!task || task.clientId !== clientId) return;
+      upsertTask(task);
+    }
+    window.addEventListener("client-task-saved", handleTaskSaved);
+    return () => window.removeEventListener("client-task-saved", handleTaskSaved);
+  }, [clientId]);
+
   // Merge all tasks for stats
   const allTasks = useMemo(() => {
     const projectTasks = Object.values(projectTaskMap).flat();
@@ -714,7 +724,9 @@ export function AddClientTaskButton({ clientId, users }: { clientId: string; use
           <TaskForm
             clientId={clientId}
             users={localUsers}
-            onSaved={() => {}}
+            onSaved={(task) => {
+              window.dispatchEvent(new CustomEvent("client-task-saved", { detail: task }));
+            }}
             onClose={closePanel}
           />
         ))

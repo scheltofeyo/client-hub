@@ -303,76 +303,189 @@ select:not(.appearance-none):not([multiple]):not([size]) {
   color: var(--primary);
 }
 
-/* ── Button variants ──────────────────────────────────────── */
+/* ── Button variants ──────────────────────────────────────────────────────────
+   Each variant is fully self-contained: layout + color in a single block, so
+   `<button className="btn-primary">…</button>` renders correctly without any
+   extra Tailwind utilities. Layout uses longhand properties (padding-{top,
+   bottom,left,right}, font-size, etc.) so single-axis Tailwind overrides like
+   `py-3` or `text-xs` cleanly win via the cascade. */
 @layer components {
   .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.375rem;
+    padding-top: 0.375rem;
+    padding-bottom: 0.375rem;
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    line-height: 1.25rem;
+    white-space: nowrap;
+    cursor: pointer;
     background: var(--primary);
     color: #fff;
     transition: filter 0.15s;
   }
-  .btn-primary:hover:not(:disabled) {
-    filter: brightness(0.88);
-  }
+  .btn-primary:disabled { cursor: not-allowed; }
+  .btn-primary:hover:not(:disabled) { filter: brightness(0.88); }
 
   .btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.375rem;
+    padding-top: 0.375rem;
+    padding-bottom: 0.375rem;
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    line-height: 1.25rem;
+    white-space: nowrap;
+    cursor: pointer;
     background: transparent;
     color: var(--primary);
     border-color: var(--border);
     transition: background 0.15s;
   }
-  .btn-secondary:hover:not(:disabled) {
-    background: var(--primary-light);
-  }
+  .btn-secondary:disabled { cursor: not-allowed; }
+  .btn-secondary:hover:not(:disabled) { background: var(--primary-light); }
 
   .btn-danger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.375rem;
+    padding-top: 0.375rem;
+    padding-bottom: 0.375rem;
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    line-height: 1.25rem;
+    white-space: nowrap;
+    cursor: pointer;
     background: var(--destructive);
     color: #fff;
     transition: filter 0.15s;
   }
-  .btn-danger:hover:not(:disabled) {
-    filter: brightness(0.88);
-  }
+  .btn-danger:disabled { cursor: not-allowed; }
+  .btn-danger:hover:not(:disabled) { filter: brightness(0.88); }
 
   .btn-ghost {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.375rem;
+    padding-top: 0.375rem;
+    padding-bottom: 0.375rem;
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    line-height: 1.25rem;
+    white-space: nowrap;
+    cursor: pointer;
     background: transparent;
     color: var(--text-muted);
     transition: background 0.15s, color 0.15s;
   }
+  .btn-ghost:disabled { cursor: not-allowed; }
   .btn-ghost:hover:not(:disabled) {
     background: var(--bg-hover);
     color: var(--text-primary);
   }
 
-  .btn-icon {
-    background: transparent;
-    color: var(--text-muted);
-    border-radius: var(--radius-button);
-    transition: background 0.15s, color 0.15s;
-  }
-  .btn-icon:hover:not(:disabled) {
-    background: var(--primary-light);
-    color: var(--primary);
-  }
-
-  .btn-link {
-    background: transparent;
-    color: var(--primary);
-    transition: opacity 0.15s;
-  }
-  .btn-link:hover {
-    opacity: 0.7;
-  }
-
   .btn-tertiary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.375rem;
+    padding-top: 0.375rem;
+    padding-bottom: 0.375rem;
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    line-height: 1.25rem;
+    white-space: nowrap;
+    cursor: pointer;
     background: transparent;
     color: var(--primary);
     transition: color 0.15s, background 0.15s;
   }
+  .btn-tertiary:disabled { cursor: not-allowed; }
   .btn-tertiary:hover:not(:disabled) {
     background: var(--primary-light);
     color: var(--primary);
   }
 
+  .btn-primary-light {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.375rem;
+    padding-top: 0.375rem;
+    padding-bottom: 0.375rem;
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    line-height: 1.25rem;
+    white-space: nowrap;
+    cursor: pointer;
+    background: var(--primary-light);
+    color: var(--primary);
+    transition: background 0.15s;
+  }
+  .btn-primary-light:disabled { cursor: not-allowed; }
+  .btn-primary-light:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--primary) 25%, transparent);
+  }
+
+  /* Icon-only button — square padding, smaller radius, no font sizing. */
+  .btn-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.375rem;
+    border-radius: var(--radius-button);
+    cursor: pointer;
+    background: transparent;
+    color: var(--text-muted);
+    transition: background 0.15s, color 0.15s;
+  }
+  .btn-icon:disabled { cursor: not-allowed; }
+  .btn-icon:hover:not(:disabled) {
+    background: var(--primary-light);
+    color: var(--primary);
+  }
+
+  /* Text-link style — inline, no padding/radius, gap for optional leading icon. */
+  .btn-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    line-height: 1.25rem;
+    cursor: pointer;
+    background: transparent;
+    color: var(--primary);
+    transition: opacity 0.15s;
+  }
+  .btn-link:disabled { cursor: not-allowed; }
+  .btn-link:hover:not(:disabled) { opacity: 0.7; }
+
+  /* Large column-oriented action tile — own layout (vertical stack). */
   .btn-action {
     display: flex;
     flex-direction: column;
@@ -381,26 +494,17 @@ select:not(.appearance-none):not([multiple]):not([size]) {
     gap: 0.375rem;
     padding: 0.75rem 1.25rem;
     border-radius: 0.75rem;
+    cursor: pointer;
     background: color-mix(in srgb, var(--primary) 10%, transparent);
     color: var(--primary);
     font-size: 0.75rem;
     font-weight: 500;
     transition: background 0.15s;
   }
-  .btn-action:hover {
+  .btn-action:disabled { cursor: not-allowed; }
+  .btn-action:hover:not(:disabled) {
     background: color-mix(in srgb, var(--primary) 18%, transparent);
   }
-
-  .btn-primary-light {
-    background: var(--primary-light);
-    color: var(--primary);
-    transition: background 0.15s;
-  }
-  .btn-primary-light:hover:not(:disabled) {
-    background: color-mix(in srgb, var(--primary) 25%, transparent);
-  }
-
-
 }
 
 /* ── Typography composites ────────────────────────────────────
@@ -500,6 +604,13 @@ select:not(.appearance-none):not([multiple]):not([size]) {
   float: left;
   height: 0;
 }
+.rich-text-editor-content p {
+  margin: 0 0 0.5rem 0;
+  min-height: 1.5em;
+}
+.rich-text-editor-content p:last-child {
+  margin-bottom: 0;
+}
 .rich-text-editor-content ul,
 .rich-text-editor-content ol {
   padding-left: 1.25rem;
@@ -520,6 +631,13 @@ select:not(.appearance-none):not([multiple]):not([size]) {
 .behavior-html {
   overflow-wrap: break-word;
   word-break: break-word;
+}
+.behavior-html p {
+  margin: 0 0 0.5rem 0;
+  min-height: 1.5em;
+}
+.behavior-html p:last-child {
+  margin-bottom: 0;
 }
 .behavior-html ul,
 .behavior-html ol {

@@ -8,7 +8,9 @@ import {
   ChevronRight,
   GripVertical,
   MoreHorizontal,
+  Pencil,
   Plus,
+  Trash2,
   UserCheck,
 } from "lucide-react";
 import {
@@ -28,9 +30,10 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import type { ProjectTemplate, Service, TemplateTask } from "@/types";
+import type { ProjectTemplate, Service, TemplateSession, TemplateTask } from "@/types";
 import { useRightPanel } from "@/components/layout/RightPanel";
 import PageHeader from "@/components/layout/PageHeader";
+import RichTextEditor from "@/components/ui/RichTextEditor";
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
 
@@ -620,9 +623,218 @@ function TaskListSection({
   );
 }
 
+// ── Template session form (RightPanel) ────────────────────────────────────────
+
+function TemplateSessionForm({
+  templateId,
+  templateSession,
+  onSaved,
+  onClose,
+}: {
+  templateId: string;
+  templateSession?: TemplateSession;
+  onSaved: (saved: TemplateSession) => void;
+  onClose: () => void;
+}) {
+  const isEdit = !!templateSession;
+  const [title, setTitle] = useState(templateSession?.title ?? "");
+  const [info, setInfo] = useState(templateSession?.info ?? "");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!title.trim()) return;
+    setLoading(true);
+    setError("");
+
+    const url = isEdit
+      ? `/api/project-templates/${templateId}/sessions/${templateSession!.id}`
+      : `/api/project-templates/${templateId}/sessions`;
+
+    const res = await fetch(url, {
+      method: isEdit ? "PATCH" : "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: title.trim(),
+        info: info.trim() || undefined,
+      }),
+    });
+
+    setLoading(false);
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      setError(d.error ?? "Something went wrong");
+      return;
+    }
+    const saved = await res.json();
+    onSaved(saved);
+    onClose();
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <label className="typo-label">
+          Title <span className="text-[var(--danger)]">*</span>
+        </label>
+        <input
+          type="text"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          autoFocus
+          placeholder="e.g. Kickoff workshop"
+          className={inputClass}
+          style={inputStyle}
+        />
+      </div>
+      <div>
+        <label className="typo-label">Info</label>
+        <textarea
+          value={info}
+          onChange={(e) => setInfo(e.target.value)}
+          rows={4}
+          placeholder="Notes / preparation instructions for participants…"
+          className={inputClass + " resize-none"}
+          style={inputStyle}
+        />
+      </div>
+      {error && <p className="text-xs text-[var(--danger)]">{error}</p>}
+      <div className="flex justify-end gap-2 pt-1">
+        <button
+          type="button"
+          onClick={onClose}
+          className="px-3 py-1.5 rounded-lg text-sm font-medium btn-ghost"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          disabled={loading || !title.trim()}
+          className="px-3 py-1.5 rounded-lg text-sm font-medium disabled:opacity-50 btn-primary"
+        >
+          {loading ? "Saving…" : isEdit ? "Save changes" : "Add session"}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+// ── Sessions list section ─────────────────────────────────────────────────────
+
+function SessionsListSection({
+  templateId,
+  sessions,
+  onSessionsChange,
+}: {
+  templateId: string;
+  sessions: TemplateSession[];
+  onSessionsChange: (sessions: TemplateSession[]) => void;
+}) {
+  const { openPanel, closePanel } = useRightPanel();
+
+  function openCreate() {
+    openPanel(
+      "Add session",
+      <TemplateSessionForm
+        templateId={templateId}
+        onSaved={(saved) => onSessionsChange([...sessions, saved])}
+        onClose={closePanel}
+      />
+    );
+  }
+
+  function openEdit(ts: TemplateSession) {
+    openPanel(
+      "Edit session",
+      <TemplateSessionForm
+        templateId={templateId}
+        templateSession={ts}
+        onSaved={(saved) =>
+          onSessionsChange(sessions.map((s) => (s.id === saved.id ? saved : s)))
+        }
+        onClose={closePanel}
+      />
+    );
+  }
+
+  async function handleDelete(ts: TemplateSession) {
+    if (!confirm(`Delete "${ts.title}"?`)) return;
+    const res = await fetch(
+      `/api/project-templates/${templateId}/sessions/${ts.id}`,
+      { method: "DELETE" }
+    );
+    if (!res.ok) return;
+    onSessionsChange(sessions.filter((s) => s.id !== ts.id));
+  }
+
+  return (
+    <div>
+      <p className="text-sm mb-3" style={{ color: "var(--text-muted)" }}>
+        Sessions are workshops or meetings with the client. When a project is
+        created from this template, each session is added as a draft and a
+        &ldquo;Plan {"{title}"}&rdquo; task is generated.
+      </p>
+
+      {sessions.length === 0 && (
+        <p className="text-sm py-2" style={{ color: "var(--text-muted)" }}>
+          No sessions yet.
+        </p>
+      )}
+
+      {sessions.map((ts) => (
+        <div
+          key={ts.id}
+          className="flex items-start gap-2 py-2 border-b group"
+          style={{ borderColor: "var(--border)" }}
+        >
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
+              {ts.title}
+            </p>
+            {ts.info && (
+              <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
+                {ts.info.length > 120 ? ts.info.slice(0, 120) + "…" : ts.info}
+              </p>
+            )}
+          </div>
+          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button
+              type="button"
+              onClick={() => openEdit(ts)}
+              className="btn-icon p-1.5 rounded-md"
+              aria-label="Edit session"
+            >
+              <Pencil size={14} />
+            </button>
+            <button
+              type="button"
+              onClick={() => handleDelete(ts)}
+              className="btn-icon p-1.5 rounded-md"
+              aria-label="Delete session"
+            >
+              <Trash2 size={14} />
+            </button>
+          </div>
+        </div>
+      ))}
+
+      <button
+        type="button"
+        onClick={openCreate}
+        className="flex items-center gap-1.5 mt-3 text-sm btn-link"
+        style={{ color: "var(--text-muted)" }}
+      >
+        <Plus size={13} />
+        Add session
+      </button>
+    </div>
+  );
+}
+
 // ── Tertiary tab bar ──────────────────────────────────────────────────────────
 
-type Tab = "settings" | "tasks";
+type Tab = "settings" | "tasks" | "sessions";
 
 function TertiaryNav({ tab, onTabChange }: { tab: Tab; onTabChange: (t: Tab) => void }) {
   return (
@@ -630,7 +842,7 @@ function TertiaryNav({ tab, onTabChange }: { tab: Tab; onTabChange: (t: Tab) => 
       className="flex gap-0 border-b shrink-0 -mx-7 px-7 mt-2"
       style={{ borderColor: "var(--border)" }}
     >
-      {(["settings", "tasks"] as Tab[]).map((t) => (
+      {(["settings", "tasks", "sessions"] as Tab[]).map((t) => (
         <button
           key={t}
           type="button"
@@ -641,7 +853,7 @@ function TertiaryNav({ tab, onTabChange }: { tab: Tab; onTabChange: (t: Tab) => 
             color: tab === t ? "var(--primary)" : "var(--text-muted)",
           }}
         >
-          {t === "settings" ? "Settings" : "Tasks"}
+          {t}
         </button>
       ))}
     </div>
@@ -653,10 +865,12 @@ function TertiaryNav({ tab, onTabChange }: { tab: Tab; onTabChange: (t: Tab) => 
 export default function EditTemplateEditor({
   template,
   initialTasks,
+  initialSessions,
   services,
 }: {
   template: ProjectTemplate;
   initialTasks: TemplateTask[];
+  initialSessions: TemplateSession[];
   services: Service[];
 }) {
   const router = useRouter();
@@ -664,7 +878,7 @@ export default function EditTemplateEditor({
   const [tab, setTab] = useState<Tab>("settings");
   const [form, setForm] = useState({
     name: template.name,
-    description: template.description ?? "",
+    summary: template.summary ?? "",
     defaultDescription: template.defaultDescription ?? "",
     defaultSoldPrice:
       template.defaultSoldPrice != null ? String(template.defaultSoldPrice) : "",
@@ -675,6 +889,7 @@ export default function EditTemplateEditor({
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [tasks, setTasks] = useState<TemplateTask[]>(initialTasks);
+  const [sessions, setSessions] = useState<TemplateSession[]>(initialSessions);
 
   function set(field: string, value: string) {
     setForm((f) => ({ ...f, [field]: value }));
@@ -697,7 +912,7 @@ export default function EditTemplateEditor({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         name: form.name,
-        description: form.description || undefined,
+        summary: form.summary || undefined,
         defaultDescription: form.defaultDescription || undefined,
         defaultSoldPrice: form.defaultSoldPrice ? Number(form.defaultSoldPrice) : undefined,
         defaultServiceId: form.defaultServiceId || undefined,
@@ -799,13 +1014,13 @@ export default function EditTemplateEditor({
 
           <div>
             <label className="typo-label">
-              Short description
+              Summary
             </label>
             <input
               type="text"
-              value={form.description}
-              onChange={(e) => set("description", e.target.value)}
-              placeholder="Shown to employees when picking a template"
+              value={form.summary}
+              onChange={(e) => set("summary", e.target.value)}
+              placeholder="Shown under the title when picking a template"
               className={inputClass}
               style={inputStyle}
             />
@@ -815,13 +1030,10 @@ export default function EditTemplateEditor({
             <label className="typo-label">
               Default project description
             </label>
-            <textarea
-              value={form.defaultDescription}
-              onChange={(e) => set("defaultDescription", e.target.value)}
-              rows={3}
+            <RichTextEditor
+              content={form.defaultDescription}
+              onChange={(html) => set("defaultDescription", html)}
               placeholder="Pre-fills the project description field…"
-              className={inputClass + " resize-none"}
-              style={inputStyle}
             />
           </div>
 
@@ -867,6 +1079,15 @@ export default function EditTemplateEditor({
             templateId={template.id}
             tasks={tasks}
             onTasksChange={setTasks}
+          />
+        </div>
+
+        {/* Sessions tab */}
+        <div className={tab !== "sessions" ? "hidden" : ""}>
+          <SessionsListSection
+            templateId={template.id}
+            sessions={sessions}
+            onSessionsChange={setSessions}
           />
         </div>
       </div>

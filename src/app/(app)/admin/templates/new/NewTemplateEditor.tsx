@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Check } from "lucide-react";
 import type { Service } from "@/types";
 import PageHeader from "@/components/layout/PageHeader";
+import RichTextEditor from "@/components/ui/RichTextEditor";
 
 const inputClass =
   "w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--primary)]/40";
@@ -18,7 +19,7 @@ export default function NewTemplateEditor({ services }: { services: Service[] })
   const router = useRouter();
   const [form, setForm] = useState({
     name: "",
-    description: "",
+    summary: "",
     defaultDescription: "",
     defaultSoldPrice: "",
     defaultServiceId: "",
@@ -45,7 +46,7 @@ export default function NewTemplateEditor({ services }: { services: Service[] })
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         name: form.name,
-        description: form.description || undefined,
+        summary: form.summary || undefined,
         defaultDescription: form.defaultDescription || undefined,
         defaultSoldPrice: form.defaultSoldPrice ? Number(form.defaultSoldPrice) : undefined,
         defaultServiceId: form.defaultServiceId || undefined,
@@ -156,13 +157,13 @@ export default function NewTemplateEditor({ services }: { services: Service[] })
 
           <div>
             <label className="typo-label">
-              Short description
+              Summary
             </label>
             <input
               type="text"
-              value={form.description}
-              onChange={(e) => set("description", e.target.value)}
-              placeholder="Shown to employees when picking a template"
+              value={form.summary}
+              onChange={(e) => set("summary", e.target.value)}
+              placeholder="Shown under the title when picking a template"
               className={inputClass}
               style={inputStyle}
             />
@@ -172,13 +173,10 @@ export default function NewTemplateEditor({ services }: { services: Service[] })
             <label className="typo-label">
               Default project description
             </label>
-            <textarea
-              value={form.defaultDescription}
-              onChange={(e) => set("defaultDescription", e.target.value)}
-              rows={3}
+            <RichTextEditor
+              content={form.defaultDescription}
+              onChange={(html) => set("defaultDescription", html)}
               placeholder="Pre-fills the project description field…"
-              className={inputClass + " resize-none"}
-              style={inputStyle}
             />
           </div>
 

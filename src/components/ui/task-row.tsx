@@ -34,28 +34,35 @@ export function fmtDate(iso: string) {
 export function AssigneeAvatars({
   assignees,
   userImages,
+  size = 20,
 }: {
   assignees: TaskAssignee[];
   userImages?: Record<string, string>;
+  size?: number;
 }) {
   if (assignees.length === 0) return null;
   const shown = assignees.slice(0, 3);
   const rest = assignees.length - shown.length;
+  const overlapClass = size >= 28 ? "-space-x-2" : "-space-x-1.5";
+  const restFontPx = Math.max(9, Math.round(size * 0.4));
   return (
-    <div className="flex items-center -space-x-1.5">
+    <div className={`flex items-center ${overlapClass}`}>
       {shown.map((a, i) => (
         <div
           key={a.userId}
           className="rounded-full"
           style={{ boxShadow: "0 0 0 2px var(--bg-surface)", position: "relative", zIndex: i + 1 }}
         >
-          <UserAvatar name={a.name} image={userImages?.[a.userId] ?? a.image} size={20} />
+          <UserAvatar name={a.name} image={userImages?.[a.userId] ?? a.image} size={size} />
         </div>
       ))}
       {rest > 0 && (
         <div
-          className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-semibold"
+          className="rounded-full flex items-center justify-center font-semibold"
           style={{
+            width: size,
+            height: size,
+            fontSize: restFontPx,
             background: "var(--border)",
             color: "var(--text-muted)",
             boxShadow: "0 0 0 2px var(--bg-surface)",

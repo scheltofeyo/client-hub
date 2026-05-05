@@ -5,8 +5,12 @@ import { Plus, FileText, Layers } from "lucide-react";
 import { useRouter } from "next/navigation";
 import SteppedModal from "@/components/ui/SteppedModal";
 import ServicePills from "@/components/ui/ServicePills";
+import RichTextEditor from "@/components/ui/RichTextEditor";
+import UserAvatar from "@/components/ui/UserAvatar";
 import { inputClass, inputStyle } from "@/components/ui/form-styles";
-import type { ProjectTemplate, Service } from "@/types";
+import type { ProjectTemplate, Service, TaskAssignee } from "@/types";
+
+type AssignableUser = { id: string; name: string; image: string | null };
 
 /**
  * Standalone modal for creating a project.
@@ -24,8 +28,10 @@ export function AddProjectModal({
   const [step, setStep] = useState(0);
   const [templates, setTemplates] = useState<ProjectTemplate[]>([]);
   const [services, setServices] = useState<Service[]>([]);
+  const [users, setUsers] = useState<AssignableUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTemplate, setSelectedTemplate] = useState<ProjectTemplate | null>(null);
+  const [selectedMembers, setSelectedMembers] = useState<TaskAssignee[]>([]);
 
   const [form, setForm] = useState({
     title: "",
@@ -44,6 +50,7 @@ export function AddProjectModal({
     queueMicrotask(() => {
       setStep(0);
       setSelectedTemplate(null);
+      setSelectedMembers([]);
       setForm({ title: "", description: "", serviceId: "", scheduledStartDate: "", scheduledEndDate: "" });
       setError("");
       setLoading(true);
@@ -51,14 +58,25 @@ export function AddProjectModal({
     Promise.all([
       fetch("/api/project-templates").then((r) => r.json()),
       fetch("/api/services").then((r) => r.json()),
+      fetch("/api/users/assignable").then((r) => r.json()),
     ])
-      .then(([tplData, svcData]) => {
+      .then(([tplData, svcData, userData]) => {
         setTemplates(Array.isArray(tplData) ? tplData : []);
         setServices(Array.isArray(svcData) ? svcData : []);
+        setUsers(Array.isArray(userData) ? userData : []);
         setLoading(false);
       })
       .catch(() => setLoading(false));
   }, [open]);
+
+  function toggleMember(u: AssignableUser) {
+    setSelectedMembers((prev) => {
+      if (prev.some((m) => m.userId === u.id)) {
+        return prev.filter((m) => m.userId !== u.id);
+      }
+      return [...prev, { userId: u.id, name: u.name, image: u.image ?? undefined }];
+    });
+  }
 
   function selectTemplate(tpl: ProjectTemplate | null) {
     setSelectedTemplate(tpl);
@@ -93,6 +111,7 @@ export function AddProjectModal({
         serviceId: form.serviceId || undefined,
         scheduledStartDate: form.scheduledStartDate || undefined,
         scheduledEndDate: form.scheduledEndDate || undefined,
+        members: selectedMembers.map((m) => ({ userId: m.userId })),
       }),
     });
 
@@ -222,9 +241,9 @@ export function AddProjectModal({
                     <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
                       {tpl.name}
                     </p>
-                    {tpl.description && (
+                    {tpl.summary && (
                       <p className="text-xs mt-0.5 line-clamp-2" style={{ color: "var(--text-muted)" }}>
-                        {tpl.description}
+                        {tpl.summary}
                       </p>
                     )}
                     {(tpl.taskCount ?? 0) > 0 && (
@@ -257,6 +276,11 @@ export function AddProjectModal({
                 <FileText size={13} className="mt-0.5 shrink-0" />
                 <div>
                   <span>Using template: <strong>{selectedTemplate.name}</strong></span>
+                  {selectedTemplate.summary && (
+                    <p className="text-xs mt-0.5 opacity-90">
+                      {selectedTemplate.summary}
+                    </p>
+                  )}
                   {(selectedTemplate.taskCount ?? 0) > 0 && (
                     <p className="text-xs mt-0.5 opacity-75">
                       {selectedTemplate.taskCount} task{selectedTemplate.taskCount === 1 ? "" : "s"} will be added automatically
@@ -290,18 +314,45 @@ export function AddProjectModal({
             />
 
             <div>
-              <label htmlFor="ap-description" className="typo-label">
-                Short description
+              <label className="typo-label">
+                Description
               </label>
-              <textarea
-                id="ap-description"
-                value={form.description}
-                onChange={(e) => set("description", e.target.value)}
-                rows={3}
+              <RichTextEditor
+                content={form.description}
+                onChange={(html) => set("description", html)}
                 placeholder="Describe the project scope…"
-                className={inputClass + " resize-none"}
-                style={inputStyle}
               />
+            </div>
+
+            <div>
+              <label className="typo-label">Project members</label>
+              <div className="flex flex-wrap gap-1.5">
+                {users.map((u) => {
+                  const isActive = selectedMembers.some((m) => m.userId === u.id);
+                  return (
+                    <button
+                      key={u.id}
+                      type="button"
+                      onClick={() => toggleMember(u)}
+                      className="flex items-center gap-1.5 pl-1 pr-2 py-0.5 rounded-full text-xs font-medium border transition-colors"
+                      style={{
+                        borderColor: isActive ? "var(--primary)" : "var(--border)",
+                        color: isActive ? "var(--primary)" : "var(--text-muted)",
+                        background: isActive ? "var(--primary-light)" : "transparent",
+                      }}
+                    >
+                      <UserAvatar name={u.name} image={u.image} size={18} />
+                      {u.name.split(" ")[0]}
+                      {isActive && <span style={{ color: "var(--primary)" }}>×</span>}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-xs mt-1.5" style={{ color: "var(--text-muted)" }}>
+                {selectedTemplate
+                  ? "These members will be assigned to every task created from this template."
+                  : "Members are saved on the project. Tasks you add later are not auto-assigned."}
+              </p>
             </div>
 
             <div>

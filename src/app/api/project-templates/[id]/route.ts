@@ -17,27 +17,34 @@ export async function PATCH(
   await connectDB();
 
   const body = await req.json();
-  const { name, description, defaultDescription, defaultSoldPrice, defaultServiceId, defaultDeliveryDays } = body;
+  const { name, summary, defaultDescription, defaultSoldPrice, defaultServiceId, defaultDeliveryDays } = body;
 
   if (name !== undefined && !name?.trim()) {
     return NextResponse.json({ error: "Name cannot be empty" }, { status: 400 });
   }
 
   const update: Record<string, unknown> = {};
+  const unset: Record<string, unknown> = {};
   if (name !== undefined) update.name = name.trim();
-  if (description !== undefined) update.description = description?.trim() || null;
+  if (summary !== undefined) {
+    update.summary = summary?.trim() || null;
+    unset.description = "";
+  }
   if (defaultDescription !== undefined) update.defaultDescription = defaultDescription?.trim() || null;
   if (defaultSoldPrice !== undefined) update.defaultSoldPrice = defaultSoldPrice ? Number(defaultSoldPrice) : null;
   if (defaultServiceId !== undefined) update.defaultServiceId = defaultServiceId || null;
   if (defaultDeliveryDays !== undefined) update.defaultDeliveryDays = defaultDeliveryDays ? Number(defaultDeliveryDays) : null;
 
-  const doc = await ProjectTemplateModel.findByIdAndUpdate(id, { $set: update }, { new: true }).lean();
+  const mod: Record<string, unknown> = { $set: update };
+  if (Object.keys(unset).length) mod.$unset = unset;
+
+  const doc = await ProjectTemplateModel.findByIdAndUpdate(id, mod, { new: true }).lean();
   if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   return NextResponse.json({
     id: doc._id.toString(),
     name: doc.name,
-    description: doc.description,
+    summary: doc.summary,
     defaultDescription: doc.defaultDescription,
     defaultSoldPrice: doc.defaultSoldPrice,
     defaultServiceId: doc.defaultServiceId,

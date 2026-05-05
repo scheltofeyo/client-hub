@@ -14,6 +14,7 @@ export interface IProject extends Document {
   kickedOffAt?: string;
   scheduledStartDate?: string;
   scheduledEndDate?: string;
+  members?: { userId: string; name: string; image?: string }[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -38,9 +39,21 @@ const ProjectSchema = new Schema<IProject>(
     kickedOffAt: { type: String, trim: true },
     scheduledStartDate: { type: String, trim: true, index: true },
     scheduledEndDate: { type: String, trim: true },
+    members: {
+      type: [
+        {
+          userId: { type: String, required: true },
+          name: { type: String, required: true },
+          image: { type: String },
+        },
+      ],
+      default: [],
+    },
   },
   { timestamps: true }
 );
+
+ProjectSchema.index({ "members.userId": 1 });
 
 if (mongoose.models.Project) {
   mongoose.deleteModel("Project");

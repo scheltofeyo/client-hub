@@ -30,7 +30,7 @@ export const EventTypeModel: Model<IEventType> = mongoose.model<IEventType>(
 );
 
 // Slugs used by auto-generated events — cannot be edited or deleted
-export const SYSTEM_EVENT_TYPE_SLUGS = ["deadline", "delivery", "follow_up", "expired_service"] as const;
+export const SYSTEM_EVENT_TYPE_SLUGS = ["deadline", "delivery", "follow_up", "expired_service", "session"] as const;
 
 export const DEFAULT_EVENT_TYPES: Array<{
   slug: string;
@@ -44,5 +44,6 @@ export const DEFAULT_EVENT_TYPES: Array<{
   { slug: "delivery",       label: "Delivery",        color: "#7c3aed", icon: "PackageCheck" },
   { slug: "follow_up",      label: "Follow-up",       color: "#3b82f6", icon: "AlarmClock"   },
   { slug: "expired_service",label: "Expired service", color: "#dc2626", icon: "PackageCheck" },
+  { slug: "session",        label: "Session",         color: "#0ea5e9", icon: "Presentation" },
   { slug: "other",          label: "Other",           color: "#94a3b8", icon: "Circle"       },
 ];

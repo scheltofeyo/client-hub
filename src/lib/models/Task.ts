@@ -5,6 +5,7 @@ export interface ITask extends Document {
   projectId?: string;
   parentTaskId?: string;
   logId?: string;
+  sessionId?: string;
   title: string;
   description?: string;
   assignees: { userId: string; name: string; image?: string }[];
@@ -25,6 +26,7 @@ const TaskSchema = new Schema<ITask>(
     projectId: { type: String, index: true },
     parentTaskId: { type: String, index: true },
     logId: { type: String, index: true },
+    sessionId: { type: String, index: true },
     title: { type: String, required: true, trim: true },
     description: { type: String, trim: true },
     assignees: {

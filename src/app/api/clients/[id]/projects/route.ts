@@ -5,10 +5,23 @@ import { ClientModel } from "@/lib/models/Client";
 import { ProjectModel } from "@/lib/models/Project";
 import { TaskModel } from "@/lib/models/Task";
 import { TemplateTaskModel } from "@/lib/models/TemplateTask";
+import { SessionModel } from "@/lib/models/Session";
+import { TemplateSessionModel } from "@/lib/models/TemplateSession";
 import { UserModel } from "@/lib/models/User";
 import { recordActivity } from "@/lib/activity";
 import type { TaskAssignee } from "@/types";
 import { hasPermissionOrIsLead } from "@/lib/auth-helpers";
+
+function mergeAssignees(a: TaskAssignee[], b: TaskAssignee[]): TaskAssignee[] {
+  const seen = new Set<string>();
+  const out: TaskAssignee[] = [];
+  for (const x of [...a, ...b]) {
+    if (seen.has(x.userId)) continue;
+    seen.add(x.userId);
+    out.push(x);
+  }
+  return out;
+}
 
 export async function GET(
   _req: NextRequest,
@@ -36,6 +49,7 @@ export async function GET(
       kickedOffAt: doc.kickedOffAt ?? null,
       scheduledStartDate: doc.scheduledStartDate ?? null,
       scheduledEndDate: doc.scheduledEndDate ?? null,
+      members: doc.members ?? [],
       createdAt: doc.createdAt?.toISOString().split("T")[0],
     }))
   );
@@ -59,10 +73,29 @@ export async function POST(
   }
 
   const body = await req.json();
-  const { title, description, templateId, serviceId, scheduledStartDate, scheduledEndDate } = body;
+  const { title, description, templateId, serviceId, scheduledStartDate, scheduledEndDate, members } = body;
 
   if (!title?.trim()) {
     return NextResponse.json({ error: "Title is required" }, { status: 400 });
+  }
+
+  // Resolve member snapshots (server-trusted name + image) from User collection
+  let memberAssignees: TaskAssignee[] = [];
+  if (Array.isArray(members) && members.length > 0) {
+    const memberIds = members
+      .map((m: { userId?: string }) => m?.userId)
+      .filter((u): u is string => typeof u === "string" && u.length > 0);
+    if (memberIds.length > 0) {
+      const memberUsers = await UserModel.find(
+        { _id: { $in: memberIds } },
+        { _id: 1, name: 1, image: 1 }
+      ).lean();
+      memberAssignees = memberUsers.map((u) => ({
+        userId: u._id.toString(),
+        name: u.name,
+        image: u.image ?? undefined,
+      }));
+    }
   }
 
   const doc = await ProjectModel.create({
@@ -74,6 +107,7 @@ export async function POST(
     serviceId: serviceId || undefined,
     scheduledStartDate: scheduledStartDate?.trim() || undefined,
     scheduledEndDate: scheduledEndDate?.trim() || undefined,
+    members: memberAssignees,
   });
 
   // Bulk-create tasks from template if one was used
@@ -113,7 +147,10 @@ export async function POST(
           projectId,
           title: tt.title,
           description: tt.description || undefined,
-          assignees: tt.assignToClientLead ? leadAssignees : [],
+          assignees: mergeAssignees(
+            tt.assignToClientLead ? leadAssignees : [],
+            memberAssignees,
+          ),
           createdById: session.user.id,
           createdByName: session.user.name ?? "Unknown",
         });
@@ -131,12 +168,42 @@ export async function POST(
           parentTaskId: resolvedParentId,
           title: tt.title,
           description: tt.description || undefined,
-          assignees: tt.assignToClientLead ? leadAssignees : [],
+          assignees: mergeAssignees(
+            tt.assignToClientLead ? leadAssignees : [],
+            memberAssignees,
+          ),
           createdById: session.user.id,
           createdByName: session.user.name ?? "Unknown",
         });
         idMap[tt._id.toString()] = created._id.toString();
       }
+    }
+
+    // Instantiate draft sessions + Plan-tasks from template sessions
+    const templateSessions = await TemplateSessionModel.find({ templateId })
+      .sort({ order: 1 })
+      .lean();
+    const projectId = doc._id.toString();
+    for (const ts of templateSessions) {
+      const draft = await SessionModel.create({
+        clientId: id,
+        projectId,
+        title: ts.title,
+        info: ts.info || undefined,
+        templateSessionId: ts._id.toString(),
+        participants: [],
+        createdById: session.user.id,
+        createdByName: session.user.name ?? "Unknown",
+      });
+      await TaskModel.create({
+        clientId: id,
+        projectId,
+        sessionId: draft._id.toString(),
+        title: `Plan ${ts.title}`,
+        assignees: memberAssignees,
+        createdById: session.user.id,
+        createdByName: session.user.name ?? "Unknown",
+      });
     }
   }
 
@@ -163,6 +230,7 @@ export async function POST(
     kickedOffAt: doc.kickedOffAt ?? null,
     scheduledStartDate: doc.scheduledStartDate ?? null,
     scheduledEndDate: doc.scheduledEndDate ?? null,
+    members: doc.members ?? [],
     createdAt: doc.createdAt?.toISOString().split("T")[0],
   }, { status: 201 });
 }

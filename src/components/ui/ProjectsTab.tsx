@@ -7,6 +7,7 @@ import StatusBadge from "@/components/ui/StatusBadge";
 import ProjectsTimeline from "@/components/ui/ProjectsTimeline";
 import { ProjectsSkeleton } from "@/components/ui/TabSkeletons";
 import { fmtDate } from "@/lib/utils";
+import { AssigneeAvatars } from "@/components/ui/task-row";
 import type { Project } from "@/types";
 
 interface ProjectStats {
@@ -116,16 +117,13 @@ function ProjectCard({
       className="relative flex flex-col rounded-xl border p-4 bg-white dark:bg-[var(--bg-sidebar)] transition-colors project-card-hover"
       style={{ boxShadow: "0 1px 3px 0 rgba(0,0,0,0.06), 0 1px 2px -1px rgba(0,0,0,0.04)" }}
     >
-      {!project.kickedOffAt && (
-        <span
-          className="absolute top-3 right-3 typo-tag px-1.5 py-0.5 rounded-full"
-          style={{ background: "var(--primary-light)", color: "var(--primary)" }}
-        >
-          Upcoming
-        </span>
+      {(project.members ?? []).length > 0 && (
+        <div className="absolute top-3 right-3">
+          <AssigneeAvatars assignees={project.members ?? []} size={28} />
+        </div>
       )}
 
-      <div className="flex gap-3">
+      <div className="flex gap-3 pr-16">
         <div
           className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
           style={{ background: "var(--bg-sidebar)", border: "1px solid var(--border)" }}
@@ -133,11 +131,21 @@ function ProjectCard({
           <FolderOpen size={15} style={{ color: "var(--text-muted)" }} />
         </div>
         <div className="flex flex-col justify-center min-w-0">
-          {project.service && (
-            <p className="typo-tag leading-none mb-1 truncate" style={{ color: "var(--text-muted)" }}>
-              {project.service}
-            </p>
-          )}
+          <div className="flex items-center gap-1.5 mb-1">
+            {project.service && (
+              <p className="typo-tag leading-none truncate" style={{ color: "var(--text-muted)" }}>
+                {project.service}
+              </p>
+            )}
+            {!project.kickedOffAt && (
+              <span
+                className="typo-tag leading-none px-1.5 py-0.5 rounded-full"
+                style={{ background: "var(--primary-light)", color: "var(--primary)" }}
+              >
+                Upcoming
+              </span>
+            )}
+          </div>
           <p className="font-medium text-sm leading-snug line-clamp-2" style={{ color: "var(--text-primary)" }}>
             {project.title}
           </p>
@@ -149,7 +157,7 @@ function ProjectCard({
           className="text-xs leading-relaxed mt-3 line-clamp-3"
           style={{ color: "var(--text-muted)" }}
         >
-          {project.description}
+          {project.description.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim()}
         </p>
       )}
 

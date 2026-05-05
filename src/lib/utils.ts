@@ -42,6 +42,7 @@ export interface WeekCalendarItem {
   title: string;
   clientId: string;
   clientName: string;
+  clientPrimaryColor?: string;
   leads: { userId: string; name: string; image?: string }[];
   linkHref: string;
   meta?: string;          // secondary text (e.g. project name for tasks)

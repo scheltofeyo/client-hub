@@ -5,6 +5,7 @@ import { Rocket } from "lucide-react";
 import { useRouter } from "next/navigation";
 import SteppedModal from "@/components/ui/SteppedModal";
 import ServicePills from "@/components/ui/ServicePills";
+import RichTextEditor from "@/components/ui/RichTextEditor";
 import { inputClass, inputStyle } from "@/components/ui/form-styles";
 import type { Project, ProjectLabel, Service } from "@/types";
 
@@ -267,17 +268,13 @@ export default function KickOffProjectButton({
             />
 
             <div>
-              <label htmlFor="ko-description" className="typo-label">
+              <label className="typo-label">
                 Description
               </label>
-              <textarea
-                id="ko-description"
-                value={form.description}
-                onChange={(e) => set("description", e.target.value)}
-                rows={3}
+              <RichTextEditor
+                content={form.description}
+                onChange={(html) => set("description", html)}
                 placeholder="Describe the project scope…"
-                className={inputClass + " resize-none"}
-                style={inputStyle}
               />
             </div>
           </div>

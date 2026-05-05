@@ -2,10 +2,12 @@ import IconNav from "@/components/layout/IconNav";
 import PanelNav from "@/components/layout/PanelNav";
 import SessionProviderWrapper from "@/components/layout/SessionProviderWrapper";
 import { RightPanelProvider } from "@/components/layout/RightPanel";
+import { auth } from "@/auth";
 
-export default function AppLayout({ children }: { children: React.ReactNode }) {
+export default async function AppLayout({ children }: { children: React.ReactNode }) {
+  const session = await auth();
   return (
-    <SessionProviderWrapper>
+    <SessionProviderWrapper session={session}>
       <div className="flex h-screen overflow-hidden">
         <IconNav />
 
