@@ -4,13 +4,21 @@ import { Info } from "lucide-react";
 import type { ReleaseNote } from "@/types";
 
 const notes: ReleaseNote[] = releaseNotes;
+const lastUpdated = notes[0]?.date;
 
 export default function Page() {
   return (
     <div className="flex-1 overflow-y-auto p-8 max-w-3xl">
-      <h1 className="typo-page-title mb-1" style={{ color: "var(--text-primary)" }}>
-        Release Notes
-      </h1>
+      <div className="flex items-baseline justify-between gap-3 mb-1">
+        <h1 className="typo-page-title" style={{ color: "var(--text-primary)" }}>
+          Release Notes
+        </h1>
+        {lastUpdated && (
+          <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+            Last updated {fmtDate(lastUpdated)}
+          </span>
+        )}
+      </div>
       <p className="text-sm mb-8" style={{ color: "var(--text-muted)" }}>
         Recent updates and changes.
       </p>
