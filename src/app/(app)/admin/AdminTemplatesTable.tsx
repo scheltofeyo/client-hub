@@ -152,19 +152,6 @@ export default function AdminTemplatesTable({
   const [addSaving, setAddSaving] = useState(false);
   const [addError, setAddError] = useState("");
 
-  // Edit modal state
-  const [editingTemplate, setEditingTemplate] = useState<ProjectTemplate | null>(null);
-  const [editForm, setEditForm] = useState<TemplateFormState>({
-    name: "",
-    summary: "",
-    defaultDescription: "",
-    defaultSoldPrice: "",
-    defaultServiceId: "",
-    defaultDeliveryDays: "",
-  });
-  const [editSaving, setEditSaving] = useState(false);
-  const [editError, setEditError] = useState("");
-
   function openAdd() {
     setAddForm({
       name: "",
@@ -176,19 +163,6 @@ export default function AdminTemplatesTable({
     });
     setAddError("");
     setAddOpen(true);
-  }
-
-  function openEdit(tpl: ProjectTemplate) {
-    setEditForm({
-      name: tpl.name,
-      summary: tpl.summary ?? "",
-      defaultDescription: tpl.defaultDescription ?? "",
-      defaultSoldPrice: tpl.defaultSoldPrice != null ? String(tpl.defaultSoldPrice) : "",
-      defaultServiceId: tpl.defaultServiceId ?? "",
-      defaultDeliveryDays: tpl.defaultDeliveryDays != null ? String(tpl.defaultDeliveryDays) : "",
-    });
-    setEditError("");
-    setEditingTemplate(tpl);
   }
 
   async function handleAdd() {
@@ -224,47 +198,6 @@ export default function AdminTemplatesTable({
     setAddOpen(false);
     // Navigate to template page so user can add tasks
     router.push(`/admin/templates/${created.id}`);
-  }
-
-  async function handleEdit() {
-    if (!editingTemplate) return;
-    if (!editForm.name.trim() || !editForm.defaultServiceId) {
-      setEditError("Name and service are required.");
-      return;
-    }
-    setEditSaving(true);
-    setEditError("");
-
-    const res = await fetch(`/api/project-templates/${editingTemplate.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: editForm.name,
-        summary: editForm.summary || undefined,
-        defaultDescription: editForm.defaultDescription || undefined,
-        defaultSoldPrice: editForm.defaultSoldPrice ? Number(editForm.defaultSoldPrice) : undefined,
-        defaultServiceId: editForm.defaultServiceId || undefined,
-        defaultDeliveryDays: editForm.defaultDeliveryDays ? Number(editForm.defaultDeliveryDays) : undefined,
-      }),
-    });
-
-    setEditSaving(false);
-
-    if (!res.ok) {
-      const d = await res.json();
-      setEditError(d.error ?? "Failed to update template");
-      return;
-    }
-
-    const updated = await res.json();
-    setTemplates((prev) =>
-      prev.map((t) =>
-        t.id === editingTemplate.id
-          ? { ...t, ...updated }
-          : t
-      )
-    );
-    setEditingTemplate(null);
   }
 
   async function handleDelete(id: string, name: string) {
@@ -315,16 +248,9 @@ export default function AdminTemplatesTable({
             </div>
             <div className="flex gap-1 shrink-0">
               <button
-                onClick={() => openEdit(tpl)}
-                className="p-1.5 rounded-md btn-icon"
-                title="Edit settings"
-              >
-                <Pencil size={13} />
-              </button>
-              <button
                 onClick={() => router.push(`/admin/templates/${tpl.id}`)}
                 className="p-1.5 rounded-md btn-icon"
-                title="Manage tasks"
+                title="Edit template"
               >
                 <Pencil size={13} />
               </button>
@@ -386,39 +312,6 @@ export default function AdminTemplatesTable({
           services={services}
         />
         {addError && <p className="text-xs text-[var(--danger)] mt-3">{addError}</p>}
-      </SteppedModal>
-
-      {/* Edit template modal */}
-      <SteppedModal
-        open={!!editingTemplate}
-        onClose={() => setEditingTemplate(null)}
-        title="Edit Template"
-        footer={
-          <>
-            <button
-              type="button"
-              onClick={() => setEditingTemplate(null)}
-              className="px-4 py-2 rounded-lg text-sm font-medium btn-ghost"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={handleEdit}
-              disabled={editSaving || !editForm.name.trim() || !editForm.defaultServiceId}
-              className="px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50 btn-primary"
-            >
-              {editSaving ? "Saving…" : "Save Changes"}
-            </button>
-          </>
-        }
-      >
-        <TemplateSettingsFields
-          form={editForm}
-          set={(field, value) => setEditForm((f) => ({ ...f, [field]: value }))}
-          services={services}
-        />
-        {editError && <p className="text-xs text-[var(--danger)] mt-3">{editError}</p>}
       </SteppedModal>
     </div>
   );
