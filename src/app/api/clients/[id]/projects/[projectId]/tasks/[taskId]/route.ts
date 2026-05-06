@@ -85,14 +85,10 @@ export async function PATCH(
       const allTasks = await TaskModel.find({ projectId: doc.projectId }).lean();
       const completedCount = allTasks.filter((t) => !!t.completedAt).length;
       const total = allTasks.length;
-      const projectStatus =
-        total === 0 || completedCount === 0
-          ? "not_started"
-          : completedCount === total
-          ? "completed"
-          : "in_progress";
+      const allDone = total > 0 && completedCount === total;
+      const projectStatus = allDone ? "completed" : "in_progress";
       const projectUpdate: Record<string, unknown> = { status: projectStatus };
-      if (projectStatus === "completed") {
+      if (allDone) {
         // All tasks just completed — set completedDate to today if not already set
         if (!project.completedDate) {
           projectUpdate.completedDate = new Date().toISOString().split("T")[0];

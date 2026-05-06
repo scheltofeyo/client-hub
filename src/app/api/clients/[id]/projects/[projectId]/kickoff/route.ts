@@ -48,19 +48,16 @@ export async function POST(
   if (serviceId !== undefined) update.serviceId = serviceId || null;
   if (labelId !== undefined) update.labelId = labelId || null;
 
-  // Recalculate project status from current task state
+  // Project is being kicked off here, so status moves to in_progress unless
+  // every task is already completed (in which case the project is born done).
   const allTasks = await TaskModel.find({ projectId }).lean();
   const completedCount = allTasks.filter((t) => !!t.completedAt).length;
   const total = allTasks.length;
-  update.status =
-    total === 0 || completedCount === 0
-      ? "not_started"
-      : completedCount === total
-      ? "completed"
-      : "in_progress";
-  if (update.status === "completed" && !existing.completedDate) {
+  const allDone = total > 0 && completedCount === total;
+  update.status = allDone ? "completed" : "in_progress";
+  if (allDone && !existing.completedDate) {
     update.completedDate = today;
-  } else if (update.status !== "completed") {
+  } else if (!allDone) {
     update.completedDate = null;
   }
 

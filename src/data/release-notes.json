@@ -1,6 +1,14 @@
 [
   {
     "date": "2026-05-06",
+    "title": "Fix: gekickoff'd project bleef ten onrechte op 'Not started' staan",
+    "details": [
+      "Een net gekickoff'd project zonder afgevinkte taken kreeg per ongeluk status 'not_started', waardoor het op de timeline verscheen maar de Kick Off knop verdween",
+      "Status hangt nu af van kickoff: vóór kickoff altijd 'not_started', erna 'in_progress' (of 'completed' als alle taken klaar zijn)"
+    ]
+  },
+  {
+    "date": "2026-05-06",
     "title": "Voeg afgeronde projecten in één stap toe via 'Add as completed project'",
     "details": [
       "Nieuwe toggle in de New Project modal onder Project members",

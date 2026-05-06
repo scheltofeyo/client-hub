@@ -86,20 +86,20 @@ export async function POST(
     createdByName: session.user.name ?? "Unknown",
   });
 
-  // Recalculate project status — new task is always incomplete
-  const allTasks = await TaskModel.find({ projectId }).lean();
-  const completedCount = allTasks.filter((t) => !!t.completedAt).length;
-  const total = allTasks.length;
-  const projectStatus =
-    total === 0 || completedCount === 0
-      ? "not_started"
-      : completedCount === total
-      ? "completed"
-      : "in_progress";
-  // Adding a task always moves project out of completed — clear completedDate
-  const projectUpdate: Record<string, unknown> = { status: projectStatus };
-  if (projectStatus !== "completed") projectUpdate.completedDate = null;
-  await ProjectModel.findByIdAndUpdate(projectId, { $set: projectUpdate });
+  // Recalculate project status only for kicked-off projects. Before kickoff,
+  // status stays at "not_started" regardless of task changes.
+  const project = await ProjectModel.findById(projectId).lean();
+  if (project?.kickedOffAt) {
+    const allTasks = await TaskModel.find({ projectId }).lean();
+    const completedCount = allTasks.filter((t) => !!t.completedAt).length;
+    const total = allTasks.length;
+    const allDone = total > 0 && completedCount === total;
+    const projectStatus = allDone ? "completed" : "in_progress";
+    // Adding a task always moves project out of completed — clear completedDate
+    const projectUpdate: Record<string, unknown> = { status: projectStatus };
+    if (!allDone) projectUpdate.completedDate = null;
+    await ProjectModel.findByIdAndUpdate(projectId, { $set: projectUpdate });
+  }
 
   await recordActivity({
     clientId,
