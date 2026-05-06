@@ -20,11 +20,22 @@ export default async function LoginPage({
 
   return (
     <div
-      className="min-h-screen flex items-center justify-center"
-      style={{ background: "var(--bg-app)" }}
+      className="min-h-screen flex items-center justify-center relative overflow-hidden"
+      style={{
+        backgroundColor: "var(--bg-app)",
+        backgroundImage: "var(--login-bg-mesh)",
+      }}
     >
       <div
-        className="w-full max-w-sm rounded-2xl p-8 shadow-xl"
+        aria-hidden
+        className="absolute inset-0 pointer-events-none bg-no-repeat bg-center bg-cover"
+        style={{
+          backgroundImage: "url(/login-bg.svg)",
+          opacity: "var(--login-bg-opacity)",
+        }}
+      />
+      <div
+        className="relative w-full max-w-sm rounded-2xl p-8 shadow-xl"
         style={{
           background: "var(--bg-surface)",
           border: "1px solid var(--border)",
@@ -44,7 +55,7 @@ export default async function LoginPage({
             </svg>
           </div>
           <h1 className="typo-page-title" style={{ color: "var(--text-primary)" }}>
-            Client Hub
+            SUMM Hub
           </h1>
           <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>
             Sign in to your workspace

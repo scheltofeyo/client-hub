@@ -132,6 +132,17 @@
 
   /* Birthday */
   --birthday: #ec4899;
+
+  /* Login screen background image opacity */
+  --login-bg-opacity: 0.85;
+
+  /* Login screen subtle mesh gradient — echoes the wave colors */
+  --login-bg-mesh:
+    radial-gradient(circle at 10% 15%, rgba(232, 179, 112, 0.32), transparent 55%),
+    radial-gradient(circle at 90% 20%, rgba(233, 151, 98, 0.28), transparent 55%),
+    radial-gradient(circle at 15% 85%, rgba(111, 63, 243, 0.22), transparent 60%),
+    radial-gradient(circle at 85% 80%, rgba(79, 175, 199, 0.28), transparent 55%),
+    radial-gradient(circle at 50% 60%, rgba(144, 205, 183, 0.18), transparent 65%);
 }
 
 .dark {
@@ -219,6 +230,17 @@
 
   /* Birthday */
   --birthday: #f472b6;
+
+  /* Login screen background image opacity */
+  --login-bg-opacity: 0.35;
+
+  /* Login screen subtle mesh gradient — same blobs, lower alpha for dark base */
+  --login-bg-mesh:
+    radial-gradient(circle at 10% 15%, rgba(232, 179, 112, 0.14), transparent 55%),
+    radial-gradient(circle at 90% 20%, rgba(233, 151, 98, 0.12), transparent 55%),
+    radial-gradient(circle at 15% 85%, rgba(111, 63, 243, 0.20), transparent 60%),
+    radial-gradient(circle at 85% 80%, rgba(79, 175, 199, 0.14), transparent 55%),
+    radial-gradient(circle at 50% 60%, rgba(144, 205, 183, 0.10), transparent 65%);
 }
 
 * {
