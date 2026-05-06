@@ -75,7 +75,7 @@ export default function UserMenu() {
           <Link
             href="/profile"
             onClick={() => setOpen(false)}
-            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left transition-colors btn-ghost"
+            className="w-full flex items-center justify-start gap-2 px-3 py-2 text-xs text-left transition-colors btn-ghost"
           >
             <UserPen size={13} />
             Edit Profile
@@ -103,7 +103,7 @@ export default function UserMenu() {
           <Link
             href="/settings"
             onClick={() => setOpen(false)}
-            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left transition-colors btn-ghost"
+            className="w-full flex items-center justify-start gap-2 px-3 py-2 text-xs text-left transition-colors btn-ghost"
           >
             <FileText size={13} />
             Release Notes
@@ -111,7 +111,7 @@ export default function UserMenu() {
           <button
             type="button"
             onClick={() => signOut({ callbackUrl: "/login" })}
-            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left transition-colors btn-ghost"
+            className="w-full flex items-center justify-start gap-2 px-3 py-2 text-xs text-left transition-colors btn-ghost"
           >
             <LogOut size={13} />
             Sign out

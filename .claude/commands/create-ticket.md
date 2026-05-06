@@ -42,10 +42,8 @@ Write to `.claude/plans/<slug>.md` using this format:
 <if any, otherwise omit this section>
 ```
 
-### 5. Show the proposed issue to the user
-Present the title and the full issue body (see template in step 6) and ask for confirmation. If pushback, iterate.
-
-### 6. Create the issue
+### 5. Create the issue
+Do NOT ask for approval before creating the issue. The plan-mode review in `/work-ticket` is the gating step for scope discussion; ticket creation should be one shot. Brief the user with the proposed title in one line, then create.
 Write the issue body to a temp file first (avoids quoting issues), then create the issue.
 
 Body template:
@@ -77,7 +75,7 @@ echo "Created: $ISSUE_URL"
 ISSUE_NUMBER=$(echo "$ISSUE_URL" | grep -oE '[0-9]+$')
 ```
 
-### 7. Set status to Backlog on the project board
+### 6. Set status to Backlog on the project board
 The Auto-add to project workflow takes a moment. Retry until the project item exists, then set Status:
 
 ```bash
@@ -125,7 +123,7 @@ gh api graphql -f query='
 echo "Issue #$ISSUE_NUMBER set to Backlog"
 ```
 
-### 8. Report
+### 7. Report
 Output to the user:
 - Issue URL
 - Plan path: `.claude/plans/<slug>.md`
