@@ -42,3 +42,6 @@ next-env.d.ts
 
 # Google Apps Script (local reference only)
 /gas/
+
+# Claude Code working plans (scratchpads, canonical plan lives in the issue body)
+/.claude/plans/
