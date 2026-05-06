@@ -1,6 +1,13 @@
 [
   {
     "date": "2026-05-07",
+    "title": "Fix: uitloggen bracht je 'ingelogd' op /dashboard",
+    "details": [
+      "Sign out wacht nu tot de sessie volledig gewist is voordat de pagina herlaadt, zodat je daarna op /login belandt zoals verwacht"
+    ]
+  },
+  {
+    "date": "2026-05-07",
     "title": "Rebrand naar SUMM Hub met verfrist login scherm",
     "details": [
       "App heet nu overal in de UI 'SUMM Hub' (was 'Client Hub' / 'SUMM Client Hub')",
