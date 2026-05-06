@@ -21,7 +21,10 @@ export default async function LoginPage({
   return (
     <div
       className="min-h-screen flex items-center justify-center relative overflow-hidden"
-      style={{ background: "var(--bg-app)" }}
+      style={{
+        backgroundColor: "var(--bg-app)",
+        backgroundImage: "var(--login-bg-mesh)",
+      }}
     >
       <div
         aria-hidden
