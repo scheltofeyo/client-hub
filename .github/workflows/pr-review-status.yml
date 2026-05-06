@@ -1,0 +1,72 @@
+name: Move linked issues to Review on PR open
+
+on:
+  pull_request:
+    types: [opened, reopened, ready_for_review]
+
+jobs:
+  move-to-review:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+    steps:
+      - name: Move linked issues to Review
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          OWNER: ${{ github.repository_owner }}
+          REPO: ${{ github.event.repository.name }}
+          PROJECT_ID: PVT_kwHOBHbkTc4BW5wP
+          STATUS_FIELD_ID: PVTSSF_lAHOBHbkTc4BW5wPzhSKZd4
+          REVIEW_OPTION_ID: 168cbabc
+        run: |
+          set -euo pipefail
+
+          ISSUE_NUMBERS=$(gh pr view "$PR_NUMBER" --repo "$OWNER/$REPO" \
+            --json closingIssuesReferences \
+            --jq '.closingIssuesReferences[].number')
+
+          if [ -z "$ISSUE_NUMBERS" ]; then
+            echo "No linked issues (use 'Closes #N' in PR body)"
+            exit 0
+          fi
+
+          for ISSUE in $ISSUE_NUMBERS; do
+            echo "Processing issue #$ISSUE"
+
+            ISSUE_ID=$(gh api graphql -f query='
+              query($owner: String!, $repo: String!, $number: Int!) {
+                repository(owner: $owner, name: $repo) {
+                  issue(number: $number) { id }
+                }
+              }' -f owner="$OWNER" -f repo="$REPO" -F number="$ISSUE" \
+              --jq '.data.repository.issue.id')
+
+            ITEM_ID=$(gh api graphql -f query='
+              query($id: ID!) {
+                node(id: $id) {
+                  ... on Issue {
+                    projectItems(first: 20) {
+                      nodes { id project { id } }
+                    }
+                  }
+                }
+              }' -f id="$ISSUE_ID" \
+              --jq ".data.node.projectItems.nodes[] | select(.project.id == \"$PROJECT_ID\") | .id")
+
+            if [ -z "$ITEM_ID" ]; then
+              echo "Issue #$ISSUE not on project, skipping"
+              continue
+            fi
+
+            gh api graphql -f query='
+              mutation($p: ID!, $i: ID!, $f: ID!, $o: String!) {
+                updateProjectV2ItemFieldValue(input: {
+                  projectId: $p, itemId: $i, fieldId: $f,
+                  value: { singleSelectOptionId: $o }
+                }) { projectV2Item { id } }
+              }' \
+              -f p="$PROJECT_ID" -f i="$ITEM_ID" \
+              -f f="$STATUS_FIELD_ID" -f o="$REVIEW_OPTION_ID" >/dev/null
+
+            echo "Moved issue #$ISSUE to Review"
+          done
