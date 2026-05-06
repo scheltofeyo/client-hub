@@ -1,9 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
-  <g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="14">
-    <path stroke="#f0a787" d="M 0 540 C 520 240 1280 280 1920 540" />
-    <path stroke="#eec06b" d="M 0 540 C 360 200 1500 200 1920 540" />
-    <path stroke="#7fc8b5" d="M 0 540 C 520 700 1300 720 1920 540" />
-    <path stroke="#5fb1d6" d="M 0 540 C 480 880 1280 880 1920 540" />
-    <path stroke="#7c3aed" d="M 0 540 C 360 1020 1500 1020 1920 540" />
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2922 1281" preserveAspectRatio="xMidYMid slice" fill="none" aria-hidden="true">
+  <g clip-path="url(#clip0)">
+    <path d="M3486 611C3486 611 3486 611 2434.9 611C1991.55 611 1827.16 1281 1383.8 1281C940.449 1281 776.061 611 332.706 611C225.451 611 -890 611 -890 611" stroke="#6F3FF3" stroke-width="24"/>
+    <path d="M2874 611H2680.93C2237.54 611 2073.15 1016 1629.76 1016C1186.38 1016 1021.98 611 578.595 611C374.798 611 171 611 171 611" stroke="#90CDB7" stroke-width="24"/>
+    <path d="M3189 611H2566.98C2123.67 611 1959.29 0 1515.98 0C1072.67 0 908.293 611 464.98 611C-586.02 611 -1015 611 -1015 611" stroke="#E8B370" stroke-width="24"/>
+    <path d="M4056 611H2522.88C2027.77 611 1844.19 156 1349.08 156C853.974 156 670.397 611 175.288 611C-998.508 611 -639.183 611 -639.183 611" stroke="#E99762" stroke-width="24"/>
+    <path d="M-458 611H323.904C781.547 611 951.233 1015 1408.88 1015C1866.52 1015 2036.2 611 2493.85 611C3578.82 611 4368 611 4368 611" stroke="#4FAFC7" stroke-width="24"/>
   </g>
+  <defs>
+    <clipPath id="clip0">
+      <rect width="2922" height="1281" fill="white"/>
+    </clipPath>
+  </defs>
 </svg>
