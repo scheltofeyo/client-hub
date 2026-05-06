@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { signIn } from "@/auth";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
@@ -20,11 +21,20 @@ export default async function LoginPage({
 
   return (
     <div
-      className="min-h-screen flex items-center justify-center"
+      className="min-h-screen flex items-center justify-center relative overflow-hidden"
       style={{ background: "var(--bg-app)" }}
     >
+      <Image
+        src="/login-bg.svg"
+        alt=""
+        aria-hidden
+        fill
+        priority
+        className="pointer-events-none object-cover"
+        style={{ opacity: "var(--login-bg-opacity)" }}
+      />
       <div
-        className="w-full max-w-sm rounded-2xl p-8 shadow-xl"
+        className="relative w-full max-w-sm rounded-2xl p-8 shadow-xl"
         style={{
           background: "var(--bg-surface)",
           border: "1px solid var(--border)",
@@ -44,7 +54,7 @@ export default async function LoginPage({
             </svg>
           </div>
           <h1 className="typo-page-title" style={{ color: "var(--text-primary)" }}>
-            Client Hub
+            SUMM Hub
           </h1>
           <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>
             Sign in to your workspace

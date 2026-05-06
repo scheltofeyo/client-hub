@@ -1,5 +1,13 @@
 [
   {
+    "date": "2026-05-07",
+    "title": "Rebrand naar SUMM Hub met verfrist login scherm",
+    "details": [
+      "App heet nu overal in de UI 'SUMM Hub' (was 'Client Hub' / 'SUMM Client Hub')",
+      "Login scherm krijgt een zachte achtergrond met gekleurde flowing waves"
+    ]
+  },
+  {
     "date": "2026-05-06",
     "title": "Profile dropdown: items zijn weer links uitgelijnd voor betere scanbaarheid"
   },

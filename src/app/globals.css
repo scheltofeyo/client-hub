@@ -132,6 +132,9 @@
 
   /* Birthday */
   --birthday: #ec4899;
+
+  /* Login screen background image opacity */
+  --login-bg-opacity: 0.85;
 }
 
 .dark {
@@ -219,6 +222,9 @@
 
   /* Birthday */
   --birthday: #f472b6;
+
+  /* Login screen background image opacity */
+  --login-bg-opacity: 0.35;
 }
 
 * {

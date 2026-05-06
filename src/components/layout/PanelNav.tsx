@@ -28,7 +28,7 @@ export default function PanelNav() {
       {/* Workspace header */}
       <div className="px-4 pt-5 pb-3 shrink-0">
         <span className="font-semibold text-sm" style={{ color: "var(--text-primary)" }}>
-          Client Hub
+          SUMM Hub
         </span>
       </div>
 

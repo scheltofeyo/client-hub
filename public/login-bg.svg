@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="14">
+    <path stroke="#f5b48a" d="M -50 380 C 380 60 760 60 1100 360 S 1700 720 1990 540" />
+    <path stroke="#f1c87a" d="M -50 320 C 360 200 820 -20 1240 320 S 1820 700 1990 560" />
+    <path stroke="#7fc8b5" d="M -50 620 C 380 700 820 560 1240 720 S 1820 600 1990 580" />
+    <path stroke="#5fb8d9" d="M -50 720 C 380 1000 820 800 1240 920 S 1820 540 1990 580" />
+    <path stroke="#7c3aed" d="M -50 700 C 380 1100 820 920 1240 1000 S 1820 480 1990 580" />
+  </g>
+</svg>
