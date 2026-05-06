@@ -1,4 +1,3 @@
-import Image from "next/image";
 import { signIn } from "@/auth";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
@@ -24,14 +23,13 @@ export default async function LoginPage({
       className="min-h-screen flex items-center justify-center relative overflow-hidden"
       style={{ background: "var(--bg-app)" }}
     >
-      <Image
-        src="/login-bg.svg"
-        alt=""
+      <div
         aria-hidden
-        fill
-        priority
-        className="pointer-events-none object-cover"
-        style={{ opacity: "var(--login-bg-opacity)" }}
+        className="absolute inset-0 pointer-events-none bg-no-repeat bg-center bg-cover"
+        style={{
+          backgroundImage: "url(/login-bg.svg)",
+          opacity: "var(--login-bg-opacity)",
+        }}
       />
       <div
         className="relative w-full max-w-sm rounded-2xl p-8 shadow-xl"
