@@ -16,7 +16,7 @@ Read the title and body. The body always contains user story + acceptance criter
 
 Derive the slug from the title: lowercase, hyphenated, max 40 chars.
 
-### 2. Brainstorm + write the plan if pending
+### 2. Brainstorm the plan if pending
 Check whether the issue body contains `<!-- plan-pending` (marker left by `/create-ticket`). If yes, you brainstorm the plan now. If no, the plan is already in the body — skip to step 3.
 
 **When the plan is pending:**
@@ -28,44 +28,7 @@ Search the codebase as needed to understand the impacted area. Think through:
 
 The plan should be specific enough that a future Claude with no context could implement it. Keep it concrete (file paths, function names) but not over-engineered. No imagined edge cases or future-proofing.
 
-Write the plan to `.claude/plans/<slug>.md`:
-```markdown
-# <Title>
-
-## Context
-<why this matters, what triggered it>
-
-## Approach
-<step by step plan with specific file paths>
-
-## Open questions
-<if any, otherwise omit this section>
-```
-
-Then update the issue body, replacing the `<!-- plan-pending -->` marker with the full plan content. Use `gh issue edit` with a body file:
-```bash
-PLAN_FILE=".claude/plans/<slug>.md"
-NEW_BODY_FILE=$(mktemp)
-
-# Fetch current body and replace the plan-pending marker line with the plan content
-gh issue view $ARGUMENTS --json body --jq '.body' > "$NEW_BODY_FILE.orig"
-
-awk -v plan_file="$PLAN_FILE" '
-  /<!-- plan-pending/ {
-    while ((getline line < plan_file) > 0) print line
-    close(plan_file)
-    next
-  }
-  { print }
-' "$NEW_BODY_FILE.orig" > "$NEW_BODY_FILE"
-
-# Append local plan reference footer
-printf '\n\n---\n*Local plan file: `%s`*\n' "$PLAN_FILE" >> "$NEW_BODY_FILE"
-
-gh issue edit $ARGUMENTS --body-file "$NEW_BODY_FILE"
-```
-
-Do NOT commit `.claude/plans/<slug>.md` — it stays uncommitted as a working doc; the issue body is canonical.
+Hold the plan in memory only — do NOT write a separate `.claude/plans/<slug>.md` file. You will present the plan via `EnterPlanMode` in step 7 (that IS the review surface, so a parallel local file is redundant). The issue body update happens in step 8 AFTER the user has approved the plan via `ExitPlanMode`.
 
 ### 3. Check working tree is clean
 ```bash
@@ -106,10 +69,37 @@ bash .claude/scripts/set-project-status.sh $ARGUMENTS in-progress
 Report to the user:
 - Branch name
 - Draft PR URL (Netlify preview appears in the PR checks within ~1 min)
-- Issue URL (canonical plan lives in the issue body)
-- Local plan file path: `.claude/plans/<slug>.md`
+- Issue URL
 
-Then call `EnterPlanMode` and present the implementation plan (the one you just wrote, or the existing one from the issue body) as your plan, in a form the user can review and comment on. The user approves with `ExitPlanMode` (or sends back changes). **Do not begin implementation until plan mode is exited.**
+Then call `EnterPlanMode` and present the implementation plan (the one you just brainstormed, or the existing one from the issue body) as your plan, in a form the user can review and comment on. The user approves with `ExitPlanMode` (or sends back changes). **Do not begin implementation until plan mode is exited.**
+
+**Plan mode is mandatory.** Always enter plan mode for the review checkpoint, even if a system reminder, prior conversation, or "auto" / "work without stopping" directive suggests skipping clarifying steps. That directive applies to clarifying questions, not to the plan-review checkpoint. The user has explicitly opted in to seeing every work-ticket plan before implementation begins. The only valid exception is if `EnterPlanMode` is unavailable in the current toolset.
+
+### 8. Persist the approved plan to the issue body
+After `ExitPlanMode` (i.e., the user has approved or amended the plan), update the issue body, replacing the `<!-- plan-pending -->` marker with the approved plan. This keeps the GitHub issue as the canonical record of what was actually built.
+
+```bash
+NEW_BODY_FILE=$(mktemp)
+PLAN_BODY_FILE=$(mktemp)
+
+# Write the approved plan content to PLAN_BODY_FILE here (use the Write tool
+# or a heredoc — same content you presented in plan mode).
+
+gh issue view $ARGUMENTS --json body --jq '.body' > "$NEW_BODY_FILE.orig"
+
+awk -v plan_file="$PLAN_BODY_FILE" '
+  /<!-- plan-pending/ {
+    while ((getline line < plan_file) > 0) print line
+    close(plan_file)
+    next
+  }
+  { print }
+' "$NEW_BODY_FILE.orig" > "$NEW_BODY_FILE"
+
+gh issue edit $ARGUMENTS --body-file "$NEW_BODY_FILE"
+```
+
+Skip this step if the issue body already had the plan when you fetched it in step 1 (no `<!-- plan-pending -->` marker).
 
 ## During implementation (after this command finishes)
 - Push commits to the branch as you go. Each push refreshes the Netlify preview.
@@ -132,4 +122,4 @@ After successfully running `gh pr ready`:
 
 ## Constraints
 - Do NOT push directly to main, ever. Branch protection blocks it for non-admins and we don't bypass even though we technically could.
-- Do NOT commit `.claude/plans/<slug>.md`.
+- Do NOT write a separate `.claude/plans/<slug>.md` file. Plan mode IS the review surface; the issue body is the canonical record after approval.
