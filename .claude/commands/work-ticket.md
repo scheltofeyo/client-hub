@@ -79,12 +79,29 @@ gh api graphql -f query='
   -f o="63446ed8" >/dev/null
 ```
 
-### 7. Output the links and enter plan mode
+### 7. Ensure the dev server is running on localhost:3000
+Check whether anything is already bound to port 3000:
+
+```bash
+lsof -i :3000 -t 2>/dev/null
+```
+
+- If the command prints a PID: the dev server (or something) is already running. **Do nothing.** Next.js HMR will automatically pick up the branch switch when files change on disk, so the user's existing localhost session reflects this branch immediately. Mention that localhost:3000 is already up.
+- If the command prints nothing: start the dev server in the background using `Bash` with `run_in_background: true`:
+  ```bash
+  npm run dev
+  ```
+  Tell the user that the dev server is starting and will be reachable on localhost:3000 in ~10 seconds.
+
+Never kill an existing process. If the user is running something else on port 3000 they will tell us.
+
+### 8. Output the links and enter plan mode
 Report to the user:
 - Branch name
 - Draft PR URL (Netlify preview appears in the PR checks within ~1 min)
 - **Issue URL** (canonical plan lives in the issue body)
 - **Local plan file path** if `.claude/plans/<slug>.md` exists
+- **localhost:3000** (running, or starting)
 
 Then call `EnterPlanMode` and present the implementation plan from the issue body / local plan file as your plan, in a form the user can review and comment on. The user approves with `ExitPlanMode` (or sends back changes). **Do not begin implementation until plan mode is exited.**
 

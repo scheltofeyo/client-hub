@@ -1,6 +1,10 @@
 [
   {
     "date": "2026-05-06",
+    "title": "Profile dropdown: items zijn weer links uitgelijnd voor betere scanbaarheid"
+  },
+  {
+    "date": "2026-05-06",
     "title": "Settings: 'Last updated' datum naast de Release Notes header",
     "details": [
       "Geeft direct aan wanneer de app voor het laatst is bijgewerkt zonder dat je de lijst hoeft te scannen"
