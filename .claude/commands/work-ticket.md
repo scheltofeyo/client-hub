@@ -102,8 +102,8 @@ gh issue edit $ARGUMENTS --body-file "$NEW_BODY_FILE"
 Skip this step if the issue body already had the plan when you fetched it in step 1 (no `<!-- plan-pending -->` marker).
 
 ## During implementation (after this command finishes)
-- Push commits to the branch as you go. Each push refreshes the Netlify preview.
-- When work is done and ready for review, run `gh pr ready <pr-number>`. The `pr-review-status` workflow will flip the linked issue to `Review` on the project board.
+- **Hold edits locally — do NOT commit/push automatically after each change.** Wait for the user to signal "commit", "commit and push", or similar before running `git add` / `git commit` / `git push`. Each push triggers a Netlify preview rebuild, so the user wants editorial control over when that happens.
+- When the user signals to push and you've done so, that triggers the auto-mark-ready logic below if all conditions are met.
 - Merging the PR auto-closes the issue (via `Closes #N`), and the `Item closed` project workflow moves it to `Done`.
 
 ## After implementation: auto-mark PR ready
