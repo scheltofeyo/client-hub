@@ -1,5 +1,5 @@
 ---
-description: Start working on a backlog ticket — creates branch + draft PR for preview, then enters plan mode
+description: Start working on a backlog ticket — brainstorm plan (if pending), create branch + draft PR for preview, then enter plan mode
 allowed-tools: Bash, Read, Edit, Write, Glob, Grep, EnterPlanMode, ExitPlanMode
 argument-hint: <issue-number>
 ---
@@ -12,10 +12,60 @@ You are starting work on backlog ticket #$ARGUMENTS.
 ```bash
 gh issue view $ARGUMENTS --json title,body,number,url
 ```
-Read the title and body. The body contains the user story, acceptance criteria, and full plan.
+Read the title and body. The body always contains user story + acceptance criteria. The plan section may be a `<!-- plan-pending -->` marker (created by `/create-ticket`) or already filled in (legacy or re-run).
 
-### 2. Try to load the local plan
-Derive the slug from the title (lowercase, hyphenated, max 40 chars) and read `.claude/plans/<slug>.md` if it exists. If not, the plan is in the issue body — that's fine.
+Derive the slug from the title: lowercase, hyphenated, max 40 chars.
+
+### 2. Brainstorm + write the plan if pending
+Check whether the issue body contains `<!-- plan-pending` (marker left by `/create-ticket`). If yes, you brainstorm the plan now. If no, the plan is already in the body — skip to step 3.
+
+**When the plan is pending:**
+
+Search the codebase as needed to understand the impacted area. Think through:
+- Which files / components / endpoints are involved
+- The simplest viable approach
+- Any open questions, trade-offs, or risks
+
+The plan should be specific enough that a future Claude with no context could implement it. Keep it concrete (file paths, function names) but not over-engineered. No imagined edge cases or future-proofing.
+
+Write the plan to `.claude/plans/<slug>.md`:
+```markdown
+# <Title>
+
+## Context
+<why this matters, what triggered it>
+
+## Approach
+<step by step plan with specific file paths>
+
+## Open questions
+<if any, otherwise omit this section>
+```
+
+Then update the issue body, replacing the `<!-- plan-pending -->` marker with the full plan content. Use `gh issue edit` with a body file:
+```bash
+PLAN_FILE=".claude/plans/<slug>.md"
+NEW_BODY_FILE=$(mktemp)
+
+# Fetch current body and replace the plan-pending marker line with the plan content
+gh issue view $ARGUMENTS --json body --jq '.body' > "$NEW_BODY_FILE.orig"
+
+awk -v plan_file="$PLAN_FILE" '
+  /<!-- plan-pending/ {
+    while ((getline line < plan_file) > 0) print line
+    close(plan_file)
+    next
+  }
+  { print }
+' "$NEW_BODY_FILE.orig" > "$NEW_BODY_FILE"
+
+# Append local plan reference footer
+printf '\n\n---\n*Local plan file: `%s`*\n' "$PLAN_FILE" >> "$NEW_BODY_FILE"
+
+gh issue edit $ARGUMENTS --body-file "$NEW_BODY_FILE"
+```
+
+Do NOT commit `.claude/plans/<slug>.md` — it stays uncommitted as a working doc; the issue body is canonical.
 
 ### 3. Check working tree is clean
 ```bash
@@ -48,62 +98,18 @@ echo "Draft PR: $PR_URL"
 ```
 
 ### 6. Set issue status to In Progress
-Get the project item ID for the issue and set Status to `In Progress`:
-
 ```bash
-ISSUE_ID=$(gh api graphql -f query='
-  query($n:Int!){
-    repository(owner:"scheltofeyo",name:"client-hub"){
-      issue(number:$n){id}
-    }
-  }' -F n=$ARGUMENTS --jq '.data.repository.issue.id')
-
-ITEM_ID=$(gh api graphql -f query='
-  query($id:ID!){
-    node(id:$id){... on Issue{
-      projectItems(first:10){nodes{id project{id}}}
-    }}
-  }' -f id="$ISSUE_ID" \
-  --jq '.data.node.projectItems.nodes[] | select(.project.id == "PVT_kwHOBHbkTc4BW5wP") | .id')
-
-gh api graphql -f query='
-  mutation($p:ID!,$i:ID!,$f:ID!,$o:String!){
-    updateProjectV2ItemFieldValue(input:{
-      projectId:$p, itemId:$i, fieldId:$f,
-      value:{singleSelectOptionId:$o}
-    }){projectV2Item{id}}
-  }' \
-  -f p="PVT_kwHOBHbkTc4BW5wP" \
-  -f i="$ITEM_ID" \
-  -f f="PVTSSF_lAHOBHbkTc4BW5wPzhSKZd4" \
-  -f o="63446ed8" >/dev/null
+bash .claude/scripts/set-project-status.sh $ARGUMENTS in-progress
 ```
 
-### 7. Ensure the dev server is running on localhost:3000
-Check whether anything is already bound to port 3000:
-
-```bash
-lsof -i :3000 -t 2>/dev/null
-```
-
-- If the command prints a PID: the dev server (or something) is already running. **Do nothing.** Next.js HMR will automatically pick up the branch switch when files change on disk, so the user's existing localhost session reflects this branch immediately. Mention that localhost:3000 is already up.
-- If the command prints nothing: start the dev server in the background using `Bash` with `run_in_background: true`:
-  ```bash
-  npm run dev
-  ```
-  Tell the user that the dev server is starting and will be reachable on localhost:3000 in ~10 seconds.
-
-Never kill an existing process. If the user is running something else on port 3000 they will tell us.
-
-### 8. Output the links and enter plan mode
+### 7. Output the links and enter plan mode
 Report to the user:
 - Branch name
 - Draft PR URL (Netlify preview appears in the PR checks within ~1 min)
-- **Issue URL** (canonical plan lives in the issue body)
-- **Local plan file path** if `.claude/plans/<slug>.md` exists
-- **localhost:3000** (running, or starting)
+- Issue URL (canonical plan lives in the issue body)
+- Local plan file path: `.claude/plans/<slug>.md`
 
-Then call `EnterPlanMode` and present the implementation plan from the issue body / local plan file as your plan, in a form the user can review and comment on. The user approves with `ExitPlanMode` (or sends back changes). **Do not begin implementation until plan mode is exited.**
+Then call `EnterPlanMode` and present the implementation plan (the one you just wrote, or the existing one from the issue body) as your plan, in a form the user can review and comment on. The user approves with `ExitPlanMode` (or sends back changes). **Do not begin implementation until plan mode is exited.**
 
 ## During implementation (after this command finishes)
 - Push commits to the branch as you go. Each push refreshes the Netlify preview.
@@ -126,3 +132,4 @@ After successfully running `gh pr ready`:
 
 ## Constraints
 - Do NOT push directly to main, ever. Branch protection blocks it for non-admins and we don't bypass even though we technically could.
+- Do NOT commit `.claude/plans/<slug>.md`.

@@ -1,6 +1,6 @@
 ---
-description: Create a backlog ticket on GitHub Projects with user story and plan
-allowed-tools: Bash, Write, Read, Glob, Grep
+description: Create a backlog ticket on GitHub Projects with user story (no plan yet — that happens in /work-ticket)
+allowed-tools: Bash, Write, Read
 argument-hint: <kort beschrijving van wat je wilt>
 ---
 
@@ -8,43 +8,22 @@ You are creating a new backlog ticket for the client-hub repo on GitHub. The tic
 
 User's request: $ARGUMENTS
 
+The implementation plan is intentionally NOT written here — it gets created in `/work-ticket` when the ticket actually starts. This avoids spending tokens on plans for tickets that may never be picked up, and avoids stale plans for tickets that sit in the backlog for weeks.
+
 ## Steps
 
 ### 1. Refine the request
 If the description is unclear or missing key context (which user is affected, scope, what "good enough" means), ask 1-2 focused clarifying questions and stop. Otherwise proceed without asking.
 
-### 2. Brainstorm the implementation plan
-Search the codebase as needed to understand the impacted area. Think through:
-- Which files / components / endpoints are involved
-- The simplest viable approach
-- Any open questions, trade-offs, or risks
+Do NOT search the codebase here. The goal is to capture intent + acceptance criteria, not design the implementation.
 
-The plan should be specific enough that a future Claude with no context could implement it.
-
-### 3. Generate slug + title
+### 2. Generate slug + title
 - **Title**: short imperative sentence, no trailing period (matches existing commit style: "Speed up client tasks tab", "Drop redundant template-settings popup")
 - **Slug**: lowercase, hyphenated, max 40 chars, derived from title
 - Example: title `Speed up client tasks tab` → slug `speed-up-client-tasks-tab`
 
-### 4. Save the plan locally
-Write to `.claude/plans/<slug>.md` using this format:
-
-```markdown
-# <Title>
-
-## Context
-<why this matters, what triggered it>
-
-## Approach
-<step by step plan with specific file paths>
-
-## Open questions
-<if any, otherwise omit this section>
-```
-
-### 5. Create the issue
-Do NOT ask for approval before creating the issue. The plan-mode review in `/work-ticket` is the gating step for scope discussion; ticket creation should be one shot. Brief the user with the proposed title in one line, then create.
-Write the issue body to a temp file first (avoids quoting issues), then create the issue.
+### 3. Create the issue
+Write the issue body to a temp file first (avoids quoting issues), then create the issue immediately. Do NOT pre-confirm with the user — the report in step 5 acts as the confirmation, and the user can edit/close the issue if it's wrong.
 
 Body template:
 ```markdown
@@ -57,10 +36,7 @@ As a <role>, I want <capability>, so that <outcome>.
 - [ ] <criterion 3>
 
 ## Plan
-<paste the full plan content from step 4 here>
-
----
-*Local plan file: `.claude/plans/<slug>.md`*
+<!-- plan-pending: filled in by /work-ticket when this ticket is picked up -->
 ```
 
 Commands:
@@ -75,61 +51,21 @@ echo "Created: $ISSUE_URL"
 ISSUE_NUMBER=$(echo "$ISSUE_URL" | grep -oE '[0-9]+$')
 ```
 
-### 6. Set status to Backlog on the project board
-The Auto-add to project workflow takes a moment. Retry until the project item exists, then set Status:
-
+### 4. Set status to Backlog on the project board
 ```bash
-ISSUE_ID=$(gh api graphql -f query='
-  query($n:Int!){
-    repository(owner:"scheltofeyo",name:"client-hub"){
-      issue(number:$n){id}
-    }
-  }' -F n=$ISSUE_NUMBER --jq '.data.repository.issue.id')
-
-ITEM_ID=""
-for i in 1 2 3 4 5 6; do
-  ITEM_ID=$(gh api graphql -f query='
-    query($id:ID!){
-      node(id:$id){... on Issue{
-        projectItems(first:10){nodes{id project{id}}}
-      }}
-    }' -f id="$ISSUE_ID" \
-    --jq '.data.node.projectItems.nodes[] | select(.project.id == "PVT_kwHOBHbkTc4BW5wP") | .id')
-  if [ -n "$ITEM_ID" ]; then break; fi
-  sleep 2
-done
-
-if [ -z "$ITEM_ID" ]; then
-  echo "Auto-add did not fire; adding manually"
-  ITEM_ID=$(gh api graphql -f query='
-    mutation($p:ID!,$c:ID!){
-      addProjectV2ItemById(input:{projectId:$p,contentId:$c}){item{id}}
-    }' -f p="PVT_kwHOBHbkTc4BW5wP" -f c="$ISSUE_ID" \
-    --jq '.data.addProjectV2ItemById.item.id')
-fi
-
-gh api graphql -f query='
-  mutation($p:ID!,$i:ID!,$f:ID!,$o:String!){
-    updateProjectV2ItemFieldValue(input:{
-      projectId:$p, itemId:$i, fieldId:$f,
-      value:{singleSelectOptionId:$o}
-    }){projectV2Item{id}}
-  }' \
-  -f p="PVT_kwHOBHbkTc4BW5wP" \
-  -f i="$ITEM_ID" \
-  -f f="PVTSSF_lAHOBHbkTc4BW5wPzhSKZd4" \
-  -f o="d79b2061" >/dev/null
-
-echo "Issue #$ISSUE_NUMBER set to Backlog"
+bash .claude/scripts/set-project-status.sh "$ISSUE_NUMBER" backlog
 ```
 
-### 7. Report
+### 5. Report
 Output to the user:
+- The proposed title
+- The user story + acceptance criteria you used
 - Issue URL
-- Plan path: `.claude/plans/<slug>.md`
-- Reminder: run `/work-ticket <number>` when ready to start
+- Reminder: run `/work-ticket <number>` when ready to start (the implementation plan gets brainstormed and written then)
+
+The user reviews the report — if anything is wrong they can edit the issue on GitHub or ask you to update it.
 
 ## Constraints
-- Keep the plan concrete (file paths, function names) but not over-engineered. No imagined edge cases or future-proofing.
-- Do NOT commit the plan file. It stays uncommitted as a working doc, the issue body has the canonical plan.
-- Do NOT start implementation work in this command. Only the ticket is created.
+- Do NOT search the codebase or brainstorm an implementation plan in this command.
+- Do NOT start implementation work. Only the ticket is created.
+- Acceptance criteria stay short and outcome-focused. They are WHAT, not HOW.
