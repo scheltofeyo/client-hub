@@ -430,6 +430,8 @@ export function SubtaskRow({
   const isDone = !!task.completedAt;
   const today = todayProp ?? new Date().toISOString().slice(0, 10);
   const isOverdue = !isDone && !!task.completionDate && task.completionDate < today;
+  // Follow-up tasks (logId set) can be checked off by anyone, not just the creator/assignee.
+  const canToggleComplete = canEdit || !!task.logId;
 
   const handleDragStart = useCallback((e: React.DragEvent) => {
     if (!dragFromHandle.current) {
@@ -483,12 +485,12 @@ export function SubtaskRow({
 
       <button
         type="button"
-        onClick={canEdit ? (e) => { e.stopPropagation(); onToggleComplete(task); } : (e) => e.stopPropagation()}
+        onClick={canToggleComplete ? (e) => { e.stopPropagation(); onToggleComplete(task); } : (e) => e.stopPropagation()}
         className="flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors"
         style={{
           borderColor: isDone ? "var(--primary-light)" : "var(--border)",
           background: isDone ? "var(--primary-light)" : "transparent",
-          cursor: canEdit ? "pointer" : "default",
+          cursor: canToggleComplete ? "pointer" : "default",
         }}
       >
         {isDone && <Check size={14} color="var(--primary)" strokeWidth={3} />}
@@ -643,6 +645,8 @@ export function TaskRow({
   const isDone = !!task.completedAt;
   const today = todayProp ?? new Date().toISOString().slice(0, 10);
   const isOverdue = !isDone && !!task.completionDate && task.completionDate < today;
+  // Follow-up tasks (logId set) can be checked off by anyone, not just the creator/assignee.
+  const canToggleComplete = canEdit || !!task.logId;
   const hasOverdueSubtask = subtasks.some(
     (s) => !s.completedAt && !!s.completionDate && s.completionDate < today
   );
@@ -735,12 +739,12 @@ export function TaskRow({
         {!navigateHref && (
           <button
             type="button"
-            onClick={canEdit ? (e) => { e.stopPropagation(); onToggleComplete(task); } : (e) => e.stopPropagation()}
+            onClick={canToggleComplete ? (e) => { e.stopPropagation(); onToggleComplete(task); } : (e) => e.stopPropagation()}
             className="flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors"
             style={{
               borderColor: isDone ? "var(--primary-light)" : "var(--border)",
               background: isDone ? "var(--primary-light)" : "transparent",
-              cursor: canEdit ? "pointer" : "default",
+              cursor: canToggleComplete ? "pointer" : "default",
             }}
             aria-label={isDone ? "Mark incomplete" : "Mark complete"}
           >

@@ -73,10 +73,28 @@ export async function POST(
   }
 
   const body = await req.json();
-  const { title, description, templateId, serviceId, scheduledStartDate, scheduledEndDate, members } = body;
+  const {
+    title,
+    description,
+    templateId,
+    serviceId,
+    scheduledStartDate,
+    scheduledEndDate,
+    members,
+    addAsCompleted,
+    completedDate,
+    soldPrice,
+    labelId,
+  } = body;
 
   if (!title?.trim()) {
     return NextResponse.json({ error: "Title is required" }, { status: 400 });
+  }
+
+  const isCompleted = addAsCompleted === true;
+  const completion = typeof completedDate === "string" ? completedDate.trim() : "";
+  if (isCompleted && !completion) {
+    return NextResponse.json({ error: "Completed date is required" }, { status: 400 });
   }
 
   // Resolve member snapshots (server-trusted name + image) from User collection
@@ -98,16 +116,30 @@ export async function POST(
     }
   }
 
+  const completedAtIso = isCompleted
+    ? new Date(`${completion}T12:00:00Z`).toISOString()
+    : undefined;
+
   const doc = await ProjectModel.create({
     clientId: id,
     title: title.trim(),
     description: description?.trim() || undefined,
-    status: "not_started",
+    status: isCompleted ? "completed" : "not_started",
     templateId: templateId || undefined,
     serviceId: serviceId || undefined,
-    scheduledStartDate: scheduledStartDate?.trim() || undefined,
-    scheduledEndDate: scheduledEndDate?.trim() || undefined,
     members: memberAssignees,
+    ...(isCompleted
+      ? {
+          completedDate: completion,
+          kickedOffAt: completion,
+          deliveryDate: completion,
+          soldPrice: soldPrice ? Number(soldPrice) : undefined,
+          labelId: labelId || undefined,
+        }
+      : {
+          scheduledStartDate: scheduledStartDate?.trim() || undefined,
+          scheduledEndDate: scheduledEndDate?.trim() || undefined,
+        }),
   });
 
   // Bulk-create tasks from template if one was used
@@ -139,6 +171,14 @@ export async function POST(
       const projectId = doc._id.toString();
       const idMap: Record<string, string> = {};
 
+      const completionFields = isCompleted
+        ? {
+            completedAt: completedAtIso,
+            completedById: session.user.id,
+            completedByName: session.user.name ?? "Unknown",
+          }
+        : {};
+
       // Pass 1: top-level tasks (no parentTaskId)
       const topLevel = templateTasks.filter((t) => !t.parentTaskId);
       for (const tt of topLevel) {
@@ -153,6 +193,7 @@ export async function POST(
           ),
           createdById: session.user.id,
           createdByName: session.user.name ?? "Unknown",
+          ...completionFields,
         });
         idMap[tt._id.toString()] = created._id.toString();
       }
@@ -174,6 +215,7 @@ export async function POST(
           ),
           createdById: session.user.id,
           createdByName: session.user.name ?? "Unknown",
+          ...completionFields,
         });
         idMap[tt._id.toString()] = created._id.toString();
       }
@@ -184,6 +226,13 @@ export async function POST(
       .sort({ order: 1 })
       .lean();
     const projectId = doc._id.toString();
+    const sessionTaskCompletion = isCompleted
+      ? {
+          completedAt: completedAtIso,
+          completedById: session.user.id,
+          completedByName: session.user.name ?? "Unknown",
+        }
+      : {};
     for (const ts of templateSessions) {
       const draft = await SessionModel.create({
         clientId: id,
@@ -203,8 +252,24 @@ export async function POST(
         assignees: memberAssignees,
         createdById: session.user.id,
         createdByName: session.user.name ?? "Unknown",
+        ...sessionTaskCompletion,
       });
     }
+  }
+
+  // For "add as completed", create the Deliver task already marked done
+  if (isCompleted) {
+    await TaskModel.create({
+      clientId: id,
+      projectId: doc._id.toString(),
+      title: `Deliver ${doc.title}`,
+      assignees: memberAssignees,
+      completedAt: completedAtIso,
+      completedById: session.user.id,
+      completedByName: session.user.name ?? "Unknown",
+      createdById: session.user.id,
+      createdByName: session.user.name ?? "Unknown",
+    });
   }
 
   await recordActivity({
@@ -214,6 +279,23 @@ export async function POST(
     type: "project.created",
     metadata: { projectId: doc._id.toString(), title: doc.title },
   });
+
+  if (isCompleted) {
+    await recordActivity({
+      clientId: id,
+      actorId: session.user.id,
+      actorName: session.user.name ?? "Unknown",
+      type: "project.kicked_off",
+      metadata: { projectId: doc._id.toString(), title: doc.title, deliveryDate: completion },
+    });
+    await recordActivity({
+      clientId: id,
+      actorId: session.user.id,
+      actorName: session.user.name ?? "Unknown",
+      type: "project.status_changed",
+      metadata: { projectId: doc._id.toString(), title: doc.title, status: "completed" },
+    });
+  }
 
   return NextResponse.json({
     id: doc._id.toString(),

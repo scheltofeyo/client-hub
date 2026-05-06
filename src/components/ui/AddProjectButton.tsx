@@ -7,8 +7,9 @@ import SteppedModal from "@/components/ui/SteppedModal";
 import ServicePills from "@/components/ui/ServicePills";
 import RichTextEditor from "@/components/ui/RichTextEditor";
 import UserAvatar from "@/components/ui/UserAvatar";
+import Toggle from "@/components/ui/Toggle";
 import { inputClass, inputStyle } from "@/components/ui/form-styles";
-import type { ProjectTemplate, Service, TaskAssignee } from "@/types";
+import type { ProjectLabel, ProjectTemplate, Service, TaskAssignee } from "@/types";
 
 type AssignableUser = { id: string; name: string; image: string | null };
 
@@ -28,10 +29,12 @@ export function AddProjectModal({
   const [step, setStep] = useState(0);
   const [templates, setTemplates] = useState<ProjectTemplate[]>([]);
   const [services, setServices] = useState<Service[]>([]);
+  const [labels, setLabels] = useState<ProjectLabel[]>([]);
   const [users, setUsers] = useState<AssignableUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTemplate, setSelectedTemplate] = useState<ProjectTemplate | null>(null);
   const [selectedMembers, setSelectedMembers] = useState<TaskAssignee[]>([]);
+  const [addAsCompleted, setAddAsCompleted] = useState(false);
 
   const [form, setForm] = useState({
     title: "",
@@ -39,6 +42,9 @@ export function AddProjectModal({
     serviceId: "",
     scheduledStartDate: "",
     scheduledEndDate: "",
+    completedDate: "",
+    soldPrice: "",
+    labelId: "",
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -51,7 +57,17 @@ export function AddProjectModal({
       setStep(0);
       setSelectedTemplate(null);
       setSelectedMembers([]);
-      setForm({ title: "", description: "", serviceId: "", scheduledStartDate: "", scheduledEndDate: "" });
+      setAddAsCompleted(false);
+      setForm({
+        title: "",
+        description: "",
+        serviceId: "",
+        scheduledStartDate: "",
+        scheduledEndDate: "",
+        completedDate: "",
+        soldPrice: "",
+        labelId: "",
+      });
       setError("");
       setLoading(true);
     });
@@ -59,11 +75,13 @@ export function AddProjectModal({
       fetch("/api/project-templates").then((r) => r.json()),
       fetch("/api/services").then((r) => r.json()),
       fetch("/api/users/assignable").then((r) => r.json()),
+      fetch("/api/project-labels").then((r) => r.json()),
     ])
-      .then(([tplData, svcData, userData]) => {
+      .then(([tplData, svcData, userData, lblData]) => {
         setTemplates(Array.isArray(tplData) ? tplData : []);
         setServices(Array.isArray(svcData) ? svcData : []);
         setUsers(Array.isArray(userData) ? userData : []);
+        setLabels(Array.isArray(lblData) ? lblData : []);
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -80,12 +98,16 @@ export function AddProjectModal({
 
   function selectTemplate(tpl: ProjectTemplate | null) {
     setSelectedTemplate(tpl);
+    setAddAsCompleted(false);
     setForm({
       title: tpl?.name ?? "",
       description: tpl?.defaultDescription ?? "",
       serviceId: tpl?.defaultServiceId ?? "",
       scheduledStartDate: "",
       scheduledEndDate: "",
+      completedDate: "",
+      soldPrice: tpl?.defaultSoldPrice != null ? String(tpl.defaultSoldPrice) : "",
+      labelId: "",
     });
     setError("");
     setStep(1);
@@ -97,22 +119,37 @@ export function AddProjectModal({
 
   async function handleSubmit() {
     if (!form.title.trim() || !form.serviceId) return;
+    if (addAsCompleted && !form.completedDate.trim()) return;
 
     setSubmitting(true);
     setError("");
 
+    const baseBody: Record<string, unknown> = {
+      title: form.title,
+      description: form.description || undefined,
+      templateId: selectedTemplate?.id,
+      serviceId: form.serviceId || undefined,
+      members: selectedMembers.map((m) => ({ userId: m.userId })),
+    };
+
+    const body = addAsCompleted
+      ? {
+          ...baseBody,
+          addAsCompleted: true,
+          completedDate: form.completedDate,
+          soldPrice: form.soldPrice ? Number(form.soldPrice) : undefined,
+          labelId: form.labelId || undefined,
+        }
+      : {
+          ...baseBody,
+          scheduledStartDate: form.scheduledStartDate || undefined,
+          scheduledEndDate: form.scheduledEndDate || undefined,
+        };
+
     const res = await fetch(`/api/clients/${clientId}/projects`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        title: form.title,
-        description: form.description || undefined,
-        templateId: selectedTemplate?.id,
-        serviceId: form.serviceId || undefined,
-        scheduledStartDate: form.scheduledStartDate || undefined,
-        scheduledEndDate: form.scheduledEndDate || undefined,
-        members: selectedMembers.map((m) => ({ userId: m.userId })),
-      }),
+      body: JSON.stringify(body),
     });
 
     setSubmitting(false);
@@ -125,8 +162,11 @@ export function AddProjectModal({
 
     const data = await res.json();
 
-    // Store template defaults for kick-off form
-    if (selectedTemplate?.defaultDeliveryDays != null || selectedTemplate?.defaultSoldPrice != null) {
+    // Store template defaults for kick-off form (skip when project is already completed)
+    if (
+      !addAsCompleted &&
+      (selectedTemplate?.defaultDeliveryDays != null || selectedTemplate?.defaultSoldPrice != null)
+    ) {
       try {
         localStorage.setItem(
           `kickoff_defaults_${data.id}`,
@@ -174,10 +214,19 @@ export function AddProjectModal({
               <button
                 type="button"
                 onClick={handleSubmit}
-                disabled={submitting || !form.title.trim() || !form.serviceId}
+                disabled={
+                  submitting ||
+                  !form.title.trim() ||
+                  !form.serviceId ||
+                  (addAsCompleted && !form.completedDate.trim())
+                }
                 className="px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50 btn-primary"
               >
-                {submitting ? "Creating…" : "Create Project"}
+                {submitting
+                  ? "Creating…"
+                  : addAsCompleted
+                  ? "Create completed project"
+                  : "Create Project"}
               </button>
             </>
           )
@@ -355,45 +404,129 @@ export function AddProjectModal({
               </p>
             </div>
 
-            <div>
-              <p
-                className="typo-section-header mb-3"
-                style={{ color: "var(--text-muted)" }}
-              >
-                Scheduled dates
-              </p>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label htmlFor="ap-start" className="typo-label">
-                    Start date
-                  </label>
-                  <input
-                    id="ap-start"
-                    type="date"
-                    value={form.scheduledStartDate}
-                    onChange={(e) => set("scheduledStartDate", e.target.value)}
-                    className={inputClass}
-                    style={inputStyle}
-                  />
-                </div>
-                <div>
-                  <label htmlFor="ap-end" className="typo-label">
-                    End date
-                  </label>
-                  <input
-                    id="ap-end"
-                    type="date"
-                    value={form.scheduledEndDate}
-                    onChange={(e) => set("scheduledEndDate", e.target.value)}
-                    className={inputClass}
-                    style={inputStyle}
-                  />
+            <div
+              className="flex items-center gap-3 px-3 py-2 rounded-lg"
+              style={{ background: "var(--primary-light)" }}
+            >
+              <Toggle
+                checked={addAsCompleted}
+                onChange={() => setAddAsCompleted((v) => !v)}
+              />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium" style={{ color: "var(--primary)" }}>
+                  Add as completed project
+                </p>
+                <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                  Skip kick-off and mark all tasks as done.
+                </p>
+              </div>
+            </div>
+
+            {addAsCompleted ? (
+              <div>
+                <p
+                  className="typo-section-header mb-3"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  Completed details
+                </p>
+                <div className="space-y-3">
+                  <div>
+                    <label htmlFor="ap-completed" className="typo-label">
+                      Completed date <span className="text-[var(--danger)]">*</span>
+                    </label>
+                    <input
+                      id="ap-completed"
+                      type="date"
+                      value={form.completedDate}
+                      onChange={(e) => set("completedDate", e.target.value)}
+                      className={inputClass}
+                      style={inputStyle}
+                    />
+                    <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+                      Used as kick-off, delivery and completion date.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label htmlFor="ap-price" className="typo-label">
+                        Sold price (€)
+                      </label>
+                      <input
+                        id="ap-price"
+                        type="number"
+                        min={0}
+                        step={1}
+                        value={form.soldPrice}
+                        onChange={(e) => set("soldPrice", e.target.value)}
+                        placeholder="e.g. 5000"
+                        className={inputClass}
+                        style={inputStyle}
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="ap-label" className="typo-label">
+                        Label
+                      </label>
+                      <select
+                        id="ap-label"
+                        value={form.labelId}
+                        onChange={(e) => set("labelId", e.target.value)}
+                        className={inputClass}
+                        style={inputStyle}
+                      >
+                        <option value="">— No label —</option>
+                        {labels.map((l) => (
+                          <option key={l.id} value={l.id}>
+                            {l.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
                 </div>
               </div>
-              <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
-                Shown on the timeline. End date pre-fills delivery date at kick-off.
-              </p>
-            </div>
+            ) : (
+              <div>
+                <p
+                  className="typo-section-header mb-3"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  Scheduled dates
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label htmlFor="ap-start" className="typo-label">
+                      Start date
+                    </label>
+                    <input
+                      id="ap-start"
+                      type="date"
+                      value={form.scheduledStartDate}
+                      onChange={(e) => set("scheduledStartDate", e.target.value)}
+                      className={inputClass}
+                      style={inputStyle}
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="ap-end" className="typo-label">
+                      End date
+                    </label>
+                    <input
+                      id="ap-end"
+                      type="date"
+                      value={form.scheduledEndDate}
+                      onChange={(e) => set("scheduledEndDate", e.target.value)}
+                      className={inputClass}
+                      style={inputStyle}
+                    />
+                  </div>
+                </div>
+                <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+                  Shown on the timeline. End date pre-fills delivery date at kick-off.
+                </p>
+              </div>
+            )}
 
             {error && <p className="text-xs text-[var(--danger)]">{error}</p>}
           </div>

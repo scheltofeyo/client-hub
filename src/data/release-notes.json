@@ -1,5 +1,19 @@
 [
   {
+    "date": "2026-05-06",
+    "title": "Voeg afgeronde projecten in één stap toe via 'Add as completed project'",
+    "details": [
+      "Nieuwe toggle in de New Project modal onder Project members",
+      "Vraagt om completed date, optionele sold price en label in plaats van scheduled dates",
+      "Project wordt direct op completed gezet, kick-off en delivery worden automatisch afgevinkt op de completed date",
+      "Bij templates worden alle template-taken meteen als voltooid gemarkeerd"
+    ]
+  },
+  {
+    "date": "2026-05-06",
+    "title": "Follow-up taken kunnen nu door iedereen worden afgevinkt, niet alleen door de toegewezen persoon of de logmaker"
+  },
+  {
     "date": "2026-05-05",
     "title": "Dashboard event/task cards tonen nu grotere lead-avatars rechtsboven en gebruiken de client primary color voor de linker rand"
   },

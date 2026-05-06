@@ -1,6 +1,7 @@
 "use client";
 
 import type { Service } from "@/types";
+import { inputClass, inputStyle } from "@/components/ui/form-styles";
 
 interface ServicePillsProps {
   services: Service[];
@@ -19,39 +20,22 @@ export default function ServicePills({
 }: ServicePillsProps) {
   return (
     <div>
-      <p
-        className="typo-label"
-      >
+      <label className="typo-label">
         {label} {required && <span className="text-[var(--danger)]">*</span>}
-      </p>
-      <div className="flex flex-wrap gap-2">
-        {services.map((s) => {
-          const selected = selectedId === s.id;
-          return (
-            <button
-              key={s.id}
-              type="button"
-              onClick={() => onChange(s.id)}
-              className="px-2.5 py-0.5 rounded-full text-xs font-medium border transition-colors"
-              style={
-                selected
-                  ? {
-                      background: "var(--primary)",
-                      borderColor: "var(--primary)",
-                      color: "#fff",
-                    }
-                  : {
-                      background: "var(--bg-sidebar)",
-                      borderColor: "var(--border)",
-                      color: "var(--text-secondary)",
-                    }
-              }
-            >
-              {s.name}
-            </button>
-          );
-        })}
-      </div>
+      </label>
+      <select
+        value={selectedId}
+        onChange={(e) => onChange(e.target.value)}
+        className={inputClass}
+        style={inputStyle}
+      >
+        <option value="">— Select a service —</option>
+        {services.map((s) => (
+          <option key={s.id} value={s.id}>
+            {s.name}
+          </option>
+        ))}
+      </select>
     </div>
   );
 }

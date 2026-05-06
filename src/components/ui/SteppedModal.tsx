@@ -19,7 +19,7 @@ interface SteppedModalProps {
   children: ReactNode;
   /** Fixed footer content (action buttons) */
   footer: ReactNode;
-  /** Max width class override, defaults to "max-w-xl" */
+  /** Max width class override, defaults to "max-w-2xl" */
   maxWidth?: string;
 }
 
@@ -31,7 +31,7 @@ export default function SteppedModal({
   currentStep = 0,
   children,
   footer,
-  maxWidth = "max-w-xl",
+  maxWidth = "max-w-2xl",
 }: SteppedModalProps) {
   const [visible, setVisible] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);

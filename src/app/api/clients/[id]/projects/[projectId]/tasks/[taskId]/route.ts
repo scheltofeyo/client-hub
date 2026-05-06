@@ -28,7 +28,18 @@ export async function PATCH(
 
   const canEditAny = hasPermission(session, "tasks.editAny");
   const canEditOwn = hasPermissionOrIsCreator(session, "tasks.editOwn", existing.createdById ?? "");
-  if (!canEditAny && !canEditOwn) {
+  // Follow-up tasks (derived from a log) can be checked off by anyone, even if they
+  // didn't create the log and don't have tasks.editAny. This is restricted to the
+  // completion toggle alone — other field edits still require the normal permissions.
+  const isFollowUpCompletionToggle =
+    !!existing.logId &&
+    completed !== undefined &&
+    title === undefined &&
+    description === undefined &&
+    assignees === undefined &&
+    completionDate === undefined &&
+    newParentTaskId === undefined;
+  if (!canEditAny && !canEditOwn && !isFollowUpCompletionToggle) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
