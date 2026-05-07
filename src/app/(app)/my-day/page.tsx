@@ -4,9 +4,10 @@ import { auth } from "@/auth";
 import {
   getMyDayTasks,
   getMyLeadClientTasks,
-  getMyOpenFollowUps,
+  getMyLeadClientUpcomingEvents,
   getMyActiveProjectsForGantt,
   getMyDayUserInfo,
+  getEventTypes,
 } from "@/lib/data";
 import MyDayDashboardV2 from "@/components/my-day/MyDayDashboardV2";
 import ClientsTimeline from "@/components/ui/ClientsTimeline";
@@ -44,11 +45,13 @@ export default async function MyDayPage() {
   const userId = session.user.id;
   const fullName = session.user.name ?? "";
   const firstName = fullName.split(" ")[0] || fullName;
+  const todayISO = new Date().toISOString().slice(0, 10);
 
-  const [myTasks, allTasks, followUps, userInfo] = await Promise.all([
+  const [myTasks, allTasks, upcomingEvents, eventTypes, userInfo] = await Promise.all([
     getMyDayTasks(userId),
     getMyLeadClientTasks(userId),
-    getMyOpenFollowUps(userId),
+    getMyLeadClientUpcomingEvents(userId, todayISO),
+    getEventTypes(),
     getMyDayUserInfo(userId),
   ]);
 
@@ -56,12 +59,13 @@ export default async function MyDayPage() {
     <MyDayDashboardV2
       myTasks={myTasks}
       allTasks={allTasks}
-      followUpLogs={followUps}
+      upcomingEvents={upcomingEvents}
+      eventTypes={eventTypes}
       userInfo={userInfo}
       currentUserId={userId}
       currentUserName={fullName}
       firstName={firstName}
-      todayISO={new Date().toISOString().slice(0, 10)}
+      todayISO={todayISO}
       ganttSlot={
         <Suspense fallback={<GanttSkeleton />}>
           <GanttSection userId={userId} />

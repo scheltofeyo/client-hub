@@ -2,8 +2,8 @@
 
 import UserInfoCard from "./UserInfoCard";
 import MyDayTasksSection from "./MyDayTasksSection";
-import MyDayFollowUpsSection from "./MyDayFollowUpsSection";
-import type { Log, MyDayUserInfo, MyDayTaskData } from "@/types";
+import MyDayUpcomingEventsSection, { type UpcomingEvent } from "./MyDayUpcomingEventsSection";
+import type { EventType, MyDayUserInfo, MyDayTaskData } from "@/types";
 import type { ReactNode } from "react";
 
 function getGreeting() {
@@ -17,8 +17,9 @@ interface Props {
   // Tasks
   myTasks: MyDayTaskData;
   allTasks: MyDayTaskData;
-  // Follow-ups
-  followUpLogs: (Log & { clientName: string; clientPrimaryColor?: string })[];
+  // Upcoming events for clients I lead
+  upcomingEvents: UpcomingEvent[];
+  eventTypes: EventType[];
   // Gantt timeline — streamed separately via Suspense
   ganttSlot: ReactNode;
   // User info
@@ -27,18 +28,20 @@ interface Props {
   currentUserId: string;
   currentUserName: string;
   firstName: string;
+  todayISO: string;
 }
 
 export default function MyDayDashboardV2({
   myTasks,
   allTasks,
-  followUpLogs,
+  upcomingEvents,
+  eventTypes,
   ganttSlot,
   userInfo,
   currentUserId,
   firstName,
   todayISO,
-}: Props & { todayISO?: string }) {
+}: Props) {
   const greeting = getGreeting();
   const today = new Date().toLocaleDateString("en-US", {
     weekday: "long",
@@ -64,9 +67,13 @@ export default function MyDayDashboardV2({
           {/* Timeline section */}
           <section>{ganttSlot}</section>
 
-          {/* Follow-ups section */}
+          {/* Upcoming events section */}
           <section>
-            <MyDayFollowUpsSection logs={followUpLogs} />
+            <MyDayUpcomingEventsSection
+              events={upcomingEvents}
+              eventTypes={eventTypes}
+              todayISO={todayISO}
+            />
           </section>
 
           {/* Tasks section */}
