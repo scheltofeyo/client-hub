@@ -1616,43 +1616,99 @@ export async function getMyOverdueAndTodayTasks(
   });
 }
 
-export async function getMyOpenFollowUps(
-  userId: string
-): Promise<(Log & { clientName: string; clientPrimaryColor?: string })[]> {
+export async function getMyLeadClientUpcomingEvents(
+  userId: string,
+  todayISO: string,
+): Promise<(TimelineEvent & { clientId: string; clientName: string; clientPrimaryColor?: string })[]> {
   await connectDB();
-  const [docs, clientMap] = await Promise.all([
-    LogModel.find({
-      createdById: userId,
-      followUp: true,
-      followedUpAt: null,
-      followUpAction: { $exists: true, $nin: [null, ""] },
-    })
-      .sort({ followUpDeadline: 1 })
-      .lean(),
-    fetchClientInfoMap(),
-  ]);
-  return docs.map((doc) => {
-    const info = clientMap.get(doc.clientId as string);
-    return {
-      id: doc._id.toString(),
-      clientId: doc.clientId,
-      contactIds: doc.contactIds?.length ? doc.contactIds : doc.contactId ? [doc.contactId] : [],
-      date: doc.date,
-      summary: doc.summary,
-      signalIds: doc.signalIds ?? [],
-      followUp: doc.followUp ?? false,
-      followUpAction: doc.followUpAction ?? undefined,
-      followUpDeadline: doc.followUpDeadline ?? undefined,
-      followedUpAt: doc.followedUpAt ?? undefined,
-      followedUpByName: doc.followedUpByName ?? undefined,
-      isSystemGenerated: doc.isSystemGenerated ?? false,
-      createdById: doc.createdById,
-      createdByName: doc.createdByName,
-      createdAt: doc.createdAt?.toISOString().split("T")[0],
-      clientName: info?.name ?? "",
-      clientPrimaryColor: info?.primaryColor,
-    };
-  });
+  const clientDocs = await ClientModel.find(
+    { "leads.userId": userId },
+    { _id: 1, company: 1, primaryColor: 1 }
+  ).lean();
+  if (clientDocs.length === 0) return [];
+
+  const clientInfo = new Map<string, { name: string; primaryColor?: string }>(
+    clientDocs.map((c) => [
+      c._id.toString(),
+      { name: c.company as string, primaryColor: (c.primaryColor as string | undefined) ?? undefined },
+    ])
+  );
+  const clientIds = Array.from(clientInfo.keys());
+
+  const [y, m] = todayISO.split("-").map(Number);
+  const lastDay = new Date(y, m, 0).getDate();
+  const endOfMonthISO = `${y}-${String(m).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+
+  const docs = await ClientEventModel.find({
+    clientId: { $in: clientIds },
+    $or: [
+      { date: { $gte: todayISO } },
+      { recurrenceInterval: { $gte: 1 } },
+      { recurrence: { $in: ["weekly", "biweekly", "monthly", "quarterly", "yearly"] } },
+    ],
+  })
+    .sort({ date: 1 })
+    .lean();
+
+  const events: (TimelineEvent & { clientId: string; clientName: string; clientPrimaryColor?: string })[] = [];
+
+  for (const doc of docs) {
+    const cid = (doc.clientId as string).toString();
+    const info = clientInfo.get(cid);
+    if (!info) continue;
+    const docId = doc._id.toString();
+    const rec = resolveRecurrence(doc);
+
+    if (!rec) {
+      const date = doc.date as string;
+      if (date < todayISO || date > endOfMonthISO) continue;
+      events.push({
+        id: `custom_${docId}`,
+        date,
+        title: doc.title as string,
+        type: doc.type as string,
+        source: "custom",
+        sourceId: docId,
+        notes: (doc.notes as string | undefined) ?? undefined,
+        deletable: false,
+        clientId: cid,
+        clientName: info.name,
+        clientPrimaryColor: info.primaryColor,
+      });
+      continue;
+    }
+
+    const occurrences = expandOccurrences(
+      doc.date as string,
+      rec.interval,
+      rec.unit,
+      todayISO,
+      endOfMonthISO,
+      doc.repetitions as number | null,
+    );
+    for (const occDate of occurrences) {
+      events.push({
+        id: `custom_${docId}_${occDate}`,
+        date: occDate,
+        baseDate: doc.date as string,
+        title: doc.title as string,
+        type: doc.type as string,
+        source: "custom",
+        sourceId: docId,
+        notes: (doc.notes as string | undefined) ?? undefined,
+        deletable: false,
+        recurrenceInterval: rec.interval,
+        recurrenceUnit: rec.unit,
+        repetitions: (doc.repetitions as number | undefined) ?? undefined,
+        clientId: cid,
+        clientName: info.name,
+        clientPrimaryColor: info.primaryColor,
+      });
+    }
+  }
+
+  events.sort((a, b) => a.date.localeCompare(b.date));
+  return events;
 }
 
 export async function getMyProjectsOverview(

@@ -1,6 +1,15 @@
 [
   {
     "date": "2026-05-07",
+    "title": "My Day toont aankomende events i.p.v. open follow-ups",
+    "details": [
+      "De Open Follow-ups sectie op My Day is vervangen door een Upcoming Events sectie",
+      "Drie kolommen: Vandaag, Deze week (rest van de kalenderweek), Deze maand (rest van de kalendermaand)",
+      "Toont events van clients waar jij client lead bent; herhalende events verschijnen per occurrence"
+    ]
+  },
+  {
+    "date": "2026-05-07",
     "title": "Fix: uitloggen bracht je 'ingelogd' op /dashboard",
     "details": [
       "Sign out wacht nu tot de sessie volledig gewist is voordat de pagina herlaadt, zodat je daarna op /login belandt zoals verwacht"
