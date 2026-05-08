@@ -1,5 +1,23 @@
 [
   {
+    "date": "2026-05-08",
+    "title": "Snellere page loads voor dashboards en client overzicht",
+    "details": [
+      "Dashboard Gantt haalt alleen actieve projecten op in plaats van alles en daarna filteren",
+      "Client overzicht expansie van herhalende events ingekort tot 30 dagen (events tab blijft 365)",
+      "Client detail layout gebruikt lichtgewicht summaries voor de zijbalk in plaats van volledige project gegevens",
+      "Compound database indexes toegevoegd voor de meest gebruikte queries"
+    ]
+  },
+  {
+    "date": "2026-05-08",
+    "title": "Snellere navigatie tussen pagina's",
+    "details": [
+      "Pagina-overgangen tonen direct een laad-skeleton in plaats van te wachten tot de nieuwe pagina klaar is",
+      "Admin-navigatie haalt de werknemerslijst niet meer onnodig opnieuw op bij elke navigatie binnen /admin"
+    ]
+  },
+  {
     "date": "2026-05-07",
     "title": "My Day toont aankomende events i.p.v. open follow-ups",
     "details": [

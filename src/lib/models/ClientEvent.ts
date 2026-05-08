@@ -38,6 +38,8 @@ const ClientEventSchema = new Schema<IClientEvent>(
   { timestamps: true }
 );
 
+ClientEventSchema.index({ recurrence: 1, date: 1 });
+
 if (mongoose.models.ClientEvent) {
   mongoose.deleteModel("ClientEvent");
 }

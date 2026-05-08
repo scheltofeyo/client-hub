@@ -43,6 +43,8 @@ const LogSchema = new Schema<ILog>(
   { timestamps: true }
 );
 
+LogSchema.index({ followUp: 1, followedUpAt: 1 });
+
 if (mongoose.models.Log) {
   mongoose.deleteModel("Log");
 }
