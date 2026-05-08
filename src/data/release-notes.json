@@ -1,6 +1,13 @@
 [
   {
     "date": "2026-05-08",
+    "title": "Logbook 'latest log' label is consistent gekapitaliseerd",
+    "details": [
+      "'Yesterday' krijgt nu net als 'Today' een hoofdletter"
+    ]
+  },
+  {
+    "date": "2026-05-08",
     "title": "My Day en Dashboard renderen nu progressief",
     "details": [
       "Pagina-shell verschijnt direct, elke sectie heeft een eigen skelet en stroomt apart binnen zodra zijn data klaar is",
