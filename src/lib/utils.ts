@@ -163,7 +163,7 @@ export const WEEK_CARD_TYPES: Record<WeekCardType, { label: string; color: strin
 /** Human-readable relative label for a number of days (e.g. "3 weeks ago"). */
 export function timeAgoLabel(days: number): string {
   if (days <= 0) return "Today";
-  if (days === 1) return "yesterday";
+  if (days === 1) return "Yesterday";
   if (days < 7) return `${days} days ago`;
   const weeks = Math.floor(days / 7);
   if (days < 30) return `${weeks} week${weeks === 1 ? "" : "s"} ago`;

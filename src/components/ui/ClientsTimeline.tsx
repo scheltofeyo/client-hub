@@ -31,6 +31,8 @@ interface Props {
   title?: string;
   /** Whether the timeline can be collapsed. Default: true. */
   collapsible?: boolean;
+  /** Render the title/collapse header above the timeline. Default: true. */
+  showHeader?: boolean;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -157,7 +159,7 @@ function buildClientSections(
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function ClientsTimeline({ clients, projectsByClient, pxPerDay, title = "Timeline", collapsible = true }: Props) {
+export default function ClientsTimeline({ clients, projectsByClient, pxPerDay, title = "Timeline", collapsible = true, showHeader = true }: Props) {
   const router = useRouter();
 
   const today = useMemo(() => {
@@ -212,7 +214,7 @@ export default function ClientsTimeline({ clients, projectsByClient, pxPerDay, t
 
   return (
     <div className="space-y-3">
-      {collapsible ? (
+      {showHeader && (collapsible ? (
         <button
           type="button"
           className="flex items-center gap-1.5 cursor-pointer select-none"
@@ -234,7 +236,7 @@ export default function ClientsTimeline({ clients, projectsByClient, pxPerDay, t
         >
           {title}
         </h2>
-      )}
+      ))}
       {isVisible && (
         <GanttTimeline
           sections={sections}

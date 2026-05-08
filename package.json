@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "seed": "npx tsx scripts/seed-roles.ts"
+    "seed": "npx tsx scripts/seed-roles.ts",
+    "backfill:project-status": "npx tsx scripts/backfill-project-status.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

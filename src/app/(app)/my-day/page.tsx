@@ -23,6 +23,7 @@ async function GanttSection({ userId }: { userId: string }) {
     <ClientsTimeline
       clients={ganttData.clients}
       projectsByClient={ganttData.projectsByClient}
+      showHeader={false}
     />
   );
 }
@@ -64,7 +65,6 @@ async function UserInfoSection({ userId }: { userId: string }) {
 function GanttSkeleton() {
   return (
     <div className="animate-pulse">
-      <div className="h-4 w-20 rounded mb-3" style={{ background: "var(--border)" }} />
       {[70, 45, 60, 35].map((w, i) => (
         <div key={i} className="flex items-center gap-3 py-1.5">
           <div className="w-[18px] h-[18px] rounded flex-none" style={{ background: "var(--border)" }} />
