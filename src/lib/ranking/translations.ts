@@ -11,7 +11,18 @@ const translations = {
   "label.email": { nl: "E-mailadres *", en: "Email address *" },
   "placeholder.name": { nl: "Je volledige naam", en: "Your full name" },
   "placeholder.email": { nl: "jij@voorbeeld.nl", en: "you@example.com" },
+  "info.email": {
+    nl: "We gebruiken je e-mailadres om je de resultaten op te sturen, en je kunt later met dit adres opnieuw inloggen om je resultaten te bekijken.",
+    en: "We use your email to send you your results — you can also use it later to log back in and revisit your results.",
+  },
+  "info.name": {
+    nl: "We gebruiken je naam om je aan andere deelnemers te matchen.",
+    en: "We use your name to match you with other participants.",
+  },
   "btn.next": { nl: "Volgende", en: "Next" },
+  "btn.back": { nl: "Terug", en: "Back" },
+  "error.email": { nl: "Vul een geldig e-mailadres in.", en: "Please enter a valid email address." },
+  "error.name": { nl: "Vul je naam in.", en: "Please enter your name." },
   "error.nameEmail": { nl: "Vul je naam en e-mailadres in.", en: "Please enter your name and email address." },
   "error.sessionClosed": {
     nl: "Deze sessie is gesloten. Je kunt helaas niet meer deelnemen.",

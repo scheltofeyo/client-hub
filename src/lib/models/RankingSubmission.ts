@@ -7,6 +7,7 @@ export interface IRankingSubmission extends Document {
   rankings: string[] | null;
   status: "in_progress" | "completed";
   submittedAt?: Date;
+  resultsEmailedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -23,6 +24,7 @@ const RankingSubmissionSchema = new Schema<IRankingSubmission>(
       default: "in_progress",
     },
     submittedAt: { type: Date },
+    resultsEmailedAt: { type: Date },
   },
   { timestamps: true }
 );

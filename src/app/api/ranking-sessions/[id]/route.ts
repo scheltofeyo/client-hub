@@ -7,6 +7,7 @@ import { RankingSubmissionModel } from "@/lib/models/RankingSubmission";
 import { UserModel } from "@/lib/models/User";
 import { ClientModel } from "@/lib/models/Client";
 import { hasPermission } from "@/lib/auth-helpers";
+import { sendRankingResults } from "@/lib/ranking-email";
 
 export async function GET(
   _req: NextRequest,
@@ -127,6 +128,17 @@ export async function PATCH(
     { new: true }
   ).lean();
   if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  // Auto-send results when transitioning into "closed". Fire-and-forget so a
+  // misconfigured email provider never blocks the close.
+  if (existing.status !== "closed" && doc.status === "closed") {
+    sendRankingResults(id, {
+      onlyUnsent: true,
+      senderLabel: session?.user?.name ?? undefined,
+    }).catch((err) => {
+      console.error("[ranking-results] auto-send failed", err);
+    });
+  }
 
   return NextResponse.json({
     id: doc._id.toString(),

@@ -334,8 +334,10 @@ export default function PublicRankingPage() {
   const [locale, setLocale] = useState<Locale>("en");
 
   // Step 1
+  const [step1Phase, setStep1Phase] = useState<"email" | "name">("email");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [checkingEmail, setCheckingEmail] = useState(false);
 
   // Step 2
   const [order, setOrder] = useState<string[]>([]);
@@ -399,36 +401,55 @@ export default function PublicRankingPage() {
       .then(setMatchData);
   }, [session?.status, currentStep, shareCode]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Step 1 handler ──
-  async function handleIdentify() {
+  // ── Step 1a: email phase ──
+  async function handleSubmitEmail() {
     setError(null);
-    if (!name.trim() || !email.trim()) { setError(t(locale, "error.nameEmail")); return; }
+    const trimmed = email.trim();
+    if (!trimmed || !/.+@.+\..+/.test(trimmed)) {
+      setError(t(locale, "error.email"));
+      return;
+    }
 
-    // Check if email already exists
-    const checkRes = await fetch(`/api/public/ranking/${shareCode}/check-email`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: email.trim() }),
-    });
-    const checkData = await checkRes.json();
+    setCheckingEmail(true);
+    try {
+      const checkRes = await fetch(`/api/public/ranking/${shareCode}/check-email`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: trimmed }),
+      });
+      const checkData = await checkRes.json();
 
-    if (checkData.exists) {
-      if (checkData.submission.status === "in_progress") {
-        setSubmissionId(checkData.submission.id);
-        setCurrentStep(2);
-      } else {
-        setExistingSubmission(checkData.submission);
-        setCurrentStep(3);
+      if (checkData.exists) {
+        if (checkData.submission.status === "in_progress") {
+          setSubmissionId(checkData.submission.id);
+          setName(checkData.submission.participantName ?? "");
+          setCurrentStep(2);
+        } else {
+          setExistingSubmission(checkData.submission);
+          setCurrentStep(3);
+        }
+        return;
       }
+
+      if (session?.status === "closed") {
+        setError(t(locale, "error.sessionClosed"));
+        return;
+      }
+
+      setStep1Phase("name");
+    } finally {
+      setCheckingEmail(false);
+    }
+  }
+
+  // ── Step 1b: name phase — create pending submission ──
+  async function handleSubmitName() {
+    setError(null);
+    if (!name.trim()) {
+      setError(t(locale, "error.name"));
       return;
     }
 
-    if (session?.status === "closed") {
-      setError(t(locale, "error.sessionClosed"));
-      return;
-    }
-
-    // Create pending submission
     const res = await fetch(`/api/public/ranking/${shareCode}/submit`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -535,36 +556,65 @@ export default function PublicRankingPage() {
         <StepIndicator currentStep={currentStep} locale={locale} />
 
         {/* Step 1: Identify */}
-        {currentStep === 1 && (
+        {currentStep === 1 && step1Phase === "email" && (
           <div className="space-y-4">
-            <div className="p-5 rounded-card border space-y-4" style={{ borderColor: "var(--border)", background: "var(--bg-elevated)" }}>
-              <div>
-                <label className="typo-label" style={{ color: "var(--text-muted)" }}>{t(locale, "label.name")}</label>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder={t(locale, "placeholder.name")}
-                  className="w-full px-4 py-3 border rounded-button text-sm"
-                  style={{ borderColor: "var(--border)", background: "var(--bg-surface)", color: "var(--text-primary)" }}
-                />
-              </div>
-              <div>
-                <label className="typo-label" style={{ color: "var(--text-muted)" }}>{t(locale, "label.email")}</label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder={t(locale, "placeholder.email")}
-                  className="w-full px-4 py-3 border rounded-button text-sm"
-                  style={{ borderColor: "var(--border)", background: "var(--bg-surface)", color: "var(--text-primary)" }}
-                />
-              </div>
+            <div className="p-5 rounded-card border" style={{ borderColor: "var(--border)", background: "var(--bg-elevated)" }}>
+              <label className="typo-label" style={{ color: "var(--text-muted)" }}>{t(locale, "label.email")}</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && !checkingEmail) handleSubmitEmail(); }}
+                placeholder={t(locale, "placeholder.email")}
+                className="w-full px-4 py-3 border rounded-button text-sm"
+                style={{ borderColor: "var(--border)", background: "var(--bg-surface)", color: "var(--text-primary)" }}
+                autoFocus
+              />
+              <p className="text-xs mt-2 leading-snug" style={{ color: "var(--text-muted)" }}>
+                {t(locale, "info.email")}
+              </p>
             </div>
             {error && <div className="p-3 rounded-button text-sm" style={{ background: "var(--danger-light)", color: "var(--danger)" }}>{error}</div>}
-            <button onClick={handleIdentify} className="btn-primary w-full py-3 rounded-button text-sm font-semibold">
+            <button
+              onClick={handleSubmitEmail}
+              disabled={checkingEmail}
+              className="btn-primary w-full py-3 rounded-button text-sm font-semibold disabled:opacity-60"
+            >
               {t(locale, "btn.next")}
             </button>
+          </div>
+        )}
+
+        {currentStep === 1 && step1Phase === "name" && (
+          <div className="space-y-4">
+            <div className="p-5 rounded-card border" style={{ borderColor: "var(--border)", background: "var(--bg-elevated)" }}>
+              <label className="typo-label" style={{ color: "var(--text-muted)" }}>{t(locale, "label.name")}</label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") handleSubmitName(); }}
+                placeholder={t(locale, "placeholder.name")}
+                className="w-full px-4 py-3 border rounded-button text-sm"
+                style={{ borderColor: "var(--border)", background: "var(--bg-surface)", color: "var(--text-primary)" }}
+                autoFocus
+              />
+              <p className="text-xs mt-2 leading-snug" style={{ color: "var(--text-muted)" }}>
+                {t(locale, "info.name")}
+              </p>
+            </div>
+            {error && <div className="p-3 rounded-button text-sm" style={{ background: "var(--danger-light)", color: "var(--danger)" }}>{error}</div>}
+            <div className="flex gap-2">
+              <button
+                onClick={() => { setStep1Phase("email"); setError(null); }}
+                className="btn-secondary border py-3 rounded-button text-sm font-semibold px-5"
+              >
+                {t(locale, "btn.back")}
+              </button>
+              <button onClick={handleSubmitName} className="btn-primary flex-1 py-3 rounded-button text-sm font-semibold">
+                {t(locale, "btn.next")}
+              </button>
+            </div>
           </div>
         )}
 
