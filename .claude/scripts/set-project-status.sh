@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # Set the Status field of a GitHub issue on the Client Hub Backlog project board.
 # Usage: set-project-status.sh <issue-number> <status>
-# Status values: backlog | in-progress
+# Status values: backlog | in-progress | review | done
 set -euo pipefail
 
 ISSUE_NUMBER="${1:?issue number required}"
-STATUS="${2:?status required (backlog|in-progress)}"
+STATUS="${2:?status required (backlog|in-progress|review|done)}"
 
 PROJECT_ID="PVT_kwHOBHbkTc4BW5wP"
 FIELD_ID="PVTSSF_lAHOBHbkTc4BW5wPzhSKZd4"
@@ -13,8 +13,10 @@ FIELD_ID="PVTSSF_lAHOBHbkTc4BW5wPzhSKZd4"
 case "$STATUS" in
   backlog)     OPTION_ID="d79b2061" ;;
   in-progress) OPTION_ID="63446ed8" ;;
+  review)      OPTION_ID="168cbabc" ;;
+  done)        OPTION_ID="d1b3420a" ;;
   *)
-    echo "Unknown status: $STATUS (expected: backlog|in-progress)" >&2
+    echo "Unknown status: $STATUS (expected: backlog|in-progress|review|done)" >&2
     exit 1
     ;;
 esac
