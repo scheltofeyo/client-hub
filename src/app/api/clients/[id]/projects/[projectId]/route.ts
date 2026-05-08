@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { connectDB } from "@/lib/mongodb";
 import { ClientModel } from "@/lib/models/Client";
 import { ProjectModel } from "@/lib/models/Project";
+import { TaskModel } from "@/lib/models/Task";
 import { UserModel } from "@/lib/models/User";
 import { recordActivity } from "@/lib/activity";
 import type { TaskAssignee } from "@/types";
@@ -112,6 +113,28 @@ export async function PATCH(
     const existing = await ProjectModel.findById(projectId).lean();
     if (existing?.status === "completed") {
       update.completedDate = completedDate?.trim() || null;
+    }
+  }
+
+  // If this PATCH transitions the project from no-kickoff to kicked-off and the
+  // caller did not pass an explicit status, mirror the dedicated /kickoff
+  // endpoint's status logic so projects can never end up with kickedOffAt set
+  // while status stays at "not_started".
+  if (
+    status === undefined &&
+    typeof update.kickedOffAt === "string" &&
+    update.kickedOffAt.length > 0
+  ) {
+    const existing = await ProjectModel.findById(projectId).lean();
+    if (existing && !existing.kickedOffAt) {
+      const allTasks = await TaskModel.find({ projectId }).lean();
+      const total = allTasks.length;
+      const completedCount = allTasks.filter((t) => !!t.completedAt).length;
+      const allDone = total > 0 && completedCount === total;
+      update.status = allDone ? "completed" : "in_progress";
+      if (allDone && !existing.completedDate) {
+        update.completedDate = new Date().toISOString().split("T")[0];
+      }
     }
   }
 

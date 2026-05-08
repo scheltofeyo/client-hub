@@ -1,6 +1,13 @@
 [
   {
     "date": "2026-05-08",
+    "title": "Project status blijft consistent bij elke kickoff route",
+    "details": [
+      "Ook als kickedOffAt via een gewone project-edit wordt gezet (i.p.v. de dedicated kickoff knop) wordt de status nu meteen meeberekend"
+    ]
+  },
+  {
+    "date": "2026-05-08",
     "title": "Project flipt naar 'in progress' direct bij kickoff",
     "details": [
       "Een project gaat nu meteen op 'in progress' zodra het wordt gekickoff, niet pas zodra de eerste taak is afgerond",
