@@ -235,6 +235,7 @@ export default function EmployeeDetailEditor({
     const res = await fetch(`/api/users/${employee.id}/archive`, { method: "POST" });
     if (res.ok) {
       setShowArchiveDialog(false);
+      window.dispatchEvent(new CustomEvent("admin-employees-updated"));
       router.refresh();
     } else {
       const data = await res.json();
@@ -248,6 +249,7 @@ export default function EmployeeDetailEditor({
     setError("");
     const res = await fetch(`/api/users/${employee.id}/reactivate`, { method: "POST" });
     if (res.ok) {
+      window.dispatchEvent(new CustomEvent("admin-employees-updated"));
       router.refresh();
     } else {
       const data = await res.json();
@@ -297,6 +299,7 @@ export default function EmployeeDetailEditor({
 
     if (res.ok) {
       setSuccess(true);
+      window.dispatchEvent(new CustomEvent("admin-employees-updated"));
       router.refresh();
       setTimeout(() => setSuccess(false), 2000);
     } else {

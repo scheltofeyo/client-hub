@@ -123,6 +123,7 @@ export default function AdminEmployeesTable({
         setInviteLastName("");
         setInviteRole("member");
         setShowInvite(false);
+        window.dispatchEvent(new CustomEvent("admin-employees-updated"));
         router.refresh();
       } else {
         const data = await res.json().catch(() => null);

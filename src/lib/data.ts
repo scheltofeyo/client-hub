@@ -24,7 +24,7 @@ import { RoleModel } from "./models/Role";
 import { LeaveTypeModel, DEFAULT_LEAVE_TYPES } from "./models/LeaveType";
 import { TimeOffModel } from "./models/TimeOff";
 import { CompanyHolidayModel } from "./models/CompanyHoliday";
-import type { Archetype, BirthdayItem, Client, ClientLead, ClientPlatformOption, ClientStatusOption, CompanyHoliday, Contact, DashboardStats, EventType, LeaveType, Log, LogSignal, MyDayFollowUpData, MyDayTaskData, MyDayUserInfo, MyProjectOverview, Project, ProjectLabel, ProjectTemplate, RecurrenceUnit, Service, Session, Sheet, Task, TemplateSession, TemplateTask, TimelineEvent, TimeOffEntry, TimeOffBalance, WeekTeamData } from "@/types";
+import type { Archetype, BirthdayItem, Client, ClientLead, ClientPlatformOption, ClientStatusOption, CompanyHoliday, Contact, DashboardStats, EventType, LeaveType, Log, LogSignal, MyDayFollowUpData, MyDayTaskData, MyDayUserInfo, MyProjectOverview, Project, ProjectLabel, ProjectStatus, ProjectTemplate, RecurrenceUnit, Service, Session, Sheet, Task, TemplateSession, TemplateTask, TimelineEvent, TimeOffEntry, TimeOffBalance, WeekTeamData } from "@/types";
 import type { WeekCalendarItem } from "@/lib/utils";
 import { mapToWeekday } from "@/lib/utils";
 
@@ -272,6 +272,25 @@ export const getProjectsByClientId = cache(async (clientId: string): Promise<Pro
   return projects;
 });
 
+/**
+ * Lightweight projection of projects for nav / shell consumers — only id, title, status.
+ * Skips the service + label lookups that getProjectsByClientId performs.
+ */
+export const getProjectSummariesByClientId = cache(
+  async (clientId: string): Promise<Pick<Project, "id" | "title" | "status">[]> => {
+    await connectDB();
+    const docs = await ProjectModel.find({ clientId })
+      .select("_id title status")
+      .sort({ createdAt: -1 })
+      .lean();
+    return docs.map((d) => ({
+      id: d._id.toString(),
+      title: d.title as string,
+      status: d.status as ProjectStatus,
+    }));
+  }
+);
+
 export const getProjectById = cache(async (projectId: string): Promise<Project | null> => {
   await connectDB();
   const [doc, serviceMap, labelMap] = await Promise.all([
@@ -382,6 +401,20 @@ export const getSheetsByClientId = cache(async (clientId: string): Promise<Sheet
     createdAt: doc.createdAt?.toISOString().split("T")[0],
   }));
 });
+
+/**
+ * Lightweight projection of sheets for nav / shell consumers — only id, name.
+ */
+export const getSheetSummariesByClientId = cache(
+  async (clientId: string): Promise<Pick<Sheet, "id" | "name">[]> => {
+    await connectDB();
+    const docs = await SheetModel.find({ clientId })
+      .select("_id name")
+      .sort({ createdAt: 1 })
+      .lean();
+    return docs.map((d) => ({ id: d._id.toString(), name: d.name as string }));
+  }
+);
 
 export const getSheetById = cache(async (sheetId: string): Promise<Sheet | null> => {
   await connectDB();
@@ -1234,12 +1267,14 @@ export async function getLastActivityDateByAllClients(): Promise<Map<string, str
 
 export type FirstEventResult = { date: string; title: string; source: string } | null;
 
+const SUMMARY_WINDOW_DAYS = 30;
+
 export async function getFirstUpcomingEventByAllClients(): Promise<Map<string, FirstEventResult>> {
   await connectDB();
 
   const today = new Date().toISOString().slice(0, 10);
   const windowEndDate = new Date();
-  windowEndDate.setDate(windowEndDate.getDate() + RECURRENCE_WINDOW_DAYS);
+  windowEndDate.setDate(windowEndDate.getDate() + SUMMARY_WINDOW_DAYS);
   const windowEnd = windowEndDate.toISOString().slice(0, 10);
 
   const [logs, completionProjects, deliveryProjects, tasks, customDocs] = await Promise.all([
@@ -1533,17 +1568,19 @@ export async function getWeekCalendarItems(start: string, end: string): Promise<
  */
 export async function getActiveProjectsForGantt(): Promise<{ clients: Client[]; projectsByClient: Record<string, Project[]> }> {
   await connectDB();
-  const [clients, projectMap] = await Promise.all([
+  const [clients, docs, serviceMap, labelMap] = await Promise.all([
     getClients(),
-    getProjectsByAllClients(),
+    ProjectModel.find({ status: { $ne: "completed" } }).sort({ createdAt: -1 }).lean(),
+    buildServiceMap(),
+    buildProjectLabelMap(),
   ]);
 
   const projectsByClient: Record<string, Project[]> = {};
-  for (const [cid, projects] of projectMap.entries()) {
-    const active = projects.filter((p) => p.status !== "completed");
-    if (active.length > 0) {
-      projectsByClient[cid] = active;
-    }
+  for (const doc of docs) {
+    const project = mapProject(doc, serviceMap, labelMap);
+    const cid = project.clientId;
+    if (!projectsByClient[cid]) projectsByClient[cid] = [];
+    projectsByClient[cid].push(project);
   }
 
   return { clients, projectsByClient };
@@ -1554,22 +1591,30 @@ export async function getMyActiveProjectsForGantt(
   userId: string
 ): Promise<{ clients: Client[]; projectsByClient: Record<string, Project[]> }> {
   await connectDB();
-  const [allClients, projectMap] = await Promise.all([
-    getClients(),
-    getProjectsByAllClients(),
-  ]);
-
+  const allClients = await getClients();
   const myClients = allClients.filter((c) =>
     c.leads?.some((l) => l.userId === userId)
   );
+  if (myClients.length === 0) {
+    return { clients: [], projectsByClient: {} };
+  }
+  const myClientIds = myClients.map((c) => c.id);
+
+  const [docs, serviceMap, labelMap] = await Promise.all([
+    ProjectModel.find({
+      status: { $ne: "completed" },
+      clientId: { $in: myClientIds },
+    }).sort({ createdAt: -1 }).lean(),
+    buildServiceMap(),
+    buildProjectLabelMap(),
+  ]);
 
   const projectsByClient: Record<string, Project[]> = {};
-  for (const client of myClients) {
-    const projects = projectMap.get(client.id) ?? [];
-    const active = projects.filter((p) => p.status !== "completed");
-    if (active.length > 0) {
-      projectsByClient[client.id] = active;
-    }
+  for (const doc of docs) {
+    const project = mapProject(doc, serviceMap, labelMap);
+    const cid = project.clientId;
+    if (!projectsByClient[cid]) projectsByClient[cid] = [];
+    projectsByClient[cid].push(project);
   }
 
   const clientsWithProjects = myClients.filter((c) => projectsByClient[c.id]);

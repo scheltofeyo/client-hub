@@ -51,6 +51,7 @@ const TaskSchema = new Schema<ITask>(
 );
 
 TaskSchema.index({ "assignees.userId": 1 });
+TaskSchema.index({ parentTaskId: 1, order: 1 });
 
 if (mongoose.models.Task) {
   mongoose.deleteModel("Task");
