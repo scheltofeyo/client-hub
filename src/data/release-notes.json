@@ -1,6 +1,14 @@
 [
   {
     "date": "2026-05-08",
+    "title": "My Day en Dashboard renderen nu progressief",
+    "details": [
+      "Pagina-shell verschijnt direct, elke sectie heeft een eigen skelet en stroomt apart binnen zodra zijn data klaar is",
+      "Snelle secties (zoals user info) zijn binnen tienden van een seconde zichtbaar; zwaardere secties houden hun skelet zonder de rest te blokkeren"
+    ]
+  },
+  {
+    "date": "2026-05-08",
     "title": "Snellere page loads voor dashboards en client overzicht",
     "details": [
       "Dashboard Gantt haalt alleen actieve projecten op in plaats van alles en daarna filteren",
