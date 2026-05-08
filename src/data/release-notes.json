@@ -1,5 +1,13 @@
 [
   {
+    "date": "2026-05-08",
+    "title": "Ranking the Values: deelnemers krijgen automatisch hun resultaten gemaild",
+    "details": [
+      "Bij sluiten van een sessie ontvangen alle voltooide deelnemers automatisch een gepersonaliseerde mail met hun ranking",
+      "Resend results knop op de admin detail pagina voor losse heruitzending naar iedereen"
+    ]
+  },
+  {
     "date": "2026-05-07",
     "title": "My Day toont aankomende events i.p.v. open follow-ups",
     "details": [

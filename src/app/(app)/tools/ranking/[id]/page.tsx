@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
-import { Copy, Check, Users, Pencil, ChevronDown, QrCode, Link2, MoreHorizontal } from "lucide-react";
+import { Copy, Check, Users, Pencil, ChevronDown, QrCode, Link2, MoreHorizontal, Mail } from "lucide-react";
 import { QRCodeCanvas } from "qrcode.react";
 import {
   findGreedyPairs,
@@ -72,6 +72,10 @@ export default function RankingSessionDetailPage() {
   const [showCloseModal, setShowCloseModal] = useState(false);
   const [showShareLink, setShowShareLink] = useState(false);
 
+  // Resend results
+  const [isSendingResults, setIsSendingResults] = useState(false);
+  const [resendMessage, setResendMessage] = useState<{ kind: "success" | "error"; text: string } | null>(null);
+
   // Share link copy handlers
   const [copied, setCopied] = useState(false);
   const [qrCopied, setQrCopied] = useState(false);
@@ -122,6 +126,28 @@ export default function RankingSessionDetailPage() {
       body: JSON.stringify({ status }),
     });
     if (res.ok) setSession(await res.json());
+  }
+
+  async function handleSendResults() {
+    setIsSendingResults(true);
+    setResendMessage(null);
+    try {
+      const res = await fetch(`/api/ranking-sessions/${id}/send-results`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        setResendMessage({ kind: "error", text: data.error ?? "Failed to send results" });
+      } else {
+        const { sent, failed, skipped } = data as { sent: number; failed: number; skipped: number };
+        setResendMessage({
+          kind: failed === 0 ? "success" : "error",
+          text: `Sent ${sent}, failed ${failed}${skipped ? `, skipped ${skipped}` : ""}.`,
+        });
+      }
+    } catch (err) {
+      setResendMessage({ kind: "error", text: err instanceof Error ? err.message : "Failed to send results" });
+    } finally {
+      setIsSendingResults(false);
+    }
   }
 
   const shareUrl = typeof window !== "undefined" && session
@@ -364,6 +390,38 @@ export default function RankingSessionDetailPage() {
                         Archive
                       </button>
                     )}
+                  </div>
+                )}
+
+                {canEdit && submissions.some((s) => s.status === "completed") && (
+                  <div
+                    className="p-4 rounded-xl border flex items-center justify-between gap-4"
+                    style={{ borderColor: "var(--border)", background: "white" }}
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
+                        Resend results to participants
+                      </p>
+                      <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
+                        Each completed participant gets their personal ranking emailed again.
+                      </p>
+                      {resendMessage && (
+                        <p
+                          className="text-xs mt-1.5"
+                          style={{ color: resendMessage.kind === "success" ? "var(--success)" : "var(--danger)" }}
+                        >
+                          {resendMessage.text}
+                        </p>
+                      )}
+                    </div>
+                    <button
+                      onClick={handleSendResults}
+                      disabled={isSendingResults}
+                      className="btn-secondary border rounded-lg text-sm px-4 py-2 inline-flex items-center gap-1.5 shrink-0 disabled:opacity-60"
+                    >
+                      <Mail size={13} />
+                      {isSendingResults ? "Sending..." : "Resend results"}
+                    </button>
                   </div>
                 )}
 
