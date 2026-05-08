@@ -1,6 +1,14 @@
 [
   {
     "date": "2026-05-08",
+    "title": "Project flipt naar 'in progress' direct bij kickoff",
+    "details": [
+      "Een project gaat nu meteen op 'in progress' zodra het wordt gekickoff, niet pas zodra de eerste taak is afgerond",
+      "Bestaande projecten die al gekickoff waren maar nog op 'not_started' stonden kunnen worden bijgewerkt met 'npm run backfill:project-status'"
+    ]
+  },
+  {
+    "date": "2026-05-08",
     "title": "My Day Gantt timeline toont direct, zonder collapsible header",
     "details": [
       "De inklapbare 'Timeline' header boven de Gantt op My Day is verwijderd zodat de tijdlijn altijd zichtbaar is"
