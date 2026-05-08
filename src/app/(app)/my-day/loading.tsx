@@ -81,7 +81,6 @@ export default function MyDayLoading() {
         <div className="flex-1 flex flex-col gap-8 min-w-0 animate-pulse">
           {/* Timeline section */}
           <section>
-            <div className="h-4 w-20 rounded mb-3" style={{ background: "var(--border)" }} />
             <SkeletonGanttRow width="70%" />
             <SkeletonGanttRow width="45%" />
             <SkeletonGanttRow width="60%" />

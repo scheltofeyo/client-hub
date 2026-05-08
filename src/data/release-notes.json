@@ -1,6 +1,13 @@
 [
   {
     "date": "2026-05-08",
+    "title": "My Day Gantt timeline toont direct, zonder collapsible header",
+    "details": [
+      "De inklapbare 'Timeline' header boven de Gantt op My Day is verwijderd zodat de tijdlijn altijd zichtbaar is"
+    ]
+  },
+  {
+    "date": "2026-05-08",
     "title": "Logbook 'latest log' label is consistent gekapitaliseerd",
     "details": [
       "'Yesterday' krijgt nu net als 'Today' een hoofdletter"
