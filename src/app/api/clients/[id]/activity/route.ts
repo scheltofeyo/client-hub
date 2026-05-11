@@ -22,8 +22,13 @@ export async function GET(
     .limit(limit)
     .lean();
 
-  // Live lookup of current user images by actorId
-  const actorIds = [...new Set(docs.map((d) => d.actorId))];
+  // Live lookup of current user images by actorId.
+  // Some events use sentinel actorIds (e.g. "public" for client-side plan
+  // acceptance) that aren't ObjectIds — filter those out so Mongoose doesn't
+  // throw a CastError on the $in query.
+  const actorIds = [...new Set(docs.map((d) => d.actorId))].filter((id) =>
+    /^[a-f0-9]{24}$/i.test(id)
+  );
   const users = await UserModel.find({ _id: { $in: actorIds } }, { _id: 1, image: 1 }).lean();
   const imgMap = Object.fromEntries(users.map((u) => [u._id.toString(), u.image ?? null]));
 

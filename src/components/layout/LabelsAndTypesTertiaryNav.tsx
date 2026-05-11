@@ -12,6 +12,7 @@ const tabs: { label: string; value: string; requires: Permission }[] = [
   { label: "Client Statuses",  value: "client-statuses",  requires: "admin.clientStatuses" },
   { label: "Client Platforms",  value: "client-platforms",  requires: "admin.clientPlatforms" },
   { label: "Project Labels",   value: "project-labels",   requires: "admin.projectLabels" },
+  { label: "Project Roles",    value: "project-roles",    requires: "admin.projectRoles" },
   { label: "Leave Types",      value: "leave-types",      requires: "admin.leaveTypes" },
   { label: "Company Holidays", value: "company-holidays",  requires: "admin.companyHolidays" },
 ];

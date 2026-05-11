@@ -80,7 +80,17 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       return true;
     },
 
-    async jwt({ token, account }) {
+    async jwt({ token, account, trigger, session }) {
+      // Client-initiated session.update() — merge new seenWhatsNewIds into the token
+      // so dismissals persist across page reloads without hitting the DB on every render.
+      if (trigger === "update" && session && typeof session === "object") {
+        const incoming = (session as { seenWhatsNewIds?: string[] }).seenWhatsNewIds;
+        if (Array.isArray(incoming)) {
+          token.seenWhatsNewIds = incoming;
+        }
+        return token;
+      }
+
       // On first sign-in, enrich token from DB
       if (account?.provider === "google") {
         await connectDB();
@@ -89,6 +99,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           token.userId = dbUser._id.toString();
           token.role = dbUser.role;
           token.image = dbUser.image ?? null;
+          token.seenWhatsNewIds = dbUser.seenWhatsNewIds ?? [];
 
           const [role, leadPerms] = await Promise.all([
             RoleModel.findOne({ slug: dbUser.role }).lean(),
@@ -103,7 +114,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         const lastCheck = (token.statusCheckedAt as number) ?? 0;
         if (now - lastCheck > 15 * 60 * 1000) {
           await connectDB();
-          const dbUser = await UserModel.findById(token.userId, { status: 1, role: 1 }).lean();
+          const dbUser = await UserModel.findById(token.userId, { status: 1, role: 1, seenWhatsNewIds: 1 }).lean();
           if (!dbUser || dbUser.status === "inactive") {
             token.userId = "";
             token.permissions = [];
@@ -115,6 +126,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             ]);
             token.permissions = role?.permissions ?? [];
             token.leadPermissions = leadPerms;
+            token.seenWhatsNewIds = dbUser.seenWhatsNewIds ?? [];
           }
           token.statusCheckedAt = now;
         }
@@ -127,6 +139,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       session.user.role = (token.role as string) ?? "member";
       session.user.permissions = (token.permissions as string[]) ?? [];
       session.user.leadPermissions = (token.leadPermissions as string[]) ?? [];
+      session.user.seenWhatsNewIds = (token.seenWhatsNewIds as string[]) ?? [];
       session.user.image = (token.image as string | null) ?? (token.picture as string | undefined) ?? undefined;
       return session;
     },

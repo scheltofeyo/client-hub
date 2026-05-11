@@ -21,6 +21,8 @@ interface SteppedModalProps {
   footer: ReactNode;
   /** Max width class override, defaults to "max-w-2xl" */
   maxWidth?: string;
+  /** Hide the "Step X of Y — Label" line between header and body */
+  hideStepLabel?: boolean;
 }
 
 export default function SteppedModal({
@@ -32,6 +34,7 @@ export default function SteppedModal({
   children,
   footer,
   maxWidth = "max-w-2xl",
+  hideStepLabel = false,
 }: SteppedModalProps) {
   const [visible, setVisible] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
@@ -149,46 +152,12 @@ export default function SteppedModal({
             className="shrink-0 flex items-center justify-between px-6 py-4 border-b"
             style={{ borderColor: "var(--border)" }}
           >
-            <div className="flex items-center gap-4 min-w-0">
-              <h2
-                className="typo-modal-title truncate"
-                style={{ color: "var(--text-primary)" }}
-              >
-                {title}
-              </h2>
-              {steps && steps.length > 1 && (
-                <div className="flex items-center gap-1.5 shrink-0">
-                  {steps.map((label, i) => (
-                    <div key={label} className="flex items-center gap-1.5">
-                      <div
-                        className="w-2 h-2 rounded-full transition-colors"
-                        style={{
-                          background:
-                            i === currentStep
-                              ? "var(--primary)"
-                              : i < currentStep
-                                ? "var(--primary)"
-                                : "var(--border)",
-                          opacity: i <= currentStep ? 1 : 0.5,
-                        }}
-                        title={label}
-                      />
-                      {i < steps.length - 1 && (
-                        <div
-                          className="w-4 h-px"
-                          style={{
-                            background:
-                              i < currentStep
-                                ? "var(--primary)"
-                                : "var(--border)",
-                          }}
-                        />
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+            <h2
+              className="typo-modal-title truncate"
+              style={{ color: "var(--text-primary)" }}
+            >
+              {title}
+            </h2>
             <button
               type="button"
               onClick={onClose}
@@ -200,7 +169,7 @@ export default function SteppedModal({
           </div>
 
           {/* Step label */}
-          {steps && steps.length > 1 && steps[currentStep] && (
+          {!hideStepLabel && steps && steps.length > 1 && steps[currentStep] && (
             <div
               className="shrink-0 px-6 pt-4 pb-0"
             >
@@ -220,10 +189,44 @@ export default function SteppedModal({
 
           {/* Fixed footer */}
           <div
-            className="shrink-0 flex items-center justify-end gap-2 px-6 py-4 border-t"
+            className="shrink-0 flex items-center justify-between gap-4 px-6 py-4 border-t"
             style={{ borderColor: "var(--border)" }}
           >
-            {footer}
+            {steps && steps.length > 1 ? (
+              <div className="flex items-center gap-1.5">
+                {steps.map((label, i) => (
+                  <div key={label} className="flex items-center gap-1.5">
+                    <div
+                      className="w-2 h-2 rounded-full transition-colors"
+                      style={{
+                        background:
+                          i === currentStep
+                            ? "var(--primary)"
+                            : i < currentStep
+                              ? "var(--primary)"
+                              : "var(--border)",
+                        opacity: i <= currentStep ? 1 : 0.5,
+                      }}
+                      title={label}
+                    />
+                    {i < steps.length - 1 && (
+                      <div
+                        className="w-4 h-px"
+                        style={{
+                          background:
+                            i < currentStep
+                              ? "var(--primary)"
+                              : "var(--border)",
+                        }}
+                      />
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div />
+            )}
+            <div className="flex items-center gap-2">{footer}</div>
           </div>
         </div>
       </div>

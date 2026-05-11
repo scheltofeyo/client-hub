@@ -5,6 +5,7 @@ import Link from "next/link";
 import { FolderOpen } from "lucide-react";
 import StatusBadge from "@/components/ui/StatusBadge";
 import ProjectsTimeline from "@/components/ui/ProjectsTimeline";
+import PlansListSection from "@/components/ui/PlansListSection";
 import { ProjectsSkeleton } from "@/components/ui/TabSkeletons";
 import { fmtDate } from "@/lib/utils";
 import { AssigneeAvatars } from "@/components/ui/task-row";
@@ -17,7 +18,9 @@ interface ProjectStats {
   openTaskCounts: Record<string, number>;
 }
 
-export default function ProjectsTab({ clientId }: { clientId: string }) {
+type View = "projects" | "plans";
+
+export default function ProjectsTab({ clientId, view = "projects" }: { clientId: string; view?: View }) {
   const [data, setData] = useState<ProjectStats | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -28,7 +31,13 @@ export default function ProjectsTab({ clientId }: { clientId: string }) {
       .catch(() => setLoading(false));
   }, [clientId]);
 
-  if (loading || !data) return <ProjectsSkeleton />;
+  if (view === "plans") {
+    return <PlansListSection clientId={clientId} />;
+  }
+
+  if (loading || !data) {
+    return <ProjectsSkeleton />;
+  }
 
   const { projects, perProject, overduePerProject, openTaskCounts } = data;
 

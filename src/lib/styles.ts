@@ -29,7 +29,7 @@ export function accentColor(name: string): string {
 // WCAG-ish relative luminance; returns white or near-black for best contrast.
 // For non-hex input (like var(--accent-X)) we default to white — the curated
 // palette is designed to be readable with white text.
-function readableFg(bg: string): string {
+export function readableFg(bg: string): string {
   const m = /^#?([0-9a-f]{6})$/i.exec(bg.trim());
   if (!m) return "#ffffff";
   const n = parseInt(m[1], 16);
@@ -63,6 +63,7 @@ export function resolveClientColor(name: string, primaryColor?: string): { bg: s
 export const STATUS_STYLES: Record<string, { bg: string; color: string }> = {
   active:       { bg: "var(--status-active-bg)",   color: "var(--status-active-color)" },
   completed:    { bg: "var(--status-active-bg)",   color: "var(--status-active-color)" },
+  draft:        { bg: "var(--status-planning-bg)", color: "var(--status-planning-color)" },
   inactive:     { bg: "var(--status-muted-bg)",    color: "var(--status-muted-color)" },
   not_started:  { bg: "var(--status-muted-bg)",    color: "var(--status-muted-color)" },
   on_hold:      { bg: "var(--status-muted-bg)",    color: "var(--status-muted-color)" },

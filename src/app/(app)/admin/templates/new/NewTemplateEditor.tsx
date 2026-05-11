@@ -6,6 +6,7 @@ import { Check } from "lucide-react";
 import type { Service } from "@/types";
 import PageHeader from "@/components/layout/PageHeader";
 import RichTextEditor from "@/components/ui/RichTextEditor";
+import ServicePills from "@/components/ui/ServicePills";
 
 const inputClass =
   "w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--primary)]/40";
@@ -121,39 +122,13 @@ export default function NewTemplateEditor({ services }: { services: Service[] })
             />
           </div>
 
-          <div>
-            <p className="typo-label">
-              Service <span className="text-[var(--danger)]">*</span>
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {services.map((s) => {
-                const selected = form.defaultServiceId === s.id;
-                return (
-                  <button
-                    key={s.id}
-                    type="button"
-                    onClick={() => set("defaultServiceId", s.id)}
-                    className="px-2.5 py-0.5 rounded-full text-xs font-medium border transition-colors"
-                    style={
-                      selected
-                        ? {
-                            background: "var(--primary)",
-                            borderColor: "var(--primary)",
-                            color: "#fff",
-                          }
-                        : {
-                            background: "var(--bg-sidebar)",
-                            borderColor: "var(--border)",
-                            color: "var(--text-secondary)",
-                          }
-                    }
-                  >
-                    {s.name}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+          <ServicePills
+            services={services}
+            selectedId={form.defaultServiceId}
+            onChange={(id) => set("defaultServiceId", id)}
+            label="Service"
+            required
+          />
 
           <div>
             <label className="typo-label">

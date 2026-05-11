@@ -7,10 +7,11 @@ import { Bold, Italic, List, ListOrdered } from "lucide-react";
 interface RichTextEditorProps {
   content: string;
   onChange: (html: string) => void;
+  onBlur?: (html: string) => void;
   placeholder?: string;
 }
 
-export default function RichTextEditor({ content, onChange, placeholder }: RichTextEditorProps) {
+export default function RichTextEditor({ content, onChange, onBlur, placeholder }: RichTextEditorProps) {
   const editor = useEditor({
     immediatelyRender: false,
     extensions: [
@@ -25,6 +26,9 @@ export default function RichTextEditor({ content, onChange, placeholder }: RichT
     content,
     onUpdate: ({ editor: e }) => {
       onChange(e.getHTML());
+    },
+    onBlur: ({ editor: e }) => {
+      onBlur?.(e.getHTML());
     },
     editorProps: {
       attributes: {

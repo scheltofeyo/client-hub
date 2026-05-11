@@ -44,6 +44,9 @@ export interface IUser extends Document {
   invitedBy?: Types.ObjectId;
   invitedAt?: Date;
 
+  // UI: ids of "What's new" releases the user has already dismissed/seen
+  seenWhatsNewIds: string[];
+
   // Computed (auto-synced via hooks)
   name: string;
   image?: string;
@@ -113,6 +116,9 @@ const UserSchema = new Schema<IUser>(
     // Invitation tracking
     invitedBy: { type: Schema.Types.ObjectId, ref: "User" },
     invitedAt: { type: Date },
+
+    // UI: dismissed/seen "What's new" release ids
+    seenWhatsNewIds: { type: [String], default: [] },
 
     // Computed
     name: { type: String, required: true },

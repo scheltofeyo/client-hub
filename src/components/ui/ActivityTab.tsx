@@ -100,6 +100,31 @@ function eventDescription(event: ActivityEvent): React.ReactNode {
       return title
         ? <><Bold>Project</Bold><Dim> deleted: </Dim><Italic>{title}</Italic></>
         : <><Bold>Project</Bold><Dim> deleted</Dim></>;
+    case "plan.sent":
+      return title
+        ? <><Bold>Plan</Bold><Dim> sent to client: </Dim><Italic>{title}</Italic></>
+        : <><Bold>Plan</Bold><Dim> sent to client</Dim></>;
+    case "plan.accepted": {
+      const projectCount = metadata.projectCount as number | undefined;
+      const tail = projectCount ? <Dim> ({projectCount} project{projectCount === 1 ? "" : "s"})</Dim> : null;
+      return title
+        ? <><Bold>Plan</Bold><Dim> accepted: </Dim><Italic>{title}</Italic>{tail}</>
+        : <><Bold>Plan</Bold><Dim> accepted</Dim>{tail}</>;
+    }
+    case "plan.accepted_by_client": {
+      const acceptorEmail = metadata.acceptorEmail as string | undefined;
+      return title
+        ? <><Bold>Plan</Bold><Dim> accepted by client: </Dim><Italic>{title}</Italic>{acceptorEmail ? <Dim> ({acceptorEmail})</Dim> : null}</>
+        : <><Bold>Plan</Bold><Dim> accepted by client</Dim>{acceptorEmail ? <Dim> ({acceptorEmail})</Dim> : null}</>;
+    }
+    case "plan.revoked":
+      return title
+        ? <><Bold>Plan</Bold><Dim> acceptance revoked: </Dim><Italic>{title}</Italic></>
+        : <><Bold>Plan</Bold><Dim> acceptance revoked</Dim></>;
+    case "plan.archived":
+      return title
+        ? <><Bold>Plan</Bold><Dim> archived: </Dim><Italic>{title}</Italic></>
+        : <><Bold>Plan</Bold><Dim> archived</Dim></>;
     case "contact.changed": {
       const parts: string[] = [];
       if (added && added.length > 0) parts.push(`added ${added.join(", ")}`);

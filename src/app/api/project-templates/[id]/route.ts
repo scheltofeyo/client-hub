@@ -17,7 +17,16 @@ export async function PATCH(
   await connectDB();
 
   const body = await req.json();
-  const { name, summary, defaultDescription, defaultSoldPrice, defaultServiceId, defaultDeliveryDays } = body;
+  const {
+    name,
+    summary,
+    defaultDescription,
+    defaultSoldPrice,
+    defaultServiceId,
+    defaultDeliveryDays,
+    defaultPricingMode,
+    defaultRoleAllocation,
+  } = body;
 
   if (name !== undefined && !name?.trim()) {
     return NextResponse.json({ error: "Name cannot be empty" }, { status: 400 });
@@ -34,6 +43,26 @@ export async function PATCH(
   if (defaultSoldPrice !== undefined) update.defaultSoldPrice = defaultSoldPrice ? Number(defaultSoldPrice) : null;
   if (defaultServiceId !== undefined) update.defaultServiceId = defaultServiceId || null;
   if (defaultDeliveryDays !== undefined) update.defaultDeliveryDays = defaultDeliveryDays ? Number(defaultDeliveryDays) : null;
+  if (defaultPricingMode !== undefined) {
+    update.defaultPricingMode =
+      defaultPricingMode === "rolebased" ? "rolebased" : "manual";
+  }
+  if (defaultRoleAllocation !== undefined) {
+    update.defaultRoleAllocation = Array.isArray(defaultRoleAllocation)
+      ? defaultRoleAllocation.map((l: Record<string, unknown>) => ({
+          roleId: String(l.roleId ?? ""),
+          roleName: String(l.roleName ?? ""),
+          days: Number(l.days ?? 0),
+          dayRate: Number(l.dayRate ?? 0),
+          marginMultiplier: Number(l.marginMultiplier ?? 1),
+          isExternal: !!l.isExternal,
+          externalCostRate:
+            l.externalCostRate == null || l.externalCostRate === ""
+              ? undefined
+              : Number(l.externalCostRate),
+        }))
+      : [];
+  }
 
   const mod: Record<string, unknown> = { $set: update };
   if (Object.keys(unset).length) mod.$unset = unset;
@@ -49,6 +78,8 @@ export async function PATCH(
     defaultSoldPrice: doc.defaultSoldPrice,
     defaultServiceId: doc.defaultServiceId,
     defaultDeliveryDays: doc.defaultDeliveryDays,
+    defaultPricingMode: doc.defaultPricingMode ?? "rolebased",
+    defaultRoleAllocation: doc.defaultRoleAllocation ?? [],
   });
 }
 

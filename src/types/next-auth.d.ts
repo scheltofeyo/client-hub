@@ -11,6 +11,7 @@ declare module "next-auth" {
       role: string;
       permissions: string[];
       leadPermissions: string[];
+      seenWhatsNewIds: string[];
     };
   }
 }
@@ -21,6 +22,7 @@ declare module "next-auth/jwt" {
     role?: string;
     permissions?: string[];
     leadPermissions?: string[];
+    seenWhatsNewIds?: string[];
     image?: string | null;
   }
 }

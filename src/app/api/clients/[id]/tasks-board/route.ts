@@ -16,7 +16,7 @@ export async function GET(
 
   const [projects, tasks] = await Promise.all([
     ProjectModel.find(
-      { clientId },
+      { clientId, status: { $ne: "draft" } },
       { title: 1, status: 1, kickedOffAt: 1 }
     ).sort({ createdAt: -1 }).lean(),
     TaskModel.find({ clientId }).sort({ order: 1, createdAt: 1 }).lean(),

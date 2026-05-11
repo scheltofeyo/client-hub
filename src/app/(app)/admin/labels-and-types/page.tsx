@@ -11,6 +11,7 @@ import {
   getClientStatuses,
   getClientPlatforms,
   getProjectLabels,
+  getProjectRoles,
   getLeaveTypes,
   getCompanyHolidays,
 } from "@/lib/data";
@@ -23,6 +24,7 @@ import AdminEventTypesTable from "../AdminEventTypesTable";
 import AdminClientStatusesTable from "../AdminClientStatusesTable";
 import AdminClientPlatformsTable from "../AdminClientPlatformsTable";
 import AdminProjectLabelsTable from "../AdminProjectLabelsTable";
+import AdminProjectRolesTable from "../AdminProjectRolesTable";
 import AdminLeaveTypesTable from "../AdminLeaveTypesTable";
 import AdminCompanyHolidaysTable from "../AdminCompanyHolidaysTable";
 
@@ -34,6 +36,7 @@ const validTabs = [
   "client-statuses",
   "client-platforms",
   "project-labels",
+  "project-roles",
   "leave-types",
   "company-holidays",
 ] as const;
@@ -78,6 +81,7 @@ export default async function LabelsAndTypesPage({
         {activeTab === "client-statuses" && perms.includes("admin.clientStatuses") && <ClientStatusesSection />}
         {activeTab === "client-platforms" && perms.includes("admin.clientPlatforms") && <ClientPlatformsSection />}
         {activeTab === "project-labels" && perms.includes("admin.projectLabels") && <ProjectLabelsSection />}
+        {activeTab === "project-roles" && perms.includes("admin.projectRoles") && <ProjectRolesSection />}
         {activeTab === "leave-types" && perms.includes("admin.leaveTypes") && <LeaveTypesSection />}
         {activeTab === "company-holidays" && perms.includes("admin.companyHolidays") && <CompanyHolidaysSection />}
       </div>
@@ -165,6 +169,18 @@ async function ProjectLabelsSection() {
         Labels that can be assigned to projects for categorisation.
       </p>
       <AdminProjectLabelsTable initialLabels={projectLabels} />
+    </>
+  );
+}
+
+async function ProjectRolesSection() {
+  const roles = await getProjectRoles();
+  return (
+    <>
+      <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>
+        Roles used in role-based project pricing. Each role has a day rate and a margin multiplier; when added to a project plan the rates are snapshotted onto the draft project.
+      </p>
+      <AdminProjectRolesTable initialRoles={roles} />
     </>
   );
 }

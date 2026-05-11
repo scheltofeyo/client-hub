@@ -87,9 +87,10 @@ export async function POST(
   });
 
   // Recalculate project status only for kicked-off projects. Before kickoff,
-  // status stays at "not_started" regardless of task changes.
+  // status stays at "not_started" regardless of task changes. Draft projects (in plan) never recompute.
   const project = await ProjectModel.findById(projectId).lean();
-  if (project?.kickedOffAt) {
+  const isDraft = project?.status === "draft";
+  if (project?.kickedOffAt && !isDraft) {
     const allTasks = await TaskModel.find({ projectId }).lean();
     const completedCount = allTasks.filter((t) => !!t.completedAt).length;
     const total = allTasks.length;
@@ -101,13 +102,15 @@ export async function POST(
     await ProjectModel.findByIdAndUpdate(projectId, { $set: projectUpdate });
   }
 
-  await recordActivity({
-    clientId,
-    actorId: session.user.id,
-    actorName: session.user.name ?? "Unknown",
-    type: "task.created",
-    metadata: { projectId, title: doc.title },
-  });
+  if (!isDraft) {
+    await recordActivity({
+      clientId,
+      actorId: session.user.id,
+      actorName: session.user.name ?? "Unknown",
+      type: "task.created",
+      metadata: { projectId, title: doc.title },
+    });
+  }
 
   return NextResponse.json(
     {

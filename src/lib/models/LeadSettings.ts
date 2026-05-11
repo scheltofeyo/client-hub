@@ -27,6 +27,9 @@ export const DEFAULT_LEAD_PERMISSIONS = [
   "projects.create",
   "projects.edit",
   "projects.kickoff",
+  "projectPlans.create",
+  "projectPlans.edit",
+  "projectPlans.accept",
 ];
 
 /** Get the singleton lead settings, creating with defaults if missing. */

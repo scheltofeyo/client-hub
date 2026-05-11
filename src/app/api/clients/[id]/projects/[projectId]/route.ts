@@ -2,12 +2,70 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { connectDB } from "@/lib/mongodb";
 import { ClientModel } from "@/lib/models/Client";
-import { ProjectModel } from "@/lib/models/Project";
+import { ProjectModel, calculateRolebasedPrice, type IRoleAllocationLine } from "@/lib/models/Project";
 import { TaskModel } from "@/lib/models/Task";
 import { UserModel } from "@/lib/models/User";
 import { recordActivity } from "@/lib/activity";
 import type { TaskAssignee } from "@/types";
 import { hasPermission, hasPermissionOrIsLead, requirePermission } from "@/lib/auth-helpers";
+
+function sanitizeRoleAllocation(input: unknown): IRoleAllocationLine[] {
+  if (!Array.isArray(input)) return [];
+  return input.map((raw) => {
+    const line = raw as Record<string, unknown>;
+    const assignedRaw = line.assignedUser as Record<string, unknown> | undefined;
+    const assignedUser =
+      assignedRaw && typeof assignedRaw.userId === "string" && typeof assignedRaw.name === "string"
+        ? {
+            userId: assignedRaw.userId,
+            name: assignedRaw.name,
+            image: typeof assignedRaw.image === "string" ? assignedRaw.image : undefined,
+          }
+        : undefined;
+    const isExternal = !!line.isExternal;
+    const rawCost = line.externalCostRate;
+    const externalCostRate =
+      isExternal && rawCost != null && rawCost !== "" ? Number(rawCost) : undefined;
+    return {
+      roleId: String(line.roleId ?? ""),
+      roleName: String(line.roleName ?? ""),
+      days: Number(line.days ?? 0),
+      dayRate: Number(line.dayRate ?? 0),
+      marginMultiplier: Number(line.marginMultiplier ?? 1),
+      isExternal,
+      externalCostRate,
+      assignedUser,
+    };
+  }).filter((l) => l.roleId);
+}
+
+function serializeProject(doc: Record<string, unknown> & { _id: { toString(): string } }) {
+  return {
+    id: doc._id.toString(),
+    clientId: doc.clientId,
+    planId: doc.planId ?? null,
+    title: doc.title,
+    description: doc.description,
+    why: doc.why ?? null,
+    how: doc.how ?? null,
+    what: doc.what ?? null,
+    activities: doc.activities ?? null,
+    deliverables: doc.deliverables ?? null,
+    hiddenSections: doc.hiddenSections ?? [],
+    status: doc.status,
+    completedDate: doc.completedDate ?? null,
+    deliveryDate: doc.deliveryDate ?? null,
+    soldPrice: doc.soldPrice ?? null,
+    pricingMode: doc.pricingMode ?? "manual",
+    roleAllocation: doc.roleAllocation ?? [],
+    serviceId: doc.serviceId ?? null,
+    labelId: doc.labelId ?? null,
+    kickedOffAt: doc.kickedOffAt ?? null,
+    scheduledStartDate: doc.scheduledStartDate ?? null,
+    scheduledEndDate: doc.scheduledEndDate ?? null,
+    members: doc.members ?? [],
+  };
+}
 
 export async function PATCH(
   req: NextRequest,
@@ -27,7 +85,28 @@ export async function PATCH(
   }
 
   const body = await req.json();
-  const { title, description, status, completedDate, soldPrice, serviceId, labelId, deliveryDate, kickedOffAt, scheduledStartDate, scheduledEndDate, members } = body;
+  const {
+    title,
+    description,
+    status,
+    completedDate,
+    soldPrice,
+    serviceId,
+    labelId,
+    deliveryDate,
+    kickedOffAt,
+    scheduledStartDate,
+    scheduledEndDate,
+    members,
+    why,
+    how,
+    what,
+    activities,
+    deliverables,
+    hiddenSections,
+    pricingMode,
+    roleAllocation,
+  } = body;
 
   if (title !== undefined && !title?.trim()) {
     return NextResponse.json({ error: "Title cannot be empty" }, { status: 400 });
@@ -70,13 +149,45 @@ export async function PATCH(
   const update: Record<string, unknown> = {};
   if (title !== undefined) update.title = title.trim();
   if (description !== undefined) update.description = description?.trim() || null;
-  if (soldPrice !== undefined) update.soldPrice = soldPrice ? Number(soldPrice) : null;
+  if (why !== undefined) update.why = why || null;
+  if (how !== undefined) update.how = how || null;
+  if (what !== undefined) update.what = what || null;
+  if (activities !== undefined) update.activities = activities || null;
+  if (deliverables !== undefined) update.deliverables = deliverables || null;
+  if (hiddenSections !== undefined) {
+    update.hiddenSections = Array.isArray(hiddenSections)
+      ? hiddenSections.filter((s) => typeof s === "string")
+      : [];
+  }
   if (serviceId !== undefined) update.serviceId = serviceId || null;
   if (labelId !== undefined) update.labelId = labelId || null;
   if (deliveryDate !== undefined) update.deliveryDate = deliveryDate?.trim() || null;
   if (scheduledStartDate !== undefined) update.scheduledStartDate = scheduledStartDate?.trim() || null;
   if (scheduledEndDate !== undefined) update.scheduledEndDate = scheduledEndDate?.trim() || null;
   if (kickedOffAt !== undefined && kickedOffAt !== null) update.kickedOffAt = kickedOffAt?.trim() || null;
+
+  // Role allocation + pricing mode. When mode is rolebased, soldPrice is derived from allocation.
+  let nextPricingMode: "manual" | "rolebased" | undefined;
+  let nextAllocation: IRoleAllocationLine[] | undefined;
+  if (pricingMode === "manual" || pricingMode === "rolebased") {
+    nextPricingMode = pricingMode;
+    update.pricingMode = pricingMode;
+  }
+  if (roleAllocation !== undefined) {
+    nextAllocation = sanitizeRoleAllocation(roleAllocation);
+    update.roleAllocation = nextAllocation;
+  }
+  // Decide soldPrice: explicit input wins only for manual mode. For rolebased we recompute.
+  const existingForPricing = nextPricingMode === undefined || nextAllocation === undefined
+    ? await ProjectModel.findById(projectId).lean()
+    : null;
+  const effectiveMode = nextPricingMode ?? existingForPricing?.pricingMode ?? "manual";
+  if (effectiveMode === "rolebased") {
+    const allocation = nextAllocation ?? existingForPricing?.roleAllocation ?? [];
+    update.soldPrice = calculateRolebasedPrice(allocation);
+  } else if (soldPrice !== undefined) {
+    update.soldPrice = soldPrice === null || soldPrice === "" ? null : Number(soldPrice);
+  }
 
   if (members !== undefined) {
     let resolved: TaskAssignee[] = [];
@@ -141,7 +252,10 @@ export async function PATCH(
   const doc = await ProjectModel.findByIdAndUpdate(projectId, { $set: update }, { new: true }).lean();
   if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  if (status !== undefined) {
+  // Skip activity logging for draft projects (they live under an unaccepted plan)
+  const isDraft = doc.status === "draft";
+
+  if (!isDraft && status !== undefined) {
     await recordActivity({
       clientId: id,
       actorId: session.user.id,
@@ -149,7 +263,7 @@ export async function PATCH(
       type: "project.status_changed",
       metadata: { projectId, title: doc.title, status: doc.status },
     });
-  } else {
+  } else if (!isDraft) {
     // Track meaningful field changes (skip when status change or reset is the primary action)
     const trackFields = ["title", "description", "soldPrice", "serviceId", "labelId", "deliveryDate", "scheduledStartDate", "scheduledEndDate", "members"] as const;
     const updatedFields = trackFields.filter((f) => body[f] !== undefined);
@@ -164,22 +278,7 @@ export async function PATCH(
     }
   }
 
-  return NextResponse.json({
-    id: doc._id.toString(),
-    clientId: doc.clientId,
-    title: doc.title,
-    description: doc.description,
-    status: doc.status,
-    completedDate: doc.completedDate,
-    deliveryDate: doc.deliveryDate,
-    soldPrice: doc.soldPrice,
-    serviceId: doc.serviceId,
-    labelId: doc.labelId,
-    kickedOffAt: doc.kickedOffAt ?? null,
-    scheduledStartDate: doc.scheduledStartDate ?? null,
-    scheduledEndDate: doc.scheduledEndDate ?? null,
-    members: doc.members ?? [],
-  });
+  return NextResponse.json(serializeProject(doc as never));
 }
 
 export async function DELETE(
