@@ -296,7 +296,7 @@ function EmptyState({ onCreate }: { onCreate?: () => void }) {
 
 // ── SessionForm ──────────────────────────────────────────────
 
-function SessionForm({
+export function SessionForm({
   clientId,
   projectId,
   session,

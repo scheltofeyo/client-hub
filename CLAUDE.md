@@ -336,3 +336,21 @@ All visual tokens are CSS custom properties in `globals.css` (`:root` for light,
 - `details` is optional; omit for trivial changes
 - Entries must be in reverse chronological order (newest first)
 - Do not add release notes for internal refactors, dependency bumps, or changes invisible to users
+
+### Major releases — `whatsNew` popup
+
+For headline releases, optionally add a `whatsNew` block to the entry:
+
+```json
+"whatsNew": {
+  "id": "stable-feature-id",
+  "title": "Optional friendlier title shown in popup + modal (falls back to the release title)",
+  "steps": [
+    { "title": "Step 1 title", "description": "..." },
+    { "title": "Step 2 title", "description": "..." },
+    { "title": "Step 3 title", "description": "..." }
+  ]
+}
+```
+
+This triggers a "What's new in SUMM Hub" popup (bottom-right) on app load with a "Toon meer" stepper modal. The `id` is used as the per-user seen-key on `User.seenWhatsNewIds` — pick a stable string and never reuse it. The same release also gets a "Meer info" button on `/settings` so users can replay it anytime.

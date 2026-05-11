@@ -32,7 +32,7 @@ export async function GET(
 
   const { id } = await params;
   await connectDB();
-  const docs = await ProjectModel.find({ clientId: id }).sort({ createdAt: -1 }).lean();
+  const docs = await ProjectModel.find({ clientId: id, status: { $ne: "draft" } }).sort({ createdAt: -1 }).lean();
   return NextResponse.json(
     docs.map((doc) => ({
       id: doc._id.toString(),

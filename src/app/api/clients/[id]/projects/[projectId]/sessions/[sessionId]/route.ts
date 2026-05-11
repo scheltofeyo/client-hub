@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { connectDB } from "@/lib/mongodb";
 import { SessionModel } from "@/lib/models/Session";
+import { ProjectModel } from "@/lib/models/Project";
 import { recordActivity } from "@/lib/activity";
 import { requirePermission } from "@/lib/auth-helpers";
 import type { SessionParticipant } from "@/types";
@@ -81,13 +82,16 @@ export async function PATCH(
   const trackFields = ["title", "date", "location", "remoteLink", "participants", "info"] as const;
   const updatedFields = trackFields.filter((f) => body[f] !== undefined);
   if (updatedFields.length > 0) {
-    await recordActivity({
-      clientId: id,
-      actorId: session.user.id,
-      actorName: session.user.name ?? "Unknown",
-      type: "session.updated",
-      metadata: { projectId, sessionId, title: doc.title, fields: updatedFields },
-    });
+    const project = await ProjectModel.findById(projectId, { status: 1 }).lean();
+    if (project?.status !== "draft") {
+      await recordActivity({
+        clientId: id,
+        actorId: session.user.id,
+        actorName: session.user.name ?? "Unknown",
+        type: "session.updated",
+        metadata: { projectId, sessionId, title: doc.title, fields: updatedFields },
+      });
+    }
   }
 
   return NextResponse.json({
@@ -118,16 +122,19 @@ export async function DELETE(
   const { id, projectId, sessionId } = await params;
   await connectDB();
 
+  const project = await ProjectModel.findById(projectId, { status: 1 }).lean();
   const doc = await SessionModel.findOneAndDelete({ _id: sessionId, projectId }).lean();
   if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  await recordActivity({
-    clientId: id,
-    actorId: session.user.id,
-    actorName: session.user.name ?? "Unknown",
-    type: "session.deleted",
-    metadata: { projectId, sessionId, title: doc.title },
-  });
+  if (project?.status !== "draft") {
+    await recordActivity({
+      clientId: id,
+      actorId: session.user.id,
+      actorName: session.user.name ?? "Unknown",
+      type: "session.deleted",
+      metadata: { projectId, sessionId, title: doc.title },
+    });
+  }
 
   return NextResponse.json({ success: true });
 }

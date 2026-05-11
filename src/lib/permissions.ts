@@ -16,6 +16,13 @@ export const ALL_PERMISSIONS = [
   "projects.kickoff",
   "projects.resetToUpcoming",
 
+  // Project plans (proposals)
+  "projectPlans.view",
+  "projectPlans.create",
+  "projectPlans.edit",
+  "projectPlans.delete",
+  "projectPlans.accept",
+
   // Task management
   "tasks.create",
   "tasks.editOwn",
@@ -63,6 +70,7 @@ export const ALL_PERMISSIONS = [
   "admin.eventTypes",
   "admin.projectLabels",
   "admin.projectTemplates",
+  "admin.projectRoles",
 
   // Team / Time Off
   "team.viewCalendar",
@@ -123,6 +131,13 @@ export const PERMISSION_DEPENDENCIES: Partial<Record<Permission, Permission>> = 
   "admin.eventTypes": "admin.access",
   "admin.projectLabels": "admin.access",
   "admin.projectTemplates": "admin.access",
+  "admin.projectRoles": "admin.access",
+
+  // Project plans: nested sub-perms require view
+  "projectPlans.create": "projectPlans.view",
+  "projectPlans.edit": "projectPlans.view",
+  "projectPlans.delete": "projectPlans.view",
+  "projectPlans.accept": "projectPlans.view",
   "employees.view": "admin.access",
   "admin.leaveTypes": "admin.access",
   "admin.companyHolidays": "admin.access",
@@ -197,6 +212,17 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
     ],
   },
   {
+    label: "Project Plans",
+    description: "Proposals that bundle multiple draft projects, with role-based pricing and an accept-action that promotes drafts to real projects.",
+    permissions: [
+      { key: "projectPlans.view", label: "View project plans" },
+      { key: "projectPlans.create", label: "Create project plans", requires: "projectPlans.view" },
+      { key: "projectPlans.edit", label: "Edit project plans", requires: "projectPlans.view" },
+      { key: "projectPlans.delete", label: "Delete project plans", requires: "projectPlans.view" },
+      { key: "projectPlans.accept", label: "Accept project plans (proxy for client approval)", requires: "projectPlans.view" },
+    ],
+  },
+  {
     label: "Tasks",
     description: "Create, edit, and delete tasks across all clients and projects.",
     permissions: [
@@ -256,6 +282,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       { key: "employees.archive", label: "Archive employees", requires: "employees.edit" },
       { key: "roles.manage", label: "Manage roles & permissions", requires: "admin.access" },
       { key: "admin.projectTemplates", label: "Manage project templates", requires: "admin.access" },
+      { key: "admin.projectRoles", label: "Manage project roles & day rates", requires: "admin.access" },
       { key: "admin.archetypes", label: "Manage archetypes", requires: "admin.access" },
       { key: "admin.services", label: "Manage services", requires: "admin.access" },
       { key: "admin.logSignals", label: "Manage log signals", requires: "admin.access" },
@@ -310,6 +337,9 @@ export const LEAD_ELIGIBLE_PERMISSIONS: Permission[] = [
   "projects.create",
   "projects.edit",
   "projects.kickoff",
+  "projectPlans.create",
+  "projectPlans.edit",
+  "projectPlans.accept",
 ];
 
 export const LEAD_PERMISSION_GROUPS: PermissionGroup[] = [
@@ -327,6 +357,15 @@ export const LEAD_PERMISSION_GROUPS: PermissionGroup[] = [
       { key: "projects.create", label: "Create projects" },
       { key: "projects.edit", label: "Edit projects" },
       { key: "projects.kickoff", label: "Kick off projects" },
+    ],
+  },
+  {
+    label: "Project Plans",
+    description: "Proposal-building on assigned clients.",
+    permissions: [
+      { key: "projectPlans.create", label: "Create project plans" },
+      { key: "projectPlans.edit", label: "Edit project plans" },
+      { key: "projectPlans.accept", label: "Accept project plans" },
     ],
   },
 ];
@@ -374,6 +413,12 @@ export const MEMBER_PERMISSIONS: Permission[] = [
   "projects.create",
   "projects.edit",
   "projects.kickoff",
+
+  // Project plans — view for all; create/edit/accept with lead check at route level
+  "projectPlans.view",
+  "projectPlans.create",
+  "projectPlans.edit",
+  "projectPlans.accept",
 
   // Clients — edit with lead check applied at route level
   "clients.edit",

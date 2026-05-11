@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { connectDB } from "@/lib/mongodb";
 import { SessionModel } from "@/lib/models/Session";
+import { ProjectModel } from "@/lib/models/Project";
 import { recordActivity } from "@/lib/activity";
 import { requirePermission } from "@/lib/auth-helpers";
 import type { SessionParticipant } from "@/types";
@@ -87,6 +88,8 @@ export async function POST(
     return NextResponse.json({ error: "Title is required" }, { status: 400 });
   }
 
+  const project = await ProjectModel.findById(projectId, { status: 1 }).lean();
+
   const doc = await SessionModel.create({
     clientId: id,
     projectId,
@@ -100,13 +103,16 @@ export async function POST(
     createdByName: session.user.name ?? "Unknown",
   });
 
-  await recordActivity({
-    clientId: id,
-    actorId: session.user.id,
-    actorName: session.user.name ?? "Unknown",
-    type: "session.created",
-    metadata: { projectId, sessionId: doc._id.toString(), title: doc.title },
-  });
+  // Suppress activity for draft projects — they are still inside an unaccepted plan.
+  if (project?.status !== "draft") {
+    await recordActivity({
+      clientId: id,
+      actorId: session.user.id,
+      actorName: session.user.name ?? "Unknown",
+      type: "session.created",
+      metadata: { projectId, sessionId: doc._id.toString(), title: doc.title },
+    });
+  }
 
   return NextResponse.json(serialize(doc.toObject()), { status: 201 });
 }

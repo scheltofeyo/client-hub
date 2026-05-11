@@ -53,6 +53,13 @@ function today() {
   return `${y}-${m}-${day}`;
 }
 
+function switchClientTab(e: React.MouseEvent, clientId: string, tab: string) {
+  if (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1) return;
+  e.preventDefault();
+  window.history.replaceState(null, "", `/clients/${clientId}?tab=${tab}`);
+  window.dispatchEvent(new CustomEvent("tab-change", { detail: { tab } }));
+}
+
 function daysSinceISO(isoString: string): number {
   const past = new Date(isoString);
   const now = new Date();
@@ -611,6 +618,7 @@ export default function OverviewTab({
               <h2 className="typo-section-title" style={{ color: "var(--text-primary)" }}>Logbook</h2>
               <Link
                 href={`/clients/${clientId}?tab=logbook`}
+                onClick={(e) => switchClientTab(e, clientId, "logbook")}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border btn-secondary"
               >
                 <BookOpen size={13} />
@@ -807,6 +815,7 @@ export default function OverviewTab({
                   <h2 className="typo-section-title" style={{ color: "var(--text-primary)" }}>Upcoming events</h2>
                   <Link
                     href={`/clients/${clientId}?tab=events`}
+                    onClick={(e) => switchClientTab(e, clientId, "events")}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border btn-secondary"
                   >
                     <CalendarDays size={13} />
@@ -835,6 +844,7 @@ export default function OverviewTab({
               <h2 className="typo-section-title" style={{ color: "var(--text-primary)" }}>Recent activity</h2>
               <Link
                 href={`/clients/${clientId}?tab=activity`}
+                onClick={(e) => switchClientTab(e, clientId, "activity")}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border btn-secondary"
               >
                 <FolderOpen size={13} />

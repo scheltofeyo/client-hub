@@ -1,5 +1,63 @@
 [
   {
+    "date": "2026-05-12",
+    "title": "Klant-overview: 'View logbook', 'View all events' en 'View all activity' wisselen weer naar het juiste tabblad"
+  },
+  {
+    "date": "2026-05-12",
+    "title": "Activity-tab toont weer alle events bij klanten waarbij een plan publiek geaccepteerd is",
+    "details": [
+      "De publieke plan-acceptatie schreef een event weg met een niet-ObjectId actorId, waardoor de hele Activity-call van die klant crashte en de tab leeg bleef. Avatar-lookup filtert dit nu correct."
+    ]
+  },
+  {
+    "date": "2026-05-12",
+    "title": "Plans-tabel — gelijk verdeelde kolommen, aparte kolom 'Accepted' en Status verplaatst naar laatste kolom"
+  },
+  {
+    "date": "2026-05-12",
+    "title": "Plan About-tab — automatisch opslaan en soepeler typen in kortingsvelden",
+    "details": [
+      "About-tab maakt nu expliciet duidelijk dat alle velden automatisch opslaan; de aparte 'Save summary' knop is weg en de summary wordt bij blur opgeslagen",
+      "Discount value en VAT rate hebben nu een vertraging van 1 seconde voordat ze opslaan, zodat typen niet meer hapert door berekeningen bij elke toets"
+    ]
+  },
+  {
+    "date": "2026-05-12",
+    "title": "Projectplannen en proposals — bundel projecten, prijs ze door en deel met je klant",
+    "details": [
+      "Nieuwe Plans tab onder Projects (eigen secundaire nav naast Projects): maak project plans aan die meerdere draft-projecten bundelen, met richtext Why/How/What/Activities/Deliverables velden",
+      "Nieuwe admin-sectie Project Roles met dayRate en margin multiplier; per draft project een rol-allocatie met optionele user-assignment",
+      "Externe rollen krijgen een interne pay-out rate (wat we afdragen aan externen) — per plan zien we daarmee de pay-out en feitelijke omzet per project (intern, niet zichtbaar voor klanten)",
+      "Sessies kunnen ook handmatig aan een draft-project worden toegevoegd, bewerkt en verwijderd — naast de sessies die uit het project-template komen; deze acties verschijnen niet in de activity feed totdat het plan is geaccepteerd",
+      "Taken op een draft-project gebruiken dezelfde rijen als de Tasks-tab van een project — inclusief subtaken, afvinken, slepen om de volgorde te veranderen en assignee-avatars; '+ New task' voegt direct inline een taak toe en het kebab-menu opent subtaken",
+      "Korte notice boven de takenlijst maakt duidelijk dat tasks nooit met de klant worden gedeeld (alleen voor je eigen team); template tasks verschijnen direct na het toevoegen van een draft (voorheen pas na een refresh)",
+      "Draft-project kaart heeft een sticky header (titel + totaal blijven zichtbaar tijdens scrollen) en tab-navigatie (About / Budget / Sessions / Tasks); project naam is aanpasbaar via een eigen veld op de About-tab",
+      "Draft projecten herschikken via drag-and-drop met een handle links op de header rij; chevron staat naast de titel en zowel titel als chevron zijn klikbaar om in of uit te klappen",
+      "Plan-overzicht met subtotaal, korting (percentage of bedrag), BTW en accept-knop die drafts promoveert naar reguliere projecten en assigned users in members merged",
+      "Publieke proposal heeft een tijdlijn bovenaan die alle projecten in één blik toont — hover voor zwevend kaartje met datums, sessies en teamleden; klik om naar de juiste projectsectie te scrollen (ingeklapte secties klappen automatisch open). Projecten zonder geplande datums verschijnen full-width onder een 'Nog te plannen' rij",
+      "Draft-projecten en hun taken/sessies blijven uit alle reguliere lijsten, dashboards, Gantt en activity feed totdat het plan is geaccepteerd"
+    ],
+    "whatsNew": {
+      "id": "project-plans-v2",
+      "title": "Nieuw: Projectplannen en proposals",
+      "steps": [
+        {
+          "title": "Bundel je projecten in één plan",
+          "description": "Geen losse plannings meer. Gooi al je projecten in één plan en zie het hele traject in een mooi Gantt-overzicht, netjes gegroepeerd per service. In één blik snap je wat er gaat gebeuren."
+        },
+        {
+          "title": "Alles op één pagina",
+          "description": "Projectdetails, taken, sessies én pricing — bewerk het allemaal vanuit hetzelfde overzicht. Roles met dagtarieven en margin doen het rekenwerk voor je; manueel overrulen kan altijd. Klaar."
+        },
+        {
+          "title": "Stuur, klant klikt, klaar",
+          "description": "Elk plan krijgt een eigen branded share-link. Je klant ziet projecten, timeline, team en prijzen in één strak document en accepteert in één klik. Jij krijgt een volledige audit log toe."
+        }
+      ]
+    }
+  },
+  {
     "date": "2026-05-08",
     "title": "Project status blijft consistent bij elke kickoff route",
     "details": [

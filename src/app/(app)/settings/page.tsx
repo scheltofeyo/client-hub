@@ -2,6 +2,7 @@ import releaseNotes from "@/data/release-notes.json";
 import { fmtDate } from "@/lib/utils";
 import { Info } from "lucide-react";
 import type { ReleaseNote } from "@/types";
+import WhatsNewMoreInfoButton from "@/components/ui/WhatsNewMoreInfoButton";
 
 const notes: ReleaseNote[] = releaseNotes;
 const lastUpdated = notes[0]?.date;
@@ -29,11 +30,14 @@ export default function Page() {
             className="rounded-2xl border p-5"
             style={{ borderColor: "var(--border)" }}
           >
-            <div className="flex items-center gap-2 mb-1.5">
-              <Info size={14} style={{ color: "var(--primary)" }} />
-              <span className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>
-                {fmtDate(note.date)}
-              </span>
+            <div className="flex items-center justify-between gap-2 mb-1.5">
+              <div className="flex items-center gap-2">
+                <Info size={14} style={{ color: "var(--primary)" }} />
+                <span className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>
+                  {fmtDate(note.date)}
+                </span>
+              </div>
+              {note.whatsNew && <WhatsNewMoreInfoButton releaseNote={note} />}
             </div>
             <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
               {note.title}

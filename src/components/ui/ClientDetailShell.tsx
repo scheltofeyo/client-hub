@@ -5,6 +5,7 @@ import PageHeader from "@/components/layout/PageHeader";
 import FolderPendingBanner from "@/components/ui/FolderPendingBanner";
 import ScrollReset from "@/components/ui/ScrollReset";
 import AboutTertiaryNav from "@/components/layout/AboutTertiaryNav";
+import ProjectsTertiaryNav from "@/components/layout/ProjectsTertiaryNav";
 
 // Tab components
 import OverviewTab from "@/components/ui/OverviewTab";
@@ -17,6 +18,7 @@ import ActivityTab from "@/components/ui/ActivityTab";
 import ContentTab from "@/components/ui/ContentTab";
 import SettingsTab from "@/components/ui/SettingsTab";
 import AddProjectButton from "@/components/ui/AddProjectButton";
+import AddPlanButton from "@/components/ui/AddPlanButton";
 import AddEventButton from "@/components/ui/AddEventButton";
 
 // Skeletons
@@ -26,6 +28,8 @@ import type { Client, ProjectStatus, Task, Sheet, TimelineEvent } from "@/types"
 
 const tabs = ["Dashboard", "Projects", "Tasks", "Content", "Sheets", "Logbook", "Events", "Activity", "Settings"] as const;
 type Tab = (typeof tabs)[number];
+
+type ProjectsSubtab = "projects" | "plans";
 
 interface ClientDetailShellProps {
   client: Client;
@@ -40,6 +44,7 @@ interface ClientDetailShellProps {
   allUsers: { id: string; name: string; email: string; image: string | null }[];
   initialTab: Tab;
   initialSection: string;
+  initialProjectsSubtab: ProjectsSubtab;
 }
 
 // Module-level data cache for tab data
@@ -58,9 +63,13 @@ export default function ClientDetailShell({
   allUsers,
   initialTab,
   initialSection,
+  initialProjectsSubtab,
 }: ClientDetailShellProps) {
   const [activeTab, setActiveTab] = useState<Tab>(initialTab);
   const [section, setSection] = useState(initialSection);
+  const [projectsSubtab, setProjectsSubtab] = useState<ProjectsSubtab>(initialProjectsSubtab);
+  const canViewPlans = permissions.includes("projectPlans.view");
+  const canCreatePlan = permissions.includes("projectPlans.create");
 
   type TasksState = { generalTasks: Task[]; projectTasks: Record<string, Task[]>; projects: { id: string; title: string; status: ProjectStatus; kickedOffAt?: string }[] };
   type LogbookState = { logs: unknown[]; signals: unknown[]; contacts: unknown[] };
@@ -81,27 +90,39 @@ export default function ClientDetailShell({
       if (matched) {
         setActiveTab(matched);
         if (matched !== "Settings") setSection("about");
+        if (matched === "Projects") setProjectsSubtab("projects");
       }
     }
     function handleSectionChange(e: Event) {
       const { section: sec } = (e as CustomEvent).detail ?? {};
       if (sec) setSection(sec);
     }
+    function handleProjectsSubtabChange(e: Event) {
+      const { subtab } = (e as CustomEvent).detail ?? {};
+      if (subtab === "projects" || subtab === "plans") setProjectsSubtab(subtab);
+    }
     window.addEventListener("tab-change", handleTabChange);
     window.addEventListener("section-change", handleSectionChange);
+    window.addEventListener("projects-subtab-change", handleProjectsSubtabChange);
     return () => {
       window.removeEventListener("tab-change", handleTabChange);
       window.removeEventListener("section-change", handleSectionChange);
+      window.removeEventListener("projects-subtab-change", handleProjectsSubtabChange);
     };
   }, []);
 
   // ── Sync URL when tab changes ──
   useEffect(() => {
-    const url = activeTab === "Settings" && section !== "about"
-      ? `/clients/${clientId}?tab=${activeTab.toLowerCase()}&section=${section}`
-      : `/clients/${clientId}?tab=${activeTab.toLowerCase()}`;
+    let url: string;
+    if (activeTab === "Settings" && section !== "about") {
+      url = `/clients/${clientId}?tab=${activeTab.toLowerCase()}&section=${section}`;
+    } else if (activeTab === "Projects" && projectsSubtab === "plans") {
+      url = `/clients/${clientId}?tab=projects&subtab=plans`;
+    } else {
+      url = `/clients/${clientId}?tab=${activeTab.toLowerCase()}`;
+    }
     window.history.replaceState(null, "", url);
-  }, [activeTab, section, clientId]);
+  }, [activeTab, section, projectsSubtab, clientId]);
 
   // ── Respond to browser back/forward ──
   useEffect(() => {
@@ -111,6 +132,8 @@ export default function ClientDetailShell({
       const matched = tabs.find((t) => t.toLowerCase() === tab);
       if (matched) setActiveTab(matched);
       setSection(params.get("section") ?? "about");
+      const sub = params.get("subtab");
+      setProjectsSubtab(sub === "plans" ? "plans" : "projects");
     }
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
@@ -185,8 +208,15 @@ export default function ClientDetailShell({
 
   // ── Action buttons per tab ──
   const actions = (() => {
-    if (activeTab === "Projects" && canCreateProject) {
-      return <AddProjectButton clientId={clientId} />;
+    if (activeTab === "Projects") {
+      const showAddPlan = canViewPlans && canCreatePlan;
+      if (!canCreateProject && !showAddPlan) return undefined;
+      return (
+        <div className="flex items-center gap-2">
+          {showAddPlan && <AddPlanButton clientId={clientId} />}
+          {canCreateProject && <AddProjectButton clientId={clientId} />}
+        </div>
+      );
     }
     if (activeTab === "Tasks" && permissions.includes("tasks.create")) {
       return <AddClientTaskButton clientId={clientId} />;
@@ -213,6 +243,8 @@ export default function ClientDetailShell({
         tertiaryNav={
           activeTab === "Settings" ? (
             <AboutTertiaryNav clientId={clientId} />
+          ) : activeTab === "Projects" ? (
+            <ProjectsTertiaryNav clientId={clientId} canViewPlans={canViewPlans} />
           ) : undefined
         }
       />
@@ -254,7 +286,7 @@ export default function ClientDetailShell({
         )}
 
         {activeTab === "Projects" && (
-          <ProjectsTab clientId={clientId} />
+          <ProjectsTab clientId={clientId} view={projectsSubtab} />
         )}
 
         {activeTab === "Tasks" && (

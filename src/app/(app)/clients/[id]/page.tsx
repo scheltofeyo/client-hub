@@ -16,10 +16,10 @@ export default async function ClientDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tab?: string; section?: string }>;
+  searchParams: Promise<{ tab?: string; section?: string; subtab?: string }>;
 }) {
   const { id } = await params;
-  const { tab, section } = await searchParams;
+  const { tab, section, subtab } = await searchParams;
 
   const [client, session] = await Promise.all([
     getClientById(id),
@@ -71,6 +71,7 @@ export default async function ClientDetailPage({
       allUsers={allUsers}
       initialTab={activeTab}
       initialSection={section ?? "about"}
+      initialProjectsSubtab={subtab === "plans" ? "plans" : "projects"}
     />
   );
 }

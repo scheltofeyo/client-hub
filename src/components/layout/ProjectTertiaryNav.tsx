@@ -4,9 +4,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const sections = [
-  { label: "Tasks", href: "/tasks" },
-  { label: "Sessions", href: "/sessions" },
   { label: "Overview", href: "" },
+  { label: "Budget", href: "/budget" },
+  { label: "Sessions", href: "/sessions" },
+  { label: "Tasks", href: "/tasks" },
 ];
 
 export default function ProjectTertiaryNav({

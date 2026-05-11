@@ -20,11 +20,12 @@ import { TemplateSessionModel } from "./models/TemplateSession";
 import { ClientStatusOptionModel, DEFAULT_CLIENT_STATUSES } from "./models/ClientStatusOption";
 import { ClientPlatformOptionModel, DEFAULT_CLIENT_PLATFORMS } from "./models/ClientPlatformOption";
 import { ProjectLabelModel } from "./models/ProjectLabel";
+import { ProjectRoleModel } from "./models/ProjectRole";
 import { RoleModel } from "./models/Role";
 import { LeaveTypeModel, DEFAULT_LEAVE_TYPES } from "./models/LeaveType";
 import { TimeOffModel } from "./models/TimeOff";
 import { CompanyHolidayModel } from "./models/CompanyHoliday";
-import type { Archetype, BirthdayItem, Client, ClientLead, ClientPlatformOption, ClientStatusOption, CompanyHoliday, Contact, DashboardStats, EventType, LeaveType, Log, LogSignal, MyDayFollowUpData, MyDayTaskData, MyDayUserInfo, MyProjectOverview, Project, ProjectLabel, ProjectStatus, ProjectTemplate, RecurrenceUnit, Service, Session, Sheet, Task, TemplateSession, TemplateTask, TimelineEvent, TimeOffEntry, TimeOffBalance, WeekTeamData } from "@/types";
+import type { Archetype, BirthdayItem, Client, ClientLead, ClientPlatformOption, ClientStatusOption, CompanyHoliday, Contact, DashboardStats, EventType, LeaveType, Log, LogSignal, MyDayFollowUpData, MyDayTaskData, MyDayUserInfo, MyProjectOverview, Project, ProjectLabel, ProjectRole, ProjectStatus, ProjectTemplate, RecurrenceUnit, Service, Session, Sheet, Task, TemplateSession, TemplateTask, TimelineEvent, TimeOffEntry, TimeOffBalance, WeekTeamData } from "@/types";
 import type { WeekCalendarItem } from "@/lib/utils";
 import { mapToWeekday } from "@/lib/utils";
 
@@ -206,7 +207,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
   const [totalClients, activeClients, totalProjects, activeProjects] = await Promise.all([
     ClientModel.countDocuments(),
     ClientModel.countDocuments({ status: "active" }),
-    ProjectModel.countDocuments(),
+    ProjectModel.countDocuments({ status: { $ne: "draft" } }),
     ProjectModel.countDocuments({ status: "in_progress" }),
   ]);
   return { totalClients, activeClients, totalProjects, activeProjects };
@@ -230,6 +231,26 @@ function mapProject(doc: ReturnType<typeof Object.assign>, serviceMap?: Map<stri
     completedDate: doc.completedDate,
     deliveryDate: doc.deliveryDate ?? undefined,
     soldPrice: doc.soldPrice,
+    pricingMode: doc.pricingMode ?? "manual",
+    roleAllocation: Array.isArray(doc.roleAllocation)
+      ? doc.roleAllocation.map((l: Record<string, unknown>) => ({
+          roleId: String(l.roleId ?? ""),
+          roleName: String(l.roleName ?? ""),
+          days: Number(l.days ?? 0),
+          dayRate: Number(l.dayRate ?? 0),
+          marginMultiplier: Number(l.marginMultiplier ?? 1),
+          isExternal: !!l.isExternal,
+          externalCostRate: l.externalCostRate == null ? undefined : Number(l.externalCostRate),
+          assignedUser:
+            l.assignedUser && typeof l.assignedUser === "object"
+              ? {
+                  userId: String((l.assignedUser as { userId?: string }).userId ?? ""),
+                  name: String((l.assignedUser as { name?: string }).name ?? ""),
+                  image: (l.assignedUser as { image?: string }).image ?? undefined,
+                }
+              : undefined,
+        }))
+      : [],
     templateId: doc.templateId,
     serviceId: doc.serviceId ?? undefined,
     service: doc.serviceId && serviceMap ? serviceMap.get(doc.serviceId) : undefined,
@@ -252,7 +273,7 @@ function mapProject(doc: ReturnType<typeof Object.assign>, serviceMap?: Map<stri
 export const getProjectsByClientId = cache(async (clientId: string): Promise<Project[]> => {
   await connectDB();
   const [docs, serviceDocs, labelMap] = await Promise.all([
-    ProjectModel.find({ clientId }).sort({ createdAt: -1 }).lean(),
+    ProjectModel.find({ clientId, status: { $ne: "draft" } }).sort({ createdAt: -1 }).lean(),
     fetchServiceDocs(),
     buildProjectLabelMap(),
   ]);
@@ -279,7 +300,7 @@ export const getProjectsByClientId = cache(async (clientId: string): Promise<Pro
 export const getProjectSummariesByClientId = cache(
   async (clientId: string): Promise<Pick<Project, "id" | "title" | "status">[]> => {
     await connectDB();
-    const docs = await ProjectModel.find({ clientId })
+    const docs = await ProjectModel.find({ clientId, status: { $ne: "draft" } })
       .select("_id title status")
       .sort({ createdAt: -1 })
       .lean();
@@ -309,6 +330,25 @@ export async function getServices(): Promise<Service[]> {
     name: d.name,
     rank: d.rank ?? 0,
     checkInDays: d.checkInDays ?? null,
+    createdAt: d.createdAt?.toISOString().split("T")[0],
+  }));
+}
+
+const fetchProjectRoleDocs = cache(async () => {
+  await connectDB();
+  return ProjectRoleModel.find().sort({ rank: 1, createdAt: 1 }).lean();
+});
+
+export async function getProjectRoles(): Promise<ProjectRole[]> {
+  const docs = await fetchProjectRoleDocs();
+  return docs.map((d) => ({
+    id: d._id.toString(),
+    name: d.name,
+    dayRate: d.dayRate ?? 0,
+    marginMultiplier: d.marginMultiplier ?? 1,
+    isExternal: !!d.isExternal,
+    externalCostRate: d.externalCostRate ?? undefined,
+    rank: d.rank ?? 0,
     createdAt: d.createdAt?.toISOString().split("T")[0],
   }));
 }
@@ -583,6 +623,16 @@ export const getProjectTemplateById = cache(async (id: string): Promise<ProjectT
     defaultSoldPrice: doc.defaultSoldPrice,
     defaultServiceId: doc.defaultServiceId,
     defaultDeliveryDays: doc.defaultDeliveryDays,
+    defaultPricingMode: doc.defaultPricingMode ?? "rolebased",
+    defaultRoleAllocation: doc.defaultRoleAllocation?.map((l) => ({
+      roleId: l.roleId,
+      roleName: l.roleName,
+      days: l.days ?? 0,
+      dayRate: l.dayRate ?? 0,
+      marginMultiplier: l.marginMultiplier ?? 1,
+      isExternal: !!l.isExternal,
+      externalCostRate: l.externalCostRate,
+    })) ?? [],
     createdAt: doc.createdAt?.toISOString().split("T")[0],
   };
 });
@@ -859,7 +909,7 @@ export async function getUpcomingEventsForClient(clientId: string): Promise<Time
   const windowEnd = windowEndDate.toISOString().slice(0, 10);
 
   const activeProjectIds = (
-    await ProjectModel.find({ clientId, status: { $ne: "completed" }, kickedOffAt: { $exists: true, $ne: null } }, { _id: 1 }).lean()
+    await ProjectModel.find({ clientId, status: { $nin: ["draft", "completed"] }, kickedOffAt: { $exists: true, $ne: null } }, { _id: 1 }).lean()
   ).map((p) => p._id.toString());
 
   const [logs, completionProjects, deliveryProjects, projectTasks, generalTasks, customDocs, servicesWithTimer, sessions] =
@@ -1040,11 +1090,13 @@ export async function getPastEventsForClient(clientId: string): Promise<Timeline
       // Completed projects with completedDate in lookback window
       ProjectModel.find({
         clientId,
+        status: { $ne: "draft" },
         completedDate: { $lt: today, $gte: lookbackStart },
       }).lean(),
       // Completed projects with deliveryDate in lookback window
       ProjectModel.find({
         clientId,
+        status: { $ne: "draft" },
         deliveryDate: { $lt: today, $gte: lookbackStart },
       }).lean(),
       // Completed tasks (project-level) with completionDate in lookback window
@@ -1243,7 +1295,7 @@ export async function getOpenTaskCountsByClient(): Promise<Map<string, number>> 
 export async function getOpenProjectCountsByClient(): Promise<Map<string, number>> {
   await connectDB();
   const results = await ProjectModel.aggregate([
-    { $match: { status: { $ne: "completed" } } },
+    { $match: { status: { $nin: ["draft", "completed"] } } },
     { $group: { _id: "$clientId", count: { $sum: 1 } } },
   ]);
   const map = new Map<string, number>();
@@ -1279,8 +1331,8 @@ export async function getFirstUpcomingEventByAllClients(): Promise<Map<string, F
 
   const [logs, completionProjects, deliveryProjects, tasks, customDocs] = await Promise.all([
     LogModel.find({ followUp: true, followedUpAt: null, followUpDeadline: { $gte: today } }).lean(),
-    ProjectModel.find({ status: { $ne: "completed" }, kickedOffAt: { $exists: true, $ne: null }, completedDate: { $gte: today } }).lean(),
-    ProjectModel.find({ status: { $ne: "completed" }, kickedOffAt: { $exists: true, $ne: null }, deliveryDate: { $gte: today } }).lean(),
+    ProjectModel.find({ status: { $nin: ["draft", "completed"] }, kickedOffAt: { $exists: true, $ne: null }, completedDate: { $gte: today } }).lean(),
+    ProjectModel.find({ status: { $nin: ["draft", "completed"] }, kickedOffAt: { $exists: true, $ne: null }, deliveryDate: { $gte: today } }).lean(),
     TaskModel.find({ completedAt: null, completionDate: { $gte: today }, logId: { $exists: false } }).lean(),
     // Skip non-recurring events whose start date is already in the past; keep all recurring
     // events (their occurrences may still fall inside the expansion window).
@@ -1362,7 +1414,7 @@ export const getTemplateTasksByTemplateId = cache(async (templateId: string): Pr
 export const getProjectsByAllClients = cache(async (): Promise<Map<string, Project[]>> => {
   await connectDB();
   const [docs, serviceDocs, labelMap] = await Promise.all([
-    ProjectModel.find({}).sort({ createdAt: -1 }).lean(),
+    ProjectModel.find({ status: { $ne: "draft" } }).sort({ createdAt: -1 }).lean(),
     fetchServiceDocs(),
     buildProjectLabelMap(),
   ]);
@@ -1399,7 +1451,7 @@ export async function getWeekCalendarItems(start: string, end: string): Promise<
     // Deliveries: projects with deliveryDate in range
     ProjectModel.find({
       deliveryDate: { $gte: start, $lte: end },
-      status: { $ne: "completed" },
+      status: { $nin: ["draft", "completed"] },
     }).lean(),
     // Kick-offs: projects with scheduledStartDate in range and not yet started
     ProjectModel.find({
@@ -1570,7 +1622,7 @@ export async function getActiveProjectsForGantt(): Promise<{ clients: Client[]; 
   await connectDB();
   const [clients, docs, serviceMap, labelMap] = await Promise.all([
     getClients(),
-    ProjectModel.find({ status: { $ne: "completed" } }).sort({ createdAt: -1 }).lean(),
+    ProjectModel.find({ status: { $nin: ["draft", "completed"] } }).sort({ createdAt: -1 }).lean(),
     buildServiceMap(),
     buildProjectLabelMap(),
   ]);
@@ -1602,7 +1654,7 @@ export async function getMyActiveProjectsForGantt(
 
   const [docs, serviceMap, labelMap] = await Promise.all([
     ProjectModel.find({
-      status: { $ne: "completed" },
+      status: { $nin: ["draft", "completed"] },
       clientId: { $in: myClientIds },
     }).sort({ createdAt: -1 }).lean(),
     buildServiceMap(),
@@ -1776,7 +1828,7 @@ export async function getMyProjectsOverview(
 
   const projects = await ProjectModel.find({
     clientId: { $in: clientIds },
-    status: { $ne: "completed" },
+    status: { $nin: ["draft", "completed"] },
   }).lean();
   if (projects.length === 0) return [];
 
@@ -2071,7 +2123,7 @@ export async function getMyDayUserInfo(userId: string): Promise<MyDayUserInfo> {
   const [roleDoc, activeProjectCount] = await Promise.all([
     roleSlug ? RoleModel.findOne({ slug: roleSlug }, { name: 1 }).lean() : Promise.resolve(null),
     clientIds.length > 0
-      ? ProjectModel.countDocuments({ clientId: { $in: clientIds }, status: { $ne: "completed" } })
+      ? ProjectModel.countDocuments({ clientId: { $in: clientIds }, status: { $nin: ["draft", "completed"] } })
       : Promise.resolve(0),
   ]);
 

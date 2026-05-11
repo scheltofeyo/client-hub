@@ -1,7 +1,13 @@
 import { auth } from "@/auth";
 import { redirect, notFound } from "next/navigation";
 import { hasPermission } from "@/lib/auth-helpers";
-import { getProjectTemplateById, getTemplateTasksByTemplateId, getTemplateSessionsByTemplateId, getServices } from "@/lib/data";
+import {
+  getProjectTemplateById,
+  getTemplateTasksByTemplateId,
+  getTemplateSessionsByTemplateId,
+  getServices,
+  getProjectRoles,
+} from "@/lib/data";
 import EditTemplateEditor from "./EditTemplateEditor";
 
 export default async function EditTemplatePage({
@@ -13,11 +19,12 @@ export default async function EditTemplatePage({
   if (!hasPermission(session, "admin.access")) redirect("/dashboard");
 
   const { id } = await params;
-  const [template, tasks, sessions, services] = await Promise.all([
+  const [template, tasks, sessions, services, projectRoles] = await Promise.all([
     getProjectTemplateById(id),
     getTemplateTasksByTemplateId(id),
     getTemplateSessionsByTemplateId(id),
     getServices(),
+    getProjectRoles(),
   ]);
 
   if (!template) notFound();
@@ -29,6 +36,7 @@ export default async function EditTemplatePage({
         initialTasks={tasks}
         initialSessions={sessions}
         services={services}
+        projectRoles={projectRoles}
       />
     </div>
   );

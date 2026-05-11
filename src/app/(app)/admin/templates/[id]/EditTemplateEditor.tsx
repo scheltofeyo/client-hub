@@ -30,10 +30,18 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import type { ProjectTemplate, Service, TemplateSession, TemplateTask } from "@/types";
+import type {
+  ProjectRole,
+  ProjectTemplate,
+  RoleAllocationLine,
+  Service,
+  TemplateSession,
+  TemplateTask,
+} from "@/types";
 import { useRightPanel } from "@/components/layout/RightPanel";
 import PageHeader from "@/components/layout/PageHeader";
 import RichTextEditor from "@/components/ui/RichTextEditor";
+import ServicePills from "@/components/ui/ServicePills";
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
 
@@ -834,7 +842,7 @@ function SessionsListSection({
 
 // ── Tertiary tab bar ──────────────────────────────────────────────────────────
 
-type Tab = "settings" | "tasks" | "sessions";
+type Tab = "settings" | "budget" | "tasks" | "sessions";
 
 function TertiaryNav({ tab, onTabChange }: { tab: Tab; onTabChange: (t: Tab) => void }) {
   return (
@@ -842,7 +850,7 @@ function TertiaryNav({ tab, onTabChange }: { tab: Tab; onTabChange: (t: Tab) => 
       className="flex gap-0 border-b shrink-0 -mx-7 px-7 mt-2"
       style={{ borderColor: "var(--border)" }}
     >
-      {(["settings", "tasks", "sessions"] as Tab[]).map((t) => (
+      {(["settings", "budget", "tasks", "sessions"] as Tab[]).map((t) => (
         <button
           key={t}
           type="button"
@@ -860,6 +868,217 @@ function TertiaryNav({ tab, onTabChange }: { tab: Tab; onTabChange: (t: Tab) => 
   );
 }
 
+// ── Template budget editor ────────────────────────────────────────────────────
+
+type TemplateAllocationLine = Omit<RoleAllocationLine, "assignedUser">;
+
+function formatEuro(n: number) {
+  return new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n);
+}
+
+function lineTotal(l: TemplateAllocationLine) {
+  return (l.days || 0) * (l.dayRate || 0) * (l.marginMultiplier || 1);
+}
+
+function TemplateBudgetEditor({
+  pricingMode,
+  allocation,
+  projectRoles,
+  defaultSoldPrice,
+  onPricingModeChange,
+  onAllocationChange,
+  onDefaultSoldPriceChange,
+}: {
+  pricingMode: "manual" | "rolebased";
+  allocation: TemplateAllocationLine[];
+  projectRoles: ProjectRole[];
+  defaultSoldPrice: string;
+  onPricingModeChange: (m: "manual" | "rolebased") => void;
+  onAllocationChange: (lines: TemplateAllocationLine[]) => void;
+  onDefaultSoldPriceChange: (v: string) => void;
+}) {
+  function addLine() {
+    if (projectRoles.length === 0) return;
+    const role = projectRoles[0];
+    onAllocationChange([
+      ...allocation,
+      {
+        roleId: role.id,
+        roleName: role.name,
+        days: 0,
+        dayRate: role.dayRate,
+        marginMultiplier: role.marginMultiplier,
+        isExternal: role.isExternal,
+        externalCostRate: role.isExternal ? role.externalCostRate : undefined,
+      },
+    ]);
+  }
+
+  function updateLine(i: number, patch: Partial<TemplateAllocationLine>) {
+    onAllocationChange(allocation.map((l, idx) => (idx === i ? { ...l, ...patch } : l)));
+  }
+
+  function changeRole(i: number, roleId: string) {
+    const role = projectRoles.find((r) => r.id === roleId);
+    if (!role) return;
+    updateLine(i, {
+      roleId,
+      roleName: role.name,
+      dayRate: role.dayRate,
+      marginMultiplier: role.marginMultiplier,
+      isExternal: role.isExternal,
+      externalCostRate: role.isExternal ? role.externalCostRate : undefined,
+    });
+  }
+
+  function removeLine(i: number) {
+    onAllocationChange(allocation.filter((_, idx) => idx !== i));
+  }
+
+  const total = allocation.reduce((s, l) => s + lineTotal(l), 0);
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <div
+          className="inline-flex rounded-md border p-0.5"
+          style={{ borderColor: "var(--border)", background: "var(--bg-elevated)" }}
+        >
+          {(["rolebased", "manual"] as const).map((m) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => onPricingModeChange(m)}
+              className="px-2 py-1 text-xs font-medium rounded-sm transition-colors"
+              style={{
+                background: pricingMode === m ? "var(--bg-surface)" : "transparent",
+                color: pricingMode === m ? "var(--text-primary)" : "var(--text-muted)",
+              }}
+            >
+              {m === "manual" ? "Fixed" : "Role-based"}
+            </button>
+          ))}
+        </div>
+        {pricingMode === "rolebased" && (
+          <span className="text-sm tabular-nums font-medium" style={{ color: "var(--text-primary)" }}>
+            {formatEuro(total)}
+          </span>
+        )}
+      </div>
+
+      {pricingMode === "rolebased" && (
+        <>
+          <div className="rounded-lg border overflow-hidden" style={{ borderColor: "var(--border)" }}>
+            <div
+              className="grid items-center px-3 py-2 typo-section-header"
+              style={{
+                gridTemplateColumns: "1fr 90px 130px 32px",
+                gap: 8,
+                borderBottom: "1px solid var(--border)",
+                background: "var(--bg-elevated)",
+                color: "var(--text-muted)",
+              }}
+            >
+              <span>Role</span>
+              <span>Days</span>
+              <span className="text-right">Total</span>
+              <span />
+            </div>
+            {allocation.map((line, i) => (
+              <div
+                key={i}
+                className="grid items-center px-3 py-2 text-sm"
+                style={{
+                  gridTemplateColumns: "1fr 90px 130px 32px",
+                  gap: 8,
+                  borderBottom: i < allocation.length - 1 ? "1px solid var(--border)" : undefined,
+                }}
+              >
+                <select
+                  value={line.roleId}
+                  onChange={(e) => changeRole(i, e.target.value)}
+                  className={inputClass}
+                  style={inputStyle}
+                >
+                  {projectRoles.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.name}
+                      {r.isExternal ? " (ext)" : ""}
+                    </option>
+                  ))}
+                  {projectRoles.findIndex((r) => r.id === line.roleId) === -1 && (
+                    <option value={line.roleId}>{line.roleName} (removed)</option>
+                  )}
+                </select>
+                <input
+                  type="number"
+                  min={0}
+                  step={0.5}
+                  value={line.days}
+                  onChange={(e) => updateLine(i, { days: Number(e.target.value) })}
+                  className={inputClass}
+                  style={inputStyle}
+                />
+                <span className="text-right tabular-nums" style={{ color: "var(--text-primary)" }}>
+                  {formatEuro(lineTotal(line))}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => removeLine(i)}
+                  className="p-1.5 rounded-md btn-icon text-[var(--danger)] hover:bg-[var(--danger-light)]"
+                  title="Remove line"
+                >
+                  <Trash2 size={13} />
+                </button>
+              </div>
+            ))}
+            {allocation.length === 0 && (
+              <div className="px-3 py-6 text-center text-sm" style={{ color: "var(--text-muted)" }}>
+                No role lines yet.
+              </div>
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={addLine}
+            disabled={projectRoles.length === 0}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium btn-tertiary disabled:opacity-50"
+          >
+            <Plus size={12} />
+            Add role line
+          </button>
+          {projectRoles.length === 0 && (
+            <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+              No project roles defined yet — set them up in admin → Labels and Types → Project Roles.
+            </p>
+          )}
+          <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+            Day rate, multiplier and pay-out are snapshotted from the role at the moment the line is added.
+            Later edits in admin do not change existing templates or projects.
+          </p>
+        </>
+      )}
+
+      {pricingMode === "manual" && (
+        <div>
+          <label className="typo-label">Default sold price (€)</label>
+          <input
+            type="number"
+            min={0}
+            step={1}
+            value={defaultSoldPrice}
+            onChange={(e) => onDefaultSoldPriceChange(e.target.value)}
+            placeholder="e.g. 5000"
+            className={inputClass}
+            style={inputStyle}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main editor ───────────────────────────────────────────────────────────────
 
 export default function EditTemplateEditor({
@@ -867,11 +1086,13 @@ export default function EditTemplateEditor({
   initialTasks,
   initialSessions,
   services,
+  projectRoles,
 }: {
   template: ProjectTemplate;
   initialTasks: TemplateTask[];
   initialSessions: TemplateSession[];
   services: Service[];
+  projectRoles: ProjectRole[];
 }) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
@@ -886,6 +1107,20 @@ export default function EditTemplateEditor({
     defaultDeliveryDays:
       template.defaultDeliveryDays != null ? String(template.defaultDeliveryDays) : "",
   });
+  const [pricingMode, setPricingMode] = useState<"manual" | "rolebased">(
+    template.defaultPricingMode ?? "rolebased"
+  );
+  const [allocation, setAllocation] = useState<TemplateAllocationLine[]>(
+    (template.defaultRoleAllocation ?? []).map((l) => ({
+      roleId: l.roleId,
+      roleName: l.roleName,
+      days: l.days,
+      dayRate: l.dayRate,
+      marginMultiplier: l.marginMultiplier,
+      isExternal: l.isExternal,
+      externalCostRate: l.externalCostRate,
+    }))
+  );
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [tasks, setTasks] = useState<TemplateTask[]>(initialTasks);
@@ -917,6 +1152,8 @@ export default function EditTemplateEditor({
         defaultSoldPrice: form.defaultSoldPrice ? Number(form.defaultSoldPrice) : undefined,
         defaultServiceId: form.defaultServiceId || undefined,
         defaultDeliveryDays: form.defaultDeliveryDays ? Number(form.defaultDeliveryDays) : undefined,
+        defaultPricingMode: pricingMode,
+        defaultRoleAllocation: pricingMode === "rolebased" ? allocation : [],
       }),
     });
 
@@ -978,39 +1215,13 @@ export default function EditTemplateEditor({
             />
           </div>
 
-          <div>
-            <p className="typo-label">
-              Service <span className="text-[var(--danger)]">*</span>
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {services.map((s) => {
-                const selected = form.defaultServiceId === s.id;
-                return (
-                  <button
-                    key={s.id}
-                    type="button"
-                    onClick={() => set("defaultServiceId", s.id)}
-                    className="px-2.5 py-0.5 rounded-full text-xs font-medium border transition-colors"
-                    style={
-                      selected
-                        ? {
-                            background: "var(--primary)",
-                            borderColor: "var(--primary)",
-                            color: "#fff",
-                          }
-                        : {
-                            background: "var(--bg-sidebar)",
-                            borderColor: "var(--border)",
-                            color: "var(--text-secondary)",
-                          }
-                    }
-                  >
-                    {s.name}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+          <ServicePills
+            services={services}
+            selectedId={form.defaultServiceId}
+            onChange={(id) => set("defaultServiceId", id)}
+            label="Service"
+            required
+          />
 
           <div>
             <label className="typo-label">
@@ -1037,25 +1248,6 @@ export default function EditTemplateEditor({
             />
           </div>
 
-          <div className="!mt-9">
-            <p className="typo-section-header mb-3" style={{ color: "var(--text-muted)" }}>
-              Financial information
-            </p>
-            <label className="typo-label">
-              Default sold price (€)
-            </label>
-            <input
-              type="number"
-              min={0}
-              step={1}
-              value={form.defaultSoldPrice}
-              onChange={(e) => set("defaultSoldPrice", e.target.value)}
-              placeholder="e.g. 5000"
-              className={inputClass}
-              style={inputStyle}
-            />
-          </div>
-
           <div>
             <label className="typo-label">
               Delivery — days after creation
@@ -1072,6 +1264,23 @@ export default function EditTemplateEditor({
             />
           </div>
         </form>
+
+        {/* Budget tab */}
+        <div className={tab !== "budget" ? "hidden" : ""}>
+          <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>
+            Defines the pricing model and snapshotted role lines that are copied
+            onto each project created from this template.
+          </p>
+          <TemplateBudgetEditor
+            pricingMode={pricingMode}
+            allocation={allocation}
+            projectRoles={projectRoles}
+            defaultSoldPrice={form.defaultSoldPrice}
+            onPricingModeChange={setPricingMode}
+            onAllocationChange={setAllocation}
+            onDefaultSoldPriceChange={(v) => set("defaultSoldPrice", v)}
+          />
+        </div>
 
         {/* Tasks tab */}
         <div className={tab !== "tasks" ? "hidden" : ""}>

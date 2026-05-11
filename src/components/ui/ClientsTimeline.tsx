@@ -50,7 +50,7 @@ function fmtLong(d: Date): string {
 }
 
 function projectToBar(p: Project, today: Date): GanttBar | null {
-  if (p.status === "completed") return null;
+  if (p.status === "completed" || p.status === "draft") return null;
 
   if (p.kickedOffAt) {
     const start = parseDate(p.kickedOffAt);

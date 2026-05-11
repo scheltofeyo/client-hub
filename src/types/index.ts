@@ -42,6 +42,28 @@ export interface Service {
   createdAt?: string;
 }
 
+export interface ProjectRole {
+  id: string;
+  name: string;
+  dayRate: number;
+  marginMultiplier: number;
+  isExternal: boolean;
+  externalCostRate?: number;
+  rank: number;
+  createdAt?: string;
+}
+
+export interface RoleAllocationLine {
+  roleId: string;
+  roleName: string;
+  days: number;
+  dayRate: number;
+  marginMultiplier: number;
+  isExternal: boolean;
+  externalCostRate?: number;
+  assignedUser?: TaskAssignee;
+}
+
 export interface Contact {
   id: string;
   firstName: string;
@@ -94,17 +116,27 @@ export interface Client {
   folderStatus?: "pending" | "ready";
 }
 
-export type ProjectStatus = "not_started" | "in_progress" | "completed";
+export type ProjectStatus = "draft" | "not_started" | "in_progress" | "completed";
+export type PricingMode = "manual" | "rolebased";
 
 export interface Project {
   id: string;
   clientId: string;
+  planId?: string;
   title: string;
   description?: string;
+  why?: string;
+  how?: string;
+  what?: string;
+  activities?: string;
+  deliverables?: string;
+  hiddenSections?: string[];
   status: ProjectStatus;
   completedDate?: string;
   deliveryDate?: string;
   soldPrice?: number;
+  pricingMode?: PricingMode;
+  roleAllocation?: RoleAllocationLine[];
   templateId?: string;
   serviceId?: string;
   service?: string;
@@ -122,11 +154,38 @@ export interface ProjectTemplate {
   name: string;
   summary?: string;
   defaultDescription?: string;
+  defaultWhy?: string;
+  defaultHow?: string;
+  defaultWhat?: string;
+  defaultActivities?: string;
+  defaultDeliverables?: string;
   defaultSoldPrice?: number;
   defaultServiceId?: string;
   defaultDeliveryDays?: number;
+  defaultPricingMode?: PricingMode;
+  defaultRoleAllocation?: Omit<RoleAllocationLine, "assignedUser">[];
   taskCount?: number;
   createdAt?: string;
+}
+
+export type ProjectPlanStatus = "draft" | "ready" | "accepted" | "archived";
+export type PlanDiscountType = "percentage" | "amount";
+
+export interface ProjectPlan {
+  id: string;
+  clientId: string;
+  title: string;
+  summary?: string;
+  status: ProjectPlanStatus;
+  discountType?: PlanDiscountType;
+  discountValue?: number;
+  vatRate?: number;
+  createdBy: TaskAssignee;
+  acceptedBy?: TaskAssignee;
+  acceptedAt?: string;
+  presentedAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface TemplateTask {
@@ -306,10 +365,20 @@ export interface MyDayFollowUpData {
   signals: LogSignal[];
 }
 
+export interface WhatsNewStep {
+  title: string;
+  description: string;
+}
+
 export interface ReleaseNote {
   date: string;       // YYYY-MM-DD
   title: string;
   details?: string[];
+  whatsNew?: {
+    id: string;                 // stable id used as the seen-tracking key
+    title?: string;             // optional friendlier title for popup + modal; falls back to releaseNote.title
+    steps: WhatsNewStep[];      // expected: 3 steps
+  };
 }
 
 // ── Team / Holiday Calendar ─────────────────────────────────────────

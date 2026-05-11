@@ -394,6 +394,7 @@ export function SubtaskRow({
   readOnly,
   canEdit = true,
   canDelete = true,
+  canComplete = true,
   today: todayProp,
   isDraggable,
   isDragOver,
@@ -412,6 +413,8 @@ export function SubtaskRow({
   readOnly?: boolean;
   canEdit?: boolean;
   canDelete?: boolean;
+  /** When false, the completion checkbox is visually disabled and does not toggle. Defaults to true. */
+  canComplete?: boolean;
   today?: string;
   isDraggable?: boolean;
   isDragOver?: boolean;
@@ -431,7 +434,7 @@ export function SubtaskRow({
   const today = todayProp ?? new Date().toISOString().slice(0, 10);
   const isOverdue = !isDone && !!task.completionDate && task.completionDate < today;
   // Follow-up tasks (logId set) can be checked off by anyone, not just the creator/assignee.
-  const canToggleComplete = canEdit || !!task.logId;
+  const canToggleComplete = canComplete && (canEdit || !!task.logId);
 
   const handleDragStart = useCallback((e: React.DragEvent) => {
     if (!dragFromHandle.current) {
@@ -490,8 +493,10 @@ export function SubtaskRow({
         style={{
           borderColor: isDone ? "var(--primary-light)" : "var(--border)",
           background: isDone ? "var(--primary-light)" : "transparent",
-          cursor: canToggleComplete ? "pointer" : "default",
+          cursor: canToggleComplete ? "pointer" : "not-allowed",
+          opacity: canComplete ? 1 : 0.5,
         }}
+        aria-disabled={!canComplete}
       >
         {isDone && <Check size={14} color="var(--primary)" strokeWidth={3} />}
       </button>
@@ -587,6 +592,7 @@ export function TaskRow({
   readOnly,
   canEdit = true,
   canDelete = true,
+  canComplete = true,
   titlePrefix,
   displayTitle,
   onViewInLogbook,
@@ -617,6 +623,8 @@ export function TaskRow({
   readOnly?: boolean;
   canEdit?: boolean;
   canDelete?: boolean;
+  /** When false, the completion checkbox (and any subtask checkboxes) are visually disabled and do not toggle. Defaults to true. */
+  canComplete?: boolean;
   titlePrefix?: string;
   displayTitle?: string;
   onViewInLogbook?: () => void;
@@ -646,7 +654,7 @@ export function TaskRow({
   const today = todayProp ?? new Date().toISOString().slice(0, 10);
   const isOverdue = !isDone && !!task.completionDate && task.completionDate < today;
   // Follow-up tasks (logId set) can be checked off by anyone, not just the creator/assignee.
-  const canToggleComplete = canEdit || !!task.logId;
+  const canToggleComplete = canComplete && (canEdit || !!task.logId);
   const hasOverdueSubtask = subtasks.some(
     (s) => !s.completedAt && !!s.completionDate && s.completionDate < today
   );
@@ -744,8 +752,10 @@ export function TaskRow({
             style={{
               borderColor: isDone ? "var(--primary-light)" : "var(--border)",
               background: isDone ? "var(--primary-light)" : "transparent",
-              cursor: canToggleComplete ? "pointer" : "default",
+              cursor: canToggleComplete ? "pointer" : canComplete ? "default" : "not-allowed",
+              opacity: canComplete ? 1 : 0.5,
             }}
+            aria-disabled={!canComplete}
             aria-label={isDone ? "Mark incomplete" : "Mark complete"}
           >
             {isDone && <Check size={14} color="var(--primary)" strokeWidth={3} />}
@@ -910,6 +920,7 @@ export function TaskRow({
                 readOnly={readOnly}
                 canEdit={canEdit}
                 canDelete={canDelete}
+                canComplete={canComplete}
                 today={today}
                 isDraggable={!readOnly && !sub.completedAt}
                 isDragOver={dragOverId === sub.id}
@@ -954,6 +965,7 @@ export function TaskRow({
               readOnly={readOnly}
               canEdit={canEdit}
               canDelete={canDelete}
+              canComplete={canComplete}
               today={today}
             />
           ))}

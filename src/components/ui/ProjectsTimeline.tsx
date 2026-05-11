@@ -38,6 +38,7 @@ function topVariant(bars: GanttBar[]): GanttVariant {
 
 /** Determine which section a project belongs to. */
 function projectSection(p: Project): "current" | "upcoming" | "completed" | null {
+  if (p.status === "draft") return null;
   if (p.status === "completed" && p.kickedOffAt && p.completedDate) return "completed";
   if (p.kickedOffAt) return "current";
   if (p.scheduledStartDate && p.scheduledEndDate) return "upcoming";

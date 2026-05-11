@@ -9,8 +9,8 @@ import { recordActivity } from "@/lib/activity";
 
 async function recalcProjectStatus(projectId: string) {
   const project = await ProjectModel.findById(projectId).lean();
-  // Skip recalculation for upcoming (not-yet-kicked-off) projects
-  if (!project?.kickedOffAt) return;
+  // Skip recalculation for draft (in-plan) or upcoming (not-yet-kicked-off) projects
+  if (!project || project.status === "draft" || !project.kickedOffAt) return;
 
   const allTasks = await TaskModel.find({ projectId }).lean();
   const completedCount = allTasks.filter((t) => !!t.completedAt).length;
@@ -51,6 +51,15 @@ export async function PATCH(
 
   const existing = await TaskModel.findById(taskId).lean();
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  // Tasks attached to a draft (in-plan) project cannot be completed/uncompleted.
+  // Other field edits (title/description/assignees/completionDate) are allowed.
+  if (existing.projectId && completed !== undefined) {
+    const projectStatus = (await ProjectModel.findById(existing.projectId, { status: 1 }).lean())?.status;
+    if (projectStatus === "draft") {
+      return NextResponse.json({ error: "Tasks in draft project plans cannot be completed" }, { status: 400 });
+    }
+  }
 
   const canEditAny = hasPermission(session, "tasks.editAny");
   const canEditOwn = hasPermissionOrIsCreator(session, "tasks.editOwn", existing.createdById ?? "");
@@ -108,6 +117,13 @@ export async function PATCH(
     await recalcProjectStatus(doc.projectId);
   }
 
+  // Determine if this task lives under a draft project — skip activity if so.
+  let parentIsDraft = false;
+  if (doc.projectId) {
+    const parent = await ProjectModel.findById(doc.projectId, { status: 1 }).lean();
+    parentIsDraft = parent?.status === "draft";
+  }
+
   // Sync log follow-up status when this is a derived follow-up task
   if ((completed === true || completed === false) && doc.logId) {
     if (completed === true) {
@@ -124,25 +140,27 @@ export async function PATCH(
     }
   }
 
-  if (completed === true) {
-    await recordActivity({
-      clientId,
-      actorId: session.user.id,
-      actorName: session.user.name ?? "Unknown",
-      type: "task.completed",
-      metadata: { projectId: doc.projectId, title: doc.title },
-    });
-  } else {
-    const trackFields = ["title", "description", "assignees", "completionDate"] as const;
-    const updatedFields = trackFields.filter((f) => body[f] !== undefined);
-    if (updatedFields.length > 0) {
+  if (!parentIsDraft) {
+    if (completed === true) {
       await recordActivity({
         clientId,
         actorId: session.user.id,
         actorName: session.user.name ?? "Unknown",
-        type: "task.updated",
-        metadata: { projectId: doc.projectId, title: doc.title, fields: updatedFields },
+        type: "task.completed",
+        metadata: { projectId: doc.projectId, title: doc.title },
       });
+    } else {
+      const trackFields = ["title", "description", "assignees", "completionDate"] as const;
+      const updatedFields = trackFields.filter((f) => body[f] !== undefined);
+      if (updatedFields.length > 0) {
+        await recordActivity({
+          clientId,
+          actorId: session.user.id,
+          actorName: session.user.name ?? "Unknown",
+          type: "task.updated",
+          metadata: { projectId: doc.projectId, title: doc.title, fields: updatedFields },
+        });
+      }
     }
   }
 
@@ -193,17 +211,22 @@ export async function DELETE(
 
   await TaskModel.deleteMany({ parentTaskId: taskId });
 
+  let parentIsDraft = false;
   if (doc.projectId) {
+    const parent = await ProjectModel.findById(doc.projectId, { status: 1 }).lean();
+    parentIsDraft = parent?.status === "draft";
     await recalcProjectStatus(doc.projectId);
   }
 
-  await recordActivity({
-    clientId,
-    actorId: session.user.id,
-    actorName: session.user.name ?? "Unknown",
-    type: "task.deleted",
-    metadata: { projectId: doc.projectId, title: doc.title },
-  });
+  if (!parentIsDraft) {
+    await recordActivity({
+      clientId,
+      actorId: session.user.id,
+      actorName: session.user.name ?? "Unknown",
+      type: "task.deleted",
+      metadata: { projectId: doc.projectId, title: doc.title },
+    });
+  }
 
   return NextResponse.json({ success: true });
 }
