@@ -386,7 +386,7 @@ function ClientsTabNav({ activeTab, isAdmin }: { activeTab: string; isAdmin: boo
       {tabs.map(({ value, label, href }) => {
         const active = activeTab === value;
         return (
-          <Link
+          <TabNavLink
             key={value}
             href={href}
             className="px-1 py-3 mr-5 text-sm font-medium border-b-2 transition-colors"
@@ -396,7 +396,7 @@ function ClientsTabNav({ activeTab, isAdmin }: { activeTab: string; isAdmin: boo
             }}
           >
             {label}
-          </Link>
+          </TabNavLink>
         );
       })}
     </div>
@@ -489,7 +489,7 @@ export default function ClientsPageClient({
       <div className="px-8 py-6">
         {isOverview ? (
           <div className="space-y-6">
-            <ClientsTimeline clients={clients} projectsByClient={projectsByClient} pxPerDay={12} />
+            <ClientsTimeline clients={clients} projectsByClient={projectsByClient} pxPerDay={12} defaultSectionsCollapsed />
             <ClientsOverviewTable rows={overviewRows} statusOptions={statuses} />
           </div>
         ) : (

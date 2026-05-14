@@ -232,7 +232,7 @@ function RightPane(props: SurveyEditorShellProps) {
     case "section": {
       const section = props.sections.find((s) => s.id === selected.id);
       if (!section) return <EmptyState text="Section not found. Pick another item from the outline." />;
-      return <SectionView {...props} section={section} />;
+      return <SectionView key={section.id} {...props} section={section} />;
     }
     case "question": {
       const section = props.sections.find((s) => s.id === selected.sectionId);
@@ -244,7 +244,7 @@ function RightPane(props: SurveyEditorShellProps) {
     case "comparison": {
       const comparison = props.comparisons.find((c) => c.id === selected.id);
       if (!comparison) return <EmptyState text="Comparison not found." />;
-      return <ComparisonView {...props} comparison={comparison} />;
+      return <ComparisonView key={comparison.id} {...props} comparison={comparison} />;
     }
     default:
       return <EmptyState text="Pick something from the outline to start editing." />;

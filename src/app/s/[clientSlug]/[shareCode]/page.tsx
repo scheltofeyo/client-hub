@@ -85,6 +85,25 @@ function rankingItemIds(q: PublicQuestion): string[] {
   return [];
 }
 
+// Per-question time estimates in seconds. Used to compute the "≈ X minutes"
+// label on the welcome screen. Tuned for typical participants — not exact.
+function estimateQuestionSeconds(q: PublicQuestion): number {
+  switch (q.type) {
+    case "intro":
+      return 0;
+    case "multiple-choice":
+      return q.choiceMode === "multi" ? 30 : 20;
+    case "archetype-ranking":
+      return 15 + (q.options?.length ?? 0) * 6;
+    case "general-ranking":
+      return 15 + (q.rankingItems?.length ?? 0) * 6;
+    case "open-text":
+      return q.multiline ? 90 : 40;
+    default:
+      return 25;
+  }
+}
+
 type Screen =
   | { kind: "identity" }
   | { kind: "section-intro"; sectionId: string; sectionIndex: number; totalSections: number }
@@ -242,6 +261,17 @@ export default function PublicSurveyPage() {
     }
     if (closingEnabled) n++;
     return n;
+  }, [sections, closingEnabled]);
+
+  const estimatedMinutes = useMemo(() => {
+    let seconds = 0;
+    for (const s of sections) {
+      for (const q of s.questions ?? []) {
+        seconds += estimateQuestionSeconds(q);
+      }
+    }
+    if (closingEnabled) seconds += 90;
+    return Math.max(1, Math.round(seconds / 60));
   }, [sections, closingEnabled]);
 
   async function handleIdentify() {
@@ -505,43 +535,6 @@ export default function PublicSurveyPage() {
               {t(locale, "identify.subline")}
             </p>
 
-            {/* Stats card — friendly footprint */}
-            {totalQuestions > 0 && (
-              <div
-                className="mt-7 inline-flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 rounded-card"
-                style={{
-                  background: "var(--bg-surface)",
-                  border: "1px solid var(--border)",
-                }}
-              >
-                <span
-                  className="inline-flex items-center justify-center w-9 h-9 rounded-full font-bold tabular-nums text-[15px]"
-                  style={{
-                    background: "var(--primary-light)",
-                    color: "var(--primary)",
-                  }}
-                >
-                  {totalQuestions}
-                </span>
-                <span
-                  className="text-[14px] sm:text-[15px]"
-                  style={{ color: "var(--text-primary)", lineHeight: 1.45 }}
-                >
-                  {totalQuestions === 1
-                    ? t(locale, "identify.statsLineOne")
-                    : t(locale, "identify.statsLine", {
-                        n: totalQuestions,
-                        min: Math.max(1, Math.round(totalQuestions * 0.5)),
-                      })}
-                  <span
-                    className="block text-[12px] sm:text-[13px] mt-0.5"
-                    style={{ color: "var(--text-muted)" }}
-                  >
-                    {t(locale, "identify.reassure")}
-                  </span>
-                </span>
-              </div>
-            )}
           </div>
 
           {/* Form */}
@@ -554,6 +547,19 @@ export default function PublicSurveyPage() {
               placeholder={t(locale, "identify.emailPlaceholder")}
               autoFocus
             />
+            {totalQuestions > 0 && (
+              <p
+                className="text-[14px] sm:text-[15px]"
+                style={{ color: "var(--text-muted)" }}
+              >
+                {totalQuestions === 1
+                  ? t(locale, "identify.statsLineOne")
+                  : t(locale, "identify.statsLine", {
+                      n: totalQuestions,
+                      min: estimatedMinutes,
+                    })}
+              </p>
+            )}
           </div>
         </div>
       );

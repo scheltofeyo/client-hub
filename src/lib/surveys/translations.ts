@@ -19,10 +19,6 @@ const translations = {
     nl: "1 vraag · slechts een momentje",
     en: "1 question · just a moment",
   },
-  "identify.reassure": {
-    nl: "Niemand ziet jouw individuele antwoorden — alleen de totalen tellen mee.",
-    en: "Nobody sees your individual responses — only the totals count.",
-  },
   "identify.nameLabel": { nl: "Je naam", en: "Your name" },
   "identify.namePlaceholder": { nl: "Bijv. Sam de Vries", en: "e.g. Sam Brown" },
   "identify.emailLabel": { nl: "Je e-mailadres", en: "Your email" },

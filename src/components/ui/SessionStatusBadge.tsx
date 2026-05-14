@@ -39,28 +39,29 @@ export function SessionStatusFilterChips({
   active: string[];
   onToggle: (status: string) => void;
 }) {
-  const visible = SESSION_STATUS_FILTER_ORDER.filter((s) => (counts[s] ?? 0) > 0);
-  if (visible.length === 0) return null;
   return (
     <div className="flex items-center gap-2 mb-4">
-      {visible.map((status) => {
+      {SESSION_STATUS_FILTER_ORDER.map((status) => {
         const cfg = SESSION_STATUS_CONFIG[status];
-        const isActive = active.includes(status);
         const count = counts[status] ?? 0;
+        const disabled = count === 0;
+        const isActive = active.includes(status) && !disabled;
         return (
           <button
             key={status}
+            type="button"
+            disabled={disabled}
             onClick={() => onToggle(status)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-button text-sm font-medium transition-colors"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-button text-sm font-medium transition-colors disabled:cursor-not-allowed"
             style={{
               background: isActive ? "var(--primary-light)" : "var(--bg-hover)",
               color: isActive ? "var(--primary)" : "var(--text-muted)",
               border: isActive ? "1px solid var(--primary)" : "1px solid transparent",
-              opacity: isActive ? 1 : 0.8,
+              opacity: disabled ? 0.4 : isActive ? 1 : 0.8,
             }}
           >
             {cfg.label}
-            <span className="text-xs" style={{ opacity: 0.6 }}>{count}</span>
+            <span className="text-xs tabular-nums" style={{ opacity: 0.6 }}>{count}</span>
           </button>
         );
       })}

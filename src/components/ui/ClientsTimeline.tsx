@@ -31,6 +31,8 @@ interface Props {
   title?: string;
   /** Whether the timeline can be collapsed. Default: true. */
   collapsible?: boolean;
+  /** Start each client section collapsed (showing summary bars only). Default: false. */
+  defaultSectionsCollapsed?: boolean;
   /** Render the title/collapse header above the timeline. Default: true. */
   showHeader?: boolean;
 }
@@ -88,7 +90,8 @@ function topVariant(bars: GanttBar[]): GanttVariant {
 function buildClientSections(
   clients: Client[],
   projectsByClient: Record<string, Project[]>,
-  today: Date
+  today: Date,
+  defaultCollapsed: boolean
 ): GanttSection[] {
   const sections: GanttSection[] = [];
 
@@ -142,7 +145,7 @@ function buildClientSections(
       key: client.id,
       label: client.company,
       rows,
-      defaultCollapsed: false,
+      defaultCollapsed,
       summaryBars,
       icon: <ClientIcon company={client.company} primaryColor={client.primaryColor} />,
     });
@@ -159,7 +162,7 @@ function buildClientSections(
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function ClientsTimeline({ clients, projectsByClient, pxPerDay, title = "Timeline", collapsible = true, showHeader = true }: Props) {
+export default function ClientsTimeline({ clients, projectsByClient, pxPerDay, title = "Timeline", collapsible = true, defaultSectionsCollapsed = false, showHeader = true }: Props) {
   const router = useRouter();
 
   const today = useMemo(() => {
@@ -169,8 +172,8 @@ export default function ClientsTimeline({ clients, projectsByClient, pxPerDay, t
   }, []);
 
   const sections = useMemo(
-    () => buildClientSections(clients, projectsByClient, today),
-    [clients, projectsByClient, today]
+    () => buildClientSections(clients, projectsByClient, today, defaultSectionsCollapsed),
+    [clients, projectsByClient, today, defaultSectionsCollapsed]
   );
 
   // Build a flat lookup: projectId → { project, clientId }

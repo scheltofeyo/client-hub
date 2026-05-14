@@ -68,8 +68,11 @@ export default function ArchetypeAsIsSurveyListPage() {
   }, {});
 
   return (
-    <div className="flex-1 overflow-y-auto">
-      <div className="px-7 pt-6 pb-5 shrink-0">
+    <div className="flex-1 overflow-y-auto" style={{ background: "var(--bg-tinted)" }}>
+      <div
+        className="sticky top-0 z-20 px-7 pt-6 pb-5 shrink-0 border-b"
+        style={{ background: "var(--bg-surface)", borderColor: "var(--border)" }}
+      >
         <nav className="flex items-center gap-1.5 mb-2 text-xs" style={{ color: "var(--text-muted)" }}>
           <Link href="/tools" className="hover:underline">Tools</Link>
           <span>/</span>
@@ -92,7 +95,7 @@ export default function ArchetypeAsIsSurveyListPage() {
         </div>
       </div>
 
-      <div className="px-7 pb-7">
+      <div className="px-7 pb-7 pt-6">
         {sessions.length > 0 && (
           <SessionStatusFilterChips
             counts={statusCounts}
@@ -100,7 +103,6 @@ export default function ArchetypeAsIsSurveyListPage() {
             onToggle={toggleFilter}
           />
         )}
-
         {loading ? (
           <div className="flex justify-center py-16">
             <div className="w-8 h-8 border-2 rounded-full animate-spin" style={{ borderColor: "var(--primary)", borderTopColor: "transparent" }} />

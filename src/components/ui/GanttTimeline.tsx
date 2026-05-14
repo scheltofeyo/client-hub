@@ -60,6 +60,7 @@ const MS_PER_DAY = 1000 * 60 * 60 * 24;
 const STYLES = {
   outerWrapper: {
     borderColor: "var(--border)",
+    background: "var(--bg-surface)",
     overflow: "clip" as const,
     width: "100%",
     maxWidth: "100%",

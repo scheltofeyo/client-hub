@@ -28,10 +28,22 @@ export default function NewSurveyPage() {
   const [clientId, setClientId] = useState("");
   const [templateId, setTemplateId] = useState("");
   const [title, setTitle] = useState("");
+  const [titleManuallyEdited, setTitleManuallyEdited] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const isFromScratch = templateId === FROM_SCRATCH;
+
+  useEffect(() => {
+    if (titleManuallyEdited) return;
+    if (!templateId) return;
+    if (isFromScratch) {
+      setTitle("");
+      return;
+    }
+    const tmpl = templates.find((t) => t.id === templateId);
+    if (tmpl) setTitle(tmpl.name);
+  }, [templateId, isFromScratch, templates, titleManuallyEdited]);
 
   useEffect(() => {
     Promise.all([
@@ -206,7 +218,10 @@ export default function NewSurveyPage() {
               <input
                 type="text"
                 value={title}
-                onChange={(e) => setTitle(e.target.value)}
+                onChange={(e) => {
+                  setTitle(e.target.value);
+                  setTitleManuallyEdited(true);
+                }}
                 placeholder="e.g. Culture survey 2026"
                 className="w-full px-3 py-2 rounded-button border text-sm"
                 style={{ borderColor: "var(--border)", background: "var(--bg-surface)", color: "var(--text-primary)" }}

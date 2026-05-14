@@ -355,8 +355,7 @@ export default function SurveyDetailPage() {
       {tab === "algemeen" && (
       <div
         style={{
-          background:
-            "color-mix(in srgb, var(--primary-light) 30%, var(--bg-surface))",
+          background: "var(--bg-tinted)",
           minHeight: `calc(100vh - ${headerHeight}px)`,
         }}
         className="px-7 py-6"

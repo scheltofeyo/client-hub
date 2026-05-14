@@ -210,7 +210,7 @@ function CompletedSection({
       <h3 className="typo-section-header" style={{ color: "var(--text-muted)" }}>
         Completed
       </h3>
-      <div className="rounded-xl border overflow-hidden" style={{ borderColor: "var(--border)" }}>
+      <div className="rounded-xl border overflow-hidden" style={{ borderColor: "var(--border)", background: "var(--bg-surface)" }}>
         <div className="grid grid-cols-4 px-4 py-2.5 text-xs font-medium" style={{ borderBottom: "1px solid var(--border)", background: "var(--bg-surface)", color: "var(--text-muted)" }}>
           <span>Project</span>
           <span>Created</span>

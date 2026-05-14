@@ -1,5 +1,35 @@
 [
   {
+    "date": "2026-05-15",
+    "title": "Survey editor: sectie-titel veld toont nu de juiste titel bij wisselen van sectie"
+  },
+  {
+    "date": "2026-05-15",
+    "title": "Nieuwe survey-sessie: session title wordt automatisch ingevuld vanuit de gekozen template (overschrijfbaar)"
+  },
+  {
+    "date": "2026-05-15",
+    "title": "Tools / Ranking & Surveys: sticky header met divider, status-filters boven de lijst",
+    "details": [
+      "Alle statussen (Open, Draft, Closed, Archived) zijn nu altijd zichtbaar — statussen zonder sessies worden disabled getoond"
+    ]
+  },
+  {
+    "date": "2026-05-15",
+    "title": "Dark mode: primary knop nu verzadigd paars met witte tekst (was zacht violet — slecht leesbaar)",
+    "details": [
+      "Tools / Surveys gebruikt nu dezelfde getinte achtergrond als de client-dashboardpagina's"
+    ]
+  },
+  {
+    "date": "2026-05-15",
+    "title": "Survey welkomstscherm toont nu een realistischere tijdschatting",
+    "details": [
+      "Tijdschatting houdt rekening met het vraagtype: multiple-choice (single/multi), ranking (per item), open vraag (kort/lang) en de optionele afsluitende open vraag",
+      "Eerder werd er simpelweg 30 seconden per vraag gerekend"
+    ]
+  },
+  {
     "date": "2026-05-14",
     "title": "Surveys — bouw je eigen vragenlijsten, deel ze met je klant en lees de resultaten in één oogopslag",
     "details": [
