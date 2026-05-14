@@ -463,9 +463,12 @@ export default function ClientsPageClient({
     : false;
 
   return (
-    <div className="flex-1 overflow-y-auto">
+    <div className="flex-1 overflow-y-auto" style={{ background: "var(--bg-tinted)" }}>
       {/* Header */}
-      <div className="px-8 pt-8 pb-0">
+      <div
+        className="sticky top-0 z-20 px-8 pt-8 pb-0"
+        style={{ background: "var(--bg-surface)" }}
+      >
         <div className="flex items-center justify-between">
           <div>
             <h1 className="typo-page-title" style={{ color: "var(--text-primary)" }}>

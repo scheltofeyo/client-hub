@@ -492,7 +492,7 @@ export function SubtaskRow({
         className="flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors"
         style={{
           borderColor: isDone ? "var(--primary-light)" : "var(--border)",
-          background: isDone ? "var(--primary-light)" : "transparent",
+          background: "var(--bg-surface)",
           cursor: canToggleComplete ? "pointer" : "not-allowed",
           opacity: canComplete ? 1 : 0.5,
         }}
@@ -751,7 +751,7 @@ export function TaskRow({
             className="flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors"
             style={{
               borderColor: isDone ? "var(--primary-light)" : "var(--border)",
-              background: isDone ? "var(--primary-light)" : "transparent",
+              background: "var(--bg-surface)",
               cursor: canToggleComplete ? "pointer" : canComplete ? "default" : "not-allowed",
               opacity: canComplete ? 1 : 0.5,
             }}

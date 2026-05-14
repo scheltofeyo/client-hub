@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSession } from "next-auth/react";
-import { CalendarDays, ListOrdered, Dices, Mail } from "lucide-react";
+import { CalendarDays, ListOrdered, Dices, Mail, ClipboardList } from "lucide-react";
 import PageHeader from "@/components/layout/PageHeader";
 
 const categories = [
@@ -36,6 +36,13 @@ const categories = [
         requires: "tools.ranking.access",
       },
       {
+        href: "/tools/surveys",
+        label: "Surveys",
+        description: "Build, share, and analyze surveys — ranking, multiple-choice, open text and gap analysis.",
+        icon: ClipboardList,
+        requires: "tools.surveys.access",
+      },
+      {
         href: "/tools/spin-the-wheel",
         label: "Spin the Wheel",
         description: "Randomly select participants using a spinning wheel or slot machine.",
@@ -60,7 +67,10 @@ export default function ToolsPage() {
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <PageHeader breadcrumbs={[{ label: "Tools" }]} title="Tools" />
-      <div className="flex-1 overflow-y-auto px-7 pb-7 pt-6">
+      <div
+        className="flex-1 overflow-y-auto px-7 pb-7 pt-6"
+        style={{ background: "var(--bg-tinted)" }}
+      >
         {visibleCategories.length === 0 ? (
           <p className="text-sm" style={{ color: "var(--text-muted)" }}>
             No tools available. Contact an admin to get access.

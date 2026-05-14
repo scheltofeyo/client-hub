@@ -6,7 +6,7 @@ import { RankingSessionModel } from "@/lib/models/RankingSession";
 import { RankingSubmissionModel } from "@/lib/models/RankingSubmission";
 import { ClientModel } from "@/lib/models/Client";
 import { UserModel } from "@/lib/models/User";
-import { generateShareCode } from "@/lib/ranking/shareCode";
+import { ensureUniqueShareCode } from "@/lib/share-codes";
 
 export async function GET() {
   const session = await auth();
@@ -92,16 +92,9 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Generate unique share code
-  let shareCode = generateShareCode();
-  let attempts = 0;
-  while (await RankingSessionModel.exists({ shareCode })) {
-    shareCode = generateShareCode();
-    attempts++;
-    if (attempts > 10) {
-      return NextResponse.json({ error: "Could not generate unique share code" }, { status: 500 });
-    }
-  }
+  const shareCode = await ensureUniqueShareCode((code) =>
+    RankingSessionModel.exists({ shareCode: code })
+  );
 
   const doc = await RankingSessionModel.create({
     clientId,

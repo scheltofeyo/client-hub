@@ -14,14 +14,24 @@ const inputStyle = {
   color: "var(--text-primary)",
 };
 
-function AddArchetypeForm({
-  onCreated,
+const COLOR_PRESETS = [
+  "#7C3AED", "#EF4444", "#3B82F6", "#10B981", "#F59E0B",
+  "#EC4899", "#6366F1", "#14B8A6", "#F97316", "#84CC16",
+];
+
+function ArchetypeForm({
+  initial,
+  onSaved,
   onClose,
 }: {
-  onCreated: (a: Archetype) => void;
+  initial?: Archetype;
+  onSaved: (a: Archetype) => void;
   onClose: () => void;
 }) {
-  const [name, setName] = useState("");
+  const isEdit = !!initial;
+  const [name, setName] = useState(initial?.name ?? "");
+  const [color, setColor] = useState(initial?.color ?? COLOR_PRESETS[0]);
+  const [description, setDescription] = useState(initial?.description ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const router = useRouter();
@@ -29,19 +39,20 @@ function AddArchetypeForm({
   async function handleSubmit() {
     setSaving(true);
     setError("");
-    const res = await fetch("/api/archetypes", {
-      method: "POST",
+    const url = isEdit ? `/api/archetypes/${initial!.id}` : "/api/archetypes";
+    const res = await fetch(url, {
+      method: isEdit ? "PATCH" : "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({ name: name.trim(), color, description: description.trim() }),
     });
     setSaving(false);
     if (!res.ok) {
-      const d = await res.json();
-      setError(d.error ?? "Failed to create archetype");
+      const d = await res.json().catch(() => ({}));
+      setError(d.error ?? "Failed to save");
       return;
     }
-    const created: Archetype = await res.json();
-    onCreated(created);
+    const saved: Archetype = await res.json();
+    onSaved(saved);
     router.refresh();
     onClose();
   }
@@ -58,10 +69,60 @@ function AddArchetypeForm({
           value={name}
           onChange={(e) => setName(e.target.value)}
           autoFocus
-          placeholder="e.g. Enterprise"
+          placeholder="e.g. Achievement"
           className={inputClass}
           style={inputStyle}
         />
+      </div>
+      <div>
+        <label className="typo-label">Color</label>
+        <div className="flex items-center gap-2">
+          <input
+            type="color"
+            value={color}
+            onChange={(e) => setColor(e.target.value)}
+            className="h-9 w-12 rounded-lg border cursor-pointer"
+            style={{ borderColor: "var(--border)" }}
+          />
+          <input
+            type="text"
+            value={color}
+            onChange={(e) => setColor(e.target.value)}
+            placeholder="#RRGGBB"
+            className={inputClass}
+            style={{ ...inputStyle, maxWidth: 140 }}
+          />
+        </div>
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {COLOR_PRESETS.map((c) => (
+            <button
+              key={c}
+              type="button"
+              onClick={() => setColor(c)}
+              className="h-6 w-6 rounded-full border-2 transition-transform hover:scale-110"
+              style={{
+                background: c,
+                borderColor: color.toLowerCase() === c.toLowerCase() ? "var(--text-primary)" : "transparent",
+              }}
+              title={c}
+            />
+          ))}
+        </div>
+      </div>
+      <div>
+        <label className="typo-label">Description (optional)</label>
+        <textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          rows={3}
+          maxLength={280}
+          placeholder="Short description, max 280 characters"
+          className={inputClass}
+          style={inputStyle}
+        />
+        <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+          {description.length}/280
+        </p>
       </div>
       <div className="flex gap-2 pt-2">
         <button
@@ -71,7 +132,7 @@ function AddArchetypeForm({
           className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50 btn-primary"
         >
           <Check size={13} />
-          {saving ? "Saving…" : "Save archetype"}
+          {saving ? "Saving…" : isEdit ? "Save changes" : "Save archetype"}
         </button>
         <button
           type="button"
@@ -92,9 +153,6 @@ export default function AdminArchetypesTable({
   initialArchetypes: Archetype[];
 }) {
   const [archetypes, setArchetypes] = useState(initialArchetypes);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editingName, setEditingName] = useState("");
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const router = useRouter();
   const { openPanel, closePanel } = useRightPanel();
@@ -102,8 +160,21 @@ export default function AdminArchetypesTable({
   function openAddPanel() {
     openPanel(
       "New archetype",
-      <AddArchetypeForm
-        onCreated={(a) => setArchetypes((prev) => [...prev, a])}
+      <ArchetypeForm
+        onSaved={(a) => setArchetypes((prev) => [...prev, a])}
+        onClose={closePanel}
+      />
+    );
+  }
+
+  function openEditPanel(a: Archetype) {
+    openPanel(
+      `Edit ${a.name}`,
+      <ArchetypeForm
+        initial={a}
+        onSaved={(saved) =>
+          setArchetypes((prev) => prev.map((x) => (x.id === saved.id ? { ...x, ...saved } : x)))
+        }
         onClose={closePanel}
       />
     );
@@ -122,36 +193,14 @@ export default function AdminArchetypesTable({
     router.refresh();
   }
 
-  function startEdit(a: Archetype) {
-    setEditingId(a.id);
-    setEditingName(a.name);
-    setError("");
-  }
-
-  async function handleUpdate(id: string) {
-    setSaving(true);
-    setError("");
-    const res = await fetch(`/api/archetypes/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: editingName }),
-    });
-    setSaving(false);
-    if (!res.ok) {
-      const d = await res.json();
-      setError(d.error ?? "Failed to update");
-      return;
-    }
-    const updated: Archetype = await res.json();
-    setArchetypes((prev) => prev.map((a) => (a.id === id ? { ...a, ...updated } : a)));
-    setEditingId(null);
-    router.refresh();
-  }
-
   async function handleDelete(id: string, name: string) {
     if (!confirm(`Delete archetype "${name}"? This cannot be undone.`)) return;
     const res = await fetch(`/api/archetypes/${id}`, { method: "DELETE" });
-    if (!res.ok) return;
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      setError(d.error ?? "Failed to delete");
+      return;
+    }
     setArchetypes((prev) => prev.filter((a) => a.id !== id));
     router.refresh();
   }
@@ -166,73 +215,57 @@ export default function AdminArchetypesTable({
           className="rounded-xl border p-4"
           style={{ borderColor: "var(--border)", background: "var(--bg-sidebar)" }}
         >
-          {editingId === a.id ? (
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                value={editingName}
-                onChange={(e) => setEditingName(e.target.value)}
-                autoFocus
-                className={inputClass}
-                style={inputStyle}
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-start gap-3 min-w-0">
+              <span
+                className="mt-0.5 h-6 w-6 rounded-full shrink-0 border"
+                style={{ background: a.color, borderColor: "var(--border)" }}
+                title={a.color}
               />
-              <button
-                type="button"
-                disabled={saving || !editingName.trim()}
-                onClick={() => handleUpdate(a.id)}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium disabled:opacity-50 btn-primary shrink-0"
-              >
-                <Check size={13} />
-                {saving ? "Saving…" : "Save"}
-              </button>
-              <button
-                type="button"
-                onClick={() => setEditingId(null)}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm btn-ghost shrink-0"
-              >
-                <X size={13} />
-                Cancel
-              </button>
-            </div>
-          ) : (
-            <div className="flex items-center justify-between gap-4">
-              <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
-                {a.name}
-              </p>
-              <div className="flex gap-1 shrink-0">
-                <button
-                  onClick={() => move(i, -1)}
-                  disabled={i === 0}
-                  className="p-1.5 rounded-md btn-icon disabled:opacity-30"
-                  title="Move up"
-                >
-                  <ChevronUp size={13} />
-                </button>
-                <button
-                  onClick={() => move(i, 1)}
-                  disabled={i === archetypes.length - 1}
-                  className="p-1.5 rounded-md btn-icon disabled:opacity-30"
-                  title="Move down"
-                >
-                  <ChevronDown size={13} />
-                </button>
-                <button
-                  onClick={() => startEdit(a)}
-                  className="p-1.5 rounded-md btn-icon"
-                  title="Edit archetype"
-                >
-                  <Pencil size={13} />
-                </button>
-                <button
-                  onClick={() => handleDelete(a.id, a.name)}
-                  className="p-1.5 rounded-md btn-icon text-[var(--danger)] hover:bg-[var(--danger-light)]"
-                  title="Delete archetype"
-                >
-                  <Trash2 size={13} />
-                </button>
+              <div className="min-w-0">
+                <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
+                  {a.name}
+                </p>
+                {a.description && (
+                  <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+                    {a.description}
+                  </p>
+                )}
               </div>
             </div>
-          )}
+            <div className="flex gap-1 shrink-0">
+              <button
+                onClick={() => move(i, -1)}
+                disabled={i === 0}
+                className="p-1.5 rounded-md btn-icon disabled:opacity-30"
+                title="Move up"
+              >
+                <ChevronUp size={13} />
+              </button>
+              <button
+                onClick={() => move(i, 1)}
+                disabled={i === archetypes.length - 1}
+                className="p-1.5 rounded-md btn-icon disabled:opacity-30"
+                title="Move down"
+              >
+                <ChevronDown size={13} />
+              </button>
+              <button
+                onClick={() => openEditPanel(a)}
+                className="p-1.5 rounded-md btn-icon"
+                title="Edit archetype"
+              >
+                <Pencil size={13} />
+              </button>
+              <button
+                onClick={() => handleDelete(a.id, a.name)}
+                className="p-1.5 rounded-md btn-icon text-[var(--danger)] hover:bg-[var(--danger-light)]"
+                title="Delete archetype"
+              >
+                <Trash2 size={13} />
+              </button>
+            </div>
+          </div>
         </div>
       ))}
 

@@ -175,6 +175,8 @@ export async function getArchetypes(): Promise<Archetype[]> {
     id: d._id.toString(),
     name: d.name,
     rank: d.rank ?? 0,
+    color: d.color ?? "#7C3AED",
+    description: d.description ?? undefined,
     createdAt: d.createdAt?.toISOString().split("T")[0],
   }));
 }

@@ -54,7 +54,7 @@ function StatCard({
   return (
     <div
       className="flex flex-col gap-1.5 rounded-xl border p-4"
-      style={{ borderColor: "var(--border)" }}
+      style={{ borderColor: "var(--border)", background: "var(--bg-surface)" }}
     >
       <p className="text-xs" style={{ color: "var(--text-muted)" }}>{label}</p>
       <p className="typo-metric" style={{ color: accent ?? "var(--text-primary)" }}>

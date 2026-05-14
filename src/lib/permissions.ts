@@ -100,6 +100,11 @@ export const ALL_PERMISSIONS = [
   "tools.spinTheWheel.access",
   "tools.emailSignature.access",
   "tools.emailSignature.generateAny",
+  "tools.surveys.access",
+  "tools.surveys.viewOthers",
+  "tools.surveys.editAny",
+  "tools.surveys.deleteAny",
+  "admin.surveys.manageTemplates",
 ] as const;
 
 export type Permission = (typeof ALL_PERMISSIONS)[number];
@@ -151,6 +156,11 @@ export const PERMISSION_DEPENDENCIES: Partial<Record<Permission, Permission>> = 
   "tools.spinTheWheel.access": "tools.access",
   "tools.emailSignature.access": "tools.access",
   "tools.emailSignature.generateAny": "tools.emailSignature.access",
+  "tools.surveys.access": "tools.access",
+  "tools.surveys.viewOthers": "tools.surveys.access",
+  "tools.surveys.editAny": "tools.surveys.viewOthers",
+  "tools.surveys.deleteAny": "tools.surveys.viewOthers",
+  "admin.surveys.manageTemplates": "admin.access",
 };
 
 /** Given a permission, return all permissions it transitively depends on. */
@@ -292,6 +302,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       { key: "admin.projectLabels", label: "Manage project labels", requires: "admin.access" },
       { key: "admin.leaveTypes", label: "Manage leave types", requires: "admin.access" },
       { key: "admin.companyHolidays", label: "Manage company holidays", requires: "admin.access" },
+      { key: "admin.surveys.manageTemplates", label: "Manage Survey templates", requires: "admin.access" },
     ],
   },
   {
@@ -324,6 +335,10 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       { key: "tools.spinTheWheel.access", label: "Access Spin the Wheel", requires: "tools.access" },
       { key: "tools.emailSignature.access", label: "Access email signature generator", requires: "tools.access" },
       { key: "tools.emailSignature.generateAny", label: "Generate signatures for others", requires: "tools.emailSignature.access" },
+      { key: "tools.surveys.access", label: "Access Surveys", requires: "tools.access" },
+      { key: "tools.surveys.viewOthers", label: "View survey sessions from others", requires: "tools.surveys.access" },
+      { key: "tools.surveys.editAny", label: "Edit anyone's survey sessions", requires: "tools.surveys.viewOthers" },
+      { key: "tools.surveys.deleteAny", label: "Delete anyone's survey sessions", requires: "tools.surveys.viewOthers" },
     ],
   },
 ];

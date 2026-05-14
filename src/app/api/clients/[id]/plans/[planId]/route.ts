@@ -8,7 +8,7 @@ import { TaskModel } from "@/lib/models/Task";
 import { SessionModel } from "@/lib/models/Session";
 import { ServiceModel } from "@/lib/models/Service";
 import { hasPermission, hasPermissionOrIsLead } from "@/lib/auth-helpers";
-import { generateShareCode } from "@/lib/ranking/shareCode";
+import { ensureUniqueShareCode } from "@/lib/share-codes";
 import { recordActivity } from "@/lib/activity";
 
 type AnyDoc = Record<string, unknown> & { _id: { toString(): string } };
@@ -153,8 +153,7 @@ export async function GET(
 
   // Lazy backfill: ensure shareCode exists for older plans created before the field was added.
   if (!(plan as { shareCode?: string }).shareCode) {
-    let code = generateShareCode();
-    while (await ProjectPlanModel.exists({ shareCode: code })) code = generateShareCode();
+    const code = await ensureUniqueShareCode((c) => ProjectPlanModel.exists({ shareCode: c }));
     await ProjectPlanModel.findByIdAndUpdate(planId, { $set: { shareCode: code } });
     (plan as { shareCode?: string }).shareCode = code;
   }

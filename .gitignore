@@ -45,3 +45,14 @@ next-env.d.ts
 
 # Claude Code working plans (scratchpads, canonical plan lives in the issue body)
 /.claude/plans/
+
+# Claude Code skills + designer-skills plugin commands (local-only, not part of the codebase)
+/.claude/skills/
+/.claude/commands/design-ops/
+/.claude/commands/design-research/
+/.claude/commands/design-systems/
+/.claude/commands/designer-toolkit/
+/.claude/commands/interaction-design/
+/.claude/commands/prototyping-testing/
+/.claude/commands/ui-design/
+/.claude/commands/ux-strategy/

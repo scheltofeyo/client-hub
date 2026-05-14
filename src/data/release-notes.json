@@ -1,5 +1,43 @@
 [
   {
+    "date": "2026-05-14",
+    "title": "Surveys — bouw je eigen vragenlijsten, deel ze met je klant en lees de resultaten in één oogopslag",
+    "details": [
+      "Nieuwe tool 'Survey' onder Tools en 'Survey templates' in admin: bouw templates met secties, vragen en optionele gap-comparisons; maak per klant sessies, deel via link of QR-code en sluit af voor resultaten",
+      "Nieuwe sessies kunnen óók 'from scratch' starten — kies bij het aanmaken voor een lege survey en bouw secties, vragen en comparisons direct in de session editor. Publiceren blijft pas mogelijk zodra er minstens één vraag staat",
+      "Vijf bouwblokken per template: general ranking, multiple choice (single of multi), open vraag, rich-text intro én archetype ranking (gekoppeld aan de cultural archetypes van een klant). Plus een optionele afsluitende open vraag",
+      "Archetypes hebben in admin nu een eigen kleur en omschrijving — handig zodra je het archetype-ranking blok gebruikt, en geen vereiste voor de overige vraagtypen",
+      "Publieke flow toont één vraag per scherm: section-intro als eigen stap, vraag op volledige breedte, antwoord op 50% (desktop) / full-width (mobile), zachte motion bij volgende/vorige en SUMM-logo onderaan",
+      "Resultaten-pagina kiest per vraagtype een eigen visualisatie: podium, staaf- of donutdiagram, heatmap, dot-matrix, of gegroepeerde open antwoorden",
+      "Gap analysis (comparisons) vergelijkt twee vragen naast elkaar — werkt voor ranking-vragen én multiple-choice, mits beide zijden van hetzelfde type zijn. Ideaal voor 'huidig vs. gewenst'",
+      "Sessies hebben een duidelijke status (draft → open → closed → archived) en kunnen alleen worden gevuld zolang ze open staan",
+      "Nieuwe permissies voor toegang tot de tool en het beheren van templates",
+      "Migratie: bestaande archetype-ranking templates en sessies blijven werken. Run `scripts/migrate-surveys-to-typed.ts` om type-velden bij te werken; optionele `--cleanup-legacy` flag migreert oude open-text velden naar standalone vragen"
+    ],
+    "whatsNew": {
+      "id": "surveys-toolkit-v1",
+      "title": "Nieuw: bouw je eigen surveys",
+      "steps": [
+        {
+          "title": "Vijf bouwblokken. Eén survey.",
+          "description": "General ranking, multiple choice, open vragen, rich-text intro en archetype ranking. Mix & match in dezelfde survey en zet 'm op maat voor jouw workshop. Geen losse tools meer nodig."
+        },
+        {
+          "title": "Stuur link of QR. Klaar.",
+          "description": "Eén vraag per scherm, zachte motion, werkt op elk device. Sluit de sessie zodra je genoeg antwoorden hebt en zie de uitkomsten direct."
+        },
+        {
+          "title": "Per vraagtype de juiste grafiek.",
+          "description": "Podium en heatmap voor rankings, donut of dot-matrix voor multiple choice, gegroepeerde antwoorden voor open vragen. Gap analysis vergelijkt twee vragen naast elkaar — 'huidig' tegenover 'gewenst' in één blik."
+        }
+      ]
+    }
+  },
+  {
+    "date": "2026-05-13",
+    "title": "Subtiele paarse tint op de body-achtergrond van klantpagina's voor een zachtere lay-out"
+  },
+  {
     "date": "2026-05-12",
     "title": "Klant-overview: 'View logbook', 'View all events' en 'View all activity' wisselen weer naar het juiste tabblad"
   },

@@ -5,7 +5,7 @@ import { ClientModel } from "@/lib/models/Client";
 import { ProjectPlanModel } from "@/lib/models/ProjectPlan";
 import { ProjectModel, calculateRolebasedPrice } from "@/lib/models/Project";
 import { hasPermission, hasPermissionOrIsLead } from "@/lib/auth-helpers";
-import { generateShareCode } from "@/lib/ranking/shareCode";
+import { ensureUniqueShareCode } from "@/lib/share-codes";
 
 function serializePlan(input: unknown) {
   const d = input as Record<string, unknown> & { _id: { toString(): string }; createdAt?: Date; updatedAt?: Date };
@@ -49,8 +49,7 @@ export async function GET(
   const plans = await Promise.all(
     plansRaw.map(async (p) => {
       if ((p as { shareCode?: string }).shareCode) return p;
-      let code = generateShareCode();
-      while (await ProjectPlanModel.exists({ shareCode: code })) code = generateShareCode();
+      const code = await ensureUniqueShareCode((c) => ProjectPlanModel.exists({ shareCode: c }));
       await ProjectPlanModel.findByIdAndUpdate(p._id, { $set: { shareCode: code } });
       return { ...p, shareCode: code };
     })
@@ -103,10 +102,9 @@ export async function POST(
     return NextResponse.json({ error: "Title is required" }, { status: 400 });
   }
 
-  let shareCode = generateShareCode();
-  while (await ProjectPlanModel.exists({ shareCode })) {
-    shareCode = generateShareCode();
-  }
+  const shareCode = await ensureUniqueShareCode((code) =>
+    ProjectPlanModel.exists({ shareCode: code })
+  );
 
   const createdByActor = {
     userId: session.user.id,

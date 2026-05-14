@@ -17,7 +17,7 @@ export const authConfig: NextAuthConfig = {
   callbacks: {
     authorized({ auth, request }) {
       const { pathname } = request.nextUrl;
-      if (pathname.startsWith("/api/auth") || pathname === "/login" || pathname.startsWith("/api/internal/") || pathname.startsWith("/api/public/") || pathname.startsWith("/ranking/") || pathname.startsWith("/proposal/")) return true;
+      if (pathname.startsWith("/api/auth") || pathname === "/login" || pathname.startsWith("/api/internal/") || pathname.startsWith("/api/public/") || pathname.startsWith("/ranking/") || pathname.startsWith("/proposal/") || pathname.startsWith("/s/") || pathname.startsWith("/archetype-as-is-survey/")) return true;
       return !!auth;
     },
     async session({ session, token }) {

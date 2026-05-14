@@ -19,7 +19,7 @@ export default function PageHeader({
   return (
     <div
       className={`px-7 pt-6 shrink-0${tertiaryNav ? " pb-0" : " pb-5 border-b"}${sticky ? " sticky top-0 z-10" : ""}`}
-      style={{ borderColor: "var(--border)", ...(sticky ? { background: "var(--bg-surface)" } : {}) }}
+      style={{ borderColor: "var(--border)", background: "var(--bg-surface)" }}
     >
       <nav className="flex items-center gap-1.5 mb-2">
         {breadcrumbs.flatMap((crumb, i) => {

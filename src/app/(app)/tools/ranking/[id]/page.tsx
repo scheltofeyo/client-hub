@@ -5,7 +5,6 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { Copy, Check, Users, Pencil, ChevronDown, QrCode, Link2, MoreHorizontal } from "lucide-react";
-import { QRCodeCanvas } from "qrcode.react";
 import {
   findGreedyPairs,
   findBalancedPairs,
@@ -13,6 +12,13 @@ import {
   findBestDuoForUnmatched,
 } from "@/lib/ranking/matching";
 import type { Submission as MatchSubmission } from "@/lib/ranking/matching";
+import { SessionStatusBadge } from "@/components/ui/SessionStatusBadge";
+import {
+  HiddenQrCanvas,
+  ShareLinkRow,
+  useShareLink,
+  useShareQr,
+} from "@/components/ui/SharePanel";
 
 interface RankingValue {
   id: string;
@@ -47,13 +53,6 @@ interface Submission {
   submittedAt?: string;
 }
 
-const STATUS_CONFIG: Record<string, { label: string; dotColor: string; bgColor: string; textColor: string }> = {
-  draft: { label: "Draft", dotColor: "var(--info)", bgColor: "var(--info-light)", textColor: "var(--info)" },
-  open: { label: "Open", dotColor: "var(--success)", bgColor: "var(--success-light)", textColor: "var(--success)" },
-  closed: { label: "Closed", dotColor: "var(--text-muted)", bgColor: "var(--bg-hover)", textColor: "var(--text-muted)" },
-  archived: { label: "Archived", dotColor: "var(--border)", bgColor: "var(--bg-hover)", textColor: "var(--text-muted)" },
-};
-
 export default function RankingSessionDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -72,10 +71,12 @@ export default function RankingSessionDetailPage() {
   const [showCloseModal, setShowCloseModal] = useState(false);
   const [showShareLink, setShowShareLink] = useState(false);
 
-  // Share link copy handlers
-  const [copied, setCopied] = useState(false);
-  const [qrCopied, setQrCopied] = useState(false);
-  const qrRef = useRef<HTMLDivElement>(null);
+  // Share link
+  const shareUrl = typeof window !== "undefined" && session
+    ? `${window.location.origin}/ranking/${session.shareCode}`
+    : session ? `/ranking/${session.shareCode}` : "";
+  const { copied, copyLink: handleCopyLink } = useShareLink(shareUrl);
+  const { qrRef, qrCopied, copyQr: handleCopyQr } = useShareQr(session?.shareCode);
   const [showMenu, setShowMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -124,41 +125,12 @@ export default function RankingSessionDetailPage() {
     if (res.ok) setSession(await res.json());
   }
 
-  const shareUrl = typeof window !== "undefined" && session
-    ? `${window.location.origin}/ranking/${session.shareCode}`
-    : session ? `/ranking/${session.shareCode}` : "";
-
-  async function handleCopyLink() {
-    await navigator.clipboard.writeText(shareUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }
-
-  async function handleCopyQr() {
-    const canvas = qrRef.current?.querySelector("canvas");
-    if (!canvas) return;
-    try {
-      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
-      if (blob) {
-        await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
-        setQrCopied(true);
-        setTimeout(() => setQrCopied(false), 2000);
-      }
-    } catch {
-      const link = document.createElement("a");
-      link.download = `qr-${session?.shareCode}.png`;
-      link.href = canvas.toDataURL("image/png");
-      link.click();
-    }
-  }
-
   if (loading || !session) return null;
 
   const isDraft = session.status === "draft";
   const isOpen = session.status === "open";
   const isClosed = session.status === "closed";
   const isArchived = session.status === "archived";
-  const statusCfg = STATUS_CONFIG[session.status] ?? STATUS_CONFIG.draft;
   const isOwner = session.createdBy === currentUserId;
   const canEdit = isOwner || canEditAny;
   void canDeleteAny; // available for future delete button on detail page
@@ -177,13 +149,7 @@ export default function RankingSessionDetailPage() {
           <div>
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-bold" style={{ color: "var(--text-primary)" }}>{session.title}</h1>
-              <span
-                className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium"
-                style={{ background: statusCfg.bgColor, color: statusCfg.textColor }}
-              >
-                <span className="w-1.5 h-1.5 rounded-full" style={{ background: statusCfg.dotColor }} />
-                {statusCfg.label}
-              </span>
+              <SessionStatusBadge status={session.status} />
             </div>
             {session.clientName && (
               <p className="text-sm font-medium mt-1" style={{ color: "var(--text-primary)" }}>{session.clientName}</p>
@@ -274,10 +240,7 @@ export default function RankingSessionDetailPage() {
             )}
           </div>
         </div>
-        {/* Hidden QR canvas for clipboard copy */}
-        <div ref={qrRef} className="hidden">
-          <QRCodeCanvas value={shareUrl} size={400} level="M" marginSize={2} />
-        </div>
+        <HiddenQrCanvas shareUrl={shareUrl} qrRef={qrRef} />
       </div>
 
       <div className="px-7 pb-7">
@@ -326,12 +289,7 @@ export default function RankingSessionDetailPage() {
             )}
 
             {/* === OPEN / CLOSED: share link (toggled from header) === */}
-            {(isOpen || isClosed) && showShareLink && (
-              <div className="p-4 rounded-xl border" style={{ borderColor: "var(--border)", background: "white" }}>
-                <p className="typo-section-header mb-1" style={{ color: "var(--text-muted)" }}>Share link</p>
-                <p className="text-sm font-mono truncate" style={{ color: "var(--text-primary)" }}>{shareUrl}</p>
-              </div>
-            )}
+            {(isOpen || isClosed) && showShareLink && <ShareLinkRow shareUrl={shareUrl} />}
 
             {/* === OPEN: close CTA === */}
             {isOpen && (

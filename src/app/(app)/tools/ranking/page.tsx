@@ -6,6 +6,11 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Plus, Copy, Trash2, ChevronRight } from "lucide-react";
 import UserAvatar from "@/components/ui/UserAvatar";
+import {
+  SessionStatusBadge,
+  SessionStatusFilterChips,
+  SESSION_STATUS_FILTER_ORDER,
+} from "@/components/ui/SessionStatusBadge";
 
 interface SessionSummary {
   id: string;
@@ -21,20 +26,6 @@ interface SessionSummary {
   createdByImage: string | null;
   createdAt: string;
 }
-
-const STATUS_CONFIG: Record<string, { label: string; dotColor: string; bgColor: string; textColor: string }> = {
-  draft: { label: "Draft", dotColor: "var(--info)", bgColor: "var(--info-light)", textColor: "var(--info)" },
-  open: { label: "Open", dotColor: "var(--success)", bgColor: "var(--success-light)", textColor: "var(--success)" },
-  closed: { label: "Closed", dotColor: "var(--text-muted)", bgColor: "var(--bg-hover)", textColor: "var(--text-muted)" },
-  archived: { label: "Archived", dotColor: "var(--border)", bgColor: "var(--bg-hover)", textColor: "var(--text-muted)" },
-};
-
-const STATUS_FILTERS = [
-  { key: "open", label: "Open" },
-  { key: "draft", label: "Draft" },
-  { key: "closed", label: "Closed" },
-  { key: "archived", label: "Archived" },
-];
 
 export default function RankingSessionListPage() {
   const router = useRouter();
@@ -91,15 +82,23 @@ export default function RankingSessionListPage() {
     ? sessions
     : sessions.filter((s) => activeFilters.includes(s.status));
 
+  const statusCounts = SESSION_STATUS_FILTER_ORDER.reduce<Record<string, number>>((acc, s) => {
+    acc[s] = sessions.filter((sess) => sess.status === s).length;
+    return acc;
+  }, {});
+
   return (
-    <div className="flex-1 overflow-y-auto">
-      <div className="px-7 pt-6 pb-5 shrink-0">
+    <div className="flex-1 overflow-y-auto" style={{ background: "var(--bg-tinted)" }}>
+      <div
+        className="sticky top-0 z-20 px-7 pt-6"
+        style={{ background: "var(--bg-surface)" }}
+      >
         <nav className="flex items-center gap-1.5 mb-2 text-xs" style={{ color: "var(--text-muted)" }}>
           <Link href="/tools" className="hover:underline">Tools</Link>
           <span>/</span>
           <span>Ranking the Values</span>
         </nav>
-        <div className="flex items-start justify-between">
+        <div className="flex items-start justify-between pb-4">
           <div>
             <h1 className="text-2xl font-bold" style={{ color: "var(--text-primary)" }}>Ranking the Values</h1>
             <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>Manage your sessions and view results.</p>
@@ -109,36 +108,16 @@ export default function RankingSessionListPage() {
             New session
           </Link>
         </div>
+        {sessions.length > 0 && (
+          <SessionStatusFilterChips
+            counts={statusCounts}
+            active={activeFilters}
+            onToggle={toggleFilter}
+          />
+        )}
       </div>
 
-      <div className="px-7 pb-7">
-        {/* Multi-select filter toggles with counts */}
-        {sessions.length > 0 && (
-          <div className="flex items-center gap-2 mb-4">
-            {STATUS_FILTERS.map(({ key, label }) => {
-              const active = activeFilters.includes(key);
-              const count = sessions.filter((s) => s.status === key).length;
-              if (count === 0) return null;
-              return (
-                <button
-                  key={key}
-                  onClick={() => toggleFilter(key)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-button text-sm font-medium transition-colors"
-                  style={{
-                    background: active ? "var(--primary-light)" : "var(--bg-hover)",
-                    color: active ? "var(--primary)" : "var(--text-muted)",
-                    border: active ? "1px solid var(--primary)" : "1px solid transparent",
-                    opacity: active ? 1 : 0.8,
-                  }}
-                >
-                  {label}
-                  <span className="text-xs" style={{ opacity: 0.6 }}>{count}</span>
-                </button>
-              );
-            })}
-          </div>
-        )}
-
+      <div className="px-7 pb-7 pt-6">
         {loading ? (
           <div className="flex justify-center py-16">
             <div className="w-8 h-8 border-2 rounded-full animate-spin" style={{ borderColor: "var(--primary)", borderTopColor: "transparent" }} />
@@ -157,7 +136,6 @@ export default function RankingSessionListPage() {
           <>
             <div className="space-y-3">
               {visibleSessions.map((s) => {
-                const cfg = STATUS_CONFIG[s.status] ?? STATUS_CONFIG.draft;
                 const isOwner = s.createdBy === currentUserId;
                 const canEdit = isOwner || canEditAny;
                 const canDelete = isOwner || canDeleteAny;
@@ -179,14 +157,7 @@ export default function RankingSessionListPage() {
                           <h2 className="text-base font-semibold truncate transition-colors" style={{ color: "var(--text-primary)" }}>
                             {s.title}
                           </h2>
-                          {/* Status badge with dot */}
-                          <span
-                            className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium shrink-0"
-                            style={{ background: cfg.bgColor, color: cfg.textColor }}
-                          >
-                            <span className="w-1.5 h-1.5 rounded-full" style={{ background: cfg.dotColor }} />
-                            {cfg.label}
-                          </span>
+                          <SessionStatusBadge status={s.status} />
                         </div>
                         {s.description && (
                           <p className="text-xs mt-0.5 truncate" style={{ color: "var(--text-muted)" }}>{s.description}</p>

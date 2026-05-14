@@ -31,6 +31,8 @@ export interface Archetype {
   id: string;
   name: string;
   rank: number;
+  color: string;
+  description?: string;
   createdAt?: string;
 }
 

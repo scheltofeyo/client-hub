@@ -25,7 +25,12 @@ export default async function ClientDetailLayout({
       <Suspense fallback={null}>
         <ClientPanelNav client={client} projects={projectSummaries} sheets={sheetSummaries} />
       </Suspense>
-      <div className="flex-1 overflow-hidden flex flex-col">{children}</div>
+      <div
+        className="flex-1 overflow-hidden flex flex-col"
+        style={{ background: "var(--bg-tinted)" }}
+      >
+        {children}
+      </div>
     </div>
   );
 }

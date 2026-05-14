@@ -53,6 +53,7 @@
   --bg-elevated: #f7f6fb;
   --bg-sidebar: #f7f6fb;
   --bg-hover: #e4e2ee;
+  --bg-tinted: #fcfbff;
   --border: #e6e4ef;
   --border-strong: #d0cde0;
   --text-primary: #09090b;
@@ -60,6 +61,8 @@
   --primary: #7c3aed;
   --primary-light: #ede9fe;
   --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 8px 32px rgba(100, 80, 160, 0.08);
+  --shadow-sheet: 0 1px 2px rgba(20, 16, 40, 0.04), 0 20px 60px -20px rgba(100, 80, 160, 0.18);
+  --focus-ring: 0 0 0 3px color-mix(in srgb, var(--primary) 22%, transparent);
 
   /* Leave type colors */
   --leave-sick: #dc2626;
@@ -151,6 +154,7 @@
   --bg-elevated: #1c1b25;
   --bg-sidebar: #1c1b25;
   --bg-hover: #211f2a;
+  --bg-tinted: #17151e;
   --border: #2a2836;
   --border-strong: #3a3850;
   --text-primary: #f4f3f8;
@@ -158,6 +162,8 @@
   --primary: #a78bfa;
   --primary-light: #2e1065;
   --card-shadow: none;
+  --shadow-sheet: 0 1px 2px rgba(0, 0, 0, 0.2), 0 20px 60px -20px rgba(0, 0, 0, 0.5);
+  --focus-ring: 0 0 0 3px color-mix(in srgb, var(--primary) 28%, transparent);
 
   /* Leave type colors (dark) */
   --leave-sick: #f87171;
@@ -491,6 +497,53 @@ select:not(.appearance-none):not([multiple]):not([size]) {
     color: var(--primary);
   }
 
+  /* Same shape as btn-icon, but signals a destructive action via danger-hued hover. */
+  .btn-icon-danger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.375rem;
+    border-radius: var(--radius-button);
+    cursor: pointer;
+    background: transparent;
+    color: var(--text-muted);
+    transition: background 0.15s, color 0.15s;
+  }
+  .btn-icon-danger:disabled { cursor: not-allowed; }
+  .btn-icon-danger:hover:not(:disabled) {
+    background: var(--danger-light);
+    color: var(--danger);
+  }
+
+  /* Shared text-input style — mirrors btn-* composites so consumers don't reinvent it. */
+  .input {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    color: var(--text-primary);
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-button);
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .input::placeholder { color: var(--text-muted); }
+  .input:focus-visible {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 25%, transparent);
+  }
+  .input:disabled {
+    background: var(--bg-hover);
+    color: var(--text-muted);
+    cursor: not-allowed;
+  }
+  .input.input-sm {
+    padding: 0.375rem 0.625rem;
+    font-size: 0.75rem;
+    line-height: 1rem;
+  }
+
   /* Text-link style — inline, no padding/radius, gap for optional leading icon. */
   .btn-link {
     display: inline-flex;
@@ -674,4 +727,51 @@ select:not(.appearance-none):not([multiple]):not([size]) {
 }
 .behavior-html li {
   margin: 0.125rem 0;
+}
+
+/* ── Survey participant form animations ──────────────────────────── */
+
+@keyframes survey-step-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes survey-confetti-drift {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.4);
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--confetti-tx, 0), var(--confetti-ty, -80px)) scale(1) rotate(var(--confetti-r, 0deg));
+  }
+}
+
+@keyframes survey-check-pop {
+  0% { transform: scale(0); }
+  60% { transform: scale(1.12); }
+  100% { transform: scale(1); }
+}
+
+.survey-step-in {
+  animation: survey-step-in 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .survey-step-in {
+    animation: none;
+  }
+  .survey-confetti-particle,
+  .survey-check-icon {
+    animation: none !important;
+  }
 }

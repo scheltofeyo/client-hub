@@ -255,7 +255,6 @@ export default function ClientDetailShell({
 
       <div
         className={`flex-1 overflow-y-auto px-7 pb-7 ${activeTab === "Dashboard" ? "pt-0" : "pt-7"}`}
-        style={activeTab === "Dashboard" ? { background: "var(--bg-surface)" } : undefined}
       >
         <ScrollReset activeTab={activeTab} />
 

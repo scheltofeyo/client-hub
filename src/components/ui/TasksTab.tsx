@@ -57,7 +57,7 @@ function StatCard({
   return (
     <div
       className="flex flex-col gap-1.5 rounded-xl border p-4"
-      style={{ borderColor: "var(--border)" }}
+      style={{ borderColor: "var(--border)", background: "var(--bg-surface)" }}
     >
       <p className="text-xs" style={{ color: "var(--text-muted)" }}>{label}</p>
       <div className="flex items-baseline gap-2">
@@ -94,7 +94,7 @@ function DeliveryStatCard({
     return (
       <div
         className="flex flex-col gap-1.5 rounded-xl border p-4"
-        style={{ borderColor: "var(--border)" }}
+        style={{ borderColor: "var(--border)", background: "var(--bg-surface)" }}
       >
         <p className="text-xs" style={{ color: "var(--text-muted)" }}>Delivery</p>
         <p className="text-sm" style={{ color: "var(--text-muted)" }}>No date set</p>
@@ -155,7 +155,7 @@ function DeliveryStatCard({
     return (
       <div
         className="flex flex-col gap-1.5 rounded-xl border p-4"
-        style={{ borderColor: "var(--border)" }}
+        style={{ borderColor: "var(--border)", background: "var(--bg-surface)" }}
       >
         <p className="text-xs" style={{ color: "var(--text-muted)" }}>Delivery</p>
         <div className="flex items-center gap-1.5">
@@ -177,7 +177,7 @@ function DeliveryStatCard({
   return (
     <div
       className="flex flex-col gap-1.5 rounded-xl border p-4"
-      style={{ borderColor: "var(--border)" }}
+      style={{ borderColor: "var(--border)", background: "var(--bg-surface)" }}
     >
       <p className="text-xs" style={{ color: "var(--text-muted)" }}>Delivery</p>
       <div className="flex items-baseline gap-1.5">

@@ -13,20 +13,34 @@ export async function PATCH(
   if (forbidden) return forbidden;
 
   const { id } = await params;
-  const { name } = await req.json();
-  if (!name?.trim()) {
-    return NextResponse.json({ error: "Name is required" }, { status: 400 });
+  const { name, color, description } = await req.json();
+
+  const update: Record<string, unknown> = {};
+  if (name !== undefined) {
+    if (!name?.trim()) {
+      return NextResponse.json({ error: "Name is required" }, { status: 400 });
+    }
+    update.name = name.trim();
+  }
+  if (color !== undefined) {
+    update.color = typeof color === "string" && color.trim() ? color.trim() : "#7C3AED";
+  }
+  if (description !== undefined) {
+    const trimmed = typeof description === "string" ? description.trim() : "";
+    update.description = trimmed || null;
   }
 
   await connectDB();
-  const doc = await ArchetypeModel.findByIdAndUpdate(
-    id,
-    { $set: { name: name.trim() } },
-    { new: true }
-  ).lean();
+  const doc = await ArchetypeModel.findByIdAndUpdate(id, { $set: update }, { new: true }).lean();
   if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  return NextResponse.json({ id: doc._id.toString(), name: doc.name });
+  return NextResponse.json({
+    id: doc._id.toString(),
+    name: doc.name,
+    rank: doc.rank ?? 0,
+    color: doc.color ?? "#7C3AED",
+    description: doc.description ?? undefined,
+  });
 }
 
 export async function DELETE(
