@@ -581,7 +581,7 @@ export default function PublicSurveyPage() {
           </h2>
           {section.description && (
             <div
-              className="prose prose-sm max-w-[65ch] text-[16px] sm:text-[17px]"
+              className="prose prose-sm max-w-[65ch] text-[16px] sm:text-[17px] survey-richtext"
               style={{ color: "var(--text-muted)", lineHeight: 1.55 }}
               dangerouslySetInnerHTML={{ __html: section.description }}
             />
@@ -613,7 +613,7 @@ export default function PublicSurveyPage() {
               </h3>
             )}
             <div
-              className="prose prose-sm max-w-[65ch] survey-info"
+              className="prose prose-sm max-w-[65ch] survey-info survey-richtext"
               style={{ color: "var(--text-primary)" }}
             >
               {q.bodyHtml ? (

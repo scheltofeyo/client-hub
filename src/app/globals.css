@@ -777,3 +777,11 @@ select:not(.appearance-none):not([multiple]):not([size]) {
     animation: none !important;
   }
 }
+
+/* Tiptap stores blank lines as <p></p>. Without content, browsers collapse
+   empty paragraphs to zero height, so the author-intended spacing disappears.
+   Fill them with a non-breaking space at render time so the line-height
+   produces a visible blank line. Applied to survey-rendered rich text. */
+.survey-richtext p:empty::before {
+  content: "\00a0";
+}
