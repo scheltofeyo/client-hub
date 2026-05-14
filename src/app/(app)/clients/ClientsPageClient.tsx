@@ -386,7 +386,7 @@ function ClientsTabNav({ activeTab, isAdmin }: { activeTab: string; isAdmin: boo
       {tabs.map(({ value, label, href }) => {
         const active = activeTab === value;
         return (
-          <TabNavLink
+          <Link
             key={value}
             href={href}
             className="px-1 py-3 mr-5 text-sm font-medium border-b-2 transition-colors"
@@ -396,7 +396,7 @@ function ClientsTabNav({ activeTab, isAdmin }: { activeTab: string; isAdmin: boo
             }}
           >
             {label}
-          </TabNavLink>
+          </Link>
         );
       })}
     </div>
