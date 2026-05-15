@@ -6,7 +6,6 @@ import { useSession } from "next-auth/react";
 import SurveyEditorShell, {
   type ShellSection,
   type ShellQuestion,
-  type ShellComparison,
 } from "@/components/surveys/SurveyEditorShell";
 import type { OutlineSelection } from "@/components/surveys/EditorOutline";
 import type { SaveState } from "@/components/surveys/SaveStateChip";
@@ -73,7 +72,6 @@ interface Snapshot {
   rankWeights: number[];
   closingOpenQuestion?: { enabled: boolean; label: string };
   sections: ShellSection[];
-  comparisons: ShellComparison[];
 }
 
 interface SessionDetail {
@@ -84,7 +82,6 @@ interface SessionDetail {
   status: string;
   createdBy: string;
   templateSnapshot: Snapshot;
-  sessionComparisons: ShellComparison[];
 }
 
 export default function EditSnapshotPage() {
@@ -170,16 +167,6 @@ export default function EditSnapshotPage() {
     setSnapshot({ ...snapshot, sections });
     persist({ snapshotSections: sections });
   }
-  function patchSectionsAndComparisons(sections: ShellSection[], comparisons: ShellComparison[]) {
-    if (!snapshot) return;
-    setSnapshot({ ...snapshot, sections, comparisons });
-    persist({ snapshotSections: sections, snapshotComparisons: comparisons });
-  }
-  function patchComparisons(comparisons: ShellComparison[]) {
-    if (!snapshot) return;
-    setSnapshot({ ...snapshot, comparisons });
-    persist({ snapshotComparisons: comparisons });
-  }
 
   // Sections
   function handleAddSection() {
@@ -201,16 +188,8 @@ export default function EditSnapshotPage() {
   }
   function handleDeleteSection(sectionId: string) {
     if (!snapshot) return;
-    const removedQuestionIds = new Set(
-      (snapshot.sections.find((s) => s.id === sectionId)?.questions ?? []).map((q) => q.id)
-    );
     const sections = snapshot.sections.filter((s) => s.id !== sectionId);
-    const comparisons = snapshot.comparisons.map((c) => ({
-      ...c,
-      leftQuestionIds: c.leftQuestionIds.filter((qid) => !removedQuestionIds.has(qid)),
-      rightQuestionIds: c.rightQuestionIds.filter((qid) => !removedQuestionIds.has(qid)),
-    }));
-    patchSectionsAndComparisons(sections, comparisons);
+    patchSections(sections);
     if (
       (selected.kind === "section" && selected.id === sectionId) ||
       (selected.kind === "question" && selected.sectionId === sectionId)
@@ -262,12 +241,7 @@ export default function EditSnapshotPage() {
     const sections = snapshot.sections.map((s) =>
       s.id !== sectionId ? s : { ...s, questions: s.questions.filter((q) => q.id !== questionId) }
     );
-    const comparisons = snapshot.comparisons.map((c) => ({
-      ...c,
-      leftQuestionIds: c.leftQuestionIds.filter((qid) => qid !== questionId),
-      rightQuestionIds: c.rightQuestionIds.filter((qid) => qid !== questionId),
-    }));
-    patchSectionsAndComparisons(sections, comparisons);
+    patchSections(sections);
     if (selected.kind === "question" && selected.id === questionId) {
       setSelected({ kind: "section", id: sectionId });
     }
@@ -280,33 +254,6 @@ export default function EditSnapshotPage() {
       return { ...s, questions: ids.map((qid) => byId.get(qid) as ShellQuestion) };
     });
     patchSections(sections);
-  }
-
-  // Comparisons (operate on snapshot.comparisons pre-publish)
-  function handleAddComparison() {
-    if (!snapshot) return;
-    const newComparison: ShellComparison = {
-      id: crypto.randomUUID(),
-      label: "New comparison",
-      leftLabel: "To-be",
-      rightLabel: "As-is",
-      leftQuestionIds: [],
-      rightQuestionIds: [],
-      order: snapshot.comparisons.length,
-    };
-    patchComparisons([...snapshot.comparisons, newComparison]);
-    setSelected({ kind: "comparison", id: newComparison.id });
-  }
-  function handleUpdateComparison(comparisonId: string, updates: Partial<ShellComparison>) {
-    if (!snapshot) return;
-    patchComparisons(snapshot.comparisons.map((c) => (c.id === comparisonId ? { ...c, ...updates } : c)));
-  }
-  function handleDeleteComparison(comparisonId: string) {
-    if (!snapshot) return;
-    patchComparisons(snapshot.comparisons.filter((c) => c.id !== comparisonId));
-    if (selected.kind === "comparison" && selected.id === comparisonId) {
-      setSelected({ kind: "header" });
-    }
   }
 
   // ── Derived ─────────────────────────────────────────────────────
@@ -379,7 +326,6 @@ export default function EditSnapshotPage() {
         archetypeMutable={false}
         closingOpenQuestion={snapshot.closingOpenQuestion}
         sections={snapshot.sections}
-        comparisons={snapshot.comparisons}
         selected={selected}
         onSelect={setSelected}
         onChangeName={handleChangeName}
@@ -393,9 +339,6 @@ export default function EditSnapshotPage() {
         onUpdateQuestion={handleUpdateQuestion}
         onDeleteQuestion={handleDeleteQuestion}
         onReorderQuestionsInSection={handleReorderQuestions}
-        onAddComparison={handleAddComparison}
-        onUpdateComparison={handleUpdateComparison}
-        onDeleteComparison={handleDeleteComparison}
       />
     </>
   );

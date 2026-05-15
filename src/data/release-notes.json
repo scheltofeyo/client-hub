@@ -1,6 +1,65 @@
 [
   {
     "date": "2026-05-15",
+    "title": "Survey-secties: optionele afbeelding-URL per sectie-intropagina",
+    "details": [
+      "Per sectie kan in de editor een afbeelding-URL worden ingevuld (Image URL onder Description)",
+      "Op desktop verschijnt de afbeelding rechts naast titel + beschrijving, met afgeronde hoeken en object-cover schaling",
+      "Op mobiel verschijnt de afbeelding als vierkant frame onder de tekst",
+      "De Next-knop staat op desktop direct onder de tekst zodat tekst en afbeelding samen midden op het scherm uitlijnen",
+      "Tablet-marges (md) verkleind van 120px naar 60px voor meer ruimte voor content"
+    ]
+  },
+  {
+    "date": "2026-05-15",
+    "title": "Kopieer grafieken uit Resultaten als PNG",
+    "details": [
+      "Knop per resultaten-blok (zowel losse vragen als analyses) kopieert de grafiek + legenda naar het klembord",
+      "PNG heeft een transparante achtergrond zodat 'm direct in slides of Slack/Notion past",
+      "Verborgen voor intro-blokken, open-text vragen, lege resultaten en kapotte analyses"
+    ]
+  },
+  {
+    "date": "2026-05-15",
+    "title": "Ranking-vragen: deelnemers slepen nu vanuit een pool naar lege slots",
+    "details": [
+      "De ranking-zone begint leeg in plaats van willekeurig gevuld — duidelijker dat de deelnemer zelf de volgorde bepaalt",
+      "Voortgangsindicator toont hoeveel keuzes nog geplaatst moeten worden, met success-state als alles gerangschikt is",
+      "Insert-cascade: een keuze tussenvoegen schuift andere items op naar de dichtstbijzijnde lege plek",
+      "Geldt voor archetype-ranking én algemene ranking-vragen"
+    ]
+  },
+  {
+    "date": "2026-05-15",
+    "title": "Custom analyses on survey results",
+    "details": [
+      "Pin custom Summary and Comparison views above the question list on a survey's Results tab",
+      "Ten operations across two types: averages, archetype-points, ranking means, term frequency, 2-side delta, N-side spread, top-K overlap, paired delta, convergence",
+      "Compatibility is enforced — only questions with matching answer structure can be combined",
+      "Existing gap-analysis comparisons render automatically as legacy Delta analyses",
+      "Charts include dumbbell, tornado, spread table, grouped bars, lattice, bump chart, slope, histogram and reused MC/ranking charts"
+    ],
+    "whatsNew": {
+      "id": "custom-analyses-v1",
+      "title": "Custom analyses on survey results",
+      "steps": [
+        {
+          "title": "Combine multiple questions",
+          "description": "From any survey's Results tab, click \"+ New analysis\" to summarise or compare results across several compatible questions in one view."
+        },
+        {
+          "title": "Pick the right chart",
+          "description": "Each analysis ships with sensible defaults plus alternates — switch between dumbbell, tornado, spread table, bump chart and more depending on what you want to show."
+        },
+        {
+          "title": "Edit, duplicate, reorder",
+          "description": "Use the kebab menu on every analysis card to edit, duplicate, delete, or move it up and down in the list."
+        }
+      ]
+    }
+  },
+  {
+    "date": "2026-05-15",
     "title": "Survey share-links: betere preview-titel en -omschrijving in Slack/LinkedIn",
     "details": [
       "Titel: '{Klant} — {Surveytitel}' (was: '{Klant}: {Surveytitel}' met generieke Hub-omschrijving daaronder)",

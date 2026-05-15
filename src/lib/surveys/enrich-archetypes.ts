@@ -23,17 +23,29 @@ export async function enrichArchetypes(
 ): Promise<EnrichedArchetype[]> {
   if (!snapshotArchetypes || snapshotArchetypes.length === 0) return [];
   const ids = snapshotArchetypes.map((a) => a.id);
+  // Query with the same `rank ASC, createdAt ASC` ordering used by the admin
+  // list (see lib/data.ts) so tied ranks resolve deterministically.
   const liveDocs = await ArchetypeModel.find({ _id: { $in: ids } })
-    .select("name color description")
+    .select("name color description rank createdAt")
+    .sort({ rank: 1, createdAt: 1 })
     .lean();
+  const livePosition = new Map(liveDocs.map((d, idx) => [d._id.toString(), idx]));
   const liveById = new Map(liveDocs.map((d) => [d._id.toString(), d]));
-  return snapshotArchetypes.map((snap) => {
+
+  const withSort = snapshotArchetypes.map((snap, idx) => {
     const live = liveById.get(snap.id);
     return {
-      id: snap.id,
-      name: live?.name ?? snap.name ?? "Unknown",
-      color: live?.color ?? snap.color ?? "#7C3AED",
-      description: live?.description ?? snap.description,
+      enriched: {
+        id: snap.id,
+        name: live?.name ?? snap.name ?? "Unknown",
+        color: live?.color ?? snap.color ?? "#7C3AED",
+        description: live?.description ?? snap.description,
+      },
+      // Archetypes deleted from the admin DB fall to the bottom in their
+      // original snapshot order.
+      sortKey: livePosition.get(snap.id) ?? liveDocs.length + idx,
     };
   });
+  withSort.sort((a, b) => a.sortKey - b.sortKey);
+  return withSort.map((w) => w.enriched);
 }

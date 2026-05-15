@@ -233,43 +233,6 @@ const QUESTIONS: SeedQuestion[] = [
   },
 ];
 
-const COMPARISONS: Array<{
-  label: string;
-  leftLabel: string;
-  rightLabel: string;
-  leftQs: number[];
-  rightQs: number[];
-}> = [
-  {
-    label: "Gewenst vs Huidig — Algemeen",
-    leftLabel: "Gewenst",
-    rightLabel: "Huidig Algemeen",
-    leftQs: [1, 2, 8],
-    rightQs: [3, 4, 5, 6, 7, 9, 10, 11, 12, 13, 14],
-  },
-  {
-    label: "Gewenst vs Huidig — Leiderschap",
-    leftLabel: "Gewenst",
-    rightLabel: "Huidig Leiderschap",
-    leftQs: [1, 2, 8],
-    rightQs: [4, 5, 6, 7],
-  },
-  {
-    label: "Gewenst vs Huidig — Teamontwikkeling",
-    leftLabel: "Gewenst",
-    rightLabel: "Huidig Teamontwikkeling",
-    leftQs: [1, 2, 8],
-    rightQs: [9, 10, 11, 12],
-  },
-  {
-    label: "Gewenst vs Huidig — Beloningen",
-    leftLabel: "Gewenst",
-    rightLabel: "Huidig Beloningen",
-    leftQs: [1, 2, 8],
-    rightQs: [13, 14],
-  },
-];
-
 const TEMPLATE_NAME = "Culturele Archetype Survey";
 const TEMPLATE_DESCRIPTION =
   "SUMM's culturele archetype-onderzoek — meet hoe de huidige cultuur (as-is) wordt ervaren versus de gewenste cultuur (to-be) over vijf archetypes.";
@@ -316,7 +279,6 @@ async function main() {
     defaultRankWeights: [5, 4, 3, 2, 1],
     version: 1,
     createdBy: "system",
-    comparisons: [],
   });
   const templateId = String(template._id);
   console.log(`Created template "${TEMPLATE_NAME}" (id=${templateId})`);
@@ -355,19 +317,6 @@ async function main() {
     questionIdByNumber.set(q.q, String(doc._id));
   }
   console.log(`Created ${questionIdByNumber.size} questions`);
-
-  const comparisons = COMPARISONS.map((c, idx) => ({
-    id: randomUUID(),
-    label: c.label,
-    leftLabel: c.leftLabel,
-    rightLabel: c.rightLabel,
-    leftQuestionIds: c.leftQs.map((n) => questionIdByNumber.get(n)!),
-    rightQuestionIds: c.rightQs.map((n) => questionIdByNumber.get(n)!),
-    order: idx,
-  }));
-
-  await SurveyTemplateModel.updateOne({ _id: templateId }, { $set: { comparisons } });
-  console.log(`Updated template with ${comparisons.length} comparisons`);
 
   console.log("Seed complete");
   await mongoose.disconnect();

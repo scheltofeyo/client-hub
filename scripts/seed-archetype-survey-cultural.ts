@@ -241,43 +241,6 @@ const QUESTIONS: SeedQuestion[] = [
   },
 ];
 
-const COMPARISONS: Array<{
-  label: string;
-  leftLabel: string;
-  rightLabel: string;
-  leftQs: number[];
-  rightQs: number[];
-}> = [
-  {
-    label: "To-be vs As-is Overall",
-    leftLabel: "To-be",
-    rightLabel: "As-is Overall",
-    leftQs: [1, 2, 8],
-    rightQs: [3, 4, 5, 6, 7, 9, 10, 11, 12, 13, 14],
-  },
-  {
-    label: "To-be vs As-is Leadership",
-    leftLabel: "To-be",
-    rightLabel: "As-is Leadership",
-    leftQs: [1, 2, 8],
-    rightQs: [4, 5, 6, 7],
-  },
-  {
-    label: "To-be vs As-is Team Development",
-    leftLabel: "To-be",
-    rightLabel: "As-is Team Development",
-    leftQs: [1, 2, 8],
-    rightQs: [9, 10, 11, 12],
-  },
-  {
-    label: "To-be vs As-is Rewards",
-    leftLabel: "To-be",
-    rightLabel: "As-is Rewards",
-    leftQs: [1, 2, 8],
-    rightQs: [13, 14],
-  },
-];
-
 const TEMPLATE_NAME = "Cultural Archetype Survey";
 const TEMPLATE_DESCRIPTION =
   "SUMM's cultural archetype survey — measures perceived current culture (as-is) vs desired culture (to-be) across five archetypes.";
@@ -324,7 +287,6 @@ async function main() {
     defaultRankWeights: [5, 4, 3, 2, 1],
     version: 1,
     createdBy: "system",
-    comparisons: [],
   });
   const templateId = String(template._id);
   console.log(`Created template "${TEMPLATE_NAME}" (id=${templateId})`);
@@ -363,19 +325,6 @@ async function main() {
     questionIdByNumber.set(q.q, String(doc._id));
   }
   console.log(`Created ${questionIdByNumber.size} questions`);
-
-  const comparisons = COMPARISONS.map((c, idx) => ({
-    id: randomUUID(),
-    label: c.label,
-    leftLabel: c.leftLabel,
-    rightLabel: c.rightLabel,
-    leftQuestionIds: c.leftQs.map((n) => questionIdByNumber.get(n)!),
-    rightQuestionIds: c.rightQs.map((n) => questionIdByNumber.get(n)!),
-    order: idx,
-  }));
-
-  await SurveyTemplateModel.updateOne({ _id: templateId }, { $set: { comparisons } });
-  console.log(`Updated template with ${comparisons.length} comparisons`);
 
   console.log("Seed complete");
   await mongoose.disconnect();

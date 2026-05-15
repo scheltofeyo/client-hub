@@ -4,10 +4,15 @@ import { connectDB } from "@/lib/mongodb";
 import { requirePermission, hasPermission } from "@/lib/auth-helpers";
 import { SurveySessionModel } from "@/lib/models/SurveySession";
 import { SurveySubmissionModel } from "@/lib/models/SurveySubmission";
-import type { ISurveyQuestionSnapshot } from "@/lib/models/SurveySession";
 import { normalizeQuestionType } from "@/lib/surveys/types";
 import { computeAgreement, averageAgreement } from "@/lib/surveys/agreement";
 import { enrichArchetypes } from "@/lib/surveys/enrich-archetypes";
+import { buildAccumulators, normalizeArchetypeScores, type QuestionMeta } from "@/lib/surveys/distributions";
+import {
+  computeAnalysis,
+  type AnalysisConfig,
+  type AnalysisResult,
+} from "@/lib/surveys/analyses";
 
 const LOW_CONFIDENCE_THRESHOLD = 15;
 
@@ -43,7 +48,6 @@ export async function GET(
   const sections = snapshot.sections ?? [];
 
   // Flatten question metadata
-  type QuestionMeta = ISurveyQuestionSnapshot & { sectionId: string };
   const questionMetas: QuestionMeta[] = [];
   for (const s of sections) {
     for (const q of s.questions ?? []) {
@@ -52,115 +56,26 @@ export async function GET(
   }
   const questionMetaMap = new Map(questionMetas.map((q) => [q.id, q]));
 
-  // ── Per-type accumulators ──────────────────────────────────────────
+  // Per-type accumulators — extracted to share with the analyses engine.
+  const {
+    scoreMap,
+    rankDistMap,
+    rankItemDistMap,
+    choiceCountMap,
+    openTextAnswersByQuestion,
+    legacyOpenTextByQuestion,
+    questionN,
+  } = buildAccumulators(submissions, questionMetas, rankWeights);
 
-  // archetype-ranking
-  const scoreMap = new Map<string, Map<string, number>>(); // qid -> archetypeId -> total points
-  const rankDistMap = new Map<string, Map<string, number[]>>(); // qid -> archetypeId -> distribution
-  // general-ranking: itemId rank distribution and average
-  const rankItemDistMap = new Map<string, Map<string, number[]>>(); // qid -> itemId -> distribution
-  // multiple-choice
-  const choiceCountMap = new Map<string, Map<string, number>>(); // qid -> choiceId -> selection count
-  // open-text
-  const openTextAnswersByQuestion = new Map<string, { text: string }[]>();
-  // n per question (# completed submissions per question)
-  const questionN = new Map<string, number>();
-  // legacy: per-question openText comment on archetype-ranking
-  const legacyOpenTextByQuestion = new Map<string, { text: string }[]>();
-
-  for (const sub of submissions) {
-    for (const a of sub.answers ?? []) {
-      const meta = questionMetaMap.get(a.questionId);
-      if (!meta) continue;
-      const answerType = normalizeQuestionType(a.type ?? meta.type);
-
-      if (answerType === "archetype-ranking" && meta.type === "archetype-ranking") {
-        const rankings = (a.rankings ?? {}) as Record<string, number>;
-        let answered = false;
-        for (const opt of meta.options ?? []) {
-          const rank = Number(rankings[opt.id]);
-          if (!rank || rank < 1 || rank > rankWeights.length) continue;
-          answered = true;
-          const weight = rankWeights[rank - 1] ?? 0;
-          let arcScores = scoreMap.get(meta.id);
-          if (!arcScores) { arcScores = new Map(); scoreMap.set(meta.id, arcScores); }
-          arcScores.set(opt.archetypeId, (arcScores.get(opt.archetypeId) ?? 0) + weight);
-
-          let arcDist = rankDistMap.get(meta.id);
-          if (!arcDist) { arcDist = new Map(); rankDistMap.set(meta.id, arcDist); }
-          let dist = arcDist.get(opt.archetypeId);
-          if (!dist) { dist = Array(rankWeights.length).fill(0); arcDist.set(opt.archetypeId, dist); }
-          dist[rank - 1] += 1;
-        }
-        if (answered) questionN.set(meta.id, (questionN.get(meta.id) ?? 0) + 1);
-        if (a.openText) {
-          const arr = legacyOpenTextByQuestion.get(meta.id) ?? [];
-          arr.push({ text: a.openText });
-          legacyOpenTextByQuestion.set(meta.id, arr);
-        }
-      } else if (answerType === "general-ranking" && meta.type === "general-ranking") {
-        const rankings = (a.rankings ?? {}) as Record<string, number>;
-        const items = meta.rankingItems ?? [];
-        const maxRank = items.length;
-        let answered = false;
-        let itemDist = rankItemDistMap.get(meta.id);
-        if (!itemDist) { itemDist = new Map(); rankItemDistMap.set(meta.id, itemDist); }
-        for (const item of items) {
-          const rank = Number(rankings[item.id]);
-          if (!rank || rank < 1 || rank > maxRank) continue;
-          answered = true;
-          let dist = itemDist.get(item.id);
-          if (!dist) { dist = Array(maxRank).fill(0); itemDist.set(item.id, dist); }
-          dist[rank - 1] += 1;
-        }
-        if (answered) questionN.set(meta.id, (questionN.get(meta.id) ?? 0) + 1);
-      } else if (answerType === "multiple-choice" && meta.type === "multiple-choice") {
-        const sel = a.selectedChoiceIds ?? [];
-        if (sel.length === 0) continue;
-        let counts = choiceCountMap.get(meta.id);
-        if (!counts) { counts = new Map(); choiceCountMap.set(meta.id, counts); }
-        for (const cid of sel) {
-          counts.set(cid, (counts.get(cid) ?? 0) + 1);
-        }
-        questionN.set(meta.id, (questionN.get(meta.id) ?? 0) + 1);
-      } else if (answerType === "open-text" && meta.type === "open-text") {
-        const text = (a.text ?? "").trim();
-        if (text) {
-          const arr = openTextAnswersByQuestion.get(meta.id) ?? [];
-          arr.push({ text });
-          openTextAnswersByQuestion.set(meta.id, arr);
-          questionN.set(meta.id, (questionN.get(meta.id) ?? 0) + 1);
-        }
-      }
-    }
-  }
-
-  // ── Normalization helpers ──────────────────────────────────────────
-  // NOTE: We compute internally in raw decimals to avoid compounding rounding
-  // through section/overall/comparison averages. We only round to integer at
-  // the final response shape. To keep the wire format stable, every
-  // `percentage: number` field in the response is still an integer 0..100.
-  // A future optional `weightByN` aggregation toggle is a TODO — today every
-  // question contributes equally to its section/overall regardless of n.
-
-  function normalize(arcMap: Map<string, number> | undefined): Record<string, number> {
-    const result: Record<string, number> = {};
-    if (!arcMap) {
-      for (const a of archetypes) result[a.id] = 0;
-      return result;
-    }
-    const total = [...arcMap.values()].reduce((sum, v) => sum + v, 0);
-    for (const a of archetypes) {
-      const v = arcMap.get(a.id) ?? 0;
-      result[a.id] = total > 0 ? (v / total) * 100 : 0;
-    }
-    return result;
-  }
-  // For archetype-ranking questions only — raw decimal percentages
+  // We compute internally in raw decimals to avoid compounding rounding
+  // through section/overall averages. Every `percentage` field in the
+  // response is still an integer 0..100 — rounding happens at the final
+  // response shape.
+  const archetypeIds = archetypes.map((a) => a.id);
   const archetypeQuestionPercentages = new Map<string, Record<string, number>>();
   for (const qm of questionMetas) {
     if (qm.type === "archetype-ranking") {
-      archetypeQuestionPercentages.set(qm.id, normalize(scoreMap.get(qm.id)));
+      archetypeQuestionPercentages.set(qm.id, normalizeArchetypeScores(scoreMap.get(qm.id), archetypeIds));
     }
   }
 
@@ -310,50 +225,46 @@ export async function GET(
     : null;
   const overallN = Math.max(0, ...questionMetas.map((qm) => questionN.get(qm.id) ?? 0));
 
-  // ── Comparisons (archetype-ranking only for now) ────────────────
+  // ── Custom analyses ─────────────────────────────────────────────
 
-  const sessionOverrides = surveySession.sessionComparisons ?? [];
-  const effectiveComparisons = sessionOverrides.length > 0
-    ? sessionOverrides
-    : (snapshot.comparisons ?? []);
-
-  function averagePercentageRaw(questionIds: string[], archetypeId: string): number {
-    const filtered = questionIds.filter((qid) => questionMetaMap.get(qid)?.type === "archetype-ranking");
-    const vals = filtered
-      .map((qid) => archetypeQuestionPercentages.get(qid)?.[archetypeId] ?? 0)
-      .filter((_, i) => (questionN.get(filtered[i]) ?? 0) > 0);
-    return vals.length > 0 ? vals.reduce((sum, v) => sum + v, 0) / vals.length : 0;
-  }
-
-  const comparisons = effectiveComparisons.map((c) => {
-    const leftRaw = archetypes.map((a) => averagePercentageRaw(c.leftQuestionIds ?? [], a.id));
-    const rightRaw = archetypes.map((a) => averagePercentageRaw(c.rightQuestionIds ?? [], a.id));
-    const left = archetypes.map((a, i) => ({ archetypeId: a.id, percentage: Math.round(leftRaw[i]) }));
-    const right = archetypes.map((a, i) => ({ archetypeId: a.id, percentage: Math.round(rightRaw[i]) }));
-    const gap = archetypes.map((a, i) => ({
-      archetypeId: a.id,
-      delta: Math.round(leftRaw[i] - rightRaw[i]),
+  const nativeAnalyses: AnalysisConfig[] = (surveySession.analyses ?? [])
+    .slice()
+    .sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0))
+    .map((a) => ({
+      id: a.id,
+      rank: a.rank ?? 0,
+      title: a.title,
+      type: a.type,
+      operation: a.operation,
+      sides: (a.sides ?? []).map((s) => ({
+        id: s.id,
+        label: s.label,
+        questionIds: s.questionIds ?? [],
+      })),
+      chartKey: a.chartKey,
+      capabilityFingerprint: a.capabilityFingerprint,
     }));
-    const allIds = [...(c.leftQuestionIds ?? []), ...(c.rightQuestionIds ?? [])];
-    const n = Math.max(0, ...allIds.map((qid) => questionN.get(qid) ?? 0));
-    const cmpAgreementVals = allIds
-      .map((qid) => agreementByQuestion.get(qid))
-      .filter((v): v is number => typeof v === "number");
-    const cmpAgreement = cmpAgreementVals.length > 0
-      ? cmpAgreementVals.reduce((s, v) => s + v, 0) / cmpAgreementVals.length
-      : null;
-    return {
-      id: c.id,
-      label: c.label,
-      leftLabel: c.leftLabel,
-      rightLabel: c.rightLabel,
-      left,
-      right,
-      gap,
-      n,
-      agreement: cmpAgreement,
-    };
-  });
+
+  const analysesCtx = {
+    questionMetas,
+    archetypes,
+    acc: {
+      scoreMap,
+      rankDistMap,
+      rankItemDistMap,
+      choiceCountMap,
+      openTextAnswersByQuestion,
+      legacyOpenTextByQuestion,
+      questionN,
+    },
+    submissions,
+    rankWeights,
+    lowConfidenceThreshold: 10,
+  };
+
+  const analyses: AnalysisResult[] = nativeAnalyses.map((a) =>
+    computeAnalysis(a, analysesCtx)
+  );
 
   // ── Capabilities ─ drives the type-aware UI ────────────────────────
 
@@ -367,7 +278,7 @@ export async function GET(
         (s.sectionOpenAnswers ?? []).some((soa) => (soa.text ?? "").trim().length > 0)
       ) ||
       submissions.some((s) => (s.closingOpenAnswer ?? "").trim().length > 0),
-    hasComparisons: effectiveComparisons.length > 0,
+    hasAnalyses: analyses.length > 0,
   };
 
   return NextResponse.json({
@@ -381,7 +292,7 @@ export async function GET(
     },
     perSection,
     perQuestion,
-    comparisons,
+    analyses,
     closingOpenAnswers: submissions
       .filter((s) => s.closingOpenAnswer)
       .map((s) => ({ text: s.closingOpenAnswer! })),

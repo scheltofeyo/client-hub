@@ -34,16 +34,16 @@ export default function NewSurveyPage() {
 
   const isFromScratch = templateId === FROM_SCRATCH;
 
-  useEffect(() => {
+  function selectTemplate(id: string) {
+    setTemplateId(id);
     if (titleManuallyEdited) return;
-    if (!templateId) return;
-    if (isFromScratch) {
+    if (id === FROM_SCRATCH) {
       setTitle("");
       return;
     }
-    const tmpl = templates.find((t) => t.id === templateId);
+    const tmpl = templates.find((t) => t.id === id);
     if (tmpl) setTitle(tmpl.name);
-  }, [templateId, isFromScratch, templates, titleManuallyEdited]);
+  }
 
   useEffect(() => {
     Promise.all([
@@ -140,7 +140,7 @@ export default function NewSurveyPage() {
             <div className="space-y-2">
               <button
                 type="button"
-                onClick={() => setTemplateId(FROM_SCRATCH)}
+                onClick={() => selectTemplate(FROM_SCRATCH)}
                 className="w-full text-left p-4 rounded-card border transition-colors"
                 style={{
                   borderColor: isFromScratch ? "var(--primary)" : "var(--border)",
@@ -160,7 +160,7 @@ export default function NewSurveyPage() {
                       Start from scratch
                     </p>
                     <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
-                      Empty survey — build sections, questions and comparisons in the editor.
+                      Empty survey — build sections and questions in the editor.
                     </p>
                   </div>
                 </div>
@@ -181,7 +181,7 @@ export default function NewSurveyPage() {
                   <button
                     key={t.id}
                     type="button"
-                    onClick={() => setTemplateId(t.id)}
+                    onClick={() => selectTemplate(t.id)}
                     className="w-full text-left p-4 rounded-card border transition-colors"
                     style={{
                       borderColor: isSelected ? "var(--primary)" : "var(--border)",

@@ -41,7 +41,6 @@ export async function GET(
     clientName: client?.company ?? null,
     templateId: doc.templateId,
     templateSnapshot: { ...doc.templateSnapshot, archetypes: enrichedArchetypes },
-    sessionComparisons: doc.sessionComparisons ?? [],
     title: doc.title,
     status: doc.status,
     shareCode: doc.shareCode,
@@ -94,12 +93,6 @@ export async function PATCH(
     if (body.status === "open" && !existing.openedAt) update.openedAt = new Date();
     if (body.status === "closed") update.closedAt = new Date();
   }
-  if (body.sessionComparisons !== undefined) {
-    if (!Array.isArray(body.sessionComparisons)) {
-      return NextResponse.json({ error: "sessionComparisons must be an array" }, { status: 400 });
-    }
-    update.sessionComparisons = body.sessionComparisons;
-  }
   if (body.rankWeights !== undefined) {
     const expectedLength = existing.templateSnapshot?.archetypes?.length ?? 0;
     if (
@@ -116,14 +109,14 @@ export async function PATCH(
     update["templateSnapshot.rankWeights"] = body.rankWeights.map((w: unknown) => Number(w));
   }
 
-  // Snapshot content edits are only allowed in draft. Once published the snapshot is frozen
-  // (rankWeights and sessionComparisons remain editable above because they don't change content).
+  // Snapshot content edits are only allowed in draft. Once published the
+  // snapshot is frozen (rankWeights remain editable above — they don't
+  // change snapshot content).
   const snapshotEditsRequested =
     body.snapshotName !== undefined ||
     body.snapshotDescription !== undefined ||
     body.snapshotSections !== undefined ||
-    body.snapshotClosingOpenQuestion !== undefined ||
-    body.snapshotComparisons !== undefined;
+    body.snapshotClosingOpenQuestion !== undefined;
   if (snapshotEditsRequested && existing.status !== "draft") {
     return NextResponse.json(
       { error: "Snapshot content can only be edited while the session is in draft." },
@@ -147,12 +140,6 @@ export async function PATCH(
     }
     update["templateSnapshot.sections"] = body.snapshotSections;
   }
-  if (body.snapshotComparisons !== undefined) {
-    if (!Array.isArray(body.snapshotComparisons)) {
-      return NextResponse.json({ error: "snapshotComparisons must be an array" }, { status: 400 });
-    }
-    update["templateSnapshot.comparisons"] = body.snapshotComparisons;
-  }
 
   const doc = await SurveySessionModel.findByIdAndUpdate(
     id,
@@ -165,7 +152,6 @@ export async function PATCH(
     id: doc._id.toString(),
     title: doc.title,
     status: doc.status,
-    sessionComparisons: doc.sessionComparisons ?? [],
     openedAt: doc.openedAt?.toISOString() ?? null,
     closedAt: doc.closedAt?.toISOString() ?? null,
   });

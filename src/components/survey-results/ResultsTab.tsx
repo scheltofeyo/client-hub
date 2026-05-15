@@ -2,8 +2,10 @@
 
 import { Copy, Check, ChevronsDownUp, ChevronsUpDown } from "lucide-react";
 import { useMemo, useState } from "react";
+import type { AnalysisResult } from "@/lib/surveys/analyses";
 import type { ResultsData } from "./types";
 import { QuestionCard } from "./QuestionCard";
+import { AnalysesSection } from "./AnalysesSection";
 
 interface ResultsTabProps {
   results: ResultsData | null;
@@ -12,6 +14,14 @@ interface ResultsTabProps {
   shareUrl: string;
   /** Lookup for intro-block bodyHtml, keyed by questionId. */
   introBodyByQuestionId?: Record<string, string>;
+  /** Whether the current viewer may create/edit/delete analyses. */
+  canEditAnalyses?: boolean;
+  onCreateAnalysis?: () => void;
+  onEditAnalysis?: (analysis: AnalysisResult) => void;
+  onDuplicateAnalysis?: (analysis: AnalysisResult) => void;
+  onDeleteAnalysis?: (analysis: AnalysisResult) => void;
+  onMoveAnalysisUp?: (analysis: AnalysisResult) => void;
+  onMoveAnalysisDown?: (analysis: AnalysisResult) => void;
 }
 
 /**
@@ -26,6 +36,13 @@ export function ResultsTab({
   loading,
   shareUrl,
   introBodyByQuestionId,
+  canEditAnalyses = false,
+  onCreateAnalysis,
+  onEditAnalysis,
+  onDuplicateAnalysis,
+  onDeleteAnalysis,
+  onMoveAnalysisUp,
+  onMoveAnalysisDown,
 }: ResultsTabProps) {
   const sectionTitleById = useMemo(
     () => new Map((results?.perSection ?? []).map((s) => [s.sectionId, s.title])),
@@ -70,7 +87,10 @@ export function ResultsTab({
     );
   }
 
-  if (results.participantCount === 0) {
+  const analyses = results.analyses ?? [];
+  const hasAnalysesSection = canEditAnalyses || analyses.length > 0;
+
+  if (results.participantCount === 0 && analyses.length === 0) {
     return <ResultsEmptyState shareUrl={shareUrl} />;
   }
 
@@ -125,7 +145,30 @@ export function ResultsTab({
         </button>
       </div>
 
-      <div className="space-y-3">{groupedNodes}</div>
+      {hasAnalysesSection && (
+        <AnalysesSection
+          analyses={analyses}
+          questions={visibleQuestions}
+          canEdit={canEditAnalyses}
+          onCreate={onCreateAnalysis}
+          onEdit={onEditAnalysis}
+          onDuplicate={onDuplicateAnalysis}
+          onDelete={onDeleteAnalysis}
+          onMoveUp={onMoveAnalysisUp}
+          onMoveDown={onMoveAnalysisDown}
+        />
+      )}
+
+      {groupedNodes.length > 0 && (
+        <div className="space-y-3">
+          {analyses.length > 0 && (
+            <h2 className="typo-section-header pt-4" style={{ color: "var(--text-muted)" }}>
+              Questions
+            </h2>
+          )}
+          {groupedNodes}
+        </div>
+      )}
     </div>
   );
 }

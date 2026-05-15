@@ -4,7 +4,6 @@ import { connectDB } from "@/lib/mongodb";
 import { requirePermission } from "@/lib/auth-helpers";
 import { SurveyTemplateSectionModel } from "@/lib/models/SurveyTemplateSection";
 import { SurveyTemplateQuestionModel } from "@/lib/models/SurveyTemplateQuestion";
-import { SurveyTemplateModel } from "@/lib/models/SurveyTemplate";
 
 export async function PATCH(
   req: NextRequest,
@@ -26,6 +25,7 @@ export async function PATCH(
     update.title = body.title.trim();
   }
   if (body.description !== undefined) update.description = body.description?.trim() || undefined;
+  if (body.imageUrl !== undefined) update.imageUrl = body.imageUrl?.trim() || undefined;
   if (body.openQuestion !== undefined) update.openQuestion = body.openQuestion;
 
   const doc = await SurveyTemplateSectionModel.findOneAndUpdate(
@@ -39,6 +39,7 @@ export async function PATCH(
     id: doc._id.toString(),
     title: doc.title,
     description: doc.description ?? undefined,
+    imageUrl: doc.imageUrl ?? undefined,
     openQuestion: doc.openQuestion ?? undefined,
     order: doc.order ?? 0,
   });
@@ -61,32 +62,10 @@ export async function DELETE(
   }).lean();
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  // Find the question-ids that will be deleted so we can strip them from comparisons
-  const questionsToDelete = await SurveyTemplateQuestionModel.find({
-    templateId: id,
-    sectionId,
-  })
-    .select("_id")
-    .lean();
-  const questionIds = questionsToDelete.map((q) => q._id.toString());
-
   await Promise.all([
     SurveyTemplateSectionModel.findByIdAndDelete(sectionId),
     SurveyTemplateQuestionModel.deleteMany({ templateId: id, sectionId }),
   ]);
-
-  // Strip orphaned question-ids from any template comparison
-  if (questionIds.length > 0) {
-    const template = await SurveyTemplateModel.findById(id).lean();
-    if (template && Array.isArray(template.comparisons) && template.comparisons.length > 0) {
-      const cleaned = template.comparisons.map((c) => ({
-        ...c,
-        leftQuestionIds: (c.leftQuestionIds ?? []).filter((q: string) => !questionIds.includes(q)),
-        rightQuestionIds: (c.rightQuestionIds ?? []).filter((q: string) => !questionIds.includes(q)),
-      }));
-      await SurveyTemplateModel.findByIdAndUpdate(id, { $set: { comparisons: cleaned } });
-    }
-  }
 
   return NextResponse.json({ success: true });
 }

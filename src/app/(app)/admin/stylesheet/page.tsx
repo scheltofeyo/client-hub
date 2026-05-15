@@ -7,10 +7,8 @@ import { TaskRow, SubtaskRow } from "@/components/ui/task-row";
 import GanttTimeline, { GanttSection } from "@/components/ui/GanttTimeline";
 import SectionCard from "@/components/ui/SectionCard";
 import ArchetypePill, { type ArchetypeLite } from "@/components/surveys/ArchetypePill";
-import ComparisonHealthPill from "@/components/surveys/ComparisonHealthPill";
 import ModeChip from "@/components/surveys/ModeChip";
 import SaveStateChip from "@/components/surveys/SaveStateChip";
-import LiveDeltaChart from "@/components/surveys/LiveDeltaChart";
 import { ChartProvider } from "@/components/charts/ChartContext";
 import { StackedRankBar } from "@/components/charts/StackedRankBar";
 import { RankMiniHistogram } from "@/components/charts/RankMiniHistogram";
@@ -320,13 +318,6 @@ function SurveyPrimitivesShowcase() {
           <SaveStateChip state="error" onRetry={() => {}} />
         </div>
         <div className={row}>
-          <span className={label} style={{ color: "var(--text-muted)" }}>Health</span>
-          <ComparisonHealthPill health="empty" />
-          <ComparisonHealthPill health="incomplete" />
-          <ComparisonHealthPill health="ready" n={24} />
-          <ComparisonHealthPill health="needs-attention" />
-        </div>
-        <div className={row}>
           <span className={label} style={{ color: "var(--text-muted)" }}>Archetype</span>
           {DEMO_ARCHETYPES.map((a) => (
             <ArchetypePill key={a.id} archetype={a} variant="solid" />
@@ -409,35 +400,6 @@ function SurveyPrimitivesShowcase() {
               </SectionCard>
             </div>
           </SectionCard>
-        </div>
-      </div>
-
-      <div className={section}>
-        <p className={sectionTitle} style={{ color: "var(--text-muted)" }}>
-          Live delta chart
-        </p>
-        <LiveDeltaChart
-          archetypes={DEMO_ARCHETYPES}
-          leftQuestionIds={["q1", "q2"]}
-          rightQuestionIds={["q3", "q4"]}
-          leftLabel="To-be"
-          rightLabel="As-is"
-          perQuestionPercentages={{
-            q1: { sage: 35, ruler: 25, caregiver: 15, creator: 15, hero: 10 },
-            q2: { sage: 30, ruler: 20, caregiver: 20, creator: 20, hero: 10 },
-            q3: { sage: 15, ruler: 35, caregiver: 20, creator: 10, hero: 20 },
-            q4: { sage: 20, ruler: 30, caregiver: 25, creator: 10, hero: 15 },
-          }}
-        />
-        <div className="mt-3">
-          <LiveDeltaChart
-            archetypes={DEMO_ARCHETYPES}
-            leftQuestionIds={[]}
-            rightQuestionIds={["q3"]}
-            leftLabel="To-be"
-            rightLabel="As-is"
-            perQuestionPercentages={{}}
-          />
         </div>
       </div>
 

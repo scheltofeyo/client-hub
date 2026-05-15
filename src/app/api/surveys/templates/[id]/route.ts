@@ -33,12 +33,12 @@ export async function GET(
     archetypeIds: template.archetypeIds ?? [],
     defaultRankWeights: template.defaultRankWeights ?? [5, 4, 3, 2, 1],
     closingOpenQuestion: template.closingOpenQuestion ?? undefined,
-    comparisons: template.comparisons ?? [],
     version: template.version ?? 1,
     sections: sections.map((s) => ({
       id: s._id.toString(),
       title: s.title,
       description: s.description ?? undefined,
+      imageUrl: s.imageUrl ?? undefined,
       openQuestion: s.openQuestion ?? undefined,
       order: s.order ?? 0,
     })),
@@ -82,12 +82,6 @@ export async function PATCH(
     update.defaultRankWeights = body.defaultRankWeights.map((w: unknown) => Number(w));
   }
   if (body.closingOpenQuestion !== undefined) update.closingOpenQuestion = body.closingOpenQuestion;
-  if (body.comparisons !== undefined) {
-    if (!Array.isArray(body.comparisons)) {
-      return NextResponse.json({ error: "Comparisons must be an array" }, { status: 400 });
-    }
-    update.comparisons = body.comparisons;
-  }
   update.version = await (async () => {
     const cur = await SurveyTemplateModel.findById(id).select("version").lean();
     return (cur?.version ?? 1) + 1;
@@ -108,7 +102,6 @@ export async function PATCH(
     archetypeIds: doc.archetypeIds ?? [],
     defaultRankWeights: doc.defaultRankWeights ?? [5, 4, 3, 2, 1],
     closingOpenQuestion: doc.closingOpenQuestion ?? undefined,
-    comparisons: doc.comparisons ?? [],
     version: doc.version ?? 1,
   });
 }

@@ -9,6 +9,7 @@ export interface ISurveyTemplateSection extends Document {
   templateId: string;
   title: string;
   description?: string;
+  imageUrl?: string;
   openQuestion?: ISurveySectionOpenQuestion;
   order: number;
   createdAt: Date;
@@ -28,6 +29,7 @@ const SurveyTemplateSectionSchema = new Schema<ISurveyTemplateSection>(
     templateId: { type: String, required: true, index: true },
     title: { type: String, required: true, trim: true },
     description: { type: String, trim: true },
+    imageUrl: { type: String, trim: true },
     openQuestion: { type: OpenQuestionSchema, default: undefined },
     order: { type: Number, default: 0 },
   },
