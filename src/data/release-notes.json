@@ -1,6 +1,15 @@
 [
   {
     "date": "2026-05-15",
+    "title": "Survey share-links: betere preview-titel en -omschrijving in Slack/LinkedIn",
+    "details": [
+      "Titel: '{Klant} — {Surveytitel}' (was: '{Klant}: {Surveytitel}' met generieke Hub-omschrijving daaronder)",
+      "Omschrijving legt nu uit dat het om een korte, anonieme survey gaat en geeft de geschatte duur in minuten",
+      "Survey-links worden ook 'noindex' meegegeven zodat ze niet in zoekmachines belanden"
+    ]
+  },
+  {
+    "date": "2026-05-15",
     "title": "Survey editor: sectie-titel veld toont nu de juiste titel bij wisselen van sectie"
   },
   {

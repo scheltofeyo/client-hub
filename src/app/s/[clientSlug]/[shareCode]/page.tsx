@@ -27,6 +27,7 @@ import type { SurveyQuestionType } from "@/lib/surveys/types";
 import LocaleSwitcher, { type Locale } from "@/components/ui/LocaleSwitcher";
 import { t } from "@/lib/surveys/translations";
 import { pickGreeting, type Greeting } from "@/lib/surveys/greetings";
+import { estimateSurveyMinutes } from "@/lib/surveys/time-estimate";
 
 // Public-side types — match the trimmed shape returned by the public GET endpoint.
 interface PublicQuestion {
@@ -83,25 +84,6 @@ function rankingItemIds(q: PublicQuestion): string[] {
   if (q.type === "archetype-ranking") return (q.options ?? []).map((o) => o.id);
   if (q.type === "general-ranking") return (q.rankingItems ?? []).map((i) => i.id);
   return [];
-}
-
-// Per-question time estimates in seconds. Used to compute the "≈ X minutes"
-// label on the welcome screen. Tuned for typical participants — not exact.
-function estimateQuestionSeconds(q: PublicQuestion): number {
-  switch (q.type) {
-    case "intro":
-      return 0;
-    case "multiple-choice":
-      return q.choiceMode === "multi" ? 30 : 20;
-    case "archetype-ranking":
-      return 15 + (q.options?.length ?? 0) * 6;
-    case "general-ranking":
-      return 15 + (q.rankingItems?.length ?? 0) * 6;
-    case "open-text":
-      return q.multiline ? 90 : 40;
-    default:
-      return 25;
-  }
 }
 
 type Screen =
@@ -263,16 +245,10 @@ export default function PublicSurveyPage() {
     return n;
   }, [sections, closingEnabled]);
 
-  const estimatedMinutes = useMemo(() => {
-    let seconds = 0;
-    for (const s of sections) {
-      for (const q of s.questions ?? []) {
-        seconds += estimateQuestionSeconds(q);
-      }
-    }
-    if (closingEnabled) seconds += 90;
-    return Math.max(1, Math.round(seconds / 60));
-  }, [sections, closingEnabled]);
+  const estimatedMinutes = useMemo(
+    () => estimateSurveyMinutes(sections, closingEnabled),
+    [sections, closingEnabled]
+  );
 
   async function handleIdentify() {
     setError(null);
@@ -899,9 +875,10 @@ function PageShell({
         </div>
       </main>
 
-      {/* SUMM logo — fixed at the bottom of the viewport. Clears mobile sticky footer (~80px). */}
+      {/* SUMM logo — fixed at the bottom of the viewport. Clears mobile sticky footer (~80px).
+          Negative z-index so the form content can scroll over it on small screens. */}
       <div
-        className="fixed left-1/2 -translate-x-1/2 z-10 opacity-30 pointer-events-none bottom-[calc(env(safe-area-inset-bottom)+80px)] sm:bottom-6"
+        className="fixed left-1/2 -translate-x-1/2 -z-10 opacity-30 pointer-events-none bottom-[calc(env(safe-area-inset-bottom)+80px)] sm:bottom-6"
         aria-hidden="true"
       >
         <SummLogoMark />
