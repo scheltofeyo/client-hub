@@ -40,20 +40,12 @@ export default async function EditSurveyTemplatePage({
           closingOpenQuestion: template.closingOpenQuestion
             ? { enabled: template.closingOpenQuestion.enabled, label: template.closingOpenQuestion.label }
             : { enabled: false, label: "" },
-          comparisons: (template.comparisons ?? []).map((c) => ({
-            id: c.id,
-            label: c.label,
-            leftLabel: c.leftLabel,
-            rightLabel: c.rightLabel,
-            leftQuestionIds: c.leftQuestionIds ?? [],
-            rightQuestionIds: c.rightQuestionIds ?? [],
-            order: c.order ?? 0,
-          })),
         }}
         initialSections={sections.map((s) => ({
           id: s._id.toString(),
           title: s.title,
           description: s.description ?? "",
+          imageUrl: s.imageUrl ?? "",
           openQuestion: s.openQuestion
             ? { enabled: s.openQuestion.enabled, label: s.openQuestion.label }
             : { enabled: false, label: "" },

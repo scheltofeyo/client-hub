@@ -49,10 +49,31 @@ const translations = {
   "confirm.confirm": { nl: "Ja, versturen", en: "Yes, submit" },
 
   // Question helpers
-  "ranking.helperBold": { nl: "Sleep om te rangschikken", en: "Drag to rank" },
+  "ranking.helperBold": { nl: "Bouw je eigen volgorde", en: "Build your own order" },
   "ranking.helperRest": {
-    nl: "van meest (boven) naar minst (onder) van toepassing.",
-    en: "from most (top) to least (bottom) applicable.",
+    nl: "Sleep keuzes vanuit de lijst hieronder naar de juiste positie — bovenaan is het meest van toepassing.",
+    en: "Drag choices from the list below into the right position — top is most applicable.",
+  },
+  "ranking.emptySlotHint": {
+    nl: "Sleep hier je #{n}-keuze",
+    en: "Drop your #{n} choice here",
+  },
+  "ranking.poolLabel": { nl: "Beschikbare keuzes", en: "Available choices" },
+  "ranking.poolRemaining": {
+    nl: "Nog {n} van {total} te plaatsen",
+    en: "{n} of {total} still to place",
+  },
+  "ranking.allPlaced": {
+    nl: "Klaar — sleep terug naar de lijst om te wijzigen",
+    en: "All set — drag back to the list to change",
+  },
+  "ranking.poolEmptyHint": {
+    nl: "Sleep een keuze hierheen om hem terug te zetten",
+    en: "Drop a choice here to put it back",
+  },
+  "error.requiredRanking": {
+    nl: "Plaats eerst alle keuzes in de volgorde.",
+    en: "Place all choices in order first.",
   },
   "choice.maxHelper": { nl: "Selecteer maximaal {n}.", en: "Select up to {n}." },
 

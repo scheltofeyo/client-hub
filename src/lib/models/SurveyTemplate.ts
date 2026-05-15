@@ -1,15 +1,5 @@
 import mongoose, { Schema, Document, Model } from "mongoose";
 
-export interface ISurveyComparison {
-  id: string;
-  label: string;
-  leftLabel: string;
-  rightLabel: string;
-  leftQuestionIds: string[];
-  rightQuestionIds: string[];
-  order: number;
-}
-
 export interface ISurveyClosingQuestion {
   enabled: boolean;
   label: string;
@@ -22,25 +12,11 @@ export interface ISurveyTemplate extends Document {
   archetypeIds: string[];
   defaultRankWeights: number[];
   closingOpenQuestion?: ISurveyClosingQuestion;
-  comparisons: ISurveyComparison[];
   version: number;
   createdBy: string;
   createdAt: Date;
   updatedAt: Date;
 }
-
-const ComparisonSchema = new Schema<ISurveyComparison>(
-  {
-    id: { type: String, required: true },
-    label: { type: String, required: true, trim: true },
-    leftLabel: { type: String, required: true, trim: true },
-    rightLabel: { type: String, required: true, trim: true },
-    leftQuestionIds: { type: [String], default: [] },
-    rightQuestionIds: { type: [String], default: [] },
-    order: { type: Number, default: 0 },
-  },
-  { _id: false }
-);
 
 const ClosingOpenQuestionSchema = new Schema<ISurveyClosingQuestion>(
   {
@@ -58,7 +34,6 @@ const SurveyTemplateSchema = new Schema<ISurveyTemplate>(
     archetypeIds: { type: [String], default: [] },
     defaultRankWeights: { type: [Number], default: [5, 4, 3, 2, 1] },
     closingOpenQuestion: { type: ClosingOpenQuestionSchema, default: undefined },
-    comparisons: { type: [ComparisonSchema], default: [] },
     version: { type: Number, default: 1 },
     createdBy: { type: String, required: true },
   },

@@ -2,26 +2,22 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from "motion/react";
 import {
   DndContext,
+  DragOverlay,
   closestCenter,
   KeyboardSensor,
   PointerSensor,
   TouchSensor,
+  useDraggable,
+  useDroppable,
   useSensor,
   useSensors,
-  type DragEndEvent,
   type DragOverEvent,
+  type DragStartEvent,
 } from "@dnd-kit/core";
-import {
-  arrayMove,
-  SortableContext,
-  sortableKeyboardCoordinates,
-  useSortable,
-  verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
+import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { ArrowRight, Check, GripVertical, MessageCircle } from "lucide-react";
 import type { SurveyQuestionType } from "@/lib/surveys/types";
 import LocaleSwitcher, { type Locale } from "@/components/ui/LocaleSwitcher";
@@ -51,6 +47,7 @@ interface Section {
   id: string;
   title: string;
   description?: string;
+  imageUrl?: string;
   order: number;
   openQuestion?: { enabled: boolean; label: string };
   questions: PublicQuestion[];
@@ -84,6 +81,119 @@ function rankingItemIds(q: PublicQuestion): string[] {
   if (q.type === "archetype-ranking") return (q.options ?? []).map((o) => o.id);
   if (q.type === "general-ranking") return (q.rankingItems ?? []).map((i) => i.id);
   return [];
+}
+
+// ── Ranking state ───────────────────────────────────────────────────
+// `ranked` is a fixed-length array of (itemId | null) — empty slots keep their
+// rank position. `pool` holds the still-unplaced item ids in their initial
+// shuffled order. Submission requires every slot filled.
+
+type RankingState = { ranked: (string | null)[]; pool: string[] };
+
+const SLOT_ID_SEP = "::slot::";
+const POOL_ID_SEP = "::pool";
+
+function slotDroppableId(qid: string, index: number): string {
+  return `${qid}${SLOT_ID_SEP}${index}`;
+}
+
+function poolDroppableId(qid: string): string {
+  return `${qid}${POOL_ID_SEP}`;
+}
+
+function parseSlotIndex(id: string, qid: string): number | null {
+  const prefix = `${qid}${SLOT_ID_SEP}`;
+  if (!id.startsWith(prefix)) return null;
+  const n = Number(id.slice(prefix.length));
+  return Number.isFinite(n) ? n : null;
+}
+
+function findNearestEmptySlot(ranked: (string | null)[], target: number): number {
+  for (let i = target + 1; i < ranked.length; i++) {
+    if (ranked[i] === null) return i;
+  }
+  for (let i = target - 1; i >= 0; i--) {
+    if (ranked[i] === null) return i;
+  }
+  return -1;
+}
+
+function insertWithCascade(
+  ranked: (string | null)[],
+  pool: string[],
+  target: number,
+  item: string
+): { ranked: (string | null)[]; pool: string[] } {
+  const nextRanked = [...ranked];
+  const nextPool = pool.filter((id) => id !== item);
+  const emptyIdx = findNearestEmptySlot(nextRanked, target);
+  if (emptyIdx === -1) {
+    // No empty slot — push the last item back to the pool, then shift.
+    const popped = nextRanked[nextRanked.length - 1];
+    if (popped !== null) nextPool.push(popped);
+    for (let i = nextRanked.length - 1; i > target; i--) {
+      nextRanked[i] = nextRanked[i - 1];
+    }
+  } else if (emptyIdx > target) {
+    for (let i = emptyIdx; i > target; i--) {
+      nextRanked[i] = nextRanked[i - 1];
+    }
+  } else {
+    for (let i = emptyIdx; i < target; i++) {
+      nextRanked[i] = nextRanked[i + 1];
+    }
+  }
+  nextRanked[target] = item;
+  return { ranked: nextRanked, pool: nextPool };
+}
+
+function computeNextRanking(
+  state: RankingState,
+  activeId: string,
+  fromZone: "slot" | "pool",
+  overId: string,
+  qid: string
+): RankingState {
+  const targetSlot = parseSlotIndex(overId, qid);
+  const targetIsPool = overId === poolDroppableId(qid);
+
+  if (fromZone === "pool" && targetIsPool) return state;
+  if (fromZone === "pool" && targetSlot === null && !targetIsPool) return state;
+
+  if (fromZone === "pool" && targetSlot !== null) {
+    if (state.ranked[targetSlot] === null) {
+      const ranked = [...state.ranked];
+      ranked[targetSlot] = activeId;
+      return { ranked, pool: state.pool.filter((id) => id !== activeId) };
+    }
+    return insertWithCascade(state.ranked, state.pool, targetSlot, activeId);
+  }
+
+  if (fromZone === "slot") {
+    const fromIdx = state.ranked.indexOf(activeId);
+    if (fromIdx < 0) return state;
+
+    if (targetIsPool) {
+      const ranked = [...state.ranked];
+      ranked[fromIdx] = null;
+      return { ranked, pool: [...state.pool, activeId] };
+    }
+
+    if (targetSlot !== null && targetSlot !== fromIdx) {
+      const ranked = [...state.ranked];
+      if (ranked[targetSlot] === null) {
+        ranked[targetSlot] = activeId;
+        ranked[fromIdx] = null;
+        return { ranked, pool: state.pool };
+      }
+      // Target is filled — cascade towards bron-slot via arrayMove semantics.
+      const [moved] = ranked.splice(fromIdx, 1);
+      ranked.splice(targetSlot, 0, moved);
+      return { ranked, pool: state.pool };
+    }
+  }
+
+  return state;
 }
 
 type Screen =
@@ -160,7 +270,7 @@ export default function PublicSurveyPage() {
   const [email, setEmail] = useState("");
   const [submissionId, setSubmissionId] = useState<string | null>(null);
 
-  const [questionOrders, setQuestionOrders] = useState<Record<string, string[]>>({});
+  const [rankingState, setRankingState] = useState<Record<string, RankingState>>({});
   const [choices, setChoices] = useState<Record<string, string[]>>({});
   const [openTexts, setOpenTexts] = useState<Record<string, string>>({});
 
@@ -198,14 +308,19 @@ export default function PublicSurveyPage() {
       .then((r) => r.json())
       .then((data: SurveyData) => {
         if (data?.template?.sections) {
-          const init: Record<string, string[]> = {};
+          const init: Record<string, RankingState> = {};
           for (const s of data.template.sections) {
             for (const q of s.questions ?? []) {
               const ids = rankingItemIds(q);
-              if (ids.length > 0) init[q.id] = fisherYates(ids);
+              if (ids.length > 0) {
+                init[q.id] = {
+                  ranked: Array(ids.length).fill(null),
+                  pool: fisherYates(ids),
+                };
+              }
             }
           }
-          setQuestionOrders(init);
+          setRankingState(init);
         }
         setSurvey(data);
         setLoading(false);
@@ -296,6 +411,12 @@ export default function PublicSurveyPage() {
         setError(t(locale, "error.requiredAny"));
         return false;
       }
+    } else if (q.type === "archetype-ranking" || q.type === "general-ranking") {
+      const state = rankingState[q.id];
+      if (!state || state.ranked.some((id) => id === null)) {
+        setError(t(locale, "error.requiredRanking"));
+        return false;
+      }
     }
     setError(null);
     return true;
@@ -334,18 +455,9 @@ export default function PublicSurveyPage() {
     setStep((s) => s - 1);
   }
 
-  function handleReorder(questionId: string) {
-    return (event: DragEndEvent | DragOverEvent) => {
-      const { active, over } = event;
-      if (!over || active.id === over.id) return;
-      setQuestionOrders((prev) => {
-        const list = prev[questionId];
-        if (!list) return prev;
-        const oldIndex = list.indexOf(active.id as string);
-        const newIndex = list.indexOf(over.id as string);
-        if (oldIndex < 0 || newIndex < 0) return prev;
-        return { ...prev, [questionId]: arrayMove(list, oldIndex, newIndex) };
-      });
+  function handleRankingCommit(questionId: string) {
+    return (next: RankingState) => {
+      setRankingState((prev) => ({ ...prev, [questionId]: next }));
     };
   }
 
@@ -379,12 +491,16 @@ export default function PublicSurveyPage() {
             continue;
           case "archetype-ranking":
           case "general-ranking": {
-            const order = questionOrders[q.id];
-            if (!order) continue;
+            const state = rankingState[q.id];
+            if (!state) continue;
+            const rankings: Record<string, number> = {};
+            state.ranked.forEach((id, i) => {
+              if (id !== null) rankings[id] = i + 1;
+            });
             answers.push({
               questionId: q.id,
               type: q.type,
-              rankings: Object.fromEntries(order.map((id, i) => [id, i + 1])),
+              rankings,
             });
             break;
           }
@@ -472,6 +588,10 @@ export default function PublicSurveyPage() {
     : t(locale, "nav.next");
   const showFooter = !isDoneStep;
   const showPrev = step > 0 && !isDoneStep;
+  const currentSectionIntroImg =
+    current.kind === "section-intro"
+      ? sectionsById.get(current.sectionId)?.imageUrl?.trim() || undefined
+      : undefined;
   const motionTransition = reducedMotion
     ? { duration: 0 }
     : { duration: 0.32, ease: [0.22, 1, 0.36, 1] as const };
@@ -544,23 +664,53 @@ export default function PublicSurveyPage() {
     if (screen.kind === "section-intro") {
       const section = sectionsById.get(screen.sectionId);
       if (!section) return null;
+      const img = section.imageUrl?.trim();
       return (
-        <div className="space-y-7 w-full">
-          <p className="typo-tag" style={{ color: "var(--primary)" }}>
-            {t(locale, "nav.section", { n: screen.sectionIndex + 1, total: screen.totalSections })}
-          </p>
-          <h2
-            className="text-[28px] sm:text-[32px] md:text-[36px] font-semibold leading-[1.15]"
-            style={{ color: "var(--text-primary)", letterSpacing: "-0.018em" }}
-          >
-            {section.title}
-          </h2>
-          {section.description && (
-            <div
-              className="prose prose-sm max-w-[65ch] text-[16px] sm:text-[17px] survey-richtext"
-              style={{ color: "var(--text-muted)", lineHeight: 1.55 }}
-              dangerouslySetInnerHTML={{ __html: section.description }}
-            />
+        <div className="w-full md:flex md:items-center md:gap-8">
+          <div className="flex-1 min-w-0">
+            <div className="space-y-7">
+              <p className="typo-tag" style={{ color: "var(--primary)" }}>
+                {t(locale, "nav.section", { n: screen.sectionIndex + 1, total: screen.totalSections })}
+              </p>
+              <h2
+                className="text-[28px] sm:text-[32px] md:text-[36px] font-semibold leading-[1.15]"
+                style={{ color: "var(--text-primary)", letterSpacing: "-0.018em" }}
+              >
+                {section.title}
+              </h2>
+              {section.description && (
+                <div
+                  className="prose prose-sm max-w-[65ch] text-[16px] sm:text-[17px] survey-richtext"
+                  style={{ color: "var(--text-muted)", lineHeight: 1.55 }}
+                  dangerouslySetInnerHTML={{ __html: section.description }}
+                />
+              )}
+            </div>
+            {img && showFooter && (
+              <div className="hidden sm:block mt-8">
+                <ActionFooter
+                  locale={locale}
+                  submitting={submitting}
+                  error={error}
+                  errorToken={errorToken}
+                  reducedMotion={!!reducedMotion}
+                  onPrev={showPrev ? goPrev : undefined}
+                  onPrimary={goNext}
+                  primaryLabel={primaryLabel}
+                  primaryBusy={submitting && isLastAnswerScreen()}
+                />
+              </div>
+            )}
+          </div>
+          {img && (
+            <div className="md:hidden mt-7 w-full aspect-square rounded-card overflow-hidden">
+              <img src={img} alt="" className="w-full h-full object-cover" />
+            </div>
+          )}
+          {img && (
+            <div className="hidden md:block shrink-0 w-[45vw] md:max-w-[min(50%,100vh)] h-[90vh] md:max-h-[calc(100vh-260px)] rounded-card overflow-hidden">
+              <img src={img} alt="" className="w-full h-full object-cover" />
+            </div>
           )}
         </div>
       );
@@ -664,8 +814,8 @@ export default function PublicSurveyPage() {
                 q={q}
                 locale={locale}
                 sensors={sensors}
-                order={questionOrders[q.id]}
-                onReorder={handleReorder(q.id)}
+                state={rankingState[q.id]}
+                onCommit={handleRankingCommit(q.id)}
               />
             )}
             {q.type === "multiple-choice" && (
@@ -745,6 +895,7 @@ export default function PublicSurveyPage() {
           />
         ) : null
       }
+      hideDesktopFooter={!!currentSectionIntroImg}
     >
       <AnimatePresence mode="wait" initial={false} custom={direction}>
         <motion.div
@@ -785,6 +936,7 @@ function PageShell({
   primaryColor,
   progress,
   footer,
+  hideDesktopFooter,
   children,
 }: {
   locale: Locale;
@@ -795,6 +947,7 @@ function PageShell({
   primaryColor?: string;
   progress?: number | null;
   footer?: React.ReactNode;
+  hideDesktopFooter?: boolean;
   children: React.ReactNode;
 }) {
   const themeStyle: React.CSSProperties = primaryColor
@@ -838,7 +991,7 @@ function PageShell({
           </div>
 
           )}
-        <div className="flex items-center gap-3 px-6 md:px-[120px] py-3.5">
+        <div className="flex items-center gap-3 px-6 md:px-[60px] lg:px-[120px] py-3.5">
           <div className="min-w-0 flex-1">
             {title && (
               <h1
@@ -863,11 +1016,11 @@ function PageShell({
         </div>
       </header>
 
-      <main className="flex-1 flex flex-col w-full px-6 md:px-[120px] py-8 sm:py-12 md:py-16 pb-[140px] sm:pb-[120px]">
+      <main className="flex-1 flex flex-col w-full px-6 md:px-[60px] lg:px-[120px] py-8 sm:py-12 md:py-16 pb-[140px] sm:pb-[120px]">
         <div className="w-full">
           {children}
           {/* Desktop footer slot — below content */}
-          {footer && (
+          {footer && !hideDesktopFooter && (
             <div className="hidden sm:block">
               {footer}
             </div>
@@ -1078,78 +1231,249 @@ function RankingInput({
   q,
   locale,
   sensors,
-  order,
-  onReorder,
+  state,
+  onCommit,
 }: {
   q: PublicQuestion;
   locale: Locale;
   sensors: ReturnType<typeof useSensors>;
-  order: string[] | undefined;
-  onReorder: (e: DragEndEvent | DragOverEvent) => void;
+  state: RankingState | undefined;
+  onCommit: (next: RankingState) => void;
 }) {
-  const items = q.type === "archetype-ranking" ? q.options ?? [] : q.rankingItems ?? [];
-  const computed = order ?? items.map((i) => i.id);
+  const items = useMemo(
+    () =>
+      q.type === "archetype-ranking"
+        ? q.options ?? []
+        : q.rankingItems ?? [],
+    [q.type, q.options, q.rankingItems]
+  );
+  const itemMap = useMemo(
+    () => new Map(items.map((i) => [i.id, i] as const)),
+    [items]
+  );
+  const total = items.length;
+  const fallback: RankingState = useMemo(
+    () => ({ ranked: Array(total).fill(null), pool: items.map((i) => i.id) }),
+    [items, total]
+  );
+  const current = state ?? fallback;
+  const placed = current.ranked.filter((id) => id !== null).length;
+  const remaining = total - placed;
+  const allPlaced = remaining === 0;
+
+  const [activeDrag, setActiveDrag] = useState<{
+    id: string;
+    zone: "slot" | "pool";
+    rank?: number;
+  } | null>(null);
+  const [activeOverId, setActiveOverId] = useState<string | null>(null);
+
+  const handleDragStart = (event: DragStartEvent) => {
+    const zone = event.active.data.current?.zone as "slot" | "pool" | undefined;
+    if (!zone) return;
+    const id = String(event.active.id);
+    const slotIdx = current.ranked.indexOf(id);
+    setActiveDrag({ id, zone, rank: slotIdx >= 0 ? slotIdx + 1 : undefined });
+    setActiveOverId(null);
+  };
+
+  const handleDragOver = (event: DragOverEvent) => {
+    setActiveOverId(event.over ? String(event.over.id) : null);
+  };
+
+  const handleDragEnd = () => {
+    // Commit whatever the user sees in the preview. Using `previewState` here is
+    // more robust than re-deriving from `event.over.id`, which can be stale once
+    // the preview has shifted DOM positions around during the drag.
+    if (previewState !== current) {
+      onCommit(previewState);
+    }
+    setActiveDrag(null);
+    setActiveOverId(null);
+  };
+
+  const handleDragCancel = () => {
+    setActiveDrag(null);
+    setActiveOverId(null);
+  };
+
+  // Live preview during drag: while the user hovers a target, compute what the
+  // state would look like on drop and render that. Cascades become visible
+  // before commit, so users see exactly where the chosen card will land.
+  const previewState: RankingState =
+    activeDrag && activeOverId
+      ? computeNextRanking(current, activeDrag.id, activeDrag.zone, activeOverId, q.id)
+      : current;
+
+  const activeItem = activeDrag ? itemMap.get(activeDrag.id) : null;
+
   return (
-    <>
-      <p
-        className="text-[15px] mb-4"
-        style={{ color: "var(--text-muted)", lineHeight: 1.5 }}
-      >
-        <strong className="font-medium" style={{ color: "var(--text-primary)" }}>
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragStart={handleDragStart}
+      onDragOver={handleDragOver}
+      onDragEnd={handleDragEnd}
+      onDragCancel={handleDragCancel}
+    >
+      <div className="mb-4">
+        <p
+          className="text-[15px] font-medium"
+          style={{ color: "var(--text-primary)", lineHeight: 1.4 }}
+        >
           {t(locale, "ranking.helperBold")}
-        </strong>{" "}
-        {t(locale, "ranking.helperRest")}
-      </p>
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragOver={onReorder} onDragEnd={onReorder}>
-        <SortableContext items={computed} strategy={verticalListSortingStrategy}>
-          <div className="space-y-1.5">
-            {computed.map((id, idx) => {
-              const item = items.find((x) => x.id === id);
-              if (!item) return null;
-              return (
-                <SortableOption
-                  key={item.id}
-                  id={item.id}
-                  rank={idx + 1}
-                  text={item.text || "(no text)"}
-                />
-              );
-            })}
-          </div>
-        </SortableContext>
-      </DndContext>
-    </>
+        </p>
+        <p
+          className="text-[14px] mt-1"
+          style={{ color: "var(--text-muted)", lineHeight: 1.5 }}
+        >
+          {t(locale, "ranking.helperRest")}
+        </p>
+      </div>
+      <LayoutGroup id={`ranking-${q.id}`}>
+        <RankingSlots
+          qid={q.id}
+          ranked={previewState.ranked}
+          itemMap={itemMap}
+          locale={locale}
+          activeDragId={activeDrag?.id ?? null}
+          previewTargetIdx={
+            activeDrag && activeOverId
+              ? previewState.ranked.indexOf(activeDrag.id)
+              : -1
+          }
+        />
+        <div
+          className="mt-4 mb-2 flex items-center gap-2 text-[13px]"
+          style={{ color: allPlaced ? "var(--success)" : "var(--text-muted)" }}
+        >
+          {allPlaced ? (
+            <>
+              <Check size={14} strokeWidth={2.4} />
+              <span>{t(locale, "ranking.allPlaced")}</span>
+            </>
+          ) : (
+            <span>
+              {t(locale, "ranking.poolRemaining", { n: remaining, total })}
+            </span>
+          )}
+        </div>
+        <RankingPool
+          qid={q.id}
+          pool={previewState.pool}
+          itemMap={itemMap}
+          locale={locale}
+          allPlaced={previewState.ranked.every((id) => id !== null)}
+          activeDragId={activeDrag?.id ?? null}
+        />
+      </LayoutGroup>
+      <DragOverlay dropAnimation={null}>
+        {activeDrag && activeItem ? (
+          <DragOverlayItem
+            zone={activeDrag.zone}
+            rank={activeDrag.rank}
+            text={activeItem.text || "(no text)"}
+          />
+        ) : null}
+      </DragOverlay>
+    </DndContext>
   );
 }
 
-function rankChipStyle(rank: number): React.CSSProperties {
+function rankChipStyle(rank: number, filled: boolean): React.CSSProperties {
+  if (!filled) {
+    return {
+      background: "transparent",
+      color: "var(--text-muted)",
+      border: "1.5px dashed var(--border)",
+    };
+  }
   if (rank === 1) {
     return { background: "var(--primary)", color: "#fff" };
   }
   return { background: "var(--primary-light)", color: "var(--primary)" };
 }
 
-function SortableOption({ id, rank, text }: { id: string; rank: number; text: string }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
-  const chipStyle = rankChipStyle(rank);
+function RankingSlots({
+  qid,
+  ranked,
+  itemMap,
+  locale,
+  activeDragId,
+  previewTargetIdx,
+}: {
+  qid: string;
+  ranked: (string | null)[];
+  itemMap: Map<string, { id: string; text: string }>;
+  locale: Locale;
+  activeDragId: string | null;
+  previewTargetIdx: number;
+}) {
+  return (
+    <div className="space-y-1.5">
+      {ranked.map((itemId, idx) => {
+        const validId =
+          itemId !== null && itemMap.has(itemId) ? itemId : null;
+        const isPreviewActive = previewTargetIdx >= 0;
+        const isPreviewTarget = idx === previewTargetIdx;
+
+        // Target slot of the live preview: render a non-draggable ghost
+        // (using the dragged item's text), so the user sees exactly where the
+        // card would land. Using a non-draggable means no `useDraggable`
+        // isDragging=true → opacity:0 bug.
+        if (isPreviewTarget && activeDragId !== null) {
+          const text = itemMap.get(activeDragId)?.text || "(no text)";
+          return (
+            <SlotCell
+              key={idx}
+              qid={qid}
+              index={idx}
+              rank={idx + 1}
+              locale={locale}
+              isEmpty={false}
+              isPreviewTarget
+            >
+              <PreviewSlotItem rank={idx + 1} text={text} />
+            </SlotCell>
+          );
+        }
+
+        // Without an active preview target, treat the source slot of the
+        // current drag as empty (the item is shown by DragOverlay instead).
+        const isSourceWithoutPreview =
+          !isPreviewActive && validId !== null && validId === activeDragId;
+        const isEmpty = validId === null || isSourceWithoutPreview;
+        return (
+          <SlotCell
+            key={idx}
+            qid={qid}
+            index={idx}
+            rank={idx + 1}
+            locale={locale}
+            isEmpty={isEmpty}
+            isPreviewTarget={false}
+          >
+            {!isEmpty && validId !== null && (
+              <DraggableRankItem
+                id={validId}
+                zone="slot"
+                index={idx}
+                rank={idx + 1}
+                text={itemMap.get(validId)?.text || "(no text)"}
+              />
+            )}
+          </SlotCell>
+        );
+      })}
+    </div>
+  );
+}
+
+function PreviewSlotItem({ rank, text }: { rank: number; text: string }) {
   return (
     <div
-      ref={setNodeRef}
-      style={{
-        // Use dnd-kit's transform straight — no extra scale/rotate (interferes with translate)
-        transform: CSS.Transform.toString(transform),
-        // Use only dnd-kit's transition value; no fallback that animates during active drag
-        transition,
-        zIndex: isDragging ? 10 : undefined,
-        borderColor: isDragging ? "var(--primary)" : "var(--border)",
-        background: "var(--bg-surface)",
-        boxShadow: isDragging
-          ? "0 12px 28px -8px color-mix(in srgb, var(--primary) 32%, transparent)"
-          : "none",
-      }}
-      {...attributes}
-      {...listeners}
-      className="flex items-center gap-3 pl-2 pr-4 py-3 sm:py-3.5 rounded-card border cursor-grab active:cursor-grabbing touch-none min-h-[56px] sm:min-h-[64px] select-none"
+      className="flex items-center gap-3 pl-2 pr-4 py-3 sm:py-3.5 rounded-card min-h-[56px] sm:min-h-[64px] select-none"
+      style={{ background: "var(--bg-surface)", opacity: 0.55 }}
     >
       <GripVertical
         size={16}
@@ -1157,8 +1481,8 @@ function SortableOption({ id, rank, text }: { id: string; rank: number; text: st
         className="shrink-0 opacity-60"
       />
       <span
-        className="w-8 h-8 rounded-full flex items-center justify-center text-[14px] tabular-nums font-bold shrink-0 transition-colors"
-        style={chipStyle}
+        className="w-8 h-8 rounded-full flex items-center justify-center text-[14px] tabular-nums font-bold shrink-0"
+        style={rankChipStyle(rank, true)}
       >
         {rank}
       </span>
@@ -1168,6 +1492,243 @@ function SortableOption({ id, rank, text }: { id: string; rank: number; text: st
       >
         {text}
       </span>
+    </div>
+  );
+}
+
+function SlotCell({
+  qid,
+  index,
+  rank,
+  locale,
+  isEmpty,
+  isPreviewTarget,
+  children,
+}: {
+  qid: string;
+  index: number;
+  rank: number;
+  locale: Locale;
+  isEmpty: boolean;
+  isPreviewTarget: boolean;
+  children: React.ReactNode;
+}) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: slotDroppableId(qid, index),
+    data: { zone: "slot", index },
+  });
+  const highlight = isOver || isPreviewTarget;
+  return (
+    <div
+      ref={setNodeRef}
+      className="rounded-card border min-h-[56px] sm:min-h-[64px] transition-colors"
+      style={{
+        borderStyle: isEmpty ? "dashed" : "solid",
+        borderWidth: isEmpty ? 1.5 : 1,
+        borderColor: highlight ? "var(--primary)" : "var(--border)",
+        background: highlight
+          ? "var(--primary-light)"
+          : isEmpty
+          ? "var(--bg-app)"
+          : "var(--bg-surface)",
+      }}
+    >
+      {isEmpty ? (
+        <div className="flex items-center gap-3 pl-2 pr-4 py-3 sm:py-3.5 min-h-[56px] sm:min-h-[64px]">
+          <span className="w-4 shrink-0" aria-hidden="true" />
+          <span
+            className="w-8 h-8 rounded-full flex items-center justify-center text-[14px] tabular-nums font-bold shrink-0"
+            style={
+              isPreviewTarget
+                ? rankChipStyle(rank, true)
+                : rankChipStyle(rank, false)
+            }
+          >
+            {rank}
+          </span>
+          <span
+            className="text-[14px] flex-1 min-w-0 italic"
+            style={{
+              color: isPreviewTarget ? "var(--primary)" : "var(--text-muted)",
+              lineHeight: 1.4,
+            }}
+          >
+            {t(locale, "ranking.emptySlotHint", { n: rank })}
+          </span>
+        </div>
+      ) : (
+        children
+      )}
+    </div>
+  );
+}
+
+function DraggableRankItem({
+  id,
+  zone,
+  index,
+  rank,
+  text,
+}: {
+  id: string;
+  zone: "slot" | "pool";
+  index?: number;
+  rank?: number;
+  text: string;
+}) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id,
+    data: { zone, index },
+  });
+  return (
+    <motion.div
+      ref={setNodeRef}
+      layout
+      layoutId={`rank-item-${id}`}
+      transition={{ type: "spring", stiffness: 260, damping: 28, mass: 0.9 }}
+      style={{
+        opacity: isDragging ? 0 : 1,
+        background: zone === "slot" ? "var(--bg-surface)" : "var(--bg-elevated)",
+      }}
+      {...attributes}
+      {...listeners}
+      className="flex items-center gap-3 pl-2 pr-4 py-3 sm:py-3.5 rounded-card cursor-grab active:cursor-grabbing touch-none min-h-[56px] sm:min-h-[64px] select-none"
+    >
+      <RankItemBody zone={zone} rank={rank} text={text} />
+    </motion.div>
+  );
+}
+
+function RankItemBody({
+  zone,
+  rank,
+  text,
+}: {
+  zone: "slot" | "pool";
+  rank?: number;
+  text: string;
+}) {
+  return (
+    <>
+      <GripVertical
+        size={16}
+        style={{ color: "var(--text-muted)" }}
+        className="shrink-0 opacity-60"
+      />
+      {zone === "slot" && rank !== undefined && (
+        <span
+          className="w-8 h-8 rounded-full flex items-center justify-center text-[14px] tabular-nums font-bold shrink-0 transition-colors"
+          style={rankChipStyle(rank, true)}
+        >
+          {rank}
+        </span>
+      )}
+      <span
+        className="text-[15px] flex-1 min-w-0"
+        style={{ color: "var(--text-primary)", lineHeight: 1.4 }}
+      >
+        {text}
+      </span>
+    </>
+  );
+}
+
+function DragOverlayItem({
+  zone,
+  rank,
+  text,
+}: {
+  zone: "slot" | "pool";
+  rank?: number;
+  text: string;
+}) {
+  return (
+    <div
+      style={{
+        background: zone === "slot" ? "var(--bg-surface)" : "var(--bg-elevated)",
+        borderColor: "var(--primary)",
+        boxShadow:
+          "0 16px 32px -8px color-mix(in srgb, var(--primary) 36%, transparent)",
+      }}
+      className="flex items-center gap-3 pl-2 pr-4 py-3 sm:py-3.5 rounded-card border-2 cursor-grabbing touch-none min-h-[56px] sm:min-h-[64px] select-none"
+    >
+      <RankItemBody zone={zone} rank={rank} text={text} />
+    </div>
+  );
+}
+
+function RankingPool({
+  qid,
+  pool,
+  itemMap,
+  locale,
+  allPlaced,
+  activeDragId,
+}: {
+  qid: string;
+  pool: string[];
+  itemMap: Map<string, { id: string; text: string }>;
+  locale: Locale;
+  allPlaced: boolean;
+  activeDragId: string | null;
+}) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: poolDroppableId(qid),
+    data: { zone: "pool" },
+  });
+  const visiblePool = pool.filter((id) => id !== activeDragId);
+  return (
+    <div
+      ref={setNodeRef}
+      className="rounded-card border p-3 transition-colors"
+      style={{
+        borderColor: isOver
+          ? "var(--primary)"
+          : allPlaced
+          ? "var(--success-light, color-mix(in srgb, var(--success) 35%, transparent))"
+          : "var(--border)",
+        background: isOver
+          ? "var(--primary-light)"
+          : allPlaced
+          ? "color-mix(in srgb, var(--success) 6%, var(--bg-elevated))"
+          : "var(--bg-elevated)",
+      }}
+    >
+      <p
+        className="typo-section-header mb-2"
+        style={{ color: "var(--text-muted)" }}
+      >
+        {t(locale, "ranking.poolLabel")}
+      </p>
+      {visiblePool.length === 0 ? (
+        <div
+          className="flex items-center justify-center rounded-card border min-h-[56px] sm:min-h-[64px] px-4 py-3 text-[13px] italic"
+          style={{
+            borderStyle: "dashed",
+            borderColor: "var(--border)",
+            background: "var(--bg-app)",
+            color: "var(--text-muted)",
+            lineHeight: 1.4,
+          }}
+        >
+          {t(locale, "ranking.poolEmptyHint")}
+        </div>
+      ) : (
+        <div className="space-y-1.5">
+          {visiblePool.map((id) => {
+            const item = itemMap.get(id);
+            if (!item) return null;
+            return (
+              <DraggableRankItem
+                key={id}
+                id={id}
+                zone="pool"
+                text={item.text || "(no text)"}
+              />
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

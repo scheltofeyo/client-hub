@@ -2,6 +2,7 @@
 // Mirrors `src/app/api/surveys/sessions/[id]/results/route.ts`.
 
 import type { SurveyQuestionType } from "@/lib/surveys/types";
+import type { AnalysisResult } from "@/lib/surveys/analyses";
 
 export interface ResultsArchetype {
   id: string;
@@ -14,7 +15,7 @@ export interface ResultsCapabilities {
   hasGeneralRanking: boolean;
   hasMultipleChoice: boolean;
   hasOpenText: boolean;
-  hasComparisons: boolean;
+  hasAnalyses: boolean;
 }
 
 export interface OpenAnswer {
@@ -59,18 +60,6 @@ export type QuestionResult =
   | (QuestionBase & { type: "open-text"; answers: OpenAnswer[] })
   | (QuestionBase & { type: "intro" });
 
-export interface ComparisonResult {
-  id: string;
-  label: string;
-  leftLabel: string;
-  rightLabel: string;
-  left: { archetypeId: string; percentage: number }[];
-  right: { archetypeId: string; percentage: number }[];
-  gap: { archetypeId: string; delta: number }[];
-  n: number;
-  agreement: number | null;
-}
-
 export interface ResultsData {
   participantCount: number;
   archetypes: ResultsArchetype[];
@@ -82,8 +71,8 @@ export interface ResultsData {
   };
   perSection: SectionResult[];
   perQuestion: QuestionResult[];
-  comparisons: ComparisonResult[];
+  analyses: AnalysisResult[];
   closingOpenAnswers: OpenAnswer[];
 }
 
-export type { SurveyQuestionType };
+export type { SurveyQuestionType, AnalysisResult };

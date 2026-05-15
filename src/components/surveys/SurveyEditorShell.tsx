@@ -8,13 +8,10 @@ import RichTextEditor from "@/components/ui/RichTextEditor";
 import ArchetypePill, { type ArchetypeLite } from "./ArchetypePill";
 import EditorOutline, {
   type OutlineSection,
-  type OutlineComparison,
   type OutlineSelection,
 } from "./EditorOutline";
 import ModeChip, { type EditorMode } from "./ModeChip";
 import SaveStateChip, { type SaveState } from "./SaveStateChip";
-import ShuttlePicker, { type ShuttleQuestion } from "./ShuttlePicker";
-import { deriveComparisonHealth, type ComparisonHealth } from "./ComparisonHealthPill";
 import QuestionForm, { type QuestionFormQuestion } from "./QuestionForm";
 import AddBlockMenu from "./AddBlockMenu";
 import { QUESTION_TYPE_META, type ShellQuestionAny } from "./question-types";
@@ -28,18 +25,9 @@ export interface ShellSection {
   id: string;
   title: string;
   description?: string;
+  imageUrl?: string;
   openQuestion?: { enabled: boolean; label: string };
   questions: ShellQuestion[];
-}
-
-export interface ShellComparison {
-  id: string;
-  label: string;
-  leftLabel: string;
-  rightLabel: string;
-  leftQuestionIds: string[];
-  rightQuestionIds: string[];
-  order: number;
 }
 
 export interface SurveyEditorShellProps {
@@ -60,7 +48,6 @@ export interface SurveyEditorShellProps {
   archetypeMutable: boolean;
   closingOpenQuestion?: { enabled: boolean; label: string };
   sections: ShellSection[];
-  comparisons: ShellComparison[];
 
   // selection
   selected: OutlineSelection;
@@ -81,12 +68,6 @@ export interface SurveyEditorShellProps {
   onUpdateQuestion: (sectionId: string, questionId: string, updates: Partial<ShellQuestion>) => void;
   onDeleteQuestion: (sectionId: string, questionId: string) => void;
   onReorderQuestionsInSection?: (sectionId: string, ids: string[]) => void;
-
-  onAddComparison?: () => void;
-  onUpdateComparison: (comparisonId: string, updates: Partial<ShellComparison>) => void;
-  onDeleteComparison: (comparisonId: string) => void;
-
-  perQuestionPercentages?: Record<string, Record<string, number>>;
 }
 
 // ── Main shell ───────────────────────────────────────────────────
@@ -102,17 +83,10 @@ export default function SurveyEditorShell(props: SurveyEditorShellProps) {
     savedAt,
     onRetrySave,
     sections,
-    comparisons,
     selected,
     onSelect,
     archetypeMutable,
   } = props;
-
-  // Build the outline-data shape
-  const knownQuestionIds = useMemo(
-    () => new Set(sections.flatMap((s) => s.questions.map((q) => q.id))),
-    [sections]
-  );
 
   const hasArchetypeRanking = useMemo(
     () => sections.some((s) => s.questions.some((q) => q.type === "archetype-ranking")),
@@ -132,19 +106,6 @@ export default function SurveyEditorShell(props: SurveyEditorShellProps) {
         })),
       })),
     [sections]
-  );
-  const outlineComparisons: OutlineComparison[] = useMemo(
-    () =>
-      comparisons.map((c) => ({
-        id: c.id,
-        label: c.label || "Untitled comparison",
-        health: deriveComparisonHealth({
-          leftQuestionIds: c.leftQuestionIds,
-          rightQuestionIds: c.rightQuestionIds,
-          knownQuestionIds,
-        }).health as ComparisonHealth,
-      })),
-    [comparisons, knownQuestionIds]
   );
 
   return (
@@ -194,11 +155,9 @@ export default function SurveyEditorShell(props: SurveyEditorShellProps) {
         >
           <EditorOutline
             sections={outlineSections}
-            comparisons={outlineComparisons}
             selected={selected}
             onSelect={onSelect}
             onAddSection={props.onAddSection}
-            onAddComparison={props.onAddComparison}
             onReorderSections={props.onReorderSections}
             onReorderQuestions={props.onReorderQuestionsInSection}
             archetypeLocked={!archetypeMutable}
@@ -240,11 +199,6 @@ function RightPane(props: SurveyEditorShellProps) {
       if (!section || !question)
         return <EmptyState text="Question not found. Pick another item from the outline." />;
       return <QuestionView {...props} section={section} question={question} />;
-    }
-    case "comparison": {
-      const comparison = props.comparisons.find((c) => c.id === selected.id);
-      if (!comparison) return <EmptyState text="Comparison not found." />;
-      return <ComparisonView key={comparison.id} {...props} comparison={comparison} />;
     }
     default:
       return <EmptyState text="Pick something from the outline to start editing." />;
@@ -442,6 +396,22 @@ function SectionView({
               onSave={(html) => onUpdateSection(section.id, { description: html })}
             />
           </div>
+          <div>
+            <label className="typo-label">Image URL (optional)</label>
+            <input
+              key={`${section.id}-imageUrl`}
+              type="url"
+              defaultValue={section.imageUrl ?? ""}
+              onBlur={(e) => {
+                const v = e.target.value.trim();
+                if (v !== (section.imageUrl ?? "")) {
+                  onUpdateSection(section.id, { imageUrl: v || undefined });
+                }
+              }}
+              placeholder="https://…"
+              className="input"
+            />
+          </div>
         </div>
       </SectionCard>
 
@@ -518,88 +488,6 @@ function QuestionView({
         }
       }}
     />
-  );
-}
-
-// ── Right-pane: Comparison view ──────────────────────────────────
-
-function ComparisonView({
-  comparison,
-  sections,
-  archetypes,
-  perQuestionPercentages,
-  onUpdateComparison,
-  onDeleteComparison,
-}: SurveyEditorShellProps & { comparison: ShellComparison }) {
-  const shuttleQuestions: ShuttleQuestion[] = useMemo(
-    () =>
-      sections.flatMap((s) =>
-        s.questions.map((q) => ({
-          id: q.id,
-          title: q.title || "(untitled question)",
-          sectionId: s.id,
-          sectionTitle: s.title || "(untitled section)",
-        }))
-      ),
-    [sections]
-  );
-
-  return (
-    <SectionCard
-      breadcrumb="Gap comparison"
-      title={comparison.label || "Untitled comparison"}
-      action={
-        <button
-          type="button"
-          onClick={() => {
-            if (confirm("Delete this comparison?")) onDeleteComparison(comparison.id);
-          }}
-          className="btn-icon-danger"
-          aria-label="Delete comparison"
-        >
-          <Trash2 size={14} />
-        </button>
-      }
-    >
-      <div className="space-y-4">
-        <div>
-          <label className="typo-label">Comparison label</label>
-          <input
-            type="text"
-            defaultValue={comparison.label}
-            onBlur={(e) => {
-              if (e.target.value !== comparison.label) {
-                onUpdateComparison(comparison.id, { label: e.target.value });
-              }
-            }}
-            placeholder="e.g. Leadership: To-be vs As-is"
-            className="input"
-          />
-        </div>
-
-        <ShuttlePicker
-          questions={shuttleQuestions}
-          leftQuestionIds={comparison.leftQuestionIds}
-          rightQuestionIds={comparison.rightQuestionIds}
-          onChange={(next) =>
-            onUpdateComparison(comparison.id, {
-              leftQuestionIds: next.leftQuestionIds,
-              rightQuestionIds: next.rightQuestionIds,
-            })
-          }
-          leftLabel={comparison.leftLabel}
-          rightLabel={comparison.rightLabel}
-          onLeftLabelChange={(v) =>
-            v !== comparison.leftLabel && onUpdateComparison(comparison.id, { leftLabel: v })
-          }
-          onRightLabelChange={(v) =>
-            v !== comparison.rightLabel && onUpdateComparison(comparison.id, { rightLabel: v })
-          }
-          archetypes={archetypes}
-          perQuestionPercentages={perQuestionPercentages}
-        />
-      </div>
-    </SectionCard>
   );
 }
 

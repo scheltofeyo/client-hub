@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 import {
-  ArrowLeftRight,
   ChevronDown,
   ChevronRight,
   GripVertical,
@@ -29,7 +28,6 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import ComparisonHealthPill, { type ComparisonHealth } from "./ComparisonHealthPill";
 import { cn } from "@/lib/cn";
 import { QUESTION_TYPE_META } from "./question-types";
 import type { SurveyQuestionType } from "@/lib/surveys/types";
@@ -39,8 +37,7 @@ export type OutlineSelection =
   | { kind: "archetypes" }
   | { kind: "closing" }
   | { kind: "section"; id: string }
-  | { kind: "question"; sectionId: string; id: string }
-  | { kind: "comparison"; id: string };
+  | { kind: "question"; sectionId: string; id: string };
 
 export interface OutlineSection {
   id: string;
@@ -53,19 +50,11 @@ export interface OutlineSection {
   }[];
 }
 
-export interface OutlineComparison {
-  id: string;
-  label: string;
-  health: ComparisonHealth;
-}
-
 export interface EditorOutlineProps {
   sections: OutlineSection[];
-  comparisons: OutlineComparison[];
   selected: OutlineSelection;
   onSelect: (item: OutlineSelection) => void;
   onAddSection?: () => void;
-  onAddComparison?: () => void;
   onReorderSections?: (ids: string[]) => void;
   onReorderQuestions?: (sectionId: string, ids: string[]) => void;
   archetypeLocked?: boolean;
@@ -79,17 +68,14 @@ function sameSelection(a: OutlineSelection, b: OutlineSelection): boolean {
   if (a.kind !== b.kind) return false;
   if (a.kind === "section" && b.kind === "section") return a.id === b.id;
   if (a.kind === "question" && b.kind === "question") return a.id === b.id;
-  if (a.kind === "comparison" && b.kind === "comparison") return a.id === b.id;
   return true;
 }
 
 export default function EditorOutline({
   sections,
-  comparisons,
   selected,
   onSelect,
   onAddSection,
-  onAddComparison,
   onReorderSections,
   onReorderQuestions,
   archetypeLocked,
@@ -275,39 +261,6 @@ export default function EditorOutline({
         </div>
       )}
 
-      {/* Comparisons group */}
-      <GroupHeader label="Gap comparisons" />
-      {comparisons.length === 0 && (
-        <p className="px-3 py-1 text-xs italic" style={{ color: "var(--text-muted)" }}>
-          No comparisons yet.
-        </p>
-      )}
-      {comparisons.map((c) => {
-        const cSelected = selected.kind === "comparison" && selected.id === c.id;
-        return (
-          <OutlineRow
-            key={c.id}
-            selected={cSelected}
-            onClick={() => onSelect({ kind: "comparison", id: c.id })}
-            icon={<ArrowLeftRight size={14} />}
-            label={c.label || "Untitled comparison"}
-            trailing={<ComparisonHealthPill health={c.health} />}
-            bold
-          />
-        );
-      })}
-      {onAddComparison && (
-        <div className="px-3 mt-1">
-          <button
-            type="button"
-            onClick={onAddComparison}
-            className="btn-tertiary inline-flex items-center gap-1.5 px-2 py-1.5 rounded-button text-xs w-full justify-start"
-          >
-            <Plus size={12} />
-            Add comparison
-          </button>
-        </div>
-      )}
     </nav>
   );
 }

@@ -20,7 +20,7 @@ export async function POST(
   if (!template) return NextResponse.json({ error: "Template not found" }, { status: 404 });
 
   const body = await req.json();
-  const { title, description, openQuestion } = body;
+  const { title, description, imageUrl, openQuestion } = body;
   if (!title?.trim()) {
     return NextResponse.json({ error: "Title is required" }, { status: 400 });
   }
@@ -34,6 +34,7 @@ export async function POST(
     templateId: id,
     title: title.trim(),
     description: description?.trim() || undefined,
+    imageUrl: imageUrl?.trim() || undefined,
     openQuestion: openQuestion ?? undefined,
     order,
   });
@@ -43,6 +44,7 @@ export async function POST(
       id: doc._id.toString(),
       title: doc.title,
       description: doc.description ?? undefined,
+      imageUrl: doc.imageUrl ?? undefined,
       openQuestion: doc.openQuestion ?? undefined,
       order: doc.order ?? 0,
     },

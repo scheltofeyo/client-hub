@@ -14,7 +14,6 @@ type TemplateLike = {
   archetypeIds?: string[];
   defaultRankWeights?: number[];
   closingOpenQuestion?: unknown;
-  comparisons?: unknown[];
   version?: number;
   createdBy: string;
   createdAt?: Date;
@@ -30,7 +29,6 @@ function serializeTemplate(doc: TemplateLike) {
     archetypeIds: doc.archetypeIds ?? [],
     defaultRankWeights: doc.defaultRankWeights ?? [5, 4, 3, 2, 1],
     closingOpenQuestion: doc.closingOpenQuestion ?? undefined,
-    comparisons: doc.comparisons ?? [],
     version: doc.version ?? 1,
     createdBy: doc.createdBy,
     createdAt: doc.createdAt?.toISOString?.(),
@@ -103,7 +101,6 @@ export async function POST(req: NextRequest) {
     status: "active",
     archetypeIds,
     defaultRankWeights: weights,
-    comparisons: [],
     version: 1,
     createdBy: session!.user.id,
   });

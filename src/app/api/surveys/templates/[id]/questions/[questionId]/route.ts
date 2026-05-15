@@ -65,16 +65,5 @@ export async function DELETE(
   }).lean();
   if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  // Strip the deleted question-id from any template comparisons
-  const template = await SurveyTemplateModel.findById(id).lean();
-  if (template && Array.isArray(template.comparisons) && template.comparisons.length > 0) {
-    const cleaned = template.comparisons.map((c) => ({
-      ...c,
-      leftQuestionIds: (c.leftQuestionIds ?? []).filter((q: string) => q !== questionId),
-      rightQuestionIds: (c.rightQuestionIds ?? []).filter((q: string) => q !== questionId),
-    }));
-    await SurveyTemplateModel.findByIdAndUpdate(id, { $set: { comparisons: cleaned } });
-  }
-
   return NextResponse.json({ success: true });
 }

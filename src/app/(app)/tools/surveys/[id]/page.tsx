@@ -22,12 +22,14 @@ import {
   useShareQr,
 } from "@/components/ui/SharePanel";
 import SessionTabNav, { type SessionTab } from "@/components/surveys/SessionTabNav";
-import {
-  ConfigureSheet,
-  type ComparisonShape,
-} from "@/components/surveys/ConfigureSheet";
+import { ConfigureSheet } from "@/components/surveys/ConfigureSheet";
 import { ResultsTab } from "@/components/survey-results/ResultsTab";
 import type { ResultsData } from "@/components/survey-results/types";
+import type { AnalysisResult } from "@/lib/surveys/analyses";
+import { AnalysisForm } from "@/components/surveys/AnalysisForm";
+import { useRightPanel } from "@/components/layout/RightPanel";
+import { normalizeQuestionType } from "@/lib/surveys/types";
+import type { QuestionMeta } from "@/lib/surveys/distributions";
 import { slugify } from "@/lib/slug";
 
 interface ArchetypeSnapshot {
@@ -52,9 +54,7 @@ interface SessionDetail {
       title: string;
       questions: { id: string; title: string; type?: string; bodyHtml?: string }[];
     }[];
-    comparisons?: ComparisonShape[];
   };
-  sessionComparisons?: ComparisonShape[];
   title: string;
   status: "draft" | "open" | "closed" | "archived";
   shareCode: string;
@@ -82,6 +82,7 @@ export default function SurveyDetailPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { data: authSession } = useSession();
+  const { openPanel, closePanel } = useRightPanel();
   const currentUserId = authSession?.user?.id;
   const perms = authSession?.user?.permissions ?? [];
   const canEditAny = perms.includes("tools.surveys.editAny");
@@ -182,6 +183,85 @@ export default function SurveyDetailPage() {
     await Promise.all([loadSession(), loadResults()]);
     return true;
   }, [id, loadSession, loadResults]);
+
+  const deleteAnalysis = useCallback(async (analysisId: string) => {
+    if (!confirm("Delete analysis?")) return;
+    const res = await fetch(`/api/surveys/sessions/${id}/analyses/${analysisId}`, { method: "DELETE" });
+    if (res.ok) await loadResults();
+  }, [id, loadResults]);
+
+  const duplicateAnalysis = useCallback(async (a: AnalysisResult) => {
+    const payload = {
+      title: `${a.title} (copy)`,
+      type: a.type,
+      operation: a.operation,
+      sides: a.sides.map((s) => ({ id: s.id, label: s.label, questionIds: s.questionIds })),
+      chartKey: a.chartKey,
+    };
+    const res = await fetch(`/api/surveys/sessions/${id}/analyses`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (res.ok) await loadResults();
+  }, [id, loadResults]);
+
+  const moveAnalysis = useCallback(async (analysisId: string, direction: "up" | "down") => {
+    if (!results) return;
+    const nativeIds = results.analyses.map((a) => a.id);
+    const idx = nativeIds.indexOf(analysisId);
+    if (idx === -1) return;
+    const target = direction === "up" ? idx - 1 : idx + 1;
+    if (target < 0 || target >= nativeIds.length) return;
+    const next = [...nativeIds];
+    [next[idx], next[target]] = [next[target], next[idx]];
+    const res = await fetch(`/api/surveys/sessions/${id}/analyses/reorder`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids: next }),
+    });
+    if (res.ok) await loadResults();
+  }, [id, results, loadResults]);
+
+  const openAnalysisForm = useCallback(
+    (initial?: { id?: string; title?: string; analysis?: AnalysisResult }) => {
+      if (!data) return;
+      const questionMetas: QuestionMeta[] = (data.templateSnapshot.sections ?? []).flatMap((s) =>
+        (s.questions ?? []).map((q) => ({
+          ...q,
+          sectionId: s.id,
+          type: normalizeQuestionType(q.type),
+        })) as QuestionMeta[]
+      );
+      const initialPayload = initial?.analysis
+        ? {
+            id: initial.id,
+            title: initial.title ?? initial.analysis.title,
+            type: initial.analysis.type,
+            operation: initial.analysis.operation,
+            sides: initial.analysis.sides.map((s) => ({
+              id: s.id,
+              label: s.label,
+              questionIds: s.questionIds,
+            })),
+            chartKey: initial.analysis.chartKey,
+          }
+        : undefined;
+      openPanel(
+        initial?.id ? "Edit analysis" : "New analysis",
+        <AnalysisForm
+          sessionId={id}
+          questions={questionMetas}
+          initial={initialPayload}
+          onSaved={() => {
+            void loadResults();
+          }}
+          onClose={closePanel}
+        />
+      );
+    },
+    [data, id, openPanel, closePanel, loadResults]
+  );
 
   useEffect(() => {
     if (!showMenu) return;
@@ -476,6 +556,13 @@ export default function SurveyDetailPage() {
                     .map((q) => [q.id, q.bodyHtml as string])
                 )
               )}
+              canEditAnalyses={canEdit}
+              onCreateAnalysis={() => openAnalysisForm()}
+              onEditAnalysis={(a) => openAnalysisForm({ id: a.id, analysis: a })}
+              onDeleteAnalysis={(a) => deleteAnalysis(a.id)}
+              onDuplicateAnalysis={(a) => duplicateAnalysis(a)}
+              onMoveAnalysisUp={(a) => moveAnalysis(a.id, "up")}
+              onMoveAnalysisDown={(a) => moveAnalysis(a.id, "down")}
             />
           </div>
         </div>
@@ -488,20 +575,10 @@ export default function SurveyDetailPage() {
             meta={{
               templateSnapshot: {
                 rankWeights: data.templateSnapshot.rankWeights,
-                sections: data.templateSnapshot.sections,
-                comparisons: data.templateSnapshot.comparisons ?? [],
               },
-              sessionComparisons: data.sessionComparisons ?? [],
             }}
-            results={results}
-            effectiveComparisons={
-              (data.sessionComparisons ?? []).length > 0
-                ? data.sessionComparisons!
-                : data.templateSnapshot.comparisons ?? []
-            }
             canEdit={canEdit}
             onSaveWeights={(next) => persistSettings({ rankWeights: next })}
-            onSaveComparisons={(next) => persistSettings({ sessionComparisons: next })}
           />
         </div>
       )}
@@ -628,47 +705,46 @@ function ParticipantsList({ submissions }: { submissions: SubmissionRow[] }) {
           {submissions.map((sub) => {
             const isInProgress = sub.status === "in_progress";
             return (
-              <div key={sub.id} className="border rounded-xl px-4 py-3 flex items-center justify-between gap-3" style={{ borderColor: "var(--border)" }}>
-                <div className="flex items-center gap-3 min-w-0">
-                  <div
-                    className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold shrink-0"
-                    style={{
-                      background: isInProgress ? "var(--warning-light)" : "var(--primary-light)",
-                      color: isInProgress ? "var(--warning)" : "var(--primary)",
-                    }}
+              <div
+                key={sub.id}
+                className="border rounded-xl px-4 py-3 flex items-center justify-between gap-3"
+                style={{ borderColor: "var(--border)" }}
+              >
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  {isInProgress ? (
+                    <span
+                      className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium shrink-0"
+                      style={{ background: "var(--warning-light)", color: "var(--warning)" }}
+                    >
+                      <span
+                        className="w-1.5 h-1.5 rounded-full animate-pulse"
+                        style={{ background: "var(--warning)" }}
+                      />
+                      In progress
+                    </span>
+                  ) : (
+                    <span
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium shrink-0"
+                      style={{ background: "var(--success-light)", color: "var(--success)" }}
+                    >
+                      <Check size={10} strokeWidth={3} />
+                      Completed
+                    </span>
+                  )}
+                  <p
+                    className="text-sm truncate min-w-0"
+                    style={{ color: "var(--text-primary)" }}
                   >
-                    {sub.participantName.charAt(0).toUpperCase()}
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium truncate" style={{ color: "var(--text-primary)" }}>
-                        {sub.participantName}
-                      </p>
-                      {isInProgress ? (
-                        <span
-                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium shrink-0"
-                          style={{ background: "var(--warning-light)", color: "var(--warning)" }}
-                        >
-                          <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "var(--warning)" }} />
-                          In progress
-                        </span>
-                      ) : (
-                        <span
-                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium shrink-0"
-                          style={{ background: "var(--success-light)", color: "var(--success)" }}
-                        >
-                          <Check size={10} strokeWidth={3} />
-                          Completed
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs truncate" style={{ color: "var(--text-muted)" }}>{sub.participantEmail}</p>
-                  </div>
+                    {sub.participantEmail}
+                  </p>
                 </div>
                 {sub.submittedAt && !isInProgress && (
                   <span className="text-xs shrink-0" style={{ color: "var(--text-muted)" }}>
                     {new Date(sub.submittedAt).toLocaleString("en-GB", {
-                      day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
+                      day: "numeric",
+                      month: "short",
+                      hour: "2-digit",
+                      minute: "2-digit",
                     })}
                   </span>
                 )}

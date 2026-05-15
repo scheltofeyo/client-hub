@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
 import SurveyEditorShell, {
   type ShellSection,
-  type ShellComparison,
 } from "@/components/surveys/SurveyEditorShell";
 import type { OutlineSelection } from "@/components/surveys/EditorOutline";
 import type { SaveState } from "@/components/surveys/SaveStateChip";
@@ -24,13 +23,13 @@ interface TemplateData {
   archetypeIds: string[];
   defaultRankWeights: number[];
   closingOpenQuestion: ClosingOpenQuestion;
-  comparisons: ShellComparison[];
 }
 
 interface SectionRow {
   id: string;
   title: string;
   description: string;
+  imageUrl: string;
   openQuestion: SectionOpenQuestion;
   order: number;
 }
@@ -187,6 +186,7 @@ export default function TemplateEditor({
       id: created.id,
       title: created.title,
       description: created.description ?? "",
+      imageUrl: created.imageUrl ?? "",
       openQuestion: created.openQuestion ?? { enabled: false, label: "" },
       order: created.order ?? sections.length,
     };
@@ -203,6 +203,7 @@ export default function TemplateEditor({
               ...s,
               title: updates.title ?? s.title,
               description: updates.description ?? s.description,
+              imageUrl: updates.imageUrl !== undefined ? (updates.imageUrl ?? "") : s.imageUrl,
               openQuestion: updates.openQuestion ?? s.openQuestion,
             }
       )
@@ -210,6 +211,7 @@ export default function TemplateEditor({
     const apiUpdates: Record<string, unknown> = {};
     if (updates.title !== undefined) apiUpdates.title = updates.title;
     if (updates.description !== undefined) apiUpdates.description = updates.description;
+    if (updates.imageUrl !== undefined) apiUpdates.imageUrl = updates.imageUrl ?? "";
     if (updates.openQuestion !== undefined) apiUpdates.openQuestion = updates.openQuestion;
     withSave(() =>
       fetch(`/api/surveys/templates/${templateId}/sections/${sectionId}`, {
@@ -221,24 +223,9 @@ export default function TemplateEditor({
   }
 
   function handleDeleteSection(sectionId: string) {
-    const sectionQuestionIds = new Set(
-      questions.filter((q) => q.sectionId === sectionId).map((q) => q.id)
-    );
     setSections((prev) => prev.filter((s) => s.id !== sectionId));
     setQuestions((prev) => prev.filter((q) => q.sectionId !== sectionId));
 
-    // Strip orphaned question IDs from comparisons
-    const nextComparisons = template.comparisons.map((c) => ({
-      ...c,
-      leftQuestionIds: c.leftQuestionIds.filter((qid) => !sectionQuestionIds.has(qid)),
-      rightQuestionIds: c.rightQuestionIds.filter((qid) => !sectionQuestionIds.has(qid)),
-    }));
-    if (JSON.stringify(nextComparisons) !== JSON.stringify(template.comparisons)) {
-      setTemplate((prev) => ({ ...prev, comparisons: nextComparisons }));
-      patchTemplate({ comparisons: nextComparisons });
-    }
-
-    // Move selection to a sensible default
     if (
       (selected.kind === "section" && selected.id === sectionId) ||
       (selected.kind === "question" && selected.sectionId === sectionId)
@@ -320,15 +307,6 @@ export default function TemplateEditor({
 
   function handleDeleteQuestion(sectionId: string, questionId: string) {
     setQuestions((prev) => prev.filter((q) => q.id !== questionId));
-    const nextComparisons = template.comparisons.map((c) => ({
-      ...c,
-      leftQuestionIds: c.leftQuestionIds.filter((qid) => qid !== questionId),
-      rightQuestionIds: c.rightQuestionIds.filter((qid) => qid !== questionId),
-    }));
-    if (JSON.stringify(nextComparisons) !== JSON.stringify(template.comparisons)) {
-      setTemplate((prev) => ({ ...prev, comparisons: nextComparisons }));
-      patchTemplate({ comparisons: nextComparisons });
-    }
     if (selected.kind === "question" && selected.id === questionId) {
       setSelected({ kind: "section", id: sectionId });
     }
@@ -355,38 +333,6 @@ export default function TemplateEditor({
     );
   }
 
-  // ── Comparison mutations ────────────────────────────────────────
-  function handleAddComparison() {
-    const newComparison: ShellComparison = {
-      id: crypto.randomUUID(),
-      label: "New comparison",
-      leftLabel: "To-be",
-      rightLabel: "As-is",
-      leftQuestionIds: [],
-      rightQuestionIds: [],
-      order: template.comparisons.length,
-    };
-    const next = [...template.comparisons, newComparison];
-    setTemplate((prev) => ({ ...prev, comparisons: next }));
-    patchTemplate({ comparisons: next });
-    setSelected({ kind: "comparison", id: newComparison.id });
-  }
-
-  function handleUpdateComparison(comparisonId: string, updates: Partial<ShellComparison>) {
-    const next = template.comparisons.map((c) => (c.id === comparisonId ? { ...c, ...updates } : c));
-    setTemplate((prev) => ({ ...prev, comparisons: next }));
-    patchTemplate({ comparisons: next });
-  }
-
-  function handleDeleteComparison(comparisonId: string) {
-    const next = template.comparisons.filter((c) => c.id !== comparisonId);
-    setTemplate((prev) => ({ ...prev, comparisons: next }));
-    patchTemplate({ comparisons: next });
-    if (selected.kind === "comparison" && selected.id === comparisonId) {
-      setSelected({ kind: "header" });
-    }
-  }
-
   async function handleDeleteTemplate() {
     if (
       !confirm(
@@ -405,6 +351,7 @@ export default function TemplateEditor({
         id: s.id,
         title: s.title,
         description: s.description || undefined,
+        imageUrl: s.imageUrl || undefined,
         openQuestion: s.openQuestion,
         questions: questions
           .filter((q) => q.sectionId === s.id)
@@ -475,7 +422,6 @@ export default function TemplateEditor({
         archetypeMutable={true}
         closingOpenQuestion={template.closingOpenQuestion}
         sections={shellSections}
-        comparisons={template.comparisons}
         selected={selected}
         onSelect={setSelected}
         onChangeName={handleChangeName}
@@ -490,9 +436,6 @@ export default function TemplateEditor({
         onUpdateQuestion={handleUpdateQuestion}
         onDeleteQuestion={handleDeleteQuestion}
         onReorderQuestionsInSection={handleReorderQuestions}
-        onAddComparison={handleAddComparison}
-        onUpdateComparison={handleUpdateComparison}
-        onDeleteComparison={handleDeleteComparison}
       />
     </>
   );

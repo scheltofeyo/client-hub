@@ -51,6 +51,7 @@ export async function GET(
         id: s.id,
         title: s.title,
         description: s.description ?? undefined,
+        imageUrl: s.imageUrl ?? undefined,
         order: s.order ?? 0,
         openQuestion: s.openQuestion ?? undefined,
         questions: (s.questions ?? []).map((q) => serializeQuestionForPublic(q)),

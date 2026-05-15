@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { ChartPicker, type ChartOption } from "./ChartPicker";
+import { CopyChartButton } from "./CopyChartButton";
 import { OpenAnswerList } from "./OpenAnswerList";
 import { MCSortedBar, type MCChoiceDatum } from "@/components/charts/MCSortedBar";
 import { MCDonut } from "@/components/charts/MCDonut";
@@ -82,20 +83,29 @@ export function QuestionCard({
     introBodyByQuestionId,
   });
 
+  const chartRef = useRef<HTMLDivElement>(null);
+  const canCopyChart =
+    open &&
+    question.type !== "intro" &&
+    question.type !== "open-text" &&
+    question.n > 0;
+
   return (
     <section className="overflow-hidden rounded-card bg-surface shadow-card">
-      <button
-        type="button"
-        onClick={handleToggle}
-        className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
-        aria-expanded={open}
-      >
-        <h3
-          className="min-w-0 flex-1 text-base font-semibold leading-snug"
-          style={{ color: "var(--text-primary)" }}
+      <div className="flex w-full items-center justify-between gap-4 px-5 py-4">
+        <button
+          type="button"
+          onClick={handleToggle}
+          className="flex min-w-0 flex-1 items-center text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+          aria-expanded={open}
         >
-          {question.title || (question.type === "intro" ? "Info block" : "(untitled)")}
-        </h3>
+          <h3
+            className="min-w-0 flex-1 text-base font-semibold leading-snug"
+            style={{ color: "var(--text-primary)" }}
+          >
+            {question.title || (question.type === "intro" ? "Info block" : "(untitled)")}
+          </h3>
+        </button>
         <div className="flex shrink-0 items-center gap-3">
           {question.type !== "intro" && (
             <span
@@ -105,13 +115,24 @@ export function QuestionCard({
               n = {question.n}
             </span>
           )}
-          {open ? (
-            <ChevronUp size={16} style={{ color: "var(--text-muted)" }} />
-          ) : (
-            <ChevronDown size={16} style={{ color: "var(--text-muted)" }} />
+          {canCopyChart && (
+            <CopyChartButton chartRef={chartRef} title={question.title} />
           )}
+          <button
+            type="button"
+            onClick={handleToggle}
+            className="p-1"
+            aria-label={open ? "Collapse" : "Expand"}
+            aria-expanded={open}
+          >
+            {open ? (
+              <ChevronUp size={16} style={{ color: "var(--text-muted)" }} />
+            ) : (
+              <ChevronDown size={16} style={{ color: "var(--text-muted)" }} />
+            )}
+          </button>
         </div>
-      </button>
+      </div>
 
       {open && (
         <div className="border-t" style={{ borderColor: "var(--border)" }}>
@@ -125,7 +146,7 @@ export function QuestionCard({
                 />
               </div>
             )}
-            <div className="min-h-[160px]">{chartSlot}</div>
+            <div ref={chartRef} className="min-h-[160px]">{chartSlot}</div>
           </div>
         </div>
       )}

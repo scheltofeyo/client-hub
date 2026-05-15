@@ -1,8 +1,5 @@
 import mongoose, { Schema, Document, Model } from "mongoose";
-import type {
-  ISurveyComparison,
-  ISurveyClosingQuestion,
-} from "./SurveyTemplate";
+import type { ISurveyClosingQuestion } from "./SurveyTemplate";
 import type { ISurveySectionOpenQuestion } from "./SurveyTemplateSection";
 import type {
   ISurveyQuestionOption,
@@ -60,6 +57,7 @@ export interface ISurveySectionSnapshot {
   id: string;
   title: string;
   description?: string;
+  imageUrl?: string;
   order: number;
   openQuestion?: ISurveySectionOpenQuestion;
   questions: ISurveyQuestionSnapshot[];
@@ -72,7 +70,37 @@ export interface ISurveyTemplateSnapshot {
   rankWeights: number[];
   closingOpenQuestion?: ISurveyClosingQuestion;
   sections: ISurveySectionSnapshot[];
-  comparisons: ISurveyComparison[];
+}
+
+export interface ISurveyAnalysisSide {
+  id: string;
+  label: string;
+  questionIds: string[];
+}
+
+export type SurveyAnalysisType = "summary" | "comparison";
+
+export type SurveyAnalysisOperation =
+  | "mc-average"
+  | "mc-pooled"
+  | "archetype-points"
+  | "ranking-mean"
+  | "open-text-frequency"
+  | "delta-2"
+  | "side-by-side-n"
+  | "top-k-overlap"
+  | "paired-delta"
+  | "convergence";
+
+export interface ISurveyAnalysis {
+  id: string;
+  rank: number;
+  title: string;
+  type: SurveyAnalysisType;
+  operation: SurveyAnalysisOperation;
+  sides: ISurveyAnalysisSide[];
+  chartKey?: string;
+  capabilityFingerprint?: string;
 }
 
 export interface ISurveySession extends Document {
@@ -80,7 +108,7 @@ export interface ISurveySession extends Document {
   /** Empty string means the session was created from scratch (no underlying template). */
   templateId: string;
   templateSnapshot: ISurveyTemplateSnapshot;
-  sessionComparisons: ISurveyComparison[];
+  analyses: ISurveyAnalysis[];
   title: string;
   status: "draft" | "open" | "closed" | "archived";
   shareCode: string;
@@ -176,6 +204,7 @@ const SectionSnapshotSchema = new Schema<ISurveySectionSnapshot>(
     id: { type: String, required: true },
     title: { type: String, required: true },
     description: { type: String },
+    imageUrl: { type: String },
     order: { type: Number, default: 0 },
     openQuestion: { type: SectionOpenQuestionSchema, default: undefined },
     questions: { type: [QuestionSnapshotSchema], default: [] },
@@ -191,15 +220,44 @@ const ClosingQuestionSchema = new Schema<ISurveyClosingQuestion>(
   { _id: false }
 );
 
-const ComparisonSchema = new Schema<ISurveyComparison>(
+const AnalysisSideSchema = new Schema<ISurveyAnalysisSide>(
   {
     id: { type: String, required: true },
-    label: { type: String, required: true },
-    leftLabel: { type: String, required: true },
-    rightLabel: { type: String, required: true },
-    leftQuestionIds: { type: [String], default: [] },
-    rightQuestionIds: { type: [String], default: [] },
-    order: { type: Number, default: 0 },
+    label: { type: String, default: "" },
+    questionIds: { type: [String], default: [] },
+  },
+  { _id: false }
+);
+
+const AnalysisSchema = new Schema<ISurveyAnalysis>(
+  {
+    id: { type: String, required: true },
+    rank: { type: Number, default: 0 },
+    title: { type: String, default: "" },
+    type: {
+      type: String,
+      enum: ["summary", "comparison"],
+      required: true,
+    },
+    operation: {
+      type: String,
+      enum: [
+        "mc-average",
+        "mc-pooled",
+        "archetype-points",
+        "ranking-mean",
+        "open-text-frequency",
+        "delta-2",
+        "side-by-side-n",
+        "top-k-overlap",
+        "paired-delta",
+        "convergence",
+      ],
+      required: true,
+    },
+    sides: { type: [AnalysisSideSchema], default: [] },
+    chartKey: { type: String },
+    capabilityFingerprint: { type: String },
   },
   { _id: false }
 );
@@ -212,7 +270,6 @@ const TemplateSnapshotSchema = new Schema<ISurveyTemplateSnapshot>(
     rankWeights: { type: [Number], default: [5, 4, 3, 2, 1] },
     closingOpenQuestion: { type: ClosingQuestionSchema, default: undefined },
     sections: { type: [SectionSnapshotSchema], default: [] },
-    comparisons: { type: [ComparisonSchema], default: [] },
   },
   { _id: false }
 );
@@ -222,7 +279,7 @@ const SurveySessionSchema = new Schema<ISurveySession>(
     clientId: { type: String, required: true, index: true },
     templateId: { type: String, default: "" },
     templateSnapshot: { type: TemplateSnapshotSchema, required: true },
-    sessionComparisons: { type: [ComparisonSchema], default: [] },
+    analyses: { type: [AnalysisSchema], default: [] },
     title: { type: String, required: true, trim: true },
     status: {
       type: String,
