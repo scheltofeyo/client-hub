@@ -4,7 +4,7 @@ import { connectDB } from "@/lib/mongodb";
 import { requirePermission, hasPermission } from "@/lib/auth-helpers";
 import { SurveySessionModel } from "@/lib/models/SurveySession";
 import { SurveySubmissionModel } from "@/lib/models/SurveySubmission";
-import { normalizeQuestionType } from "@/lib/surveys/types";
+import { normalizeQuestionType, TOP3_RANK_LENGTH } from "@/lib/surveys/types";
 import { computeAgreement, averageAgreement } from "@/lib/surveys/agreement";
 import { enrichArchetypes } from "@/lib/surveys/enrich-archetypes";
 import { buildAccumulators, normalizeArchetypeScores, type QuestionMeta } from "@/lib/surveys/distributions";
@@ -42,6 +42,7 @@ export async function GET(
 
   const snapshot = surveySession.templateSnapshot;
   const rankWeights = snapshot.rankWeights ?? [5, 4, 3, 2, 1];
+  const top3Weights = snapshot.top3Weights ?? [5, 3, 1];
   // Resolve archetype name + color live from the Archetype collection so that
   // changes propagate to historical sessions. Snapshot is fallback only.
   const archetypes = await enrichArchetypes(snapshot.archetypes ?? []);
@@ -65,7 +66,7 @@ export async function GET(
     openTextAnswersByQuestion,
     legacyOpenTextByQuestion,
     questionN,
-  } = buildAccumulators(submissions, questionMetas, rankWeights);
+  } = buildAccumulators(submissions, questionMetas, rankWeights, top3Weights);
 
   // We compute internally in raw decimals to avoid compounding rounding
   // through section/overall averages. Every `percentage` field in the
@@ -74,7 +75,7 @@ export async function GET(
   const archetypeIds = archetypes.map((a) => a.id);
   const archetypeQuestionPercentages = new Map<string, Record<string, number>>();
   for (const qm of questionMetas) {
-    if (qm.type === "archetype-ranking") {
+    if (qm.type === "archetype-ranking" || qm.type === "archetype-top3") {
       archetypeQuestionPercentages.set(qm.id, normalizeArchetypeScores(scoreMap.get(qm.id), archetypeIds));
     }
   }
@@ -82,12 +83,12 @@ export async function GET(
   // ── Agreement (0..1) per question ──────────────────────────────────
 
   function questionAgreement(qm: QuestionMeta): number | null {
-    if (qm.type === "archetype-ranking") {
+    if (qm.type === "archetype-ranking" || qm.type === "archetype-top3") {
       const arcDist = rankDistMap.get(qm.id);
       if (!arcDist) return null;
       return averageAgreement([...arcDist.values()]);
     }
-    if (qm.type === "general-ranking") {
+    if (qm.type === "general-ranking" || qm.type === "general-top3") {
       const itemDist = rankItemDistMap.get(qm.id);
       if (!itemDist) return null;
       return averageAgreement([...itemDist.values()]);
@@ -119,7 +120,10 @@ export async function GET(
       agreement,
     };
     switch (qm.type) {
-      case "archetype-ranking": {
+      case "archetype-ranking":
+      case "archetype-top3": {
+        const isTop3 = qm.type === "archetype-top3";
+        const distLen = isTop3 ? TOP3_RANK_LENGTH : rankWeights.length;
         const pct = archetypeQuestionPercentages.get(qm.id) ?? {};
         const points = scoreMap.get(qm.id) ?? new Map<string, number>();
         const totalPoints = [...points.values()].reduce((sum, v) => sum + v, 0);
@@ -134,17 +138,20 @@ export async function GET(
           rankDistribution: Object.fromEntries(
             archetypes.map((a) => [
               a.id,
-              rankDistMap.get(qm.id)?.get(a.id) ?? Array(rankWeights.length).fill(0),
+              rankDistMap.get(qm.id)?.get(a.id) ?? Array(distLen).fill(0),
             ])
           ),
           openTextAnswers: legacyOpenTextByQuestion.get(qm.id) ?? [],
         };
       }
-      case "general-ranking": {
+      case "general-ranking":
+      case "general-top3": {
+        const isTop3 = qm.type === "general-top3";
         const items = qm.rankingItems ?? [];
+        const distLen = isTop3 ? TOP3_RANK_LENGTH : items.length;
         const itemDist = rankItemDistMap.get(qm.id);
         const ranked = items.map((it) => {
-          const dist = itemDist?.get(it.id) ?? Array(items.length).fill(0);
+          const dist = itemDist?.get(it.id) ?? Array(distLen).fill(0);
           const totalAnswers = dist.reduce((sum, v) => sum + v, 0);
           const weightedSum = dist.reduce((sum, count, idx) => sum + count * (idx + 1), 0);
           const avgRank = totalAnswers > 0 ? weightedSum / totalAnswers : 0;
@@ -174,9 +181,10 @@ export async function GET(
 
   const perSection = sections.map((s) => {
     const sectionQuestionIds = (s.questions ?? []).map((q) => q.id);
-    const archetypeQuestionIds = sectionQuestionIds.filter(
-      (qid) => questionMetaMap.get(qid)?.type === "archetype-ranking"
-    );
+    const archetypeQuestionIds = sectionQuestionIds.filter((qid) => {
+      const t = questionMetaMap.get(qid)?.type;
+      return t === "archetype-ranking" || t === "archetype-top3";
+    });
     const archetypeAverages: Record<string, number> = {};
     for (const a of archetypes) {
       const vals = archetypeQuestionIds
@@ -209,7 +217,9 @@ export async function GET(
 
   // ── Overall: average of archetype-ranking percentages ────────────
 
-  const archetypeQuestionMetas = questionMetas.filter((q) => q.type === "archetype-ranking");
+  const archetypeQuestionMetas = questionMetas.filter(
+    (q) => q.type === "archetype-ranking" || q.type === "archetype-top3"
+  );
   const overallArchetypes = archetypes.map((a) => {
     const vals = archetypeQuestionMetas
       .map((qm) => archetypeQuestionPercentages.get(qm.id)?.[a.id] ?? 0)
@@ -259,6 +269,7 @@ export async function GET(
     },
     submissions,
     rankWeights,
+    top3Weights,
     lowConfidenceThreshold: 10,
   };
 
@@ -269,8 +280,14 @@ export async function GET(
   // ── Capabilities ─ drives the type-aware UI ────────────────────────
 
   const capabilities = {
-    hasArchetypeRanking: questionMetas.some((q) => q.type === "archetype-ranking"),
-    hasGeneralRanking: questionMetas.some((q) => q.type === "general-ranking"),
+    hasArchetypeRanking: questionMetas.some(
+      (q) => q.type === "archetype-ranking" || q.type === "archetype-top3"
+    ),
+    hasGeneralRanking: questionMetas.some(
+      (q) => q.type === "general-ranking" || q.type === "general-top3"
+    ),
+    hasArchetypeTop3: questionMetas.some((q) => q.type === "archetype-top3"),
+    hasGeneralTop3: questionMetas.some((q) => q.type === "general-top3"),
     hasMultipleChoice: questionMetas.some((q) => q.type === "multiple-choice"),
     hasOpenText:
       questionMetas.some((q) => q.type === "open-text") ||

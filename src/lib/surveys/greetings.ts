@@ -1,56 +1,109 @@
-import type { Locale } from "./translations";
+type Line = { nl: string; en: string };
 
-export type Greeting = { nl: string; en: string };
+export type Greeting = { welcome: Line; thanks: Line };
 
 // Always eligible — used as a baseline pool so the rotation feels fresh
 // regardless of when the survey is opened.
 const universal: Greeting[] = [
-  { nl: "Hallo daar — bedankt dat je meedoet.", en: "Hello there — thanks for joining in." },
-  { nl: "Hoi! Fijn dat je tijd vrijmaakt.", en: "Hi there — glad you're making the time." },
-  { nl: "Welkom — bedankt dat je dit invult.", en: "Welcome — thanks for filling this in." },
-  { nl: "Goed dat je er bent.", en: "Good to have you here." },
-  { nl: "Bedankt dat je even tijd voor ons maakt.", en: "Thanks for taking a moment with us." },
-  { nl: "Top dat je meedoet — dat waarderen we.", en: "Great to have you — we really appreciate it." },
-  { nl: "Fijn dat je hier bent. Laten we beginnen.", en: "Glad you're here. Let's get started." },
-  { nl: "Goed je te zien — bedankt voor je tijd.", en: "Good to see you — thanks for your time." },
+  {
+    welcome: { nl: "Hallo daar!", en: "Hello there!" },
+    thanks: { nl: "Bedankt dat je meedoet.", en: "Thanks for joining in." },
+  },
+  {
+    welcome: { nl: "Hoi!", en: "Hi there!" },
+    thanks: { nl: "Fijn dat je tijd vrijmaakt.", en: "Glad you're making the time." },
+  },
+  {
+    welcome: { nl: "Welkom!", en: "Welcome!" },
+    thanks: { nl: "Bedankt dat je dit invult.", en: "Thanks for filling this in." },
+  },
+  {
+    welcome: { nl: "Goed dat je er bent.", en: "Good to have you here." },
+    thanks: { nl: "Bedankt voor je tijd.", en: "Thanks for your time." },
+  },
+  {
+    welcome: { nl: "Fijn dat je hier bent.", en: "Glad you're here." },
+    thanks: { nl: "Laten we beginnen.", en: "Let's get started." },
+  },
+  {
+    welcome: { nl: "Top dat je meedoet!", en: "Great to have you!" },
+    thanks: { nl: "Dat waarderen we enorm.", en: "We really appreciate it." },
+  },
 ];
 
 const morning: Greeting[] = [
-  { nl: "Goedemorgen — fijn dat je er bent.", en: "Good morning — glad you're here." },
-  { nl: "Goedemorgen! Bedankt dat je de tijd neemt.", en: "Good morning! Thanks for taking the time." },
-  { nl: "Een frisse start — dankjewel.", en: "Off to a fresh start — thank you." },
-  { nl: "Fijne ochtend — bedankt dat je hierin duikt.", en: "Hope your morning's going well — thanks for diving in." },
+  {
+    welcome: { nl: "Goedemorgen!", en: "Good morning!" },
+    thanks: { nl: "Fijn dat je er bent.", en: "Glad you're here." },
+  },
+  {
+    welcome: { nl: "Goedemorgen!", en: "Good morning!" },
+    thanks: { nl: "Bedankt dat je de tijd neemt.", en: "Thanks for taking the time." },
+  },
+  {
+    welcome: { nl: "Een frisse start.", en: "Off to a fresh start." },
+    thanks: { nl: "Dankjewel voor je tijd.", en: "Thank you for your time." },
+  },
 ];
 
 const afternoon: Greeting[] = [
-  { nl: "Goedemiddag — leuk dat je meedoet.", en: "Good afternoon — nice to have you." },
-  { nl: "Goedemiddag! Bedankt dat je dit tussendoor doet.", en: "Good afternoon! Thanks for squeezing this in." },
-  { nl: "Fijne middag — bedankt voor je tijd.", en: "Hope your afternoon's treating you well — thanks for the time." },
+  {
+    welcome: { nl: "Goedemiddag!", en: "Good afternoon!" },
+    thanks: { nl: "Leuk dat je meedoet.", en: "Nice to have you." },
+  },
+  {
+    welcome: { nl: "Goedemiddag!", en: "Good afternoon!" },
+    thanks: { nl: "Bedankt dat je dit tussendoor doet.", en: "Thanks for squeezing this in." },
+  },
 ];
 
 const evening: Greeting[] = [
-  { nl: "Goedenavond — bedankt dat je nog even tijd maakt.", en: "Good evening — thanks for making time tonight." },
-  { nl: "Een fijne avond — leuk dat je meedoet.", en: "Hope your evening's going well — nice to have you." },
+  {
+    welcome: { nl: "Goedenavond.", en: "Good evening." },
+    thanks: { nl: "Bedankt dat je nog even tijd maakt.", en: "Thanks for making time tonight." },
+  },
+  {
+    welcome: { nl: "Een fijne avond.", en: "Hope your evening's going well." },
+    thanks: { nl: "Leuk dat je meedoet.", en: "Nice to have you." },
+  },
 ];
 
 const lateNight: Greeting[] = [
-  { nl: "Nog wakker? Top — bedankt voor de tijd.", en: "Burning the midnight oil? Thanks for joining in." },
+  {
+    welcome: { nl: "Nog wakker?", en: "Burning the midnight oil?" },
+    thanks: { nl: "Top — bedankt voor de tijd.", en: "Thanks for joining in." },
+  },
 ];
 
 const monday: Greeting[] = [
-  { nl: "Fijne maandag — bedankt voor de aftrap.", en: "Happy Monday — thanks for kicking things off." },
+  {
+    welcome: { nl: "Fijne maandag!", en: "Happy Monday!" },
+    thanks: { nl: "Bedankt voor de aftrap.", en: "Thanks for kicking things off." },
+  },
 ];
 
 const wednesday: Greeting[] = [
-  { nl: "Halverwege de week — bedankt dat je inhaakt.", en: "Halfway through the week — thanks for hopping in." },
+  {
+    welcome: { nl: "Halverwege de week!", en: "Halfway through the week!" },
+    thanks: { nl: "Bedankt dat je inhaakt.", en: "Thanks for hopping in." },
+  },
 ];
 
 const friday: Greeting[] = [
-  { nl: "Fijne vrijdag — bedankt dat je hier nog even tijd voor maakt.", en: "Happy Friday — thanks for fitting this in." },
+  {
+    welcome: { nl: "Fijne vrijdag!", en: "Happy Friday!" },
+    thanks: {
+      nl: "Bedankt dat je hier nog even tijd voor maakt.",
+      en: "Thanks for fitting this in.",
+    },
+  },
 ];
 
 const weekend: Greeting[] = [
-  { nl: "Fijn weekend — extra bedankt dat je de tijd neemt.", en: "Happy weekend — extra thanks for the time." },
+  {
+    welcome: { nl: "Fijn weekend!", en: "Happy weekend!" },
+    thanks: { nl: "Extra bedankt dat je de tijd neemt.", en: "Extra thanks for the time." },
+  },
 ];
 
 function buildPool(now: Date): Greeting[] {
@@ -74,8 +127,4 @@ function buildPool(now: Date): Greeting[] {
 export function pickGreeting(now: Date = new Date()): Greeting {
   const pool = buildPool(now);
   return pool[Math.floor(Math.random() * pool.length)];
-}
-
-export function renderGreeting(greeting: Greeting, locale: Locale): string {
-  return greeting[locale];
 }

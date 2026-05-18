@@ -1,12 +1,11 @@
 /**
- * Seeds the "Cultural Archetype Survey" template — SUMM's standard archetype survey
- * derived from the Rabobank W&R Products case (January 2026): 14 questions across
- * 4 sections (Mission & DNA, Leadership, Team Development, Rewards), each with
- * 5 options mapped to the archetypes Achievement / Customer-Centric / Innovation /
- * One Team / Greater-Good.
+ * Seeds the "Cultural Archetype Survey (EN)" template — SUMM's standard archetype
+ * survey: 14 archetype-top3 questions across 4 sections (Mission & DNA, Leadership,
+ * Team Development, Rewards), plus 1 closing general-top3 question.
  *
- * Idempotent: if a template with this name already exists, the script exits
- * without modifying it — so manual edits in the admin UI are safe.
+ * Re-runnable: if a template with this name already exists, sections and questions
+ * are upserted by title (existing question/section IDs are preserved so live
+ * sessions don't break). Question `type` is always synced to the seed value.
  *
  * Prerequisites:
  *   - MONGODB_URI must be set in .env.local or the environment
@@ -54,26 +53,77 @@ const ARCHETYPE_NAMES = [
   "Greater-Good",
 ] as const;
 
-const SECTIONS = [
-  { title: "Mission & DNA" },
-  { title: "Leadership" },
-  { title: "Team Development" },
-  { title: "Rewards" },
-] as const;
+const SECTION_IMAGE_BASE =
+  "https://summ-jm.s3.eu-central-1.amazonaws.com/client+hub/survey+images";
 
-// Each question's `options` array is in the same order as ARCHETYPE_NAMES:
+const SECTIONS: ReadonlyArray<{
+  title: string;
+  description?: string;
+  imageUrl?: string;
+}> = [
+  {
+    title: "About this survey",
+    description:
+      "<p>For all 14 questions, we provide five answer options and ask you to select your top three. Select the option that best matches your answer as your first choice, then choose your second and third choices.</p><p></p><p><strong>Good to know</strong></p><p>All your input will be treated anonymously, and no individual answer will ever be linked to a specific respondent. Please be as honest and candid as possible, as this will provide the most useful insights.</p>",
+    imageUrl: `${SECTION_IMAGE_BASE}/Ranking+tips.png`,
+  },
+  {
+    title: "Mission & DNA",
+    description:
+      "<p>This first chapter consists of three questions that are all about both your current external and internal strategic focus points and how you would describe the current culture within your organisation.</p>",
+    imageUrl: `${SECTION_IMAGE_BASE}/mission+culture.png`,
+  },
+  {
+    title: "Leadership",
+    description:
+      "<p>This second chapter is all about leadership: how would you describe your company’s leadership style? What leadership behaviors is the leadership team practicing? And what is your style and messaging when communicating with teams?</p>",
+    imageUrl: `${SECTION_IMAGE_BASE}/leadership.png`,
+  },
+  {
+    title: "Team Development",
+    description:
+      "<p>This third chapter focusses on your current team development practices like attracting new talent, onboarding new team members, feedback and performance evaluation and career progression.</p>",
+    imageUrl: `${SECTION_IMAGE_BASE}/team+development.png`,
+  },
+  {
+    title: "Rewards",
+    description:
+      "<p>This fourth &amp; final chapter looks at the behaviors you as an organisation currently reward and which ones you discourage.</p>",
+    imageUrl: `${SECTION_IMAGE_BASE}/rewards.png`,
+  },
+  {
+    title: "Rounding up",
+    description: "<p>To close things off - please answer this final question</p>",
+    imageUrl: `${SECTION_IMAGE_BASE}/Full+pyramid.png`,
+  },
+];
+
+// Each archetype question's `options` array is in the same order as ARCHETYPE_NAMES:
 // [Achievement, Customer-Centric, Innovation, One Team, Greater-Good].
-type SeedQuestion = {
+type ArchetypeSeedQuestion = {
+  kind: "archetype-top3";
   q: number;
   sectionIndex: number;
   title: string;
   options: [string, string, string, string, string];
 };
 
+type GeneralSeedQuestion = {
+  kind: "general-top3";
+  q: number;
+  sectionIndex: number;
+  title: string;
+  description?: string;
+  items: string[];
+};
+
+type SeedQuestion = ArchetypeSeedQuestion | GeneralSeedQuestion;
+
 const QUESTIONS: SeedQuestion[] = [
   {
+    kind: "archetype-top3",
     q: 1,
-    sectionIndex: 0,
+    sectionIndex: 1,
     title: "What do you see as our main external strategic objective?",
     options: [
       "To win market share by outperforming our competitors through drive, speed and execution",
@@ -84,8 +134,9 @@ const QUESTIONS: SeedQuestion[] = [
     ],
   },
   {
+    kind: "archetype-top3",
     q: 2,
-    sectionIndex: 0,
+    sectionIndex: 1,
     title: "To successfully reach our objective, what should be our main internal focus?",
     options: [
       "Performance discipline and accountability",
@@ -96,8 +147,9 @@ const QUESTIONS: SeedQuestion[] = [
     ],
   },
   {
+    kind: "archetype-top3",
     q: 3,
-    sectionIndex: 0,
+    sectionIndex: 1,
     title: "I would describe our current culture as…",
     options: [
       "A high-discipline performance culture focused on results and personal accountability",
@@ -108,8 +160,9 @@ const QUESTIONS: SeedQuestion[] = [
     ],
   },
   {
+    kind: "archetype-top3",
     q: 4,
-    sectionIndex: 1,
+    sectionIndex: 2,
     title: "What best describes our current leadership style?",
     options: [
       "Performance-driven and explicit: focused on holding people accountable and celebrating individual performance",
@@ -120,8 +173,9 @@ const QUESTIONS: SeedQuestion[] = [
     ],
   },
   {
+    kind: "archetype-top3",
     q: 5,
-    sectionIndex: 1,
+    sectionIndex: 2,
     title: "Which leadership behaviors do we successfully practice?",
     options: [
       "We set clear expectations, enabling transparency and addressing underperformance",
@@ -132,8 +186,9 @@ const QUESTIONS: SeedQuestion[] = [
     ],
   },
   {
+    kind: "archetype-top3",
     q: 6,
-    sectionIndex: 1,
+    sectionIndex: 2,
     title: "Which leadership behaviors describe us least?",
     options: [
       "We allow people to avoid accountability for results",
@@ -144,8 +199,9 @@ const QUESTIONS: SeedQuestion[] = [
     ],
   },
   {
+    kind: "archetype-top3",
     q: 7,
-    sectionIndex: 1,
+    sectionIndex: 2,
     title: "Which themes currently dominate our leadership messages and communication style?",
     options: [
       "We are direct and results-focused: the communication to our teams is focused on transparency, results and personal accountability",
@@ -156,8 +212,9 @@ const QUESTIONS: SeedQuestion[] = [
     ],
   },
   {
+    kind: "archetype-top3",
     q: 8,
-    sectionIndex: 1,
+    sectionIndex: 2,
     title: "Which themes do you feel should be more prominent in our leadership messages and communication style?",
     options: [
       "We should be more direct and results-focused: the communication to our teams should be more focused on transparency, results and personal accountability",
@@ -168,8 +225,9 @@ const QUESTIONS: SeedQuestion[] = [
     ],
   },
   {
+    kind: "archetype-top3",
     q: 9,
-    sectionIndex: 2,
+    sectionIndex: 3,
     title: "What is our employee value proposition to (current and future) employees?",
     options: [
       "Work in a strong performance culture with transparent goals, clear expectations and the ideal environment to grow professionally",
@@ -180,8 +238,9 @@ const QUESTIONS: SeedQuestion[] = [
     ],
   },
   {
+    kind: "archetype-top3",
     q: 10,
-    sectionIndex: 2,
+    sectionIndex: 3,
     title: "What best describes our current approach and key messaging when onboarding new employees?",
     options: [
       "We offer new employees a structured onboarding focused on setting clear responsibilities, expectations and performance standards, enabling fast action and accountability from day one.",
@@ -192,8 +251,9 @@ const QUESTIONS: SeedQuestion[] = [
     ],
   },
   {
+    kind: "archetype-top3",
     q: 11,
-    sectionIndex: 2,
+    sectionIndex: 3,
     title: "What best describes our current feedback culture?",
     options: [
       "We value and practice direct and immediate feedback, strongly focused on individual performance, results and accountability, with clear consequences for follow-up.",
@@ -204,8 +264,9 @@ const QUESTIONS: SeedQuestion[] = [
     ],
   },
   {
+    kind: "archetype-top3",
     q: 12,
-    sectionIndex: 2,
+    sectionIndex: 3,
     title: "How would you describe our current approach to performance evaluation and career progression?",
     options: [
       "Our current performance evaluation and career progression approach is based on very clear and explicit expectations and determined by individual performance, ownership and the ability to deliver strong, measurable results.",
@@ -216,8 +277,9 @@ const QUESTIONS: SeedQuestion[] = [
     ],
   },
   {
+    kind: "archetype-top3",
     q: 13,
-    sectionIndex: 3,
+    sectionIndex: 4,
     title: "Which behavior do we currently reward most?",
     options: [
       "Taking personal accountability and delivering results",
@@ -228,8 +290,9 @@ const QUESTIONS: SeedQuestion[] = [
     ],
   },
   {
+    kind: "archetype-top3",
     q: 14,
-    sectionIndex: 3,
+    sectionIndex: 4,
     title: "Which behavior do we currently aim to reduce most?",
     options: [
       "Underperformance or lack of ownership for results",
@@ -239,9 +302,26 @@ const QUESTIONS: SeedQuestion[] = [
       "Value misalignment and behavior that undermines trust",
     ],
   },
+  {
+    kind: "general-top3",
+    q: 15,
+    sectionIndex: 5,
+    title: "Which of the following topics do you feel would have the most impact on our overall success?",
+    description: "Please select your top 3",
+    items: [
+      "Our approach to hiring talent and talent onboarding",
+      "Developing our feedback culture",
+      "Having clear expectations in place and keeping each other accountable",
+      "Developing our leadership practices (meetings, decision making, etc)",
+      "Clarifying our organizational structure",
+      "How we mentor and educate talent within our team",
+      "How we reward our teams",
+      "Leadership communication to the team",
+    ],
+  },
 ];
 
-const TEMPLATE_NAME = "Cultural Archetype Survey";
+const TEMPLATE_NAME = "Cultural Archetype Survey (EN)";
 const TEMPLATE_DESCRIPTION =
   "SUMM's cultural archetype survey — measures perceived current culture (as-is) vs desired culture (to-be) across five archetypes.";
 
@@ -270,61 +350,115 @@ async function main() {
   }
   console.log(`Found ${archetypes.length} archetypes`);
 
-  const existing = await SurveyTemplateModel.findOne({ name: TEMPLATE_NAME }).lean();
-  if (existing) {
-    console.log(`Template "${TEMPLATE_NAME}" already exists (id=${existing._id}), skipping.`);
-    await mongoose.disconnect();
-    return;
-  }
-
   const archetypeIds = ARCHETYPE_NAMES.map((n) => archetypeByName.get(n)!);
 
-  const template = await SurveyTemplateModel.create({
-    name: TEMPLATE_NAME,
-    description: TEMPLATE_DESCRIPTION,
-    status: "active",
-    archetypeIds,
-    defaultRankWeights: [5, 4, 3, 2, 1],
-    version: 1,
-    createdBy: "system",
-  });
-  const templateId = String(template._id);
-  console.log(`Created template "${TEMPLATE_NAME}" (id=${templateId})`);
-
-  const sectionIds: string[] = [];
-  for (let i = 0; i < SECTIONS.length; i++) {
-    const sec = await SurveyTemplateSectionModel.create({
-      templateId,
-      title: SECTIONS[i].title,
-      order: i,
+  let template = await SurveyTemplateModel.findOne({ name: TEMPLATE_NAME });
+  if (!template) {
+    template = await SurveyTemplateModel.create({
+      name: TEMPLATE_NAME,
+      description: TEMPLATE_DESCRIPTION,
+      status: "active",
+      archetypeIds,
+      defaultRankWeights: [5, 4, 3, 2, 1],
+      version: 1,
+      createdBy: "system",
     });
-    sectionIds.push(String(sec._id));
+    console.log(`Created template "${TEMPLATE_NAME}" (id=${template._id})`);
+  } else {
+    console.log(`Found existing template "${TEMPLATE_NAME}" (id=${template._id}) — upserting`);
   }
-  console.log(`Created ${sectionIds.length} sections`);
+  const templateId = String(template._id);
 
-  const questionIdByNumber = new Map<number, string>();
+  // Upsert sections by title (preserve IDs and order of existing sections;
+  // always sync description + imageUrl from seed).
+  const sectionIdByIndex = new Map<number, string>();
+  for (let i = 0; i < SECTIONS.length; i++) {
+    const { title, description, imageUrl } = SECTIONS[i];
+    let sec = await SurveyTemplateSectionModel.findOne({ templateId, title });
+    if (!sec) {
+      sec = await SurveyTemplateSectionModel.create({
+        templateId,
+        title,
+        description,
+        imageUrl,
+        order: i,
+      });
+      console.log(`  + section "${title}" (created at order ${i})`);
+    } else {
+      sec.description = description;
+      sec.imageUrl = imageUrl;
+      await sec.save();
+      console.log(`  ~ section "${title}" (kept at order ${sec.order}, synced description + imageUrl)`);
+    }
+    sectionIdByIndex.set(i, String(sec._id));
+  }
+
+  // Upsert questions by (sectionId + title)
   const orderPerSection = new Map<number, number>();
   for (const q of QUESTIONS) {
+    const sectionId = sectionIdByIndex.get(q.sectionIndex)!;
     const orderInSection = orderPerSection.get(q.sectionIndex) ?? 0;
     orderPerSection.set(q.sectionIndex, orderInSection + 1);
 
-    const options = q.options.map((text, idx) => ({
-      id: randomUUID(),
-      archetypeId: archetypeIds[idx],
-      text,
-    }));
-
-    const doc = await SurveyTemplateQuestionModel.create({
+    const existing = await SurveyTemplateQuestionModel.findOne({
       templateId,
-      sectionId: sectionIds[q.sectionIndex],
+      sectionId,
       title: q.title,
-      options,
-      openTextEnabled: false,
-      order: orderInSection,
     });
-    questionIdByNumber.set(q.q, String(doc._id));
+
+    if (q.kind === "archetype-top3") {
+      const options = q.options.map((text, idx) => ({
+        id: existing?.options?.[idx]?.id ?? randomUUID(),
+        archetypeId: archetypeIds[idx],
+        text,
+      }));
+      if (!existing) {
+        await SurveyTemplateQuestionModel.create({
+          templateId,
+          sectionId,
+          type: "archetype-top3",
+          title: q.title,
+          options,
+          rankingItems: [],
+          order: orderInSection,
+        });
+        console.log(`  + Q${q.q} archetype-top3 "${q.title.slice(0, 60)}…" (created)`);
+      } else {
+        existing.type = "archetype-top3";
+        existing.options = options as typeof existing.options;
+        existing.rankingItems = [] as typeof existing.rankingItems;
+        existing.order = orderInSection;
+        await existing.save();
+        console.log(`  ~ Q${q.q} archetype-top3 "${q.title.slice(0, 60)}…" (updated)`);
+      }
+    } else {
+      const rankingItems = q.items.map((text, idx) => ({
+        id: existing?.rankingItems?.[idx]?.id ?? randomUUID(),
+        text,
+      }));
+      if (!existing) {
+        await SurveyTemplateQuestionModel.create({
+          templateId,
+          sectionId,
+          type: "general-top3",
+          title: q.title,
+          description: q.description,
+          options: [],
+          rankingItems,
+          order: orderInSection,
+        });
+        console.log(`  + Q${q.q} general-top3 "${q.title.slice(0, 60)}…" (created)`);
+      } else {
+        existing.type = "general-top3";
+        existing.description = q.description;
+        existing.options = [] as typeof existing.options;
+        existing.rankingItems = rankingItems as typeof existing.rankingItems;
+        existing.order = orderInSection;
+        await existing.save();
+        console.log(`  ~ Q${q.q} general-top3 "${q.title.slice(0, 60)}…" (updated)`);
+      }
+    }
   }
-  console.log(`Created ${questionIdByNumber.size} questions`);
 
   console.log("Seed complete");
   await mongoose.disconnect();

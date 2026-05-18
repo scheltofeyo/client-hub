@@ -39,6 +39,7 @@ export async function POST(
       submissionId: existing._id.toString(),
       status: existing.status,
       resumed: true,
+      answers: existing.answers ?? [],
     });
   }
 

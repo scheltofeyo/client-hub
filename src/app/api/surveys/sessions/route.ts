@@ -10,6 +10,7 @@ import { SurveySessionModel } from "@/lib/models/SurveySession";
 import { SurveySubmissionModel } from "@/lib/models/SurveySubmission";
 import { ClientModel } from "@/lib/models/Client";
 import { UserModel } from "@/lib/models/User";
+import { ArchetypeModel } from "@/lib/models/Archetype";
 import { snapshotQuestionFrom } from "@/lib/surveys/serializers";
 import { normalizeQuestionType } from "@/lib/surveys/types";
 
@@ -90,13 +91,23 @@ export async function POST(req: NextRequest) {
   );
 
   if (isFromScratch) {
+    // From-scratch sessions don't have a template to copy archetypeIds from,
+    // so we seed the snapshot with every archetype currently in the DB. Only
+    // ids are stored — name + color are resolved live via enrichArchetypes().
+    const allArchetypes = await ArchetypeModel.find()
+      .sort({ rank: 1, createdAt: 1 })
+      .select("_id")
+      .lean();
+    const archetypes = allArchetypes.map((a) => ({ id: a._id.toString() }));
+
     const doc = await SurveySessionModel.create({
       clientId,
       templateId: "",
       templateSnapshot: {
         name: title.trim(),
-        archetypes: [],
+        archetypes,
         rankWeights: [5, 4, 3, 2, 1],
+        top3Weights: [5, 3, 1],
         sections: [],
       },
       title: title.trim(),
@@ -130,10 +141,11 @@ export async function POST(req: NextRequest) {
   if (sections.length === 0 || questions.length === 0) {
     return NextResponse.json({ error: "Template has no sections or questions yet" }, { status: 400 });
   }
-  // Archetypes only required if at least one archetype-ranking question is present
-  const hasArchetypeRanking = questions.some(
-    (q) => normalizeQuestionType(q.type) === "archetype-ranking"
-  );
+  // Archetypes only required if at least one archetype-rank-like question is present
+  const hasArchetypeRanking = questions.some((q) => {
+    const t = normalizeQuestionType(q.type);
+    return t === "archetype-ranking" || t === "archetype-top3";
+  });
   if (hasArchetypeRanking && (!Array.isArray(template.archetypeIds) || template.archetypeIds.length < 2)) {
     return NextResponse.json({ error: "Template has no archetypes set" }, { status: 400 });
   }
@@ -168,6 +180,7 @@ export async function POST(req: NextRequest) {
       description: template.description ?? undefined,
       archetypes,
       rankWeights: template.defaultRankWeights ?? [5, 4, 3, 2, 1],
+      top3Weights: template.defaultTop3Weights ?? [5, 3, 1],
       closingOpenQuestion: template.closingOpenQuestion ?? undefined,
       sections: sectionSnapshots,
     },

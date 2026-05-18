@@ -6,6 +6,7 @@ import SectionCard from "@/components/ui/SectionCard";
 import RichTextEditor from "@/components/ui/RichTextEditor";
 import ArchetypePill, { type ArchetypeLite } from "./ArchetypePill";
 import { QUESTION_TYPE_META, type ShellQuestionAny } from "./question-types";
+import { TOP3_RANK_LENGTH } from "@/lib/surveys/types";
 
 export type QuestionFormQuestion = ShellQuestionAny;
 
@@ -118,10 +119,12 @@ function QuestionTypeRouter({
 }) {
   switch (question.type) {
     case "archetype-ranking":
+    case "archetype-top3":
       return (
         <ArchetypeRankingEditor question={question} archetypes={archetypes} onChange={onChange} />
       );
     case "general-ranking":
+    case "general-top3":
       return <GeneralRankingEditor question={question} onChange={onChange} />;
     case "multiple-choice":
       return <MultipleChoiceEditor question={question} onChange={onChange} />;
@@ -191,11 +194,32 @@ function ArchetypeRankingEditor({
   archetypes,
   onChange,
 }: {
-  question: Extract<ShellQuestionAny, { type: "archetype-ranking" }>;
+  question: Extract<ShellQuestionAny, { type: "archetype-ranking" | "archetype-top3" }>;
   archetypes: ArchetypeLite[];
   onChange: (updates: Partial<ShellQuestionAny>) => void;
 }) {
   const archetypeMap = new Map(archetypes.map((a) => [a.id, a]));
+  const isTop3 = question.type === "archetype-top3";
+  // Top-3 needs 3 filled slots; full ranking needs at least 2 items to be a ranking.
+  const minOptions = isTop3 ? TOP3_RANK_LENGTH : 2;
+  const includedIds = new Set(question.options.map((o) => o.archetypeId));
+  const availableToAdd = archetypes.filter((a) => !includedIds.has(a.id));
+  const canRemove = question.options.length > minOptions;
+
+  function removeOption(optId: string) {
+    if (!canRemove) return;
+    onChange({ options: question.options.filter((o) => o.id !== optId) });
+  }
+  function addArchetype(archetypeId: string) {
+    if (includedIds.has(archetypeId)) return;
+    onChange({
+      options: [
+        ...question.options,
+        { id: uuid(), archetypeId, text: "" },
+      ],
+    });
+  }
+
   return (
     <div className="space-y-5">
       <TitleField
@@ -209,6 +233,11 @@ function ArchetypeRankingEditor({
       />
       <div>
         <label className="typo-label">Options · one per archetype</label>
+        <p className="text-xs mb-2" style={{ color: "var(--text-muted)" }}>
+          {isTop3
+            ? `Participants pick 3 options from this list. Only ranks 1–3 are scored. Minimum ${minOptions} options.`
+            : `Participants rank every option. Minimum ${minOptions} options.`}
+        </p>
         <div className="space-y-1.5">
           {question.options.map((opt) => {
             const a = archetypeMap.get(opt.archetypeId);
@@ -218,6 +247,13 @@ function ArchetypeRankingEditor({
                 key={opt.id}
                 archetype={a}
                 text={opt.text}
+                canRemove={canRemove}
+                removeLabel={
+                  canRemove
+                    ? "Remove archetype from this question"
+                    : `At least ${minOptions} archetypes are required`
+                }
+                onRemove={() => removeOption(opt.id)}
                 onCommit={(text) => {
                   if (text === opt.text) return;
                   onChange({
@@ -230,6 +266,26 @@ function ArchetypeRankingEditor({
             );
           })}
         </div>
+        {availableToAdd.length > 0 && (
+          <div className="mt-3">
+            <p className="typo-label">Add archetype</p>
+            <div className="flex flex-wrap gap-1.5">
+              {availableToAdd.map((a) => (
+                <button
+                  key={a.id}
+                  type="button"
+                  onClick={() => addArchetype(a.id)}
+                  className="inline-flex items-center gap-1 rounded-button border px-2 py-1 text-xs hover:bg-hover"
+                  style={{ borderColor: "var(--border)" }}
+                  aria-label={`Add ${a.name} to this question`}
+                >
+                  <Plus size={12} />
+                  <ArchetypePill archetype={a} size="sm" variant="solid" />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -238,10 +294,16 @@ function ArchetypeRankingEditor({
 function ArchetypeOptionRow({
   archetype,
   text,
+  canRemove,
+  removeLabel,
+  onRemove,
   onCommit,
 }: {
   archetype: ArchetypeLite;
   text: string;
+  canRemove: boolean;
+  removeLabel: string;
+  onRemove: () => void;
   onCommit: (text: string) => void;
 }) {
   return (
@@ -256,6 +318,16 @@ function ArchetypeOptionRow({
         placeholder="Option text"
         className="input"
       />
+      <button
+        type="button"
+        onClick={onRemove}
+        disabled={!canRemove}
+        aria-label={removeLabel}
+        title={removeLabel}
+        className="btn-icon mt-1 disabled:opacity-40 disabled:cursor-not-allowed"
+      >
+        <Trash2 size={14} />
+      </button>
     </div>
   );
 }
@@ -266,17 +338,18 @@ function GeneralRankingEditor({
   question,
   onChange,
 }: {
-  question: Extract<ShellQuestionAny, { type: "general-ranking" }>;
+  question: Extract<ShellQuestionAny, { type: "general-ranking" | "general-top3" }>;
   onChange: (updates: Partial<ShellQuestionAny>) => void;
 }) {
   function setItems(items: typeof question.rankingItems) {
     onChange({ rankingItems: items });
   }
+  const isTop3 = question.type === "general-top3";
   return (
     <div className="space-y-5">
       <TitleField
         title={question.title}
-        placeholder="What should participants rank?"
+        placeholder={isTop3 ? "What top 3 should participants pick?" : "What should participants rank?"}
         onCommit={(v) => onChange({ title: v })}
       />
       <DescriptionField
@@ -284,7 +357,12 @@ function GeneralRankingEditor({
         onCommit={(v) => onChange({ description: v })}
       />
       <div>
-        <label className="typo-label">Items to rank</label>
+        <label className="typo-label">{isTop3 ? "Items to pick from" : "Items to rank"}</label>
+        {isTop3 && (
+          <p className="text-xs mb-2" style={{ color: "var(--text-muted)" }}>
+            Participants pick 3 items from this list. Add at least 4 items.
+          </p>
+        )}
         <div className="space-y-1.5">
           {question.rankingItems.map((item) => (
             <RankItemRow

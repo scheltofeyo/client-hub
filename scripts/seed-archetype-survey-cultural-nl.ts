@@ -1,10 +1,13 @@
 /**
- * Seeds the Dutch version of SUMM's Cultural Archetype Survey template
- * ("Culturele Archetype Survey"): 14 vragen over 4 secties (Missie & DNA,
- * Leiderschap, Teamontwikkeling, Beloningen), elk met 5 opties gekoppeld
- * aan de archetypes Achievement / Customer-Centric / Innovation / One Team /
- * Greater-Good. Idempotent — bij re-run wordt een bestaande template niet
- * overschreven.
+ * Seedt de Nederlandse versie van SUMM's culturele archetype survey
+ * ("Culture Archetypes As Is (NL)"): 14 archetype-top3 vragen over 4 secties
+ * (Missie & DNA, Leiderschap, Teamontwikkeling, Beloningen), plus 1 afsluitende
+ * general-top3 vraag.
+ *
+ * Herhaalbaar uitvoerbaar: als er al een template met deze naam bestaat worden
+ * secties en vragen geüpsert op titel (bestaande question/section IDs blijven
+ * intact zodat live sessies blijven werken). Het `type`-veld wordt altijd
+ * gesynchroniseerd met de seed-waarde.
  *
  * Run: npm run seed:archetype-survey-nl
  */
@@ -48,24 +51,75 @@ const ARCHETYPE_NAMES = [
   "Greater-Good",
 ] as const;
 
-const SECTIONS = [
-  { title: "Missie & DNA" },
-  { title: "Leiderschap" },
-  { title: "Teamontwikkeling" },
-  { title: "Beloningen" },
-] as const;
+const SECTION_IMAGE_BASE =
+  "https://summ-jm.s3.eu-central-1.amazonaws.com/client+hub/survey+images";
 
-type SeedQuestion = {
+const SECTIONS: ReadonlyArray<{
+  title: string;
+  description?: string;
+  imageUrl?: string;
+}> = [
+  {
+    title: "Over deze survey",
+    description:
+      "<p>In deze survey vragen we je om een aantal beschikbare antwoorden te sorteren naar jouw persoonlijke top 3. Lees alle antwoorden zorgvuldig en sleep dan de beschikbare antwoorden in de volgorde die voor jou het beste past. </p><p><strong>Goed om te weten</strong></p><p>Al jouw input wordt anoniem verwerkt en geen enkel individueel antwoord wordt ooit gekoppeld aan een specifieke respondent. Wees zo eerlijk en oprecht mogelijk, want dat levert de meest waardevolle inzichten op.</p>",
+    imageUrl: `${SECTION_IMAGE_BASE}/Ranking+tips.png`,
+  },
+  {
+    title: "Missie & DNA",
+    description:
+      "<p>Dit eerste hoofdstuk bestaat uit drie vragen die allemaal gaan over zowel je huidige externe als interne strategische focuspunten en hoe je de huidige cultuur binnen jouw organisatie zou omschrijven.</p>",
+    imageUrl: `${SECTION_IMAGE_BASE}/mission+culture.png`,
+  },
+  {
+    title: "Leiderschap",
+    description:
+      "<p>Dit tweede hoofdstuk gaat volledig over leiderschap: hoe zou je de leiderschapsstijl van jouw organisatie omschrijven? Welk leiderschapsgedrag laat het leiderschapsteam zien? En wat is jouw stijl en boodschap wanneer je communiceert met teams?</p>",
+    imageUrl: `${SECTION_IMAGE_BASE}/leadership.png`,
+  },
+  {
+    title: "Team ontwikkeling",
+    description:
+      "<p>Dit derde hoofdstuk richt zich op jullie huidige teonontwikkelingspraktijken, zoals het aantrekken van nieuw talent, het inwerken van nieuwe teamleden, feedback en prestatiebeoordeling, en loopbaanontwikkeling.</p>",
+    imageUrl: `${SECTION_IMAGE_BASE}/team+development.png`,
+  },
+  {
+    title: "Beloningen",
+    description:
+      "<p>Dit vierde en laatste hoofdstuk kijkt naar het gedrag dat jullie als organisatie momenteel belonen en welk gedrag jullie ontmoedigen.</p>",
+    imageUrl: `${SECTION_IMAGE_BASE}/rewards.png`,
+  },
+  {
+    title: "Voor we afronden",
+    description: "<p>Om af te sluiten willen we je nog 1 laatste vraag stellen.</p>",
+    imageUrl: `${SECTION_IMAGE_BASE}/Full+pyramid.png`,
+  },
+];
+
+type ArchetypeSeedQuestion = {
+  kind: "archetype-top3";
   q: number;
   sectionIndex: number;
   title: string;
   options: [string, string, string, string, string];
 };
 
+type GeneralSeedQuestion = {
+  kind: "general-top3";
+  q: number;
+  sectionIndex: number;
+  title: string;
+  description?: string;
+  items: string[];
+};
+
+type SeedQuestion = ArchetypeSeedQuestion | GeneralSeedQuestion;
+
 const QUESTIONS: SeedQuestion[] = [
   {
+    kind: "archetype-top3",
     q: 1,
-    sectionIndex: 0,
+    sectionIndex: 1,
     title: "Wat zie jij als onze belangrijkste externe strategische doelstelling?",
     options: [
       "Marktaandeel winnen door onze concurrenten te overtreffen op drive, snelheid en uitvoering",
@@ -76,8 +130,9 @@ const QUESTIONS: SeedQuestion[] = [
     ],
   },
   {
+    kind: "archetype-top3",
     q: 2,
-    sectionIndex: 0,
+    sectionIndex: 1,
     title: "Om onze doelstelling te bereiken, waar zou onze interne focus op moeten liggen?",
     options: [
       "Prestatie-discipline en verantwoordelijkheid",
@@ -88,8 +143,9 @@ const QUESTIONS: SeedQuestion[] = [
     ],
   },
   {
+    kind: "archetype-top3",
     q: 3,
-    sectionIndex: 0,
+    sectionIndex: 1,
     title: "Onze huidige cultuur zou ik omschrijven als…",
     options: [
       "Een sterk gedisciplineerde prestatiecultuur, gericht op resultaten en persoonlijke verantwoordelijkheid",
@@ -100,8 +156,9 @@ const QUESTIONS: SeedQuestion[] = [
     ],
   },
   {
+    kind: "archetype-top3",
     q: 4,
-    sectionIndex: 1,
+    sectionIndex: 2,
     title: "Wat omschrijft onze huidige leiderschapsstijl het best?",
     options: [
       "Prestatie-gedreven en expliciet: gericht op mensen verantwoordelijk houden en individuele prestaties vieren",
@@ -112,8 +169,9 @@ const QUESTIONS: SeedQuestion[] = [
     ],
   },
   {
+    kind: "archetype-top3",
     q: 5,
-    sectionIndex: 1,
+    sectionIndex: 2,
     title: "Welk leiderschapsgedrag tonen we succesvol?",
     options: [
       "We stellen heldere verwachtingen, zorgen voor transparantie en pakken ondermaats presteren aan",
@@ -124,8 +182,9 @@ const QUESTIONS: SeedQuestion[] = [
     ],
   },
   {
+    kind: "archetype-top3",
     q: 6,
-    sectionIndex: 1,
+    sectionIndex: 2,
     title: "Welk leiderschapsgedrag past het minst bij ons?",
     options: [
       "We laten mensen verantwoordelijkheid voor resultaten ontlopen",
@@ -136,8 +195,9 @@ const QUESTIONS: SeedQuestion[] = [
     ],
   },
   {
+    kind: "archetype-top3",
     q: 7,
-    sectionIndex: 1,
+    sectionIndex: 2,
     title: "Welke thema's domineren op dit moment onze leiderschapsboodschappen en communicatiestijl?",
     options: [
       "We zijn direct en resultaatgericht: de communicatie naar onze teams is gericht op transparantie, resultaten en persoonlijke verantwoordelijkheid",
@@ -148,8 +208,9 @@ const QUESTIONS: SeedQuestion[] = [
     ],
   },
   {
+    kind: "archetype-top3",
     q: 8,
-    sectionIndex: 1,
+    sectionIndex: 2,
     title: "Welke thema's zouden volgens jou prominenter aanwezig moeten zijn in onze leiderschapsboodschappen en communicatiestijl?",
     options: [
       "We zouden directer en meer resultaatgericht moeten zijn: de communicatie naar onze teams zou meer gericht moeten zijn op transparantie, resultaten en persoonlijke verantwoordelijkheid",
@@ -160,8 +221,9 @@ const QUESTIONS: SeedQuestion[] = [
     ],
   },
   {
+    kind: "archetype-top3",
     q: 9,
-    sectionIndex: 2,
+    sectionIndex: 3,
     title: "Wat is onze employee value proposition naar (huidige en toekomstige) medewerkers?",
     options: [
       "Werk in een sterke prestatiecultuur met transparante doelen, heldere verwachtingen en de ideale omgeving om je professioneel te ontwikkelen",
@@ -172,8 +234,9 @@ const QUESTIONS: SeedQuestion[] = [
     ],
   },
   {
+    kind: "archetype-top3",
     q: 10,
-    sectionIndex: 2,
+    sectionIndex: 3,
     title: "Wat omschrijft onze huidige aanpak en kernboodschap bij het onboarden van nieuwe medewerkers het best?",
     options: [
       "We bieden nieuwe medewerkers een gestructureerde onboarding gericht op het vastleggen van heldere verantwoordelijkheden, verwachtingen en prestatienormen, zodat ze vanaf dag één actie- en resultaatgericht kunnen werken.",
@@ -184,8 +247,9 @@ const QUESTIONS: SeedQuestion[] = [
     ],
   },
   {
+    kind: "archetype-top3",
     q: 11,
-    sectionIndex: 2,
+    sectionIndex: 3,
     title: "Wat omschrijft onze huidige feedbackcultuur het best?",
     options: [
       "We waarderen en praktiseren directe en onmiddellijke feedback, sterk gericht op individuele prestaties, resultaten en verantwoordelijkheid, met heldere consequenties voor opvolging.",
@@ -196,8 +260,9 @@ const QUESTIONS: SeedQuestion[] = [
     ],
   },
   {
+    kind: "archetype-top3",
     q: 12,
-    sectionIndex: 2,
+    sectionIndex: 3,
     title: "Hoe zou je onze huidige aanpak van prestatie-evaluatie en loopbaanontwikkeling omschrijven?",
     options: [
       "Onze huidige aanpak van prestatie-evaluatie en loopbaanontwikkeling is gebaseerd op zeer heldere en expliciete verwachtingen en wordt bepaald door individuele prestaties, eigenaarschap en het vermogen om sterke, meetbare resultaten te leveren.",
@@ -208,8 +273,9 @@ const QUESTIONS: SeedQuestion[] = [
     ],
   },
   {
+    kind: "archetype-top3",
     q: 13,
-    sectionIndex: 3,
+    sectionIndex: 4,
     title: "Welk gedrag belonen we op dit moment het meest?",
     options: [
       "Persoonlijke verantwoordelijkheid nemen en resultaten leveren",
@@ -220,8 +286,9 @@ const QUESTIONS: SeedQuestion[] = [
     ],
   },
   {
+    kind: "archetype-top3",
     q: 14,
-    sectionIndex: 3,
+    sectionIndex: 4,
     title: "Welk gedrag proberen we op dit moment het meest terug te dringen?",
     options: [
       "Ondermaats presteren of gebrek aan eigenaarschap voor resultaten",
@@ -231,9 +298,26 @@ const QUESTIONS: SeedQuestion[] = [
       "Waardemisalignement en gedrag dat vertrouwen ondermijnt",
     ],
   },
+  {
+    kind: "general-top3",
+    q: 15,
+    sectionIndex: 5,
+    title: "Op welke van de volgende onderwerpen zouden we ons volgens jou het meest moeten focussen om onze algehele prestaties te verbeteren?",
+    description: "Kies je top 3",
+    items: [
+      "Onze aanpak van het aantrekken en inwerken van nieuw talent",
+      "Het ontwikkelen van onze feedbackcultuur",
+      "Heldere verwachtingen stellen en elkaar daarop aanspreken",
+      "Het ontwikkelen van onze leiderschapspraktijken (vergaderingen, besluitvorming, etc.)",
+      "Het verduidelijken van onze organisatiestructuur",
+      "Hoe we talent binnen ons team begeleiden en opleiden",
+      "Hoe we onze teams belonen",
+      "Communicatie vanuit het leiderschap naar het team",
+    ],
+  },
 ];
 
-const TEMPLATE_NAME = "Culturele Archetype Survey";
+const TEMPLATE_NAME = "Culture Archetypes As Is (NL)";
 const TEMPLATE_DESCRIPTION =
   "SUMM's culturele archetype-onderzoek — meet hoe de huidige cultuur (as-is) wordt ervaren versus de gewenste cultuur (to-be) over vijf archetypes.";
 
@@ -262,61 +346,115 @@ async function main() {
   }
   console.log(`Found ${archetypes.length} archetypes`);
 
-  const existing = await SurveyTemplateModel.findOne({ name: TEMPLATE_NAME }).lean();
-  if (existing) {
-    console.log(`Template "${TEMPLATE_NAME}" already exists (id=${existing._id}), skipping.`);
-    await mongoose.disconnect();
-    return;
-  }
-
   const archetypeIds = ARCHETYPE_NAMES.map((n) => archetypeByName.get(n)!);
 
-  const template = await SurveyTemplateModel.create({
-    name: TEMPLATE_NAME,
-    description: TEMPLATE_DESCRIPTION,
-    status: "active",
-    archetypeIds,
-    defaultRankWeights: [5, 4, 3, 2, 1],
-    version: 1,
-    createdBy: "system",
-  });
-  const templateId = String(template._id);
-  console.log(`Created template "${TEMPLATE_NAME}" (id=${templateId})`);
-
-  const sectionIds: string[] = [];
-  for (let i = 0; i < SECTIONS.length; i++) {
-    const sec = await SurveyTemplateSectionModel.create({
-      templateId,
-      title: SECTIONS[i].title,
-      order: i,
+  let template = await SurveyTemplateModel.findOne({ name: TEMPLATE_NAME });
+  if (!template) {
+    template = await SurveyTemplateModel.create({
+      name: TEMPLATE_NAME,
+      description: TEMPLATE_DESCRIPTION,
+      status: "active",
+      archetypeIds,
+      defaultRankWeights: [5, 4, 3, 2, 1],
+      version: 1,
+      createdBy: "system",
     });
-    sectionIds.push(String(sec._id));
+    console.log(`Created template "${TEMPLATE_NAME}" (id=${template._id})`);
+  } else {
+    console.log(`Found existing template "${TEMPLATE_NAME}" (id=${template._id}) — upserting`);
   }
-  console.log(`Created ${sectionIds.length} sections`);
+  const templateId = String(template._id);
 
-  const questionIdByNumber = new Map<number, string>();
+  // Upsert sections by title (preserve IDs and order of existing sections;
+  // always sync description + imageUrl from seed).
+  const sectionIdByIndex = new Map<number, string>();
+  for (let i = 0; i < SECTIONS.length; i++) {
+    const { title, description, imageUrl } = SECTIONS[i];
+    let sec = await SurveyTemplateSectionModel.findOne({ templateId, title });
+    if (!sec) {
+      sec = await SurveyTemplateSectionModel.create({
+        templateId,
+        title,
+        description,
+        imageUrl,
+        order: i,
+      });
+      console.log(`  + section "${title}" (created at order ${i})`);
+    } else {
+      sec.description = description;
+      sec.imageUrl = imageUrl;
+      await sec.save();
+      console.log(`  ~ section "${title}" (kept at order ${sec.order}, synced description + imageUrl)`);
+    }
+    sectionIdByIndex.set(i, String(sec._id));
+  }
+
+  // Upsert questions by (sectionId + title)
   const orderPerSection = new Map<number, number>();
   for (const q of QUESTIONS) {
+    const sectionId = sectionIdByIndex.get(q.sectionIndex)!;
     const orderInSection = orderPerSection.get(q.sectionIndex) ?? 0;
     orderPerSection.set(q.sectionIndex, orderInSection + 1);
 
-    const options = q.options.map((text, idx) => ({
-      id: randomUUID(),
-      archetypeId: archetypeIds[idx],
-      text,
-    }));
-
-    const doc = await SurveyTemplateQuestionModel.create({
+    const existing = await SurveyTemplateQuestionModel.findOne({
       templateId,
-      sectionId: sectionIds[q.sectionIndex],
+      sectionId,
       title: q.title,
-      options,
-      openTextEnabled: false,
-      order: orderInSection,
     });
-    questionIdByNumber.set(q.q, String(doc._id));
+
+    if (q.kind === "archetype-top3") {
+      const options = q.options.map((text, idx) => ({
+        id: existing?.options?.[idx]?.id ?? randomUUID(),
+        archetypeId: archetypeIds[idx],
+        text,
+      }));
+      if (!existing) {
+        await SurveyTemplateQuestionModel.create({
+          templateId,
+          sectionId,
+          type: "archetype-top3",
+          title: q.title,
+          options,
+          rankingItems: [],
+          order: orderInSection,
+        });
+        console.log(`  + Q${q.q} archetype-top3 "${q.title.slice(0, 60)}…" (created)`);
+      } else {
+        existing.type = "archetype-top3";
+        existing.options = options as typeof existing.options;
+        existing.rankingItems = [] as typeof existing.rankingItems;
+        existing.order = orderInSection;
+        await existing.save();
+        console.log(`  ~ Q${q.q} archetype-top3 "${q.title.slice(0, 60)}…" (updated)`);
+      }
+    } else {
+      const rankingItems = q.items.map((text, idx) => ({
+        id: existing?.rankingItems?.[idx]?.id ?? randomUUID(),
+        text,
+      }));
+      if (!existing) {
+        await SurveyTemplateQuestionModel.create({
+          templateId,
+          sectionId,
+          type: "general-top3",
+          title: q.title,
+          description: q.description,
+          options: [],
+          rankingItems,
+          order: orderInSection,
+        });
+        console.log(`  + Q${q.q} general-top3 "${q.title.slice(0, 60)}…" (created)`);
+      } else {
+        existing.type = "general-top3";
+        existing.description = q.description;
+        existing.options = [] as typeof existing.options;
+        existing.rankingItems = rankingItems as typeof existing.rankingItems;
+        existing.order = orderInSection;
+        await existing.save();
+        console.log(`  ~ Q${q.q} general-top3 "${q.title.slice(0, 60)}…" (updated)`);
+      }
+    }
   }
-  console.log(`Created ${questionIdByNumber.size} questions`);
 
   console.log("Seed complete");
   await mongoose.disconnect();

@@ -68,6 +68,7 @@ export interface ISurveyTemplateSnapshot {
   description?: string;
   archetypes: IArchetypeSnapshot[];
   rankWeights: number[];
+  top3Weights: number[];
   closingOpenQuestion?: ISurveyClosingQuestion;
   sections: ISurveySectionSnapshot[];
 }
@@ -164,7 +165,15 @@ const QuestionSnapshotSchema = new Schema<ISurveyQuestionSnapshot>(
     id: { type: String, required: true },
     type: {
       type: String,
-      enum: ["archetype-ranking", "general-ranking", "multiple-choice", "open-text", "intro"],
+      enum: [
+        "archetype-ranking",
+        "archetype-top3",
+        "general-ranking",
+        "general-top3",
+        "multiple-choice",
+        "open-text",
+        "intro",
+      ],
       default: "archetype-ranking",
     },
     // Title is optional — intro blocks may be untitled.
@@ -268,6 +277,7 @@ const TemplateSnapshotSchema = new Schema<ISurveyTemplateSnapshot>(
     description: { type: String },
     archetypes: { type: [ArchetypeSnapshotSchema], default: [] },
     rankWeights: { type: [Number], default: [5, 4, 3, 2, 1] },
+    top3Weights: { type: [Number], default: [5, 3, 1] },
     closingOpenQuestion: { type: ClosingQuestionSchema, default: undefined },
     sections: { type: [SectionSnapshotSchema], default: [] },
   },

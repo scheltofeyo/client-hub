@@ -6,11 +6,26 @@ const translations = {
     nl: "Welkom — bedankt dat je meedoet!",
     en: "Welcome — thanks for joining in!",
   },
-  "identify.subline": {
-    nl: "Fijn dat je hier even de tijd voor neemt. We vragen alleen je e-mailadres om dubbele inzendingen te voorkomen — je antwoorden blijven volledig anoniem en worden alleen geaggregeerd verwerkt.",
-    en: "Thanks for taking the time. We only ask for your email to prevent duplicate responses — your answers stay fully anonymous and are only processed in aggregate.",
+  "identify.bodyOrganizer": {
+    nl: "Deze survey wordt georganiseerd door SUMM om {company} te helpen meer inzicht te krijgen.",
+    en: "This survey is organized by SUMM to help {company} gain insights.",
   },
-  "identify.tag": { nl: "Jouw stem telt", en: "Your voice counts" },
+  "identify.bodyOrganizerNoCompany": {
+    nl: "Deze survey wordt georganiseerd door SUMM.",
+    en: "This survey is organized by SUMM.",
+  },
+  "identify.bodyAnonymous": {
+    nl: "Je antwoorden blijven volledig anoniem en worden alleen geaggregeerd verwerkt.",
+    en: "Your answers stay fully anonymous and are only processed in aggregate.",
+  },
+  "identify.bodyEmail": {
+    nl: "We vragen daarom alleen je e-mailadres — zo voorkomen we dubbele inzendingen, kun je later met hetzelfde adres opnieuw inloggen, en wordt je voortgang na elke vraag automatisch opgeslagen.",
+    en: "That's why we only ask for your email — it prevents duplicate responses, lets you log back in with the same address later, and your progress is saved automatically between questions.",
+  },
+  "identify.tag": { nl: "Hoi {company} teamlid", en: "Hi {company} team member" },
+  "identify.tagFallback": { nl: "Hoi teamlid", en: "Hi team member" },
+  "header.saved": { nl: "Opgeslagen", en: "Saved" },
+  "header.unsaved": { nl: "Niet opgeslagen", en: "Unsaved" },
   "identify.statsLine": {
     nl: "{n} vragen · ongeveer {min} minuten van je tijd",
     en: "{n} questions · about {min} minutes of your time",

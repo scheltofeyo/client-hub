@@ -89,7 +89,10 @@ export default function SurveyEditorShell(props: SurveyEditorShellProps) {
   } = props;
 
   const hasArchetypeRanking = useMemo(
-    () => sections.some((s) => s.questions.some((q) => q.type === "archetype-ranking")),
+    () =>
+      sections.some((s) =>
+        s.questions.some((q) => q.type === "archetype-ranking" || q.type === "archetype-top3")
+      ),
     [sections]
   );
 
@@ -161,7 +164,7 @@ export default function SurveyEditorShell(props: SurveyEditorShellProps) {
             onReorderSections={props.onReorderSections}
             onReorderQuestions={props.onReorderQuestionsInSection}
             archetypeLocked={!archetypeMutable}
-            showArchetypes={hasArchetypeRanking}
+            showArchetypes={archetypeMutable && hasArchetypeRanking}
             showClosing={!!props.closingOpenQuestion?.enabled}
           />
         </aside>
@@ -209,8 +212,13 @@ function isQuestionIncomplete(q: ShellQuestion): boolean {
   switch (q.type) {
     case "archetype-ranking":
       return q.options.some((o) => !o.text.trim());
+    case "archetype-top3":
+      // Top-3 needs at least 4 distinct options to be meaningful.
+      return q.options.length < 4 || q.options.some((o) => !o.text.trim());
     case "general-ranking":
       return q.rankingItems.length < 2 || q.rankingItems.some((i) => !i.text.trim());
+    case "general-top3":
+      return q.rankingItems.length < 4 || q.rankingItems.some((i) => !i.text.trim());
     case "multiple-choice":
       return q.choices.length < 2 || q.choices.some((c) => !c.text.trim());
     case "open-text":

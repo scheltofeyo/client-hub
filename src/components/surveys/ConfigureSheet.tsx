@@ -6,31 +6,79 @@ import SectionCard from "@/components/ui/SectionCard";
 export interface ConfigureSessionMeta {
   templateSnapshot: {
     rankWeights: number[];
+    top3Weights: number[];
   };
 }
 
 interface ConfigureSheetProps {
   meta: ConfigureSessionMeta;
   canEdit: boolean;
-  onSaveWeights: (next: number[]) => Promise<boolean>;
+  onSaveRankWeights: (next: number[]) => Promise<boolean>;
+  onSaveTop3Weights: (next: number[]) => Promise<boolean>;
 }
 
 const WEIGHT_DEBOUNCE_MS = 600;
 
 /**
- * Settings tab content for tuning ranking weights. Owns its own draft state
- * so the parent's loadSession polling can't reset the user's in-progress
- * edits. Weights are debounce-saved on change; reset button still works.
+ * Settings tab content for tuning the two scoring weight arrays:
+ *  - `rankWeights`: applied to archetype-ranking (full-rank archetype scoring).
+ *  - `top3Weights`: applied to archetype-top3 (top-3 archetype scoring only).
+ *
+ * Each editor owns its own debounce timer so saves remain independent.
+ * Parent re-mounts with `key=` on session change, so initial state is loaded
+ * exactly once per session.
  */
 export function ConfigureSheet({
   meta,
   canEdit,
-  onSaveWeights,
+  onSaveRankWeights,
+  onSaveTop3Weights,
 }: ConfigureSheetProps) {
-  // Initialize weightsDraft once on mount (parent re-mounts with key= on session change).
-  const [weightsDraft, setWeightsDraft] = useState<string[]>(() =>
-    (meta.templateSnapshot.rankWeights ?? []).map(String)
+  return (
+    <div className="space-y-6">
+      <WeightEditor
+        title="Full-ranking weights"
+        helper="Points awarded for each rank position in archetype-ranking questions (rank 1 = first choice). Only affects archetype-ranking questions — general-ranking uses mean rank instead."
+        initial={meta.templateSnapshot.rankWeights ?? []}
+        canEdit={canEdit}
+        onSave={onSaveRankWeights}
+        resetLabel={(len) => `Reset to ${len},${Math.max(1, len - 1)},…,1`}
+        buildReset={(len) => Array.from({ length: len }, (_, i) => len - i)}
+      />
+      <WeightEditor
+        title="Top 3 weights"
+        helper="Points awarded for positions 1, 2 and 3 in archetype-top3 questions. Items not placed in the top 3 score 0. General-top3 questions use mean rank, so these weights don't affect them."
+        initial={meta.templateSnapshot.top3Weights ?? [5, 3, 1]}
+        canEdit={canEdit}
+        onSave={onSaveTop3Weights}
+        resetLabel={() => "Reset to 5, 3, 1"}
+        buildReset={() => [5, 3, 1]}
+        fixedLength={3}
+      />
+    </div>
   );
+}
+
+function WeightEditor({
+  title,
+  helper,
+  initial,
+  canEdit,
+  onSave,
+  resetLabel,
+  buildReset,
+  fixedLength,
+}: {
+  title: string;
+  helper: string;
+  initial: number[];
+  canEdit: boolean;
+  onSave: (next: number[]) => Promise<boolean>;
+  resetLabel: (len: number) => string;
+  buildReset: (len: number) => number[];
+  fixedLength?: number;
+}) {
+  const [draft, setDraft] = useState<string[]>(() => initial.map(String));
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function scheduleSave(next: string[]) {
@@ -38,7 +86,7 @@ export function ConfigureSheet({
     debounceRef.current = setTimeout(() => {
       const parsed = next.map((s) => Number(s));
       if (parsed.some((n) => !Number.isFinite(n))) return;
-      onSaveWeights(parsed);
+      onSave(parsed);
     }, WEIGHT_DEBOUNCE_MS);
   }
 
@@ -46,49 +94,46 @@ export function ConfigureSheet({
     if (debounceRef.current) clearTimeout(debounceRef.current);
   }, []);
 
+  const len = fixedLength ?? draft.length;
   return (
-    <div className="space-y-6">
-      <SectionCard
-        title="Scoring weights"
-        helper="Points awarded for each rank (rank 1 = first choice). Edits recompute the percentages on the Insights view."
-      >
-        <div className="flex flex-wrap items-end gap-3">
-          {weightsDraft.map((w, i) => (
-            <label key={i} className="flex flex-col text-xs" style={{ color: "var(--text-muted)" }}>
-              Rank {i + 1}
-              <input
-                type="number"
-                value={w}
-                disabled={!canEdit}
-                onChange={(e) => {
-                  const next = [...weightsDraft];
-                  next[i] = e.target.value;
-                  setWeightsDraft(next);
-                  scheduleSave(next);
-                }}
-                className="input input-sm"
-                style={{ width: 80 }}
-              />
-            </label>
-          ))}
-          {canEdit && (
-            <button
-              type="button"
-              onClick={() => {
-                const len = weightsDraft.length;
-                const reset = Array.from({ length: len }, (_, i) => len - i);
-                if (debounceRef.current) clearTimeout(debounceRef.current);
-                setWeightsDraft(reset.map(String));
-                onSaveWeights(reset);
+    <SectionCard title={title}>
+      <p className="text-xs mb-4" style={{ color: "var(--text-muted)", lineHeight: 1.5 }}>
+        {helper}
+      </p>
+      <div className="flex flex-wrap items-end gap-3">
+        {draft.map((w, i) => (
+          <label key={i} className="flex flex-col text-xs" style={{ color: "var(--text-muted)" }}>
+            Rank {i + 1}
+            <input
+              type="number"
+              value={w}
+              disabled={!canEdit}
+              onChange={(e) => {
+                const next = [...draft];
+                next[i] = e.target.value;
+                setDraft(next);
+                scheduleSave(next);
               }}
-              className="btn-ghost rounded-button px-3 py-2 text-xs"
-            >
-              Reset to {weightsDraft.length},{Math.max(1, weightsDraft.length - 1)},…,1
-            </button>
-          )}
-        </div>
-      </SectionCard>
-
-    </div>
+              className="input input-sm"
+              style={{ width: 80 }}
+            />
+          </label>
+        ))}
+        {canEdit && (
+          <button
+            type="button"
+            onClick={() => {
+              const reset = buildReset(len);
+              if (debounceRef.current) clearTimeout(debounceRef.current);
+              setDraft(reset.map(String));
+              onSave(reset);
+            }}
+            className="btn-ghost rounded-button px-3 py-2 text-xs"
+          >
+            {resetLabel(len)}
+          </button>
+        )}
+      </div>
+    </SectionCard>
   );
 }

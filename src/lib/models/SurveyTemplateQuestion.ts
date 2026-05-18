@@ -2,7 +2,9 @@ import mongoose, { Schema, Document, Model } from "mongoose";
 
 export type SurveyQuestionType =
   | "archetype-ranking"
+  | "archetype-top3"
   | "general-ranking"
+  | "general-top3"
   | "multiple-choice"
   | "open-text"
   | "intro";
@@ -89,7 +91,15 @@ const SurveyTemplateQuestionSchema = new Schema<ISurveyTemplateQuestion>(
     sectionId: { type: String, required: true, index: true },
     type: {
       type: String,
-      enum: ["archetype-ranking", "general-ranking", "multiple-choice", "open-text", "intro"],
+      enum: [
+        "archetype-ranking",
+        "archetype-top3",
+        "general-ranking",
+        "general-top3",
+        "multiple-choice",
+        "open-text",
+        "intro",
+      ],
       default: "archetype-ranking",
     },
     // Title is optional at schema level — intro blocks may be untitled.

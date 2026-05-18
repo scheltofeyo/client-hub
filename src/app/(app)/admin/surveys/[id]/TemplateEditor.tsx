@@ -22,6 +22,7 @@ interface TemplateData {
   status: string;
   archetypeIds: string[];
   defaultRankWeights: number[];
+  defaultTop3Weights: number[];
   closingOpenQuestion: ClosingOpenQuestion;
 }
 
@@ -41,8 +42,12 @@ function toShellQuestion(q: QuestionRow): ShellQuestionAny {
   switch (q.type) {
     case "archetype-ranking":
       return { ...base, type: "archetype-ranking", options: q.options ?? [] };
+    case "archetype-top3":
+      return { ...base, type: "archetype-top3", options: q.options ?? [] };
     case "general-ranking":
       return { ...base, type: "general-ranking", rankingItems: q.rankingItems ?? [] };
+    case "general-top3":
+      return { ...base, type: "general-top3", rankingItems: q.rankingItems ?? [] };
     case "multiple-choice":
       return {
         ...base,
@@ -256,14 +261,19 @@ export default function TemplateEditor({
 
   // ── Question mutations ──────────────────────────────────────────
   async function handleAddQuestion(sectionId: string, type: SurveyQuestionType) {
-    if (type === "archetype-ranking" && template.archetypeIds.length < 2) {
+    if (
+      (type === "archetype-ranking" || type === "archetype-top3") &&
+      template.archetypeIds.length < 2
+    ) {
       setError("Pick at least 2 archetypes first");
       setSaveState("error");
       return;
     }
     const titleByType: Record<SurveyQuestionType, string> = {
       "archetype-ranking": "New question",
+      "archetype-top3": "New top 3 question",
       "general-ranking": "New ranking question",
+      "general-top3": "New top 3 question",
       "multiple-choice": "New choice question",
       "open-text": "New open question",
       intro: "",

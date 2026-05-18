@@ -4,6 +4,7 @@ import {
   LayoutGrid,
   ListChecks,
   MessageSquare,
+  Trophy,
   type LucideIcon,
 } from "lucide-react";
 import type { SurveyQuestionType } from "@/lib/surveys/types";
@@ -13,7 +14,9 @@ export const QUESTION_TYPE_META: Record<
   { label: string; icon: LucideIcon; color: string }
 > = {
   "archetype-ranking": { label: "Archetype ranking", icon: LayoutGrid, color: "var(--primary)" },
+  "archetype-top3": { label: "Archetype top 3", icon: Trophy, color: "var(--primary)" },
   "general-ranking": { label: "General ranking", icon: ArrowDownUp, color: "var(--info)" },
+  "general-top3": { label: "General top 3", icon: Trophy, color: "var(--info)" },
   "multiple-choice": { label: "Multiple choice", icon: ListChecks, color: "var(--info)" },
   "open-text": { label: "Open text", icon: MessageSquare, color: "var(--text-muted)" },
   intro: { label: "Info block", icon: FileText, color: "var(--text-muted)" },
@@ -32,8 +35,20 @@ export interface ShellArchetypeRanking extends ShellQuestionBase {
   required?: boolean;
 }
 
+export interface ShellArchetypeTop3 extends ShellQuestionBase {
+  type: "archetype-top3";
+  options: { id: string; archetypeId: string; text: string }[];
+  required?: boolean;
+}
+
 export interface ShellGeneralRanking extends ShellQuestionBase {
   type: "general-ranking";
+  rankingItems: { id: string; text: string }[];
+  required?: boolean;
+}
+
+export interface ShellGeneralTop3 extends ShellQuestionBase {
+  type: "general-top3";
   rankingItems: { id: string; text: string }[];
   required?: boolean;
 }
@@ -60,7 +75,9 @@ export interface ShellIntro extends ShellQuestionBase {
 
 export type ShellQuestionAny =
   | ShellArchetypeRanking
+  | ShellArchetypeTop3
   | ShellGeneralRanking
+  | ShellGeneralTop3
   | ShellMultipleChoice
   | ShellOpenText
   | ShellIntro;

@@ -37,6 +37,7 @@ export default async function EditSurveyTemplatePage({
           status: template.status,
           archetypeIds: template.archetypeIds ?? [],
           defaultRankWeights: template.defaultRankWeights ?? [5, 4, 3, 2, 1],
+          defaultTop3Weights: template.defaultTop3Weights ?? [5, 3, 1],
           closingOpenQuestion: template.closingOpenQuestion
             ? { enabled: template.closingOpenQuestion.enabled, label: template.closingOpenQuestion.label }
             : { enabled: false, label: "" },
