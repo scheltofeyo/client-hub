@@ -89,17 +89,32 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
      *  2. First sign-in (`account?.provider === "google"`) — fetch user + role +
      *     lead settings to seed the token. One-time cost.
      *  3. Subsequent requests — gated by a 15-minute `statusCheckedAt` window.
-     *     Within the window: zero DB. At the boundary: re-read the user (cheap,
-     *     by _id) to detect status flips, then skip the RoleModel lookup if the
-     *     user's role slug hasn't changed (`token.role === dbUser.role`).
-     *     Lead settings are always re-read because they are a global singleton
-     *     that admins can flip without changing any user's role.
+     *     Within the window: zero DB. At the boundary: re-read user + role +
+     *     leadSettings to pick up any permission changes (admin editing a
+     *     Role's permissions, leadSettings flips, status flips).
      *
      * Permission / role changes take effect on the next refresh after the
      * 15-minute boundary (worst case ~15 min latency). This is documented in
      * CLAUDE.md and acceptable for our team size.
+     *
+     * Note: a previous version tried to skip the RoleModel fetch when the
+     * user's role slug was unchanged, but that broke permission propagation
+     * when an admin added/removed a permission on a role (the role slug stays
+     * the same so the cached permissions on the token never refreshed). We
+     * accept the tiny cost of one indexed lookup per 15-min window per user
+     * in exchange for correct propagation.
      */
     async jwt({ token, account, trigger, session }) {
+      // Defensive: when Auth.js triggers signOut, return null so no token is
+      // re-encoded into the response cookie. The TypeScript union doesn't
+      // include "signOut" but Auth.js v5 may pass it at runtime; the cast is
+      // intentional. Without this, the existing token would be returned and
+      // Auth.js would Set-Cookie it back into the response, undoing the
+      // signout (last Set-Cookie wins).
+      if ((trigger as string) === "signOut") {
+        return null;
+      }
+
       // Client-initiated session.update() — merge new seenWhatsNewIds into the token
       // so dismissals persist across page reloads without hitting the DB on every render.
       if (trigger === "update" && session && typeof session === "object") {
@@ -139,15 +154,16 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             token.permissions = [];
             token.leadPermissions = [];
           } else {
-            // Role-version shortcut: skip the RoleModel lookup when the user's
-            // role slug is unchanged. The cached permissions on the token are
-            // still valid in that case.
-            if (dbUser.role !== token.role) {
-              const role = await RoleModel.findOne({ slug: dbUser.role }).lean();
-              token.role = dbUser.role;
-              token.permissions = role?.permissions ?? [];
-            }
-            token.leadPermissions = await getLeadSettings();
+            // Always refetch role + leadSettings so that admin-side changes to
+            // a role's permissions (or to leadSettings) propagate within the
+            // 15-min window even when the user's role slug is unchanged.
+            const [role, leadPerms] = await Promise.all([
+              RoleModel.findOne({ slug: dbUser.role }).lean(),
+              getLeadSettings(),
+            ]);
+            token.role = dbUser.role;
+            token.permissions = role?.permissions ?? [];
+            token.leadPermissions = leadPerms;
             token.seenWhatsNewIds = dbUser.seenWhatsNewIds ?? [];
           }
           token.statusCheckedAt = now;
