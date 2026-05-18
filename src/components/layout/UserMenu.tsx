@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { useSession, signOut } from "next-auth/react";
+import { useSession } from "next-auth/react";
 import { LogOut, UserPen, Moon, Sun, FileText } from "lucide-react";
 import Link from "next/link";
 import UserAvatar from "@/components/ui/UserAvatar";
+import { signOutAction } from "@/app/actions/auth";
 
 export default function UserMenu() {
   const [open, setOpen] = useState(false);
@@ -108,17 +109,15 @@ export default function UserMenu() {
             <FileText size={13} />
             Release Notes
           </Link>
-          <button
-            type="button"
-            onClick={async () => {
-              await signOut({ redirect: false });
-              window.location.href = "/login";
-            }}
-            className="w-full flex items-center justify-start gap-2 px-3 py-2 text-xs text-left transition-colors btn-ghost"
-          >
-            <LogOut size={13} />
-            Sign out
-          </button>
+          <form action={signOutAction}>
+            <button
+              type="submit"
+              className="w-full flex items-center justify-start gap-2 px-3 py-2 text-xs text-left transition-colors btn-ghost"
+            >
+              <LogOut size={13} />
+              Sign out
+            </button>
+          </form>
         </div>
       )}
     </div>

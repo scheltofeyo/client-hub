@@ -105,6 +105,16 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
      * in exchange for correct propagation.
      */
     async jwt({ token, account, trigger, session }) {
+      // Defensive: when Auth.js triggers signOut, return null so no token is
+      // re-encoded into the response cookie. The TypeScript union doesn't
+      // include "signOut" but Auth.js v5 may pass it at runtime; the cast is
+      // intentional. Without this, the existing token would be returned and
+      // Auth.js would Set-Cookie it back into the response, undoing the
+      // signout (last Set-Cookie wins).
+      if ((trigger as string) === "signOut") {
+        return null;
+      }
+
       // Client-initiated session.update() — merge new seenWhatsNewIds into the token
       // so dismissals persist across page reloads without hitting the DB on every render.
       if (trigger === "update" && session && typeof session === "object") {
