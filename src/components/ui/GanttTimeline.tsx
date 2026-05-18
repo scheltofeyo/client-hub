@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 
 // ── Public types ─────────────────────────────────────────────────────────────
@@ -572,16 +572,33 @@ export default function GanttTimeline({
   } | null>(null);
 
   // ── Window + chart geometry ──────────────────────────────────────────────
-  const allRows = sections.flatMap((s) => s.rows);
-  const { windowStart, windowEnd } = computeWindow(allRows, today);
-  const chartWidth = Math.round(
-    ((windowEnd.getTime() - windowStart.getTime()) / MS_PER_DAY) * effectivePxPerDay
-  );
-  const monthSteps = getMonthSteps(windowStart, windowEnd, effectivePxPerDay);
-  const todayLeftPx = toPx(windowStart, today, effectivePxPerDay);
-  const showTodayLine = todayLeftPx > 0 && todayLeftPx < chartWidth;
+  // Memoize the pure computations so re-renders triggered by hover state,
+  // scroll handlers, or collapse toggles don't re-walk the full sections
+  // array every time. `sections`, `today`, and `effectivePxPerDay` are the
+  // only inputs that affect the window/geometry; collapse only affects the
+  // flattened list of visible rows.
+  const { windowStart, chartWidth, monthSteps, todayLeftPx, showTodayLine } = useMemo(() => {
+    const allRows = sections.flatMap((s) => s.rows);
+    const window = computeWindow(allRows, today);
+    const width = Math.round(
+      ((window.windowEnd.getTime() - window.windowStart.getTime()) / MS_PER_DAY) * effectivePxPerDay
+    );
+    const steps = getMonthSteps(window.windowStart, window.windowEnd, effectivePxPerDay);
+    const todayPx = toPx(window.windowStart, today, effectivePxPerDay);
+    return {
+      windowStart: window.windowStart,
+      chartWidth: width,
+      monthSteps: steps,
+      todayLeftPx: todayPx,
+      showTodayLine: todayPx > 0 && todayPx < width,
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sections, today.getTime(), effectivePxPerDay]);
 
-  const items = flattenSections(sections, collapsed);
+  const items = useMemo(
+    () => flattenSections(sections, collapsed),
+    [sections, collapsed]
+  );
 
   // ── Scroll to today before first paint (no flash) ────────────────────────
   useEffect(() => {
@@ -619,7 +636,7 @@ export default function GanttTimeline({
     setCollapsed((prev) => ({ ...prev, [key]: !prev[key] }));
   }, []);
 
-  if (allRows.length === 0) {
+  if (sections.every((s) => s.rows.length === 0)) {
     return (
       <p className="text-sm" style={{ color: "var(--text-muted)" }}>
         No items to display.

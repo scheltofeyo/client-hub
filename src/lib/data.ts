@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import { cache } from "react";
 import { connectDB } from "./mongodb";
+import { withRetry } from "./db-retry";
 import { ClientModel } from "./models/Client";
 import { UserModel } from "./models/User";
 import { ProjectModel } from "./models/Project";
@@ -205,14 +206,16 @@ export async function getClientPlatforms(): Promise<ClientPlatformOption[]> {
 }
 
 export async function getDashboardStats(): Promise<DashboardStats> {
-  await connectDB();
-  const [totalClients, activeClients, totalProjects, activeProjects] = await Promise.all([
-    ClientModel.countDocuments(),
-    ClientModel.countDocuments({ status: "active" }),
-    ProjectModel.countDocuments({ status: { $ne: "draft" } }),
-    ProjectModel.countDocuments({ status: "in_progress" }),
-  ]);
-  return { totalClients, activeClients, totalProjects, activeProjects };
+  return withRetry(async () => {
+    await connectDB();
+    const [totalClients, activeClients, totalProjects, activeProjects] = await Promise.all([
+      ClientModel.countDocuments(),
+      ClientModel.countDocuments({ status: "active" }),
+      ProjectModel.countDocuments({ status: { $ne: "draft" } }),
+      ProjectModel.countDocuments({ status: "in_progress" }),
+    ]);
+    return { totalClients, activeClients, totalProjects, activeProjects };
+  });
 }
 
 function mapProject(doc: ReturnType<typeof Object.assign>, serviceMap?: Map<string, string>, labelMap?: Map<string, string>): Project {
@@ -566,36 +569,38 @@ export async function getClientProjectsWithTaskStats(
   overdueCount: number;
 }> {
   if (projectIds.length === 0) return { perProject: new Map(), overduePerProject: new Map(), myOpenTasks: 0, overdueCount: 0 };
-  await connectDB();
-  const today = new Date().toISOString().slice(0, 10);
-  const docs = await TaskModel.find(
-    { projectId: { $in: projectIds } },
-    { projectId: 1, completedAt: 1, completionDate: 1, assignees: 1 }
-  ).lean();
+  return withRetry(async () => {
+    await connectDB();
+    const today = new Date().toISOString().slice(0, 10);
+    const docs = await TaskModel.find(
+      { projectId: { $in: projectIds } },
+      { projectId: 1, completedAt: 1, completionDate: 1, assignees: 1 }
+    ).lean();
 
-  const perProject = new Map<string, { total: number; completed: number }>();
-  const overduePerProject = new Map<string, number>();
-  let myOpenTasks = 0;
-  let overdueCount = 0;
+    const perProject = new Map<string, { total: number; completed: number }>();
+    const overduePerProject = new Map<string, number>();
+    let myOpenTasks = 0;
+    let overdueCount = 0;
 
-  for (const doc of docs) {
-    const pid = doc.projectId as string;
-    const isOpen = !doc.completedAt;
-    const entry = perProject.get(pid) ?? { total: 0, completed: 0 };
-    entry.total++;
-    if (!isOpen) entry.completed++;
-    perProject.set(pid, entry);
-    if (isOpen) {
-      const assignees = (doc.assignees ?? []) as { userId: string }[];
-      if (assignees.some((a) => a.userId === currentUserId)) myOpenTasks++;
-      const cd = doc.completionDate as string | undefined;
-      if (cd && cd < today) {
-        overdueCount++;
-        overduePerProject.set(pid, (overduePerProject.get(pid) ?? 0) + 1);
+    for (const doc of docs) {
+      const pid = doc.projectId as string;
+      const isOpen = !doc.completedAt;
+      const entry = perProject.get(pid) ?? { total: 0, completed: 0 };
+      entry.total++;
+      if (!isOpen) entry.completed++;
+      perProject.set(pid, entry);
+      if (isOpen) {
+        const assignees = (doc.assignees ?? []) as { userId: string }[];
+        if (assignees.some((a) => a.userId === currentUserId)) myOpenTasks++;
+        const cd = doc.completionDate as string | undefined;
+        if (cd && cd < today) {
+          overdueCount++;
+          overduePerProject.set(pid, (overduePerProject.get(pid) ?? 0) + 1);
+        }
       }
     }
-  }
-  return { perProject, overduePerProject, myOpenTasks, overdueCount };
+    return { perProject, overduePerProject, myOpenTasks, overdueCount };
+  });
 }
 
 export async function getProjectTemplates(): Promise<ProjectTemplate[]> {
@@ -903,19 +908,20 @@ export async function checkAndCreateServiceExpiryLogs(
 }
 
 export async function getUpcomingEventsForClient(clientId: string): Promise<TimelineEvent[]> {
-  await connectDB();
-
   const today = new Date().toISOString().slice(0, 10);
   const windowEndDate = new Date();
   windowEndDate.setDate(windowEndDate.getDate() + RECURRENCE_WINDOW_DAYS);
   const windowEnd = windowEndDate.toISOString().slice(0, 10);
 
-  const activeProjectIds = (
-    await ProjectModel.find({ clientId, status: { $nin: ["draft", "completed"] }, kickedOffAt: { $exists: true, $ne: null } }, { _id: 1 }).lean()
-  ).map((p) => p._id.toString());
-
-  const [logs, completionProjects, deliveryProjects, projectTasks, generalTasks, customDocs, servicesWithTimer, sessions] =
-    await Promise.all([
+  // Wrap the DB fetch (an 8-way Promise.all preceded by activeProjectIds lookup)
+  // in withRetry to absorb brief Atlas hiccups. Subsequent data shaping is
+  // pure CPU and lives outside the retry.
+  const [logs, completionProjects, deliveryProjects, projectTasks, generalTasks, customDocs, servicesWithTimer, sessions] = await withRetry(async () => {
+    await connectDB();
+    const activeProjectIds = (
+      await ProjectModel.find({ clientId, status: { $nin: ["draft", "completed"] }, kickedOffAt: { $exists: true, $ne: null } }, { _id: 1 }).lean()
+    ).map((p) => p._id.toString());
+    return Promise.all([
       LogModel.find({
         clientId,
         followUp: true,
@@ -959,6 +965,7 @@ export async function getUpcomingEventsForClient(clientId: string): Promise<Time
         date: { $exists: true, $ne: "", $gte: today },
       }).lean(),
     ]);
+  });
 
   // Build service name lookup for service-linked log events
   const serviceNameMap = new Map<string, string>();
@@ -1621,23 +1628,25 @@ export async function getWeekCalendarItems(start: string, end: string): Promise<
  * Returns active projects grouped by client, ready for the Gantt timeline.
  */
 export async function getActiveProjectsForGantt(): Promise<{ clients: Client[]; projectsByClient: Record<string, Project[]> }> {
-  await connectDB();
-  const [clients, docs, serviceMap, labelMap] = await Promise.all([
-    getClients(),
-    ProjectModel.find({ status: { $nin: ["draft", "completed"] } }).sort({ createdAt: -1 }).lean(),
-    buildServiceMap(),
-    buildProjectLabelMap(),
-  ]);
+  return withRetry(async () => {
+    await connectDB();
+    const [clients, docs, serviceMap, labelMap] = await Promise.all([
+      getClients(),
+      ProjectModel.find({ status: { $nin: ["draft", "completed"] } }).sort({ createdAt: -1 }).lean(),
+      buildServiceMap(),
+      buildProjectLabelMap(),
+    ]);
 
-  const projectsByClient: Record<string, Project[]> = {};
-  for (const doc of docs) {
-    const project = mapProject(doc, serviceMap, labelMap);
-    const cid = project.clientId;
-    if (!projectsByClient[cid]) projectsByClient[cid] = [];
-    projectsByClient[cid].push(project);
-  }
+    const projectsByClient: Record<string, Project[]> = {};
+    for (const doc of docs) {
+      const project = mapProject(doc, serviceMap, labelMap);
+      const cid = project.clientId;
+      if (!projectsByClient[cid]) projectsByClient[cid] = [];
+      projectsByClient[cid].push(project);
+    }
 
-  return { clients, projectsByClient };
+    return { clients, projectsByClient };
+  });
 }
 
 /** Like getActiveProjectsForGantt but filtered to clients where userId is a lead. */

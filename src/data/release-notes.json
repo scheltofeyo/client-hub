@@ -1,6 +1,18 @@
 [
   {
     "date": "2026-05-15",
+    "title": "Snellere pagina-renders + sign-out bugfix",
+    "details": [
+      "Sign-out werkt nu ook op productie (vereiste setup van AUTH_URL en AUTH_TRUST_HOST in Netlify — zie CLAUDE.md)",
+      "Pagina-renders zijn lichter: JWT-callback slaat overbodige role-lookups over zolang de gebruikersrol niet wijzigt",
+      "Bundle kleiner door tree-shaking van lucide-react, Tiptap en dnd-kit barrels",
+      "Gantt-tijdlijn re-renders zijn sneller dankzij memoization van de zware berekeningen",
+      "MongoDB-pool is afgesteld op onze workload (max 10, min 1) en tijdelijke Atlas-haperingen worden 1× automatisch opnieuw geprobeerd",
+      "Vriendelijke fout-pagina i.p.v. wit scherm bij onverwachte fouten"
+    ]
+  },
+  {
+    "date": "2026-05-15",
     "title": "Survey-secties: optionele afbeelding-URL per sectie-intropagina",
     "details": [
       "Per sectie kan in de editor een afbeelding-URL worden ingevuld (Image URL onder Description)",
