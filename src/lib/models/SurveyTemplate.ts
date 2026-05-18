@@ -11,6 +11,7 @@ export interface ISurveyTemplate extends Document {
   status: "active" | "archived";
   archetypeIds: string[];
   defaultRankWeights: number[];
+  defaultTop3Weights: number[];
   closingOpenQuestion?: ISurveyClosingQuestion;
   version: number;
   createdBy: string;
@@ -33,6 +34,7 @@ const SurveyTemplateSchema = new Schema<ISurveyTemplate>(
     status: { type: String, enum: ["active", "archived"], default: "active" },
     archetypeIds: { type: [String], default: [] },
     defaultRankWeights: { type: [Number], default: [5, 4, 3, 2, 1] },
+    defaultTop3Weights: { type: [Number], default: [5, 3, 1] },
     closingOpenQuestion: { type: ClosingOpenQuestionSchema, default: undefined },
     version: { type: Number, default: 1 },
     createdBy: { type: String, required: true },

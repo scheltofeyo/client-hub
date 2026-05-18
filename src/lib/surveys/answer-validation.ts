@@ -3,7 +3,7 @@ import type {
   ISurveySectionSnapshot,
 } from "@/lib/models/SurveySession";
 import type { SurveyQuestionType } from "@/lib/models/SurveyTemplateQuestion";
-import { normalizeQuestionType } from "./types";
+import { normalizeQuestionType, TOP3_RANK_LENGTH } from "./types";
 
 export interface IncomingAnswer {
   questionId: string;
@@ -52,6 +52,44 @@ function validateRanking(
   }
   if (Object.keys(out).length !== validIds.size) {
     return { ok: false, error: `All items must be ranked for question ${question.id}` };
+  }
+  return { ok: true, rankings: out };
+}
+
+/**
+ * Top-3 is all-or-nothing: either exactly ranks 1, 2, 3 are filled (each by a
+ * distinct valid item), or the rankings map is empty (only allowed when the
+ * question is not required — the caller skips that case before reaching here).
+ */
+function validateTop3(
+  question: ISurveyQuestionSnapshot,
+  itemIds: string[],
+  rankings: Record<string, unknown> | undefined
+): { ok: true; rankings: Record<string, number> } | { ok: false; error: string } {
+  if (!rankings || typeof rankings !== "object") {
+    return { ok: false, error: `Question ${question.id} has no rankings` };
+  }
+  const validIds = new Set(itemIds);
+  const out: Record<string, number> = {};
+  const ranksUsed = new Set<number>();
+  for (const [id, raw] of Object.entries(rankings)) {
+    if (!validIds.has(id)) continue;
+    const r = Number(raw);
+    if (!Number.isFinite(r) || r < 1 || r > TOP3_RANK_LENGTH) continue;
+    if (ranksUsed.has(r)) {
+      return {
+        ok: false,
+        error: `Each rank may be used only once per question (question ${question.id})`,
+      };
+    }
+    ranksUsed.add(r);
+    out[id] = r;
+  }
+  if (Object.keys(out).length !== TOP3_RANK_LENGTH) {
+    return {
+      ok: false,
+      error: `Top 3 must have all three positions filled for question ${question.id}`,
+    };
   }
   return { ok: true, rankings: out };
 }
@@ -128,10 +166,26 @@ export function validateAnswers(
         validated.push({ questionId: q.id, type, rankings: r.rankings });
         break;
       }
+      case "archetype-top3": {
+        if (q.required === false && isEmptyRanking) continue;
+        const ids = (q.options ?? []).map((o) => o.id);
+        const r = validateTop3(q, ids, a.rankings);
+        if (!r.ok) return r;
+        validated.push({ questionId: q.id, type, rankings: r.rankings });
+        break;
+      }
       case "general-ranking": {
         if (q.required === false && isEmptyRanking) continue;
         const ids = (q.rankingItems ?? []).map((i) => i.id);
         const r = validateRanking(q, ids, a.rankings, ids.length || expectedRanks);
+        if (!r.ok) return r;
+        validated.push({ questionId: q.id, type, rankings: r.rankings });
+        break;
+      }
+      case "general-top3": {
+        if (q.required === false && isEmptyRanking) continue;
+        const ids = (q.rankingItems ?? []).map((i) => i.id);
+        const r = validateTop3(q, ids, a.rankings);
         if (!r.ok) return r;
         validated.push({ questionId: q.id, type, rankings: r.rankings });
         break;
@@ -155,4 +209,63 @@ export function validateAnswers(
   }
 
   return { ok: true, answers: validated };
+}
+
+/**
+ * Permissive variant for autosave. Drops invalid/partial answers silently
+ * instead of erroring — partial in-progress state is the whole point.
+ */
+export function sanitizeAnswersForSave(
+  incoming: IncomingAnswer[],
+  sections: ISurveySectionSnapshot[],
+  rankWeights: number[]
+): ValidatedAnswer[] {
+  const allQuestions: ISurveyQuestionSnapshot[] = [];
+  for (const s of sections) {
+    for (const q of s.questions ?? []) allQuestions.push(q);
+  }
+  const byId = new Map(allQuestions.map((q) => [q.id, q]));
+  const expectedRanks = rankWeights?.length ?? 5;
+  const out: ValidatedAnswer[] = [];
+
+  for (const a of incoming) {
+    const q = byId.get(a.questionId);
+    if (!q) continue;
+    const type = normalizeQuestionType(q.type);
+    if (type === "intro") continue;
+
+    switch (type) {
+      case "archetype-ranking":
+      case "general-ranking": {
+        const ids =
+          type === "archetype-ranking"
+            ? (q.options ?? []).map((o) => o.id)
+            : (q.rankingItems ?? []).map((i) => i.id);
+        const r = validateRanking(q, ids, a.rankings, ids.length || expectedRanks);
+        if (r.ok) out.push({ questionId: q.id, type, rankings: r.rankings });
+        break;
+      }
+      case "archetype-top3":
+      case "general-top3": {
+        const ids =
+          type === "archetype-top3"
+            ? (q.options ?? []).map((o) => o.id)
+            : (q.rankingItems ?? []).map((i) => i.id);
+        const r = validateTop3(q, ids, a.rankings);
+        if (r.ok) out.push({ questionId: q.id, type, rankings: r.rankings });
+        break;
+      }
+      case "multiple-choice": {
+        const r = validateMultipleChoice(q, a.selectedChoiceIds);
+        if (r.ok) out.push({ questionId: q.id, type, selectedChoiceIds: r.ids });
+        break;
+      }
+      case "open-text": {
+        const text = typeof a.text === "string" ? a.text.trim() : "";
+        if (text) out.push({ questionId: q.id, type, text });
+        break;
+      }
+    }
+  }
+  return out;
 }

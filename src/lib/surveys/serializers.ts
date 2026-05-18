@@ -54,6 +54,7 @@ export function serializeQuestion(doc: QuestionLike): SerializedQuestion {
 
   switch (type) {
     case "archetype-ranking":
+    case "archetype-top3":
       out.options = (doc.options ?? []).map((o) => ({
         id: o.id,
         archetypeId: o.archetypeId,
@@ -62,6 +63,7 @@ export function serializeQuestion(doc: QuestionLike): SerializedQuestion {
       out.required = doc.required !== false;
       break;
     case "general-ranking":
+    case "general-top3":
       out.rankingItems = (doc.rankingItems ?? []).map((i) => ({
         id: i.id,
         text: i.text ?? "",
@@ -153,10 +155,12 @@ export function serializeQuestionForPublic(
   };
   switch (type) {
     case "archetype-ranking":
+    case "archetype-top3":
       out.options = (q.options ?? []).map((o) => ({ id: o.id, text: o.text }));
       out.required = q.required !== false;
       break;
     case "general-ranking":
+    case "general-top3":
       out.rankingItems = (q.rankingItems ?? []).map((i) => ({ id: i.id, text: i.text }));
       out.required = q.required !== false;
       break;

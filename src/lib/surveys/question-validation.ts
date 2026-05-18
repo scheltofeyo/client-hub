@@ -135,21 +135,21 @@ export function buildCreateQuestion(
   const defaultRequired = body.required !== false;
 
   switch (type) {
-    case "archetype-ranking": {
+    case "archetype-ranking":
+    case "archetype-top3": {
       const archetypeIds = defaults.archetypeIds ?? [];
       out.options = normalizeOptions(body.options, archetypeIds);
       out.required = defaultRequired;
       break;
     }
-    case "general-ranking": {
+    case "general-ranking":
+    case "general-top3": {
       const items = normalizeRankingItems(body.rankingItems);
+      // Top-3 needs at least 4 items to be meaningful; ranking needs at least 3.
+      const minItems = type === "general-top3" ? 4 : 3;
       out.rankingItems = items.length > 0
         ? items
-        : [
-            { id: randomUUID(), text: "" },
-            { id: randomUUID(), text: "" },
-            { id: randomUUID(), text: "" },
-          ];
+        : Array.from({ length: minItems }, () => ({ id: randomUUID(), text: "" }));
       out.required = defaultRequired;
       break;
     }

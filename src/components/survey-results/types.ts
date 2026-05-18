@@ -13,6 +13,8 @@ export interface ResultsArchetype {
 export interface ResultsCapabilities {
   hasArchetypeRanking: boolean;
   hasGeneralRanking: boolean;
+  hasArchetypeTop3: boolean;
+  hasGeneralTop3: boolean;
   hasMultipleChoice: boolean;
   hasOpenText: boolean;
   hasAnalyses: boolean;
@@ -42,14 +44,14 @@ interface QuestionBase {
 
 export type QuestionResult =
   | (QuestionBase & {
-      type: "archetype-ranking";
+      type: "archetype-ranking" | "archetype-top3";
       archetypes: { archetypeId: string; percentage: number; points: number }[];
       totalPoints: number;
       rankDistribution: Record<string, number[]>;
       openTextAnswers: OpenAnswer[];
     })
   | (QuestionBase & {
-      type: "general-ranking";
+      type: "general-ranking" | "general-top3";
       items: { itemId: string; text: string; averageRank: number; distribution: number[] }[];
     })
   | (QuestionBase & {

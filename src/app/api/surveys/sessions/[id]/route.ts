@@ -40,7 +40,11 @@ export async function GET(
     clientId: doc.clientId,
     clientName: client?.company ?? null,
     templateId: doc.templateId,
-    templateSnapshot: { ...doc.templateSnapshot, archetypes: enrichedArchetypes },
+    templateSnapshot: {
+      ...doc.templateSnapshot,
+      archetypes: enrichedArchetypes,
+      top3Weights: doc.templateSnapshot?.top3Weights ?? [5, 3, 1],
+    },
     title: doc.title,
     status: doc.status,
     shareCode: doc.shareCode,
@@ -108,6 +112,19 @@ export async function PATCH(
     // Nested-path update on the embedded snapshot.
     update["templateSnapshot.rankWeights"] = body.rankWeights.map((w: unknown) => Number(w));
   }
+  if (body.top3Weights !== undefined) {
+    if (
+      !Array.isArray(body.top3Weights) ||
+      body.top3Weights.length !== 3 ||
+      body.top3Weights.some((w: unknown) => !Number.isFinite(Number(w)))
+    ) {
+      return NextResponse.json(
+        { error: "top3Weights must be 3 numbers" },
+        { status: 400 }
+      );
+    }
+    update["templateSnapshot.top3Weights"] = body.top3Weights.map((w: unknown) => Number(w));
+  }
 
   // Snapshot content edits are only allowed in draft. Once published the
   // snapshot is frozen (rankWeights remain editable above — they don't
@@ -116,6 +133,7 @@ export async function PATCH(
     body.snapshotName !== undefined ||
     body.snapshotDescription !== undefined ||
     body.snapshotSections !== undefined ||
+    body.snapshotArchetypes !== undefined ||
     body.snapshotClosingOpenQuestion !== undefined;
   if (snapshotEditsRequested && existing.status !== "draft") {
     return NextResponse.json(
@@ -139,6 +157,14 @@ export async function PATCH(
       return NextResponse.json({ error: "snapshotSections must be an array" }, { status: 400 });
     }
     update["templateSnapshot.sections"] = body.snapshotSections;
+  }
+  if (body.snapshotArchetypes !== undefined) {
+    if (!Array.isArray(body.snapshotArchetypes)) {
+      return NextResponse.json({ error: "snapshotArchetypes must be an array" }, { status: 400 });
+    }
+    update["templateSnapshot.archetypes"] = body.snapshotArchetypes
+      .filter((a: { id?: unknown }) => typeof a?.id === "string" && a.id.length > 0)
+      .map((a: { id: string }) => ({ id: a.id }));
   }
 
   const doc = await SurveySessionModel.findByIdAndUpdate(

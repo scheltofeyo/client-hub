@@ -28,8 +28,13 @@ export function estimateQuestionSeconds(q: EstimableQuestion): number {
       return q.choiceMode === "multi" ? 30 : 20;
     case "archetype-ranking":
       return 15 + (q.options?.length ?? 0) * 6;
+    case "archetype-top3":
+      // Scanning the pool + placing 3 items — roughly half the work of a full rank.
+      return 20 + Math.min(3, q.options?.length ?? 0) * 6;
     case "general-ranking":
       return 15 + (q.rankingItems?.length ?? 0) * 6;
+    case "general-top3":
+      return 20 + Math.min(3, q.rankingItems?.length ?? 0) * 6;
     case "open-text":
       return q.multiline ? 90 : 40;
     default:

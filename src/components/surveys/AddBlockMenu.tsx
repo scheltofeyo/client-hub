@@ -9,6 +9,7 @@ import {
   ListChecks,
   MessageSquare,
   Plus,
+  Trophy,
 } from "lucide-react";
 import type { SurveyQuestionType } from "@/lib/surveys/types";
 
@@ -29,10 +30,24 @@ const OPTIONS: BlockOption[] = [
     color: "var(--primary)",
   },
   {
+    type: "archetype-top3",
+    label: "Archetype top 3",
+    description: "Pick top 3 from archetype options",
+    icon: Trophy,
+    color: "var(--primary)",
+  },
+  {
     type: "general-ranking",
     label: "General ranking",
     description: "Rank a list of items",
     icon: ArrowDownUp,
+    color: "var(--info)",
+  },
+  {
+    type: "general-top3",
+    label: "General top 3",
+    description: "Pick top 3 from a list of items",
+    icon: Trophy,
     color: "var(--info)",
   },
   {

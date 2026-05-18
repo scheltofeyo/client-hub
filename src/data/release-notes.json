@@ -1,5 +1,53 @@
 [
   {
+    "date": "2026-05-18",
+    "title": "Aparte scoring weights voor Top 3 vragen",
+    "details": [
+      "Settings-tab van een survey heeft nu twee aparte weight-editors: één voor full-ranking (archetype-ranking) en één voor Top 3 (archetype-top3)",
+      "Default Top 3 weights zijn 5/3/1 — admins kunnen die per session of per template aanpassen",
+      "Helper-tekst maakt expliciet dat general-ranking en general-top3 op mean-rank werken (geen weights)",
+      "Bestaande sessies vallen automatisch terug op de defaults — geen migratie nodig"
+    ]
+  },
+  {
+    "date": "2026-05-18",
+    "title": "Ranking-vragen tonen nu letterlabels (A, B, C…) per optie",
+    "details": [
+      "Deelnemers zien een vaste letter naast elke optie in ranking-vragen, zodat ze opties sneller kunnen herkennen tijdens het sorteren",
+      "Letters worden toegekend na randomisatie en blijven aan de optie gekoppeld terwijl je ze verplaatst"
+    ]
+  },
+  {
+    "date": "2026-05-18",
+    "title": "Archetype-vragen: standaard alle archetypes, per vraag aanpasbaar",
+    "details": [
+      "Nieuwe from-scratch sessies krijgen automatisch alle archetypes uit de admin-database, zodat Archetype ranking- en Top 3-vragen direct werken",
+      "Bestaande from-scratch sessies zonder archetypes worden bij de eerste klik op zo'n vraag automatisch bijgewerkt — geen melding meer dat de sessie ongeldig is",
+      "Per vraag is nu in te stellen welke archetypes meedoen: prullenbak-icoon om te verwijderen, '+ Add archetype' om terug te zetten",
+      "Minimum blijft afgedwongen: 2 archetypes voor ranking, 3 voor top 3"
+    ]
+  },
+  {
+    "date": "2026-05-18",
+    "title": "Twee soorten ranking-vragen in surveys: volledige Ranking en Top 3",
+    "details": [
+      "Admin kan nieuwe vraagtypes toevoegen: Archetype top 3 en General top 3 (naast de bestaande ranking-types)",
+      "Ranking-vragen tonen voor de deelnemer weer één lijst in willekeurige volgorde — slepen om te ordenen, geen aparte pool",
+      "Top 3-vragen tonen een pool met opties + 3 lege slots; deelnemer kiest exact 3 favorieten (volledig flexibel slepen, ook terug naar de pool)",
+      "Bestaande surveys werken ongewijzigd — geen data-migratie nodig"
+    ]
+  },
+  {
+    "date": "2026-05-18",
+    "title": "Persoonlijker welkomstscherm + autosave voor surveys",
+    "details": [
+      "De chip bovenaan het welkomstscherm spreekt deelnemers nu aan als teamlid van de klant (\"Hoi {bedrijfsnaam} teamlid\")",
+      "Begroeting is gesplitst in een grote welkomstregel en een kleinere bedankregel — beide nog steeds gerandomiseerd op tijdstip en dag",
+      "Bodytekst noemt SUMM als organisator, blijft duidelijk over anonimiteit en legt uit waarom we om je e-mailadres vragen",
+      "Voortgang wordt tussentijds automatisch opgeslagen — sluit je het tabblad, dan kun je later met hetzelfde e-mailadres terugkeren en verder gaan waar je gebleven was"
+    ]
+  },
+  {
     "date": "2026-05-15",
     "title": "Snellere pagina-renders + sign-out bugfix",
     "details": [

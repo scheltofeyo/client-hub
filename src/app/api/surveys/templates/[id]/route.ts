@@ -32,6 +32,7 @@ export async function GET(
     status: template.status,
     archetypeIds: template.archetypeIds ?? [],
     defaultRankWeights: template.defaultRankWeights ?? [5, 4, 3, 2, 1],
+    defaultTop3Weights: template.defaultTop3Weights ?? [5, 3, 1],
     closingOpenQuestion: template.closingOpenQuestion ?? undefined,
     version: template.version ?? 1,
     sections: sections.map((s) => ({
@@ -81,6 +82,19 @@ export async function PATCH(
     }
     update.defaultRankWeights = body.defaultRankWeights.map((w: unknown) => Number(w));
   }
+  if (body.defaultTop3Weights !== undefined) {
+    if (
+      !Array.isArray(body.defaultTop3Weights) ||
+      body.defaultTop3Weights.length !== 3 ||
+      body.defaultTop3Weights.some((w: unknown) => !Number.isFinite(Number(w)))
+    ) {
+      return NextResponse.json(
+        { error: "defaultTop3Weights must be 3 numbers" },
+        { status: 400 }
+      );
+    }
+    update.defaultTop3Weights = body.defaultTop3Weights.map((w: unknown) => Number(w));
+  }
   if (body.closingOpenQuestion !== undefined) update.closingOpenQuestion = body.closingOpenQuestion;
   update.version = await (async () => {
     const cur = await SurveyTemplateModel.findById(id).select("version").lean();
@@ -101,6 +115,7 @@ export async function PATCH(
     status: doc.status,
     archetypeIds: doc.archetypeIds ?? [],
     defaultRankWeights: doc.defaultRankWeights ?? [5, 4, 3, 2, 1],
+    defaultTop3Weights: doc.defaultTop3Weights ?? [5, 3, 1],
     closingOpenQuestion: doc.closingOpenQuestion ?? undefined,
     version: doc.version ?? 1,
   });

@@ -1,5 +1,6 @@
 import type { ISurveyAnswer } from "@/lib/models/SurveySubmission";
 import type { SurveyQuestionType } from "./types";
+import { TOP3_RANK_LENGTH } from "./types";
 import type { QuestionMeta, SubmissionLike, SurveyAccumulators } from "./distributions";
 
 // ─── Types ─────────────────────────────────────────────────────────────
@@ -82,6 +83,7 @@ export interface AnalysisComputeContext {
   acc: SurveyAccumulators;
   submissions: SubmissionLike[];
   rankWeights: number[];
+  top3Weights: number[];
   lowConfidenceThreshold: number;
 }
 
@@ -106,14 +108,14 @@ export const COMPARISON_OPERATIONS: AnalysisOperation[] = [
 export const OP_QUESTION_TYPES: Record<AnalysisOperation, SurveyQuestionType[]> = {
   "mc-average": ["multiple-choice"],
   "mc-pooled": ["multiple-choice"],
-  "archetype-points": ["archetype-ranking"],
-  "ranking-mean": ["general-ranking"],
+  "archetype-points": ["archetype-ranking", "archetype-top3"],
+  "ranking-mean": ["general-ranking", "general-top3"],
   "open-text-frequency": ["open-text"],
-  "delta-2": ["multiple-choice", "archetype-ranking", "general-ranking"],
-  "side-by-side-n": ["multiple-choice", "archetype-ranking", "general-ranking"],
-  "top-k-overlap": ["archetype-ranking", "general-ranking"],
-  "paired-delta": ["multiple-choice", "archetype-ranking", "general-ranking"],
-  "convergence": ["multiple-choice", "archetype-ranking", "general-ranking"],
+  "delta-2": ["multiple-choice", "archetype-ranking", "archetype-top3", "general-ranking", "general-top3"],
+  "side-by-side-n": ["multiple-choice", "archetype-ranking", "archetype-top3", "general-ranking", "general-top3"],
+  "top-k-overlap": ["archetype-ranking", "archetype-top3", "general-ranking", "general-top3"],
+  "paired-delta": ["multiple-choice", "archetype-ranking", "archetype-top3", "general-ranking", "general-top3"],
+  "convergence": ["multiple-choice", "archetype-ranking", "archetype-top3", "general-ranking", "general-top3"],
 };
 
 export const OP_LABEL: Record<AnalysisOperation, string> = {
@@ -147,9 +149,20 @@ export function questionSchemaKey(q: QuestionMeta): string {
         t: "ar",
         a: [...new Set((q.options ?? []).map((o) => o.archetypeId))].sort(),
       });
+    case "archetype-top3":
+      return JSON.stringify({
+        t: "ar3",
+        a: [...new Set((q.options ?? []).map((o) => o.archetypeId))].sort(),
+      });
     case "general-ranking":
       return JSON.stringify({
         t: "gr",
+        i: [...(q.rankingItems ?? []).map((i) => i.id)].sort(),
+        len: (q.rankingItems ?? []).length,
+      });
+    case "general-top3":
+      return JSON.stringify({
+        t: "gr3",
         i: [...(q.rankingItems ?? []).map((i) => i.id)].sort(),
         len: (q.rankingItems ?? []).length,
       });
@@ -237,7 +250,7 @@ function distributionForQuestion(
     }
     return { keys, values, n };
   }
-  if (qm.type === "archetype-ranking") {
+  if (qm.type === "archetype-ranking" || qm.type === "archetype-top3") {
     // Normalize per-question so each archetype's value is its share (%) of
     // the question's total ranking points. Side aggregation then averages
     // those % shares — preventing a question with more respondents from
@@ -252,16 +265,29 @@ function distributionForQuestion(
     }
     return { keys, values, n };
   }
-  if (qm.type === "general-ranking") {
+  if (qm.type === "general-ranking" || qm.type === "general-top3") {
     const items = qm.rankingItems ?? [];
+    const isTop3 = qm.type === "general-top3";
+    const distLen = isTop3 ? TOP3_RANK_LENGTH : items.length;
     const itemDist = acc.rankItemDistMap.get(qm.id);
     const keys: AnalysisKeyMeta[] = items.map((i) => ({ id: i.id, label: i.text || "(no text)" }));
     const values: Record<string, number> = {};
+    // Mean-rank metric: for top-3, unranked items implicitly sit at rank
+    // (TOP3_RANK_LENGTH + 1) so they don't disappear from the chart and
+    // still compare meaningfully against ranked items.
+    const unrankedRank = isTop3 ? TOP3_RANK_LENGTH + 1 : undefined;
     for (const item of items) {
-      const dist = itemDist?.get(item.id) ?? Array(items.length).fill(0);
+      const dist = itemDist?.get(item.id) ?? Array(distLen).fill(0);
       const totalAnswers = dist.reduce((s, v) => s + v, 0);
       const weightedSum = dist.reduce((s, c, idx) => s + c * (idx + 1), 0);
-      values[item.id] = totalAnswers > 0 ? weightedSum / totalAnswers : 0;
+      if (isTop3) {
+        const unranked = Math.max(0, n - totalAnswers);
+        const num = weightedSum + unranked * (unrankedRank ?? 0);
+        const denom = totalAnswers + unranked;
+        values[item.id] = denom > 0 ? num / denom : 0;
+      } else {
+        values[item.id] = totalAnswers > 0 ? weightedSum / totalAnswers : 0;
+      }
     }
     return { keys, values, n };
   }
@@ -354,7 +380,7 @@ function aggregateSide(
       const sums = new Map<string, number>();
       let maxN = 0;
       for (const qm of qms) {
-        if (qm.type !== "archetype-ranking") continue;
+        if (qm.type !== "archetype-ranking" && qm.type !== "archetype-top3") continue;
         const points = ctx.acc.scoreMap.get(qm.id);
         const n = ctx.acc.questionN.get(qm.id) ?? 0;
         if (n === 0 || !points) continue;
@@ -427,7 +453,10 @@ function rankDistributionsForSide(
   for (const qid of side.questionIds) {
     const qm = metaMap.get(qid);
     if (!qm) continue;
-    if (operation === "archetype-points" && qm.type === "archetype-ranking") {
+    if (
+      operation === "archetype-points" &&
+      (qm.type === "archetype-ranking" || qm.type === "archetype-top3")
+    ) {
       const dist = ctx.acc.rankDistMap.get(qm.id);
       if (!dist) continue;
       for (const [archetypeId, counts] of dist.entries()) {
@@ -435,7 +464,10 @@ function rankDistributionsForSide(
         for (let i = 0; i < counts.length; i++) acc[i] = (acc[i] ?? 0) + (counts[i] ?? 0);
         summed.set(archetypeId, acc);
       }
-    } else if (operation === "ranking-mean" && qm.type === "general-ranking") {
+    } else if (
+      operation === "ranking-mean" &&
+      (qm.type === "general-ranking" || qm.type === "general-top3")
+    ) {
       const dist = ctx.acc.rankItemDistMap.get(qm.id);
       if (!dist) continue;
       for (const [itemId, counts] of dist.entries()) {
@@ -560,7 +592,7 @@ function computeTopKOverlap(analysis: AnalysisConfig, ctx: AnalysisComputeContex
   // Determine sort direction: for ranking-mean, smaller = better. For archetype-points, larger.
   // We infer from the first question's type.
   const firstMeta = ctx.questionMetas.find((q) => allQids.includes(q.id));
-  const ascending = firstMeta?.type === "general-ranking";
+  const ascending = firstMeta?.type === "general-ranking" || firstMeta?.type === "general-top3";
 
   const topKPerSide = aggs.map(({ agg }) => {
     const entries = Object.entries(agg.values);
@@ -712,7 +744,7 @@ function sideDistributionForSubmission(
     if (!qm) continue;
     const answer = answersByQid.get(qid);
     if (!answer) continue;
-    const dist = answerDistribution(qm, answer, ctx.rankWeights);
+    const dist = answerDistribution(qm, answer, ctx.rankWeights, ctx.top3Weights);
     if (!dist) continue;
     answered += 1;
     for (const [keyId, v] of Object.entries(dist)) {
@@ -732,7 +764,8 @@ function sideDistributionForSubmission(
 function answerDistribution(
   qm: QuestionMeta,
   a: ISurveyAnswer,
-  rankWeights: number[]
+  rankWeights: number[],
+  top3Weights: number[]
 ): Record<string, number> | null {
   if (qm.type === "multiple-choice") {
     const sel = a.selectedChoiceIds ?? [];
@@ -742,16 +775,19 @@ function answerDistribution(
     for (const c of qm.choices ?? []) result[c.id] = selSet.has(c.id) ? 100 : 0;
     return result;
   }
-  if (qm.type === "archetype-ranking") {
+  if (qm.type === "archetype-ranking" || qm.type === "archetype-top3") {
+    const isTop3 = qm.type === "archetype-top3";
+    const weights = isTop3 ? top3Weights : rankWeights;
+    const maxRank = isTop3 ? TOP3_RANK_LENGTH : rankWeights.length;
     const rankings = (a.rankings ?? {}) as Record<string, number>;
     const result: Record<string, number> = {};
     let touched = false;
     let total = 0;
     for (const opt of qm.options ?? []) {
       const rank = Number(rankings[opt.id]);
-      if (!rank || rank < 1 || rank > rankWeights.length) continue;
+      if (!rank || rank < 1 || rank > maxRank) continue;
       touched = true;
-      const weight = rankWeights[rank - 1] ?? 0;
+      const weight = weights[rank - 1] ?? 0;
       result[opt.archetypeId] = (result[opt.archetypeId] ?? 0) + weight;
       total += weight;
     }
@@ -763,7 +799,7 @@ function answerDistribution(
     }
     return result;
   }
-  if (qm.type === "general-ranking") {
+  if (qm.type === "general-ranking" || qm.type === "general-top3") {
     const rankings = (a.rankings ?? {}) as Record<string, number>;
     const result: Record<string, number> = {};
     let touched = false;
@@ -777,6 +813,7 @@ function answerDistribution(
   }
   return null;
 }
+
 
 function isLowConfidence(ns: number[], ctx: AnalysisComputeContext): boolean {
   if (ns.length === 0) return false;

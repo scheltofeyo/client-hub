@@ -47,7 +47,15 @@ const AnswerSchema = new Schema<ISurveyAnswer>(
     questionId: { type: String, required: true },
     type: {
       type: String,
-      enum: ["archetype-ranking", "general-ranking", "multiple-choice", "open-text", "intro"],
+      enum: [
+        "archetype-ranking",
+        "archetype-top3",
+        "general-ranking",
+        "general-top3",
+        "multiple-choice",
+        "open-text",
+        "intro",
+      ],
     },
     rankings: { type: Map, of: Number, default: undefined },
     selectedChoiceIds: { type: [String], default: undefined },

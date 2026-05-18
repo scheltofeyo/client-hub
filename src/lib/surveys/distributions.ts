@@ -1,6 +1,6 @@
 import type { ISurveyQuestionSnapshot } from "@/lib/models/SurveySession";
 import type { ISurveyAnswer } from "@/lib/models/SurveySubmission";
-import { normalizeQuestionType } from "./types";
+import { normalizeQuestionType, TOP3_RANK_LENGTH } from "./types";
 
 export type QuestionMeta = ISurveyQuestionSnapshot & { sectionId: string };
 
@@ -41,11 +41,17 @@ export function emptyAccumulators(): SurveyAccumulators {
  * Walk submissions once and bucket answers per question by type.
  * Behaviour-preserving extract of the per-question accumulator pass that
  * previously lived inline in the survey-results route.
+ *
+ * `rankWeights` is the session-level full-rank weight array (length =
+ * archetypes count). `top3Weights` is the dedicated 3-position weight array
+ * applied to `archetype-top3` questions; it is independent so admins can give
+ * top 3 a different reward curve than the full ranking.
  */
 export function buildAccumulators(
   submissions: SubmissionLike[],
   questionMetas: QuestionMeta[],
-  rankWeights: number[]
+  rankWeights: number[],
+  top3Weights: number[]
 ): SurveyAccumulators {
   const acc = emptyAccumulators();
   const questionMetaMap = new Map(questionMetas.map((q) => [q.id, q]));
@@ -56,14 +62,21 @@ export function buildAccumulators(
       if (!meta) continue;
       const answerType = normalizeQuestionType(a.type ?? meta.type);
 
-      if (answerType === "archetype-ranking" && meta.type === "archetype-ranking") {
+      if (
+        (answerType === "archetype-ranking" && meta.type === "archetype-ranking") ||
+        (answerType === "archetype-top3" && meta.type === "archetype-top3")
+      ) {
+        const isTop3 = answerType === "archetype-top3";
+        const weightsForType = isTop3 ? top3Weights : rankWeights;
+        const maxRank = isTop3 ? TOP3_RANK_LENGTH : rankWeights.length;
+        const distLen = isTop3 ? TOP3_RANK_LENGTH : rankWeights.length;
         const rankings = (a.rankings ?? {}) as Record<string, number>;
         let answered = false;
         for (const opt of meta.options ?? []) {
           const rank = Number(rankings[opt.id]);
-          if (!rank || rank < 1 || rank > rankWeights.length) continue;
+          if (!rank || rank < 1 || rank > maxRank) continue;
           answered = true;
-          const weight = rankWeights[rank - 1] ?? 0;
+          const weight = weightsForType[rank - 1] ?? 0;
           let arcScores = acc.scoreMap.get(meta.id);
           if (!arcScores) { arcScores = new Map(); acc.scoreMap.set(meta.id, arcScores); }
           arcScores.set(opt.archetypeId, (arcScores.get(opt.archetypeId) ?? 0) + weight);
@@ -71,7 +84,7 @@ export function buildAccumulators(
           let arcDist = acc.rankDistMap.get(meta.id);
           if (!arcDist) { arcDist = new Map(); acc.rankDistMap.set(meta.id, arcDist); }
           let dist = arcDist.get(opt.archetypeId);
-          if (!dist) { dist = Array(rankWeights.length).fill(0); arcDist.set(opt.archetypeId, dist); }
+          if (!dist) { dist = Array(distLen).fill(0); arcDist.set(opt.archetypeId, dist); }
           dist[rank - 1] += 1;
         }
         if (answered) acc.questionN.set(meta.id, (acc.questionN.get(meta.id) ?? 0) + 1);
@@ -80,10 +93,15 @@ export function buildAccumulators(
           arr.push({ text: a.openText });
           acc.legacyOpenTextByQuestion.set(meta.id, arr);
         }
-      } else if (answerType === "general-ranking" && meta.type === "general-ranking") {
+      } else if (
+        (answerType === "general-ranking" && meta.type === "general-ranking") ||
+        (answerType === "general-top3" && meta.type === "general-top3")
+      ) {
+        const isTop3 = answerType === "general-top3";
         const rankings = (a.rankings ?? {}) as Record<string, number>;
         const items = meta.rankingItems ?? [];
-        const maxRank = items.length;
+        const maxRank = isTop3 ? TOP3_RANK_LENGTH : items.length;
+        const distLen = isTop3 ? TOP3_RANK_LENGTH : items.length;
         let answered = false;
         let itemDist = acc.rankItemDistMap.get(meta.id);
         if (!itemDist) { itemDist = new Map(); acc.rankItemDistMap.set(meta.id, itemDist); }
@@ -92,7 +110,7 @@ export function buildAccumulators(
           if (!rank || rank < 1 || rank > maxRank) continue;
           answered = true;
           let dist = itemDist.get(item.id);
-          if (!dist) { dist = Array(maxRank).fill(0); itemDist.set(item.id, dist); }
+          if (!dist) { dist = Array(distLen).fill(0); itemDist.set(item.id, dist); }
           dist[rank - 1] += 1;
         }
         if (answered) acc.questionN.set(meta.id, (acc.questionN.get(meta.id) ?? 0) + 1);

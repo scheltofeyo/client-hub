@@ -49,6 +49,7 @@ interface SessionDetail {
     description?: string;
     archetypes: ArchetypeSnapshot[];
     rankWeights: number[];
+    top3Weights: number[];
     sections: {
       id: string;
       title: string;
@@ -575,10 +576,12 @@ export default function SurveyDetailPage() {
             meta={{
               templateSnapshot: {
                 rankWeights: data.templateSnapshot.rankWeights,
+                top3Weights: data.templateSnapshot.top3Weights ?? [5, 3, 1],
               },
             }}
             canEdit={canEdit}
-            onSaveWeights={(next) => persistSettings({ rankWeights: next })}
+            onSaveRankWeights={(next) => persistSettings({ rankWeights: next })}
+            onSaveTop3Weights={(next) => persistSettings({ top3Weights: next })}
           />
         </div>
       )}

@@ -30,12 +30,31 @@ function buildBlankQuestion(
         title: "New question",
         options: archetypes.map((a) => ({ id: uid(), archetypeId: a.id, text: "" })),
       };
+    case "archetype-top3":
+      return {
+        id,
+        type: "archetype-top3",
+        title: "New top 3 question",
+        options: archetypes.map((a) => ({ id: uid(), archetypeId: a.id, text: "" })),
+      };
     case "general-ranking":
       return {
         id,
         type: "general-ranking",
         title: "New ranking question",
         rankingItems: [
+          { id: uid(), text: "" },
+          { id: uid(), text: "" },
+          { id: uid(), text: "" },
+        ],
+      };
+    case "general-top3":
+      return {
+        id,
+        type: "general-top3",
+        title: "New top 3 question",
+        rankingItems: [
+          { id: uid(), text: "" },
           { id: uid(), text: "" },
           { id: uid(), text: "" },
           { id: uid(), text: "" },
@@ -204,18 +223,40 @@ export default function EditSnapshotPage() {
   }
 
   // Questions
-  function handleAddQuestion(sectionId: string, type: SurveyQuestionType) {
+  async function handleAddQuestion(sectionId: string, type: SurveyQuestionType) {
     if (!snapshot) return;
-    if (type === "archetype-ranking" && snapshot.archetypes.length < 2) {
-      setError("This session has fewer than 2 archetypes. Recreate the session from a valid template.");
-      setSaveState("error");
-      return;
+    let archetypes = snapshot.archetypes;
+    if (
+      (type === "archetype-ranking" || type === "archetype-top3") &&
+      archetypes.length < 2
+    ) {
+      // Defensive populate for from-scratch sessions created before the
+      // server-side fix: pull the current archetypes from the DB, persist
+      // them onto this session, then proceed.
+      const res = await fetch("/api/archetypes");
+      if (!res.ok) {
+        setError("Could not load archetypes from the database.");
+        setSaveState("error");
+        return;
+      }
+      const live = (await res.json()) as ArchetypeSnapshot[];
+      if (live.length < 2) {
+        setError("There are fewer than 2 archetypes configured in the system.");
+        setSaveState("error");
+        return;
+      }
+      archetypes = live.map((a) => ({ id: a.id, name: a.name, color: a.color }));
+      const ok = await persist({
+        snapshotArchetypes: archetypes.map((a) => ({ id: a.id })),
+      });
+      if (!ok) return;
     }
-    const newQuestion = buildBlankQuestion(type, snapshot.archetypes);
+    const newQuestion = buildBlankQuestion(type, archetypes);
     const sections = snapshot.sections.map((s) =>
       s.id === sectionId ? { ...s, questions: [...s.questions, newQuestion] } : s
     );
-    patchSections(sections);
+    setSnapshot((prev) => (prev ? { ...prev, archetypes, sections } : prev));
+    persist({ snapshotSections: sections });
     setSelected({ kind: "question", sectionId, id: newQuestion.id });
   }
   function handleUpdateQuestion(

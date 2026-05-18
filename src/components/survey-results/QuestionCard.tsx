@@ -61,7 +61,12 @@ export function QuestionCard({
     if (question.type === "multiple-choice") {
       return choiceMode === "multi" ? MC_OPTIONS_MULTI : MC_OPTIONS_SINGLE;
     }
-    if (question.type === "archetype-ranking" || question.type === "general-ranking") {
+    if (
+      question.type === "archetype-ranking" ||
+      question.type === "archetype-top3" ||
+      question.type === "general-ranking" ||
+      question.type === "general-top3"
+    ) {
       return RANK_OPTIONS;
     }
     return null;
@@ -70,7 +75,10 @@ export function QuestionCard({
   const defaultChartKey =
     question.type === "multiple-choice"
       ? "sorted-bar"
-      : question.type === "archetype-ranking" || question.type === "general-ranking"
+      : question.type === "archetype-ranking" ||
+          question.type === "archetype-top3" ||
+          question.type === "general-ranking" ||
+          question.type === "general-top3"
         ? "podium"
         : null;
 
@@ -211,7 +219,7 @@ function renderChartSlot(args: {
     }
   }
 
-  if (question.type === "archetype-ranking") {
+  if (question.type === "archetype-ranking" || question.type === "archetype-top3") {
     const totalPoints = question.totalPoints;
     const items: RankItemDatum[] = archetypes.map((a) => {
       const archResult = question.archetypes.find((x) => x.archetypeId === a.id);
@@ -257,7 +265,7 @@ function renderChartSlot(args: {
     }
   }
 
-  if (question.type === "general-ranking") {
+  if (question.type === "general-ranking" || question.type === "general-top3") {
     const rankCount = Math.max(1, ...question.items.map((i) => i.distribution.length));
     const items: RankItemDatum[] = question.items.map((i) => {
       // Invert avg-rank so larger score = preferred.

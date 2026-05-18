@@ -14,12 +14,25 @@ import {
   useDroppable,
   useSensor,
   useSensors,
+  type DragEndEvent,
   type DragOverEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { ArrowRight, Check, GripVertical, MessageCircle } from "lucide-react";
-import type { SurveyQuestionType } from "@/lib/surveys/types";
+import {
+  TOP3_RANK_LENGTH,
+  isFullRankingType,
+  isTop3Type,
+  type SurveyQuestionType,
+} from "@/lib/surveys/types";
 import LocaleSwitcher, { type Locale } from "@/components/ui/LocaleSwitcher";
 import { t } from "@/lib/surveys/translations";
 import { pickGreeting, type Greeting } from "@/lib/surveys/greetings";
@@ -78,17 +91,25 @@ function fisherYates<T>(arr: T[]): T[] {
 }
 
 function rankingItemIds(q: PublicQuestion): string[] {
-  if (q.type === "archetype-ranking") return (q.options ?? []).map((o) => o.id);
-  if (q.type === "general-ranking") return (q.rankingItems ?? []).map((i) => i.id);
+  if (q.type === "archetype-ranking" || q.type === "archetype-top3") {
+    return (q.options ?? []).map((o) => o.id);
+  }
+  if (q.type === "general-ranking" || q.type === "general-top3") {
+    return (q.rankingItems ?? []).map((i) => i.id);
+  }
   return [];
 }
 
 // ── Ranking state ───────────────────────────────────────────────────
-// `ranked` is a fixed-length array of (itemId | null) — empty slots keep their
-// rank position. `pool` holds the still-unplaced item ids in their initial
-// shuffled order. Submission requires every slot filled.
+// Two shapes, discriminated by `kind`:
+//  - "top3": pool + N slots (N = TOP3_RANK_LENGTH). Participants drag items
+//    from the pool into ranked slots; items can move back to the pool.
+//  - "rank-all": a single ordered list. Items start in a randomized order
+//    and the participant reorders them in place — no pool, no empty slots.
 
-type RankingState = { ranked: (string | null)[]; pool: string[] };
+type Top3State = { kind: "top3"; ranked: (string | null)[]; pool: string[] };
+type RankAllState = { kind: "rank-all"; order: string[] };
+type RankingState = Top3State | RankAllState;
 
 const SLOT_ID_SEP = "::slot::";
 const POOL_ID_SEP = "::pool";
@@ -147,13 +168,13 @@ function insertWithCascade(
   return { ranked: nextRanked, pool: nextPool };
 }
 
-function computeNextRanking(
-  state: RankingState,
+function computeNextTop3(
+  state: Top3State,
   activeId: string,
   fromZone: "slot" | "pool",
   overId: string,
   qid: string
-): RankingState {
+): Top3State {
   const targetSlot = parseSlotIndex(overId, qid);
   const targetIsPool = overId === poolDroppableId(qid);
 
@@ -164,9 +185,10 @@ function computeNextRanking(
     if (state.ranked[targetSlot] === null) {
       const ranked = [...state.ranked];
       ranked[targetSlot] = activeId;
-      return { ranked, pool: state.pool.filter((id) => id !== activeId) };
+      return { kind: "top3", ranked, pool: state.pool.filter((id) => id !== activeId) };
     }
-    return insertWithCascade(state.ranked, state.pool, targetSlot, activeId);
+    const next = insertWithCascade(state.ranked, state.pool, targetSlot, activeId);
+    return { kind: "top3", ranked: next.ranked, pool: next.pool };
   }
 
   if (fromZone === "slot") {
@@ -176,7 +198,7 @@ function computeNextRanking(
     if (targetIsPool) {
       const ranked = [...state.ranked];
       ranked[fromIdx] = null;
-      return { ranked, pool: [...state.pool, activeId] };
+      return { kind: "top3", ranked, pool: [...state.pool, activeId] };
     }
 
     if (targetSlot !== null && targetSlot !== fromIdx) {
@@ -184,12 +206,12 @@ function computeNextRanking(
       if (ranked[targetSlot] === null) {
         ranked[targetSlot] = activeId;
         ranked[fromIdx] = null;
-        return { ranked, pool: state.pool };
+        return { kind: "top3", ranked, pool: state.pool };
       }
-      // Target is filled — cascade towards bron-slot via arrayMove semantics.
+      // Target is filled — cascade towards source slot via arrayMove semantics.
       const [moved] = ranked.splice(fromIdx, 1);
       ranked.splice(targetSlot, 0, moved);
-      return { ranked, pool: state.pool };
+      return { kind: "top3", ranked, pool: state.pool };
     }
   }
 
@@ -269,8 +291,16 @@ export default function PublicSurveyPage() {
   const [direction, setDirection] = useState<1 | -1>(1);
   const [email, setEmail] = useState("");
   const [submissionId, setSubmissionId] = useState<string | null>(null);
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+  const [saveState, setSaveState] = useState<"saved" | "unsaved" | null>(null);
+  const markDirty = useCallback(() => {
+    setSaveState((prev) => (prev === null ? prev : "unsaved"));
+  }, []);
 
   const [rankingState, setRankingState] = useState<Record<string, RankingState>>({});
+  const [rankingLabels, setRankingLabels] = useState<
+    Record<string, Record<string, string>>
+  >({});
   const [choices, setChoices] = useState<Record<string, string[]>>({});
   const [openTexts, setOpenTexts] = useState<Record<string, string>>({});
 
@@ -309,18 +339,30 @@ export default function PublicSurveyPage() {
       .then((data: SurveyData) => {
         if (data?.template?.sections) {
           const init: Record<string, RankingState> = {};
+          const labels: Record<string, Record<string, string>> = {};
           for (const s of data.template.sections) {
             for (const q of s.questions ?? []) {
               const ids = rankingItemIds(q);
-              if (ids.length > 0) {
+              if (ids.length === 0) continue;
+              const shuffled = fisherYates(ids);
+              const labelMap: Record<string, string> = {};
+              shuffled.forEach((id, i) => {
+                labelMap[id] = String.fromCharCode(65 + i);
+              });
+              labels[q.id] = labelMap;
+              if (isTop3Type(q.type)) {
                 init[q.id] = {
-                  ranked: Array(ids.length).fill(null),
-                  pool: fisherYates(ids),
+                  kind: "top3",
+                  ranked: Array(TOP3_RANK_LENGTH).fill(null),
+                  pool: shuffled,
                 };
+              } else if (isFullRankingType(q.type)) {
+                init[q.id] = { kind: "rank-all", order: shuffled };
               }
             }
           }
           setRankingState(init);
+          setRankingLabels(labels);
         }
         setSurvey(data);
         setLoading(false);
@@ -384,6 +426,11 @@ export default function PublicSurveyPage() {
       return;
     }
     setSubmissionId(data.submissionId);
+    if (data.resumed && Array.isArray(data.answers) && data.answers.length) {
+      hydrateAnswers(data.answers);
+      setLastSavedAt(new Date());
+      setSaveState("saved");
+    }
     setDirection(1);
     setStep((s) => s + 1);
   }
@@ -395,7 +442,30 @@ export default function PublicSurveyPage() {
     }
     const q = questionsById.get(screen.questionId);
     if (!q) return true;
-    if (q.required === false || q.type === "intro") {
+    if (q.type === "intro") {
+      setError(null);
+      return true;
+    }
+
+    // Top 3 is all-or-nothing regardless of `required`: a partial top 3 is
+    // never a valid answer. `required=false` only permits the all-empty case.
+    if (isTop3Type(q.type)) {
+      const state = rankingState[q.id];
+      const filled =
+        state?.kind === "top3" ? state.ranked.filter((id) => id !== null).length : 0;
+      if (filled === 0 && q.required === false) {
+        setError(null);
+        return true;
+      }
+      if (filled !== TOP3_RANK_LENGTH) {
+        setError(t(locale, "error.requiredRanking"));
+        return false;
+      }
+      setError(null);
+      return true;
+    }
+
+    if (q.required === false) {
       setError(null);
       return true;
     }
@@ -411,9 +481,11 @@ export default function PublicSurveyPage() {
         setError(t(locale, "error.requiredAny"));
         return false;
       }
-    } else if (q.type === "archetype-ranking" || q.type === "general-ranking") {
+    } else if (isFullRankingType(q.type)) {
+      // Ranking initialises with a complete shuffled order; if the state is
+      // missing for some reason, treat it as unanswered.
       const state = rankingState[q.id];
-      if (!state || state.ranked.some((id) => id === null)) {
+      if (!state || state.kind !== "rank-all" || state.order.length === 0) {
         setError(t(locale, "error.requiredRanking"));
         return false;
       }
@@ -444,6 +516,7 @@ export default function PublicSurveyPage() {
       setShowConfirm(true);
       return;
     }
+    autosave();
     setDirection(1);
     setStep((s) => s + 1);
   }
@@ -451,6 +524,7 @@ export default function PublicSurveyPage() {
   function goPrev() {
     if (step === 0) return;
     setError(null);
+    autosave();
     setDirection(-1);
     setStep((s) => s - 1);
   }
@@ -458,6 +532,7 @@ export default function PublicSurveyPage() {
   function handleRankingCommit(questionId: string) {
     return (next: RankingState) => {
       setRankingState((prev) => ({ ...prev, [questionId]: next }));
+      markDirty();
     };
   }
 
@@ -472,17 +547,10 @@ export default function PublicSurveyPage() {
           : [...current, choiceId],
       };
     });
+    markDirty();
   }
 
-  async function handleSubmit() {
-    if (!submissionId) {
-      setError(t(locale, "error.missingSubmission"));
-      return;
-    }
-    if (current.kind === "question" && !validateScreen(current)) return;
-    setError(null);
-    setSubmitting(true);
-
+  const buildAnswers = useCallback((): Array<Record<string, unknown>> => {
     const answers: Array<Record<string, unknown>> = [];
     for (const s of sections) {
       for (const q of s.questions ?? []) {
@@ -492,16 +560,27 @@ export default function PublicSurveyPage() {
           case "archetype-ranking":
           case "general-ranking": {
             const state = rankingState[q.id];
-            if (!state) continue;
+            if (!state || state.kind !== "rank-all") continue;
+            const rankings: Record<string, number> = {};
+            state.order.forEach((id, i) => {
+              rankings[id] = i + 1;
+            });
+            answers.push({ questionId: q.id, type: q.type, rankings });
+            break;
+          }
+          case "archetype-top3":
+          case "general-top3": {
+            const state = rankingState[q.id];
+            if (!state || state.kind !== "top3") continue;
             const rankings: Record<string, number> = {};
             state.ranked.forEach((id, i) => {
               if (id !== null) rankings[id] = i + 1;
             });
-            answers.push({
-              questionId: q.id,
-              type: q.type,
-              rankings,
-            });
+            // Skip empty top-3 answers entirely — the server treats absent
+            // answers as "not answered". Partial answers are blocked client-
+            // side in validateScreen, so what reaches here is 0 or exactly 3.
+            if (Object.keys(rankings).length === 0) break;
+            answers.push({ questionId: q.id, type: q.type, rankings });
             break;
           }
           case "multiple-choice": {
@@ -519,6 +598,100 @@ export default function PublicSurveyPage() {
         }
       }
     }
+    return answers;
+  }, [sections, rankingState, choices, openTexts]);
+
+  // Fire-and-forget autosave. Called on every step advance/retreat past the
+  // identity screen so participants can close the tab and resume later with
+  // the same email. Silent: failures aren't surfaced (the final /submit will
+  // persist whatever the React state holds anyway).
+  const autosave = useCallback(() => {
+    if (!submissionId) return;
+    const answers = buildAnswers();
+    void fetch(`/api/public/surveys/${shareCode}/save`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ submissionId, answers }),
+    })
+      .then((r) => {
+        if (r.ok) {
+          setLastSavedAt(new Date());
+          setSaveState("saved");
+        }
+      })
+      .catch(() => {});
+  }, [submissionId, shareCode, buildAnswers]);
+
+  // Inverse of buildAnswers — used to restore saved state when a returning
+  // participant identifies with the same email and /start replies with
+  // resumed: true + answers[].
+  const hydrateAnswers = useCallback(
+    (saved: Array<Record<string, unknown>>) => {
+      const rankings: Record<string, RankingState> = {};
+      const newChoices: Record<string, string[]> = {};
+      const newTexts: Record<string, string> = {};
+
+      for (const a of saved) {
+        const qid = typeof a.questionId === "string" ? a.questionId : null;
+        if (!qid) continue;
+        const q = questionsById.get(qid);
+        if (!q) continue;
+        if (isFullRankingType(q.type)) {
+          const allIds = rankingItemIds(q);
+          if (allIds.length === 0) continue;
+          const ranks = a.rankings as Record<string, number> | undefined;
+          if (!ranks || typeof ranks !== "object") continue;
+          const ordered = [...allIds].sort(
+            (x, y) => (ranks[x] ?? allIds.length + 1) - (ranks[y] ?? allIds.length + 1)
+          );
+          rankings[qid] = { kind: "rank-all", order: ordered };
+        } else if (isTop3Type(q.type)) {
+          const allIds = rankingItemIds(q);
+          const ranks = a.rankings as Record<string, number> | undefined;
+          if (!ranks || typeof ranks !== "object") continue;
+          const ranked: (string | null)[] = Array(TOP3_RANK_LENGTH).fill(null);
+          for (const [id, r] of Object.entries(ranks)) {
+            const n = Number(r);
+            if (Number.isFinite(n) && n >= 1 && n <= TOP3_RANK_LENGTH) {
+              ranked[n - 1] = id;
+            }
+          }
+          const rankedSet = new Set(ranked.filter((x): x is string => x !== null));
+          const pool = fisherYates(allIds.filter((id) => !rankedSet.has(id)));
+          rankings[qid] = { kind: "top3", ranked, pool };
+        } else if (q.type === "multiple-choice") {
+          const sel = Array.isArray(a.selectedChoiceIds)
+            ? (a.selectedChoiceIds as string[]).filter((x) => typeof x === "string")
+            : [];
+          newChoices[qid] = sel;
+        } else if (q.type === "open-text") {
+          newTexts[qid] = typeof a.text === "string" ? a.text : "";
+        }
+      }
+
+      if (Object.keys(rankings).length) {
+        setRankingState((prev) => ({ ...prev, ...rankings }));
+      }
+      if (Object.keys(newChoices).length) {
+        setChoices((prev) => ({ ...prev, ...newChoices }));
+      }
+      if (Object.keys(newTexts).length) {
+        setOpenTexts((prev) => ({ ...prev, ...newTexts }));
+      }
+    },
+    [questionsById]
+  );
+
+  async function handleSubmit() {
+    if (!submissionId) {
+      setError(t(locale, "error.missingSubmission"));
+      return;
+    }
+    if (current.kind === "question" && !validateScreen(current)) return;
+    setError(null);
+    setSubmitting(true);
+
+    const answers = buildAnswers();
 
     const res = await fetch(`/api/public/surveys/${shareCode}/submit`, {
       method: "POST",
@@ -580,6 +753,7 @@ export default function PublicSurveyPage() {
   }
 
   const template = survey.template;
+  const clientCompany = survey.clientCompany;
   const progress = isDoneStep ? null : step / Math.max(1, totalSteps - 1);
   const primaryLabel = isLastAnswerScreen()
     ? t(locale, "nav.submit")
@@ -601,7 +775,7 @@ export default function PublicSurveyPage() {
       return (
         <div className="space-y-8 sm:space-y-10 w-full">
           <div>
-            {/* Survey context chip */}
+            {/* Survey context chip — personalized to client company */}
             <div
               className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full mb-6"
               style={{
@@ -611,25 +785,39 @@ export default function PublicSurveyPage() {
             >
               <MessageCircle size={14} strokeWidth={2.2} />
               <span className="text-[12px] font-semibold uppercase tracking-[0.06em]">
-                {t(locale, "identify.tag")}
+                {clientCompany
+                  ? t(locale, "identify.tag", { company: clientCompany })
+                  : t(locale, "identify.tagFallback")}
               </span>
             </div>
 
-            {/* Headline — time/day-aware greeting, full width, larger for impact */}
-            <h2
-              className="text-[34px] sm:text-[42px] md:text-[52px] font-semibold leading-[1.05]"
+            {/* Headline — time/day-aware greeting, split into welcome + thanks tiers */}
+            <h1
+              className="text-[28px] sm:text-[34px] md:text-[42px] font-semibold leading-[1.05]"
               style={{ color: "var(--text-primary)", letterSpacing: "-0.022em" }}
             >
-              {greeting[locale]}
-            </h2>
-
-            {/* Subline — constrained for readability */}
+              {greeting.welcome[locale]}
+            </h1>
             <p
-              className="mt-5 max-w-[65ch] text-[16px] sm:text-[18px]"
+              className="mt-2 sm:mt-3 text-[18px] sm:text-[22px] md:text-[26px] font-medium leading-[1.2]"
+              style={{ color: "var(--text-muted)", letterSpacing: "-0.012em" }}
+            >
+              {greeting.thanks[locale]}
+            </p>
+
+            {/* Body — organizer → anonymity → email rationale */}
+            <div
+              className="mt-5 max-w-[65ch] space-y-3 text-[16px] sm:text-[18px]"
               style={{ color: "var(--text-muted)", lineHeight: 1.6 }}
             >
-              {t(locale, "identify.subline")}
-            </p>
+              <p>
+                {clientCompany
+                  ? t(locale, "identify.bodyOrganizer", { company: clientCompany })
+                  : t(locale, "identify.bodyOrganizerNoCompany")}
+              </p>
+              <p>{t(locale, "identify.bodyAnonymous")}</p>
+              <p className="text-[14px] sm:text-[15px]">{t(locale, "identify.bodyEmail")}</p>
+            </div>
 
           </div>
 
@@ -809,12 +997,23 @@ export default function PublicSurveyPage() {
             )}
           </div>
           <div className="w-full md:max-w-[50%]">
-            {(q.type === "archetype-ranking" || q.type === "general-ranking") && (
+            {isFullRankingType(q.type) && (
+              <RankAllInput
+                q={q}
+                locale={locale}
+                sensors={sensors}
+                state={rankingState[q.id]}
+                labels={rankingLabels[q.id] ?? {}}
+                onCommit={handleRankingCommit(q.id)}
+              />
+            )}
+            {isTop3Type(q.type) && (
               <RankingInput
                 q={q}
                 locale={locale}
                 sensors={sensors}
                 state={rankingState[q.id]}
+                labels={rankingLabels[q.id] ?? {}}
                 onCommit={handleRankingCommit(q.id)}
               />
             )}
@@ -830,7 +1029,10 @@ export default function PublicSurveyPage() {
               <OpenTextInput
                 q={q}
                 value={openTexts[q.id] ?? ""}
-                onChange={(v) => setOpenTexts((p) => ({ ...p, [q.id]: v }))}
+                onChange={(v) => {
+                  setOpenTexts((p) => ({ ...p, [q.id]: v }));
+                  markDirty();
+                }}
               />
             )}
           </div>
@@ -855,7 +1057,10 @@ export default function PublicSurveyPage() {
           <div className="w-full md:max-w-[50%]">
             <UnderlineTextarea
               value={closingText}
-              onChange={setClosingText}
+              onChange={(v) => {
+                setClosingText(v);
+                markDirty();
+              }}
               placeholder={t(locale, "closing.placeholder")}
               rows={5}
             />
@@ -880,6 +1085,8 @@ export default function PublicSurveyPage() {
       clientCompany={survey.clientCompany}
       primaryColor={survey.clientPrimaryColor}
       progress={progress}
+      savedAt={lastSavedAt}
+      saveState={saveState}
       footer={
         showFooter ? (
           <ActionFooter
@@ -935,6 +1142,8 @@ function PageShell({
   clientCompany,
   primaryColor,
   progress,
+  savedAt,
+  saveState,
   footer,
   hideDesktopFooter,
   children,
@@ -946,6 +1155,8 @@ function PageShell({
   clientCompany?: string;
   primaryColor?: string;
   progress?: number | null;
+  savedAt?: Date | null;
+  saveState?: "saved" | "unsaved" | null;
   footer?: React.ReactNode;
   hideDesktopFooter?: boolean;
   children: React.ReactNode;
@@ -1012,6 +1223,42 @@ function PageShell({
               </p>
             )}
           </div>
+          <AnimatePresence mode="wait" initial={false}>
+            {saveState === "saved" && savedAt && (
+              <motion.div
+                key={`saved-${savedAt.getTime()}`}
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+                className="hidden sm:flex items-center gap-1 text-[12px]"
+                style={{ color: "var(--text-muted)" }}
+                aria-live="polite"
+              >
+                <Check size={12} strokeWidth={2.5} />
+                <span>{t(locale, "header.saved")}</span>
+              </motion.div>
+            )}
+            {saveState === "unsaved" && (
+              <motion.div
+                key="unsaved"
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+                className="hidden sm:flex items-center gap-1.5 text-[12px]"
+                style={{ color: "var(--text-muted)" }}
+                aria-live="polite"
+              >
+                <span
+                  className="inline-block w-1.5 h-1.5 rounded-full"
+                  style={{ background: "var(--warning)" }}
+                  aria-hidden="true"
+                />
+                <span>{t(locale, "header.unsaved")}</span>
+              </motion.div>
+            )}
+          </AnimatePresence>
           <LocaleSwitcher locale={locale} onChange={onLocaleChange} />
         </div>
       </header>
@@ -1232,17 +1479,19 @@ function RankingInput({
   locale,
   sensors,
   state,
+  labels,
   onCommit,
 }: {
   q: PublicQuestion;
   locale: Locale;
   sensors: ReturnType<typeof useSensors>;
   state: RankingState | undefined;
+  labels: Record<string, string>;
   onCommit: (next: RankingState) => void;
 }) {
   const items = useMemo(
     () =>
-      q.type === "archetype-ranking"
+      q.type === "archetype-top3"
         ? q.options ?? []
         : q.rankingItems ?? [],
     [q.type, q.options, q.rankingItems]
@@ -1251,14 +1500,18 @@ function RankingInput({
     () => new Map(items.map((i) => [i.id, i] as const)),
     [items]
   );
-  const total = items.length;
-  const fallback: RankingState = useMemo(
-    () => ({ ranked: Array(total).fill(null), pool: items.map((i) => i.id) }),
-    [items, total]
+  const slotCount = TOP3_RANK_LENGTH;
+  const fallback: Top3State = useMemo(
+    () => ({
+      kind: "top3",
+      ranked: Array(slotCount).fill(null),
+      pool: items.map((i) => i.id),
+    }),
+    [items, slotCount]
   );
-  const current = state ?? fallback;
+  const current: Top3State = state && state.kind === "top3" ? state : fallback;
   const placed = current.ranked.filter((id) => id !== null).length;
-  const remaining = total - placed;
+  const remaining = slotCount - placed;
   const allPlaced = remaining === 0;
 
   const [activeDrag, setActiveDrag] = useState<{
@@ -1300,9 +1553,9 @@ function RankingInput({
   // Live preview during drag: while the user hovers a target, compute what the
   // state would look like on drop and render that. Cascades become visible
   // before commit, so users see exactly where the chosen card will land.
-  const previewState: RankingState =
+  const previewState: Top3State =
     activeDrag && activeOverId
-      ? computeNextRanking(current, activeDrag.id, activeDrag.zone, activeOverId, q.id)
+      ? computeNextTop3(current, activeDrag.id, activeDrag.zone, activeOverId, q.id)
       : current;
 
   const activeItem = activeDrag ? itemMap.get(activeDrag.id) : null;
@@ -1335,6 +1588,7 @@ function RankingInput({
           qid={q.id}
           ranked={previewState.ranked}
           itemMap={itemMap}
+          labels={labels}
           locale={locale}
           activeDragId={activeDrag?.id ?? null}
           previewTargetIdx={
@@ -1354,7 +1608,7 @@ function RankingInput({
             </>
           ) : (
             <span>
-              {t(locale, "ranking.poolRemaining", { n: remaining, total })}
+              {t(locale, "ranking.poolRemaining", { n: remaining, total: slotCount })}
             </span>
           )}
         </div>
@@ -1362,6 +1616,7 @@ function RankingInput({
           qid={q.id}
           pool={previewState.pool}
           itemMap={itemMap}
+          labels={labels}
           locale={locale}
           allPlaced={previewState.ranked.every((id) => id !== null)}
           activeDragId={activeDrag?.id ?? null}
@@ -1372,11 +1627,181 @@ function RankingInput({
           <DragOverlayItem
             zone={activeDrag.zone}
             rank={activeDrag.rank}
+            label={labels[activeDrag.id]}
             text={activeItem.text || "(no text)"}
           />
         ) : null}
       </DragOverlay>
     </DndContext>
+  );
+}
+
+// ── Rank-all input (single sortable list, no pool) ────────────────
+
+function RankAllInput({
+  q,
+  locale,
+  sensors,
+  state,
+  labels,
+  onCommit,
+}: {
+  q: PublicQuestion;
+  locale: Locale;
+  sensors: ReturnType<typeof useSensors>;
+  state: RankingState | undefined;
+  labels: Record<string, string>;
+  onCommit: (next: RankingState) => void;
+}) {
+  const items = useMemo(
+    () =>
+      q.type === "archetype-ranking"
+        ? q.options ?? []
+        : q.rankingItems ?? [],
+    [q.type, q.options, q.rankingItems]
+  );
+  const itemMap = useMemo(
+    () => new Map(items.map((i) => [i.id, i] as const)),
+    [items]
+  );
+  // Fallback uses items in their authored order. The real initial state set
+  // by the page-load effect is shuffled — the fallback only matters if state
+  // is somehow missing mid-render.
+  const fallback: RankAllState = useMemo(
+    () => ({ kind: "rank-all", order: items.map((i) => i.id) }),
+    [items]
+  );
+  const current: RankAllState = state && state.kind === "rank-all" ? state : fallback;
+  const [activeId, setActiveId] = useState<string | null>(null);
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveId(null);
+    if (!over || active.id === over.id) return;
+    const from = current.order.indexOf(String(active.id));
+    const to = current.order.indexOf(String(over.id));
+    if (from < 0 || to < 0) return;
+    onCommit({ kind: "rank-all", order: arrayMove(current.order, from, to) });
+  };
+
+  const activeItem = activeId ? itemMap.get(activeId) : null;
+
+  return (
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragStart={(e) => setActiveId(String(e.active.id))}
+      onDragEnd={handleDragEnd}
+      onDragCancel={() => setActiveId(null)}
+    >
+      <div className="mb-4">
+        <p
+          className="text-[15px] font-medium"
+          style={{ color: "var(--text-primary)", lineHeight: 1.4 }}
+        >
+          {t(locale, "ranking.helperBold")}
+        </p>
+        <p
+          className="text-[14px] mt-1"
+          style={{ color: "var(--text-muted)", lineHeight: 1.5 }}
+        >
+          {t(locale, "ranking.helperRest")}
+        </p>
+      </div>
+      <SortableContext items={current.order} strategy={verticalListSortingStrategy}>
+        <div className="space-y-1.5">
+          {current.order.map((id, idx) => {
+            const item = itemMap.get(id);
+            if (!item) return null;
+            return (
+              <SortableRankAllItem
+                key={id}
+                id={id}
+                rank={idx + 1}
+                label={labels[id]}
+                text={item.text || "(no text)"}
+                hidden={activeId === id}
+              />
+            );
+          })}
+        </div>
+      </SortableContext>
+      <DragOverlay dropAnimation={null}>
+        {activeId && activeItem ? (
+          <PreviewSlotItem
+            rank={current.order.indexOf(activeId) + 1}
+            label={labels[activeId]}
+            text={activeItem.text || "(no text)"}
+          />
+        ) : null}
+      </DragOverlay>
+    </DndContext>
+  );
+}
+
+function SortableRankAllItem({
+  id,
+  rank,
+  label,
+  text,
+  hidden,
+}: {
+  id: string;
+  rank: number;
+  label?: string;
+  text: string;
+  hidden: boolean;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id });
+  const style: React.CSSProperties = {
+    transform: CSS.Translate.toString(transform),
+    transition,
+    opacity: hidden || isDragging ? 0 : 1,
+  };
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      className="rounded-card border min-h-[56px] sm:min-h-[64px] cursor-grab active:cursor-grabbing"
+    >
+      <div
+        className="flex items-center gap-3 pl-2 pr-4 py-3 sm:py-3.5 rounded-card min-h-[56px] sm:min-h-[64px] select-none"
+        style={{
+          background: "var(--bg-surface)",
+          border: "1px solid var(--border)",
+        }}
+      >
+        <GripVertical
+          size={16}
+          style={{ color: "var(--text-muted)" }}
+          className="shrink-0 opacity-60"
+        />
+        <span
+          className="w-8 h-8 rounded-full flex items-center justify-center text-[14px] tabular-nums font-bold shrink-0"
+          style={rankChipStyle(rank, true)}
+        >
+          {rank}
+        </span>
+        {label && (
+          <span
+            className="text-[13px] font-semibold tabular-nums shrink-0"
+            style={{ color: "var(--text-muted)" }}
+            aria-hidden="true"
+          >
+            {label}
+          </span>
+        )}
+        <span
+          className="text-[15px] flex-1 min-w-0"
+          style={{ color: "var(--text-primary)", lineHeight: 1.4 }}
+        >
+          {text}
+        </span>
+      </div>
+    </div>
   );
 }
 
@@ -1398,6 +1823,7 @@ function RankingSlots({
   qid,
   ranked,
   itemMap,
+  labels,
   locale,
   activeDragId,
   previewTargetIdx,
@@ -1405,6 +1831,7 @@ function RankingSlots({
   qid: string;
   ranked: (string | null)[];
   itemMap: Map<string, { id: string; text: string }>;
+  labels: Record<string, string>;
   locale: Locale;
   activeDragId: string | null;
   previewTargetIdx: number;
@@ -1433,7 +1860,11 @@ function RankingSlots({
               isEmpty={false}
               isPreviewTarget
             >
-              <PreviewSlotItem rank={idx + 1} text={text} />
+              <PreviewSlotItem
+                rank={idx + 1}
+                label={labels[activeDragId]}
+                text={text}
+              />
             </SlotCell>
           );
         }
@@ -1459,6 +1890,7 @@ function RankingSlots({
                 zone="slot"
                 index={idx}
                 rank={idx + 1}
+                label={labels[validId]}
                 text={itemMap.get(validId)?.text || "(no text)"}
               />
             )}
@@ -1469,7 +1901,15 @@ function RankingSlots({
   );
 }
 
-function PreviewSlotItem({ rank, text }: { rank: number; text: string }) {
+function PreviewSlotItem({
+  rank,
+  label,
+  text,
+}: {
+  rank: number;
+  label?: string;
+  text: string;
+}) {
   return (
     <div
       className="flex items-center gap-3 pl-2 pr-4 py-3 sm:py-3.5 rounded-card min-h-[56px] sm:min-h-[64px] select-none"
@@ -1486,6 +1926,15 @@ function PreviewSlotItem({ rank, text }: { rank: number; text: string }) {
       >
         {rank}
       </span>
+      {label && (
+        <span
+          className="text-[13px] font-semibold tabular-nums shrink-0"
+          style={{ color: "var(--text-muted)" }}
+          aria-hidden="true"
+        >
+          {label}
+        </span>
+      )}
       <span
         className="text-[15px] flex-1 min-w-0"
         style={{ color: "var(--text-primary)", lineHeight: 1.4 }}
@@ -1568,12 +2017,14 @@ function DraggableRankItem({
   zone,
   index,
   rank,
+  label,
   text,
 }: {
   id: string;
   zone: "slot" | "pool";
   index?: number;
   rank?: number;
+  label?: string;
   text: string;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
@@ -1594,7 +2045,7 @@ function DraggableRankItem({
       {...listeners}
       className="flex items-center gap-3 pl-2 pr-4 py-3 sm:py-3.5 rounded-card cursor-grab active:cursor-grabbing touch-none min-h-[56px] sm:min-h-[64px] select-none"
     >
-      <RankItemBody zone={zone} rank={rank} text={text} />
+      <RankItemBody zone={zone} rank={rank} label={label} text={text} />
     </motion.div>
   );
 }
@@ -1602,10 +2053,12 @@ function DraggableRankItem({
 function RankItemBody({
   zone,
   rank,
+  label,
   text,
 }: {
   zone: "slot" | "pool";
   rank?: number;
+  label?: string;
   text: string;
 }) {
   return (
@@ -1623,6 +2076,15 @@ function RankItemBody({
           {rank}
         </span>
       )}
+      {label && (
+        <span
+          className="text-[13px] font-semibold tabular-nums shrink-0"
+          style={{ color: "var(--text-muted)" }}
+          aria-hidden="true"
+        >
+          {label}
+        </span>
+      )}
       <span
         className="text-[15px] flex-1 min-w-0"
         style={{ color: "var(--text-primary)", lineHeight: 1.4 }}
@@ -1636,10 +2098,12 @@ function RankItemBody({
 function DragOverlayItem({
   zone,
   rank,
+  label,
   text,
 }: {
   zone: "slot" | "pool";
   rank?: number;
+  label?: string;
   text: string;
 }) {
   return (
@@ -1652,7 +2116,7 @@ function DragOverlayItem({
       }}
       className="flex items-center gap-3 pl-2 pr-4 py-3 sm:py-3.5 rounded-card border-2 cursor-grabbing touch-none min-h-[56px] sm:min-h-[64px] select-none"
     >
-      <RankItemBody zone={zone} rank={rank} text={text} />
+      <RankItemBody zone={zone} rank={rank} label={label} text={text} />
     </div>
   );
 }
@@ -1661,6 +2125,7 @@ function RankingPool({
   qid,
   pool,
   itemMap,
+  labels,
   locale,
   allPlaced,
   activeDragId,
@@ -1668,6 +2133,7 @@ function RankingPool({
   qid: string;
   pool: string[];
   itemMap: Map<string, { id: string; text: string }>;
+  labels: Record<string, string>;
   locale: Locale;
   allPlaced: boolean;
   activeDragId: string | null;
@@ -1723,6 +2189,7 @@ function RankingPool({
                 key={id}
                 id={id}
                 zone="pool"
+                label={labels[id]}
                 text={item.text || "(no text)"}
               />
             );

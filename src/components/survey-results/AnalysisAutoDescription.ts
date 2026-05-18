@@ -3,7 +3,9 @@ import type { QuestionResult } from "./types";
 const TYPE_NOUN: Record<string, string> = {
   "multiple-choice": "multiple-choice questions",
   "archetype-ranking": "archetype-ranking questions",
+  "archetype-top3": "archetype top-3 questions",
   "general-ranking": "ranking questions",
+  "general-top3": "top-3 questions",
   "open-text": "open-text questions",
 };
 

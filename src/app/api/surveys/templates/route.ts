@@ -13,6 +13,7 @@ type TemplateLike = {
   status: string;
   archetypeIds?: string[];
   defaultRankWeights?: number[];
+  defaultTop3Weights?: number[];
   closingOpenQuestion?: unknown;
   version?: number;
   createdBy: string;
@@ -28,6 +29,7 @@ function serializeTemplate(doc: TemplateLike) {
     status: doc.status,
     archetypeIds: doc.archetypeIds ?? [],
     defaultRankWeights: doc.defaultRankWeights ?? [5, 4, 3, 2, 1],
+    defaultTop3Weights: doc.defaultTop3Weights ?? [5, 3, 1],
     closingOpenQuestion: doc.closingOpenQuestion ?? undefined,
     version: doc.version ?? 1,
     createdBy: doc.createdBy,
@@ -78,7 +80,7 @@ export async function POST(req: NextRequest) {
 
   await connectDB();
   const body = await req.json();
-  const { name, description, archetypeIds, defaultRankWeights } = body;
+  const { name, description, archetypeIds, defaultRankWeights, defaultTop3Weights } = body;
 
   if (!name?.trim()) {
     return NextResponse.json({ error: "Name is required" }, { status: 400 });
@@ -95,12 +97,18 @@ export async function POST(req: NextRequest) {
       ? defaultRankWeights.map((w: unknown) => Number(w))
       : Array.from({ length: archetypeIds.length }, (_, i) => archetypeIds.length - i);
 
+  const top3 =
+    Array.isArray(defaultTop3Weights) && defaultTop3Weights.length === 3
+      ? defaultTop3Weights.map((w: unknown) => Number(w))
+      : [5, 3, 1];
+
   const doc = await SurveyTemplateModel.create({
     name: name.trim(),
     description: description?.trim() || undefined,
     status: "active",
     archetypeIds,
     defaultRankWeights: weights,
+    defaultTop3Weights: top3,
     version: 1,
     createdBy: session!.user.id,
   });
