@@ -42,7 +42,13 @@ export default function ArchetypeAsIsSurveyListPage() {
     fetch("/api/surveys/sessions")
       .then((r) => r.json())
       .then((data) => {
-        setSessions(data);
+        // API returns an array on success and { error } on 401/403. Coerce so
+        // a permission-denied response doesn't crash the page on .filter().
+        setSessions(Array.isArray(data) ? data : []);
+        setLoading(false);
+      })
+      .catch(() => {
+        setSessions([]);
         setLoading(false);
       });
   }, []);
