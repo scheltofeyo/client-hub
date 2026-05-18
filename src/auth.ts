@@ -80,6 +80,25 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       return true;
     },
 
+    /**
+     * Runs on every request that decodes the JWT. We minimize DB work in three
+     * tiers:
+     *
+     *  1. `trigger === "update"` — client-initiated session.update(). Merge the
+     *     supplied fields (only `seenWhatsNewIds` today) and return. Zero DB.
+     *  2. First sign-in (`account?.provider === "google"`) — fetch user + role +
+     *     lead settings to seed the token. One-time cost.
+     *  3. Subsequent requests — gated by a 15-minute `statusCheckedAt` window.
+     *     Within the window: zero DB. At the boundary: re-read the user (cheap,
+     *     by _id) to detect status flips, then skip the RoleModel lookup if the
+     *     user's role slug hasn't changed (`token.role === dbUser.role`).
+     *     Lead settings are always re-read because they are a global singleton
+     *     that admins can flip without changing any user's role.
+     *
+     * Permission / role changes take effect on the next refresh after the
+     * 15-minute boundary (worst case ~15 min latency). This is documented in
+     * CLAUDE.md and acceptable for our team size.
+     */
     async jwt({ token, account, trigger, session }) {
       // Client-initiated session.update() — merge new seenWhatsNewIds into the token
       // so dismissals persist across page reloads without hitting the DB on every render.
@@ -120,12 +139,15 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             token.permissions = [];
             token.leadPermissions = [];
           } else {
-            const [role, leadPerms] = await Promise.all([
-              RoleModel.findOne({ slug: dbUser.role }).lean(),
-              getLeadSettings(),
-            ]);
-            token.permissions = role?.permissions ?? [];
-            token.leadPermissions = leadPerms;
+            // Role-version shortcut: skip the RoleModel lookup when the user's
+            // role slug is unchanged. The cached permissions on the token are
+            // still valid in that case.
+            if (dbUser.role !== token.role) {
+              const role = await RoleModel.findOne({ slug: dbUser.role }).lean();
+              token.role = dbUser.role;
+              token.permissions = role?.permissions ?? [];
+            }
+            token.leadPermissions = await getLeadSettings();
             token.seenWhatsNewIds = dbUser.seenWhatsNewIds ?? [];
           }
           token.statusCheckedAt = now;

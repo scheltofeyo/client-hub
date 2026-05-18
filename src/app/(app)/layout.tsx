@@ -6,6 +6,11 @@ import WhatsNewLauncher from "@/components/ui/WhatsNewLauncher";
 import { auth } from "@/auth";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
+  // `auth()` here decodes the JWT to seed SessionProviderWrapper for client
+  // components. With the role-version shortcut in src/auth.ts the warm path
+  // is a pure in-memory JWT decode (no DB), so this does not block navigation
+  // in practice. The layout stays dynamic because per-user permissions in the
+  // session payload make caching the rendered output across users incorrect.
   const session = await auth();
   return (
     <SessionProviderWrapper session={session}>

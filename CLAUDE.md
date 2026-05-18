@@ -32,7 +32,11 @@ Required in `.env.local`:
 - `GAS_FOLDER_WEBHOOK_SECRET` — Shared secret matching `WEBHOOK_SECRET` in GAS Script Properties
 - `APP_URL` — Production URL (HTTPS, no trailing slash) — used as the GAS callback base URL
 
-All six must also be set in Netlify → Site settings → Environment variables.
+Required in production (Netlify) on top of the above:
+- `AUTH_URL` — Production URL (HTTPS, no trailing slash, same value as `APP_URL`). Auth.js 5 uses this to derive the cookie domain and CSRF origin. **Without it sign-out works on localhost but fails silently in production**: the POST to `/api/auth/signout` is rejected by the CSRF check, cookies stay set, and the post-signout redirect to `/login` immediately picks up the still-valid session and bounces back into the app.
+- `AUTH_TRUST_HOST=true` — belt-and-braces for Netlify's reverse-proxy setup. The code config also sets `trustHost: true` but the env var is what Auth.js consults first.
+
+All eight env vars must be set in Netlify → Site settings → Environment variables for production to work correctly.
 
 ## Architecture
 
