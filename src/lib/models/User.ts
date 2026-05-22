@@ -47,6 +47,10 @@ export interface IUser extends Document {
   // UI: ids of "What's new" releases the user has already dismissed/seen
   seenWhatsNewIds: string[];
 
+  // Kudos: timestamp of last time the user opened /tools/kudos.
+  // Used to compute the "unread" indicator on the Tools icon.
+  lastKudosSeenAt?: Date;
+
   // Computed (auto-synced via hooks)
   name: string;
   image?: string;
@@ -119,6 +123,9 @@ const UserSchema = new Schema<IUser>(
 
     // UI: dismissed/seen "What's new" release ids
     seenWhatsNewIds: { type: [String], default: [] },
+
+    // Kudos: last time the user opened /tools/kudos
+    lastKudosSeenAt: { type: Date },
 
     // Computed
     name: { type: String, required: true },

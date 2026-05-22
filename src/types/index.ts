@@ -445,3 +445,67 @@ export interface WeekTeamData {
   birthdays: BirthdayItem[];
   leaveTypes: LeaveType[];
 }
+
+// ── Kudos (Schouderklopjes) ────────────────────────────────────────
+
+export type KudosReactionEmoji = "clap" | "raise" | "heart" | "fire";
+
+export interface KudosCategory {
+  id: string;
+  slug: string;
+  label: string;
+  color: string;
+  icon: string;
+  rank: number;
+}
+
+export interface KudosRecipient {
+  userId: string;
+  name: string;
+  image?: string;
+}
+
+export interface KudosReaction {
+  userId: string;
+  emoji: KudosReactionEmoji;
+  createdAt: string;
+}
+
+export interface Kudos {
+  id: string;
+  fromUserId: string;
+  fromUserName: string;
+  fromUserImage?: string;
+  toUserIds: string[];
+  toUsers: KudosRecipient[];
+  message: string;
+  categoryId?: string;
+  categorySnapshot?: {
+    slug: string;
+    label: string;
+    color: string;
+    icon: string;
+  };
+  reactions: KudosReaction[];
+  createdAt: string;
+}
+
+export interface KudosUnreadCount {
+  count: number;
+}
+
+export interface KudosLeaderItem {
+  userId: string;
+  name: string;
+  image?: string;
+  count: number;
+}
+
+export interface KudosStats {
+  weekTotal: number;
+  monthTotal: number;
+  topReceiversWeek: KudosLeaderItem[];
+  topGiversWeek: KudosLeaderItem[];
+  topReceiversMonth: KudosLeaderItem[];
+  topGiversMonth: KudosLeaderItem[];
+}

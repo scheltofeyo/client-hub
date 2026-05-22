@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSession } from "next-auth/react";
-import { CalendarDays, ListOrdered, Dices, Mail, ClipboardList } from "lucide-react";
+import { CalendarDays, ListOrdered, Dices, Mail, ClipboardList, HandHeart } from "lucide-react";
 import PageHeader from "@/components/layout/PageHeader";
 
 const categories = [
@@ -22,6 +22,13 @@ const categories = [
         description: "Generate your SUMM email signature from your profile in seconds.",
         icon: Mail,
         requires: "tools.emailSignature.access",
+      },
+      {
+        href: "/tools/kudos",
+        label: "Schouderklopjes",
+        description: "Geef en ontvang waardering binnen het team met een korte boodschap of emoji.",
+        icon: HandHeart,
+        requires: "tools.kudos.access",
       },
     ],
   },

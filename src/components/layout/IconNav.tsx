@@ -11,11 +11,12 @@ import {
   Wrench,
 } from "lucide-react";
 import UserMenu from "./UserMenu";
+import { useKudosUnreadCount } from "@/hooks/useKudosUnreadCount";
 
-const topItems: { href: string; label: string; icon: typeof LayoutDashboard; requires?: string }[] = [
+const topItems: { href: string; label: string; icon: typeof LayoutDashboard; requires?: string; showKudosDot?: boolean }[] = [
   { href: "/my-day", label: "Dashboard", icon: LayoutDashboard },
   { href: "/clients", label: "Clients", icon: Building2 },
-  { href: "/tools", label: "Tools", icon: Wrench, requires: "tools.access" },
+  { href: "/tools", label: "Tools", icon: Wrench, requires: "tools.access", showKudosDot: true },
 ];
 
 function openCalendarPopup() {
@@ -36,6 +37,7 @@ export default function IconNav() {
   const isActive = (href: string) => pathname.startsWith(href);
   const perms = session?.user?.permissions ?? [];
   const canAccessAdmin = perms.includes("admin.access");
+  const kudosUnread = useKudosUnreadCount();
 
   return (
     <nav
@@ -54,18 +56,26 @@ export default function IconNav() {
 
       {/* Top nav */}
       <div className="flex flex-col items-center gap-2 w-full px-3">
-        {topItems.map(({ href, label, icon: Icon, requires }) => {
+        {topItems.map(({ href, label, icon: Icon, requires, showKudosDot }) => {
           if (requires && !(session?.user?.permissions ?? []).includes(requires)) return null;
           const active = isActive(href);
+          const showDot = showKudosDot && kudosUnread > 0;
           return (
             <Link
               key={href}
               href={href}
               aria-label={label}
               data-active={active}
-              className="flex items-center justify-center rounded-xl w-[44px] h-[44px] transition-colors nav-icon-item"
+              className="relative flex items-center justify-center rounded-xl w-[44px] h-[44px] transition-colors nav-icon-item"
             >
               <Icon size={17} strokeWidth={active ? 2.2 : 1.8} />
+              {showDot && (
+                <span
+                  aria-label={`${kudosUnread} ongelezen schouderklopjes`}
+                  className="absolute top-2 right-2 w-2 h-2 rounded-full"
+                  style={{ background: "var(--primary)" }}
+                />
+              )}
             </Link>
           );
         })}

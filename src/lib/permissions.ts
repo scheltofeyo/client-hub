@@ -104,7 +104,9 @@ export const ALL_PERMISSIONS = [
   "tools.surveys.viewOthers",
   "tools.surveys.editAny",
   "tools.surveys.deleteAny",
+  "tools.kudos.access",
   "admin.surveys.manageTemplates",
+  "admin.kudosCategories",
 ] as const;
 
 export type Permission = (typeof ALL_PERMISSIONS)[number];
@@ -160,7 +162,9 @@ export const PERMISSION_DEPENDENCIES: Partial<Record<Permission, Permission>> = 
   "tools.surveys.viewOthers": "tools.surveys.access",
   "tools.surveys.editAny": "tools.surveys.viewOthers",
   "tools.surveys.deleteAny": "tools.surveys.viewOthers",
+  "tools.kudos.access": "tools.access",
   "admin.surveys.manageTemplates": "admin.access",
+  "admin.kudosCategories": "admin.access",
 };
 
 /** Given a permission, return all permissions it transitively depends on. */
@@ -303,6 +307,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       { key: "admin.leaveTypes", label: "Manage leave types", requires: "admin.access" },
       { key: "admin.companyHolidays", label: "Manage company holidays", requires: "admin.access" },
       { key: "admin.surveys.manageTemplates", label: "Manage Survey templates", requires: "admin.access" },
+      { key: "admin.kudosCategories", label: "Manage kudos categories", requires: "admin.access" },
     ],
   },
   {
@@ -339,6 +344,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       { key: "tools.surveys.viewOthers", label: "View survey sessions from others", requires: "tools.surveys.access" },
       { key: "tools.surveys.editAny", label: "Edit anyone's survey sessions", requires: "tools.surveys.viewOthers" },
       { key: "tools.surveys.deleteAny", label: "Delete anyone's survey sessions", requires: "tools.surveys.viewOthers" },
+      { key: "tools.kudos.access", label: "Access Schouderklopjes (Kudos)", requires: "tools.access" },
     ],
   },
 ];
@@ -444,4 +450,7 @@ export const MEMBER_PERMISSIONS: Permission[] = [
   // Workshop tools
   "tools.spinTheWheel.access",
   "tools.emailSignature.access",
+
+  // Kudos
+  "tools.kudos.access",
 ];

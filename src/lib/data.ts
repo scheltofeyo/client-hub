@@ -26,7 +26,9 @@ import { RoleModel } from "./models/Role";
 import { LeaveTypeModel, DEFAULT_LEAVE_TYPES } from "./models/LeaveType";
 import { TimeOffModel } from "./models/TimeOff";
 import { CompanyHolidayModel } from "./models/CompanyHoliday";
-import type { Archetype, BirthdayItem, Client, ClientLead, ClientPlatformOption, ClientStatusOption, CompanyHoliday, Contact, DashboardStats, EventType, LeaveType, Log, LogSignal, MyDayFollowUpData, MyDayTaskData, MyDayUserInfo, MyProjectOverview, Project, ProjectLabel, ProjectRole, ProjectStatus, ProjectTemplate, RecurrenceUnit, Service, Session, Sheet, Task, TemplateSession, TemplateTask, TimelineEvent, TimeOffEntry, TimeOffBalance, WeekTeamData } from "@/types";
+import { KudosModel } from "./models/Kudos";
+import { KudosCategoryModel, DEFAULT_KUDOS_CATEGORIES } from "./models/KudosCategory";
+import type { Archetype, BirthdayItem, Client, ClientLead, ClientPlatformOption, ClientStatusOption, CompanyHoliday, Contact, DashboardStats, EventType, Kudos, KudosCategory, LeaveType, Log, LogSignal, MyDayFollowUpData, MyDayTaskData, MyDayUserInfo, MyProjectOverview, Project, ProjectLabel, ProjectRole, ProjectStatus, ProjectTemplate, RecurrenceUnit, Service, Session, Sheet, Task, TemplateSession, TemplateTask, TimelineEvent, TimeOffEntry, TimeOffBalance, WeekTeamData } from "@/types";
 import type { WeekCalendarItem } from "@/lib/utils";
 import { mapToWeekday } from "@/lib/utils";
 
@@ -2417,4 +2419,55 @@ export async function getWeekTeamData(start: string, end: string): Promise<WeekT
   }
 
   return { timeOff, companyHolidays, birthdays, leaveTypes };
+}
+
+export async function getKudosCategories(): Promise<KudosCategory[]> {
+  await connectDB();
+  await Promise.all(
+    DEFAULT_KUDOS_CATEGORIES.map((c, i) =>
+      KudosCategoryModel.updateOne(
+        { slug: c.slug },
+        { $setOnInsert: { ...c, rank: i } },
+        { upsert: true }
+      )
+    )
+  );
+  const docs = await KudosCategoryModel.find().sort({ rank: 1, createdAt: 1 }).lean();
+  return docs.map((d) => ({
+    id: d._id.toString(),
+    slug: d.slug,
+    label: d.label,
+    color: d.color,
+    icon: d.icon,
+    rank: d.rank ?? 0,
+  }));
+}
+
+export async function getRecentKudosForUser(userId: string, limit = 3): Promise<Kudos[]> {
+  await connectDB();
+  const docs = await KudosModel.find({ toUserIds: userId })
+    .sort({ createdAt: -1 })
+    .limit(limit)
+    .lean();
+  return docs.map((d) => ({
+    id: d._id.toString(),
+    fromUserId: d.fromUserId,
+    fromUserName: d.fromUserName,
+    fromUserImage: d.fromUserImage ?? undefined,
+    toUserIds: d.toUserIds,
+    toUsers: (d.toUsers ?? []).map((u) => ({
+      userId: u.userId,
+      name: u.name,
+      image: u.image ?? undefined,
+    })),
+    message: d.message,
+    categoryId: d.categoryId ?? undefined,
+    categorySnapshot: d.categorySnapshot ?? undefined,
+    reactions: (d.reactions ?? []).map((r) => ({
+      userId: r.userId,
+      emoji: r.emoji,
+      createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : String(r.createdAt),
+    })),
+    createdAt: d.createdAt?.toISOString(),
+  }));
 }
