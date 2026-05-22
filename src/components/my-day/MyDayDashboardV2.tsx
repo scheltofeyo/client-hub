@@ -15,6 +15,7 @@ interface Props {
   eventsSlot: ReactNode;
   tasksSlot: ReactNode;
   userInfoSlot: ReactNode;
+  kudosSlot?: ReactNode;
 }
 
 export default function MyDayDashboardV2({
@@ -23,6 +24,7 @@ export default function MyDayDashboardV2({
   eventsSlot,
   tasksSlot,
   userInfoSlot,
+  kudosSlot,
 }: Props) {
   const greeting = getGreeting();
   const today = new Date().toLocaleDateString("en-US", {
@@ -46,6 +48,7 @@ export default function MyDayDashboardV2({
           <section>{ganttSlot}</section>
           <section>{eventsSlot}</section>
           <section>{tasksSlot}</section>
+          {kudosSlot && <section>{kudosSlot}</section>}
         </div>
 
         <div className="w-1/3 flex-none">{userInfoSlot}</div>

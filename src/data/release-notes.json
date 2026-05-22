@@ -1,5 +1,16 @@
 [
   {
+    "date": "2026-05-22",
+    "title": "Nieuwe tool: Schouderklopjes",
+    "details": [
+      "Geef en ontvang waardering binnen het team via /tools/kudos",
+      "Reageer met 👏 🙌 ❤️ of 🔥 op een kudo van een collega",
+      "Klein puntje op het Tools-icoon laat zien dat er ongelezen kudos zijn",
+      "Eigen widget op My Day met je recent ontvangen schouderklopjes",
+      "Categorieën beheerbaar onder Admin → Labels and Types → Kudos Categories"
+    ]
+  },
+  {
     "date": "2026-05-18",
     "title": "Aparte scoring weights voor Top 3 vragen",
     "details": [

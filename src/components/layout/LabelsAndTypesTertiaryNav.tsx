@@ -15,6 +15,7 @@ const tabs: { label: string; value: string; requires: Permission }[] = [
   { label: "Project Roles",    value: "project-roles",    requires: "admin.projectRoles" },
   { label: "Leave Types",      value: "leave-types",      requires: "admin.leaveTypes" },
   { label: "Company Holidays", value: "company-holidays",  requires: "admin.companyHolidays" },
+  { label: "Kudos Categories", value: "kudos-categories", requires: "admin.kudosCategories" },
 ];
 
 export default function LabelsAndTypesTertiaryNav({ permissions = [] }: { permissions?: string[] }) {

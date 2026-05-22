@@ -5,6 +5,7 @@ import { UserModel } from "@/lib/models/User";
 import { RoleModel } from "@/lib/models/Role";
 import { TaskModel } from "@/lib/models/Task";
 import { ProjectModel } from "@/lib/models/Project";
+import { KudosModel } from "@/lib/models/Kudos";
 import { getLeadSettings } from "@/lib/models/LeadSettings";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
@@ -73,6 +74,15 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         ProjectModel.updateMany(
           { "members.userId": userId },
           { $set: { "members.$[elem].image": user.image } },
+          { arrayFilters: [{ "elem.userId": userId }] }
+        ).catch(() => {});
+        KudosModel.updateMany(
+          { fromUserId: userId },
+          { $set: { fromUserImage: user.image } }
+        ).catch(() => {});
+        KudosModel.updateMany(
+          { "toUsers.userId": userId },
+          { $set: { "toUsers.$[elem].image": user.image } },
           { arrayFilters: [{ "elem.userId": userId }] }
         ).catch(() => {});
       }

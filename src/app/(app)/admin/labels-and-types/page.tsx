@@ -14,6 +14,7 @@ import {
   getProjectRoles,
   getLeaveTypes,
   getCompanyHolidays,
+  getKudosCategories,
 } from "@/lib/data";
 import PageHeader from "@/components/layout/PageHeader";
 import LabelsAndTypesTertiaryNav from "@/components/layout/LabelsAndTypesTertiaryNav";
@@ -27,6 +28,7 @@ import AdminProjectLabelsTable from "../AdminProjectLabelsTable";
 import AdminProjectRolesTable from "../AdminProjectRolesTable";
 import AdminLeaveTypesTable from "../AdminLeaveTypesTable";
 import AdminCompanyHolidaysTable from "../AdminCompanyHolidaysTable";
+import AdminKudosCategoriesTable from "../AdminKudosCategoriesTable";
 
 const validTabs = [
   "archetypes",
@@ -39,6 +41,7 @@ const validTabs = [
   "project-roles",
   "leave-types",
   "company-holidays",
+  "kudos-categories",
 ] as const;
 
 type Tab = (typeof validTabs)[number];
@@ -84,6 +87,7 @@ export default async function LabelsAndTypesPage({
         {activeTab === "project-roles" && perms.includes("admin.projectRoles") && <ProjectRolesSection />}
         {activeTab === "leave-types" && perms.includes("admin.leaveTypes") && <LeaveTypesSection />}
         {activeTab === "company-holidays" && perms.includes("admin.companyHolidays") && <CompanyHolidaysSection />}
+        {activeTab === "kudos-categories" && perms.includes("admin.kudosCategories") && <KudosCategoriesSection />}
       </div>
     </div>
   );
@@ -205,6 +209,18 @@ async function CompanyHolidaysSection() {
         Company-wide holidays shown as highlighted columns on the team calendar. These apply to all team members.
       </p>
       <AdminCompanyHolidaysTable initialHolidays={holidays} />
+    </>
+  );
+}
+
+async function KudosCategoriesSection() {
+  const categories = await getKudosCategories();
+  return (
+    <>
+      <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>
+        Categorieën die teamleden kunnen kiezen wanneer ze een schouderklopje geven.
+      </p>
+      <AdminKudosCategoriesTable initialCategories={categories} />
     </>
   );
 }
