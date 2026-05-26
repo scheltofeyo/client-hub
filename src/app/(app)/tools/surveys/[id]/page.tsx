@@ -547,6 +547,7 @@ export default function SurveyDetailPage() {
         >
           <div className="mx-auto max-w-5xl px-7 py-6">
             <ResultsTab
+              sessionId={id}
               results={results}
               loading={loading}
               shareUrl={shareUrl}

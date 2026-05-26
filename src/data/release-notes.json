@@ -1,5 +1,15 @@
 [
   {
+    "date": "2026-05-26",
+    "title": "Survey-resultaten exporteren als Markdown",
+    "details": [
+      "Nieuwe 'Exporteer' knop in de Resultaten-tab van een survey-sessie",
+      "Genereert één compleet markdown-bestand met sessie-metadata, scoring-instellingen (rankWeights, top3Weights), per vraagtype een uitleg hoe de scoring werkt, geaggregeerde resultaten én alle individuele antwoorden per deelnemer (geanonimiseerd als Deelnemer 1, 2, …)",
+      "Twee acties: direct downloaden als .md of kopiëren naar het klembord — handig om aan een LLM te voeren voor analyse",
+      "Knop verschijnt zodra er minimaal één completed submission is en respecteert dezelfde permissies als de Resultaten-tab"
+    ]
+  },
+  {
     "date": "2026-05-23",
     "title": "Formeel voorstel-document: tweetalig, Aanleiding & aanpak, voorbehoud, juridisch",
     "details": [
