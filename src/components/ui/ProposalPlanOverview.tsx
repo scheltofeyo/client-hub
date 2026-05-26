@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import UserAvatar from "@/components/ui/UserAvatar";
+import { readableFg } from "@/lib/styles";
 
 interface OverviewSession {
   id: string;
@@ -169,6 +170,7 @@ function ProjectRow({
   brandColor: string;
   onSelect: (id: string) => void;
 }) {
+  const fg = brandColor.startsWith("#") ? readableFg(brandColor) : "#ffffff";
   return (
     <div
       className="relative"
@@ -188,7 +190,7 @@ function ProjectRow({
             width: `${widthPct}%`,
             background: brandColor,
             opacity: isHovered ? 1 : 0.85,
-            color: "#fff",
+            color: fg,
             paddingLeft: 10,
             paddingRight: 10,
             overflow: "hidden",
@@ -226,17 +228,14 @@ function FloatingTooltip({
 
   return (
     <div
-      className="absolute z-30 rounded-lg pointer-events-none"
+      className="absolute z-30 rounded-lg pointer-events-none bg-surface border border-border-default text-text-primary"
       style={{
         bottom: "calc(100% + 8px)",
         left: `${clamped}%`,
         transform: "translateX(-50%)",
         width: 280,
-        background: "var(--bg-surface)",
-        border: "1px solid var(--border)",
-        color: "var(--text-primary)",
         padding: 12,
-        boxShadow: "0 10px 30px -12px rgba(0,0,0,0.25)",
+        boxShadow: "var(--shadow-sheet)",
       }}
     >
       <p className="text-sm font-semibold leading-tight">{project.title}</p>

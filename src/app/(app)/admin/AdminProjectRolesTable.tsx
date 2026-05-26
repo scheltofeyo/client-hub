@@ -37,6 +37,8 @@ function RoleForm({
   const [externalCostRate, setExternalCostRate] = useState(
     initial?.externalCostRate != null ? String(initial.externalCostRate) : ""
   );
+  const [bioNL, setBioNL] = useState((initial as { bioNL?: string } | undefined)?.bioNL ?? "");
+  const [bioEN, setBioEN] = useState((initial as { bioEN?: string } | undefined)?.bioEN ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const router = useRouter();
@@ -52,6 +54,8 @@ function RoleForm({
       marginMultiplier: marginMultiplier.trim() === "" ? 1 : Number(marginMultiplier),
       isExternal,
       externalCostRate: isExternal && externalCostRate.trim() !== "" ? Number(externalCostRate) : null,
+      bioNL: bioNL.trim(),
+      bioEN: bioEN.trim(),
     };
     const url = isEdit ? `/api/project-roles/${initial!.id}` : "/api/project-roles";
     const method = isEdit ? "PATCH" : "POST";
@@ -149,6 +153,28 @@ function RoleForm({
           </p>
         </div>
       )}
+      <div>
+        <label className="typo-label">Bio (NL)</label>
+        <textarea
+          rows={3}
+          value={bioNL}
+          onChange={(e) => setBioNL(e.target.value)}
+          placeholder="Korte beschrijving die op de team-pagina van het voorstel verschijnt."
+          className={inputClass}
+          style={inputStyle}
+        />
+      </div>
+      <div>
+        <label className="typo-label">Bio (EN)</label>
+        <textarea
+          rows={3}
+          value={bioEN}
+          onChange={(e) => setBioEN(e.target.value)}
+          placeholder="Short bio shown on the proposal team page."
+          className={inputClass}
+          style={inputStyle}
+        />
+      </div>
       <div className="flex gap-2 pt-2">
         <button
           type="button"

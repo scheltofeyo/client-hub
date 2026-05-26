@@ -10,6 +10,7 @@ import { ServiceModel } from "@/lib/models/Service";
 import { hasPermission, hasPermissionOrIsLead } from "@/lib/auth-helpers";
 import { ensureUniqueShareCode } from "@/lib/share-codes";
 import { recordActivity } from "@/lib/activity";
+import { allocateNextProposalNumber } from "@/lib/models/ProposalSequence";
 
 type AnyDoc = Record<string, unknown> & { _id: { toString(): string } };
 
@@ -130,6 +131,13 @@ function serializePlan(input: unknown) {
     acceptedAt: doc.acceptedAt ?? null,
     presentedAt: doc.presentedAt ?? null,
     acceptanceLog: deriveAcceptanceLog(doc),
+    language: (doc.language as string | undefined) ?? "nl",
+    validUntilDate: (doc.validUntilDate as string | undefined) ?? null,
+    proposalNumber: (doc.proposalNumber as string | undefined) ?? null,
+    versionLabel: (doc.versionLabel as string | undefined) ?? null,
+    challenge: (doc.challenge as string | undefined) ?? null,
+    context: (doc.context as string | undefined) ?? null,
+    approach: (doc.approach as string | undefined) ?? null,
     createdAt: (doc.createdAt as Date | undefined)?.toISOString?.() ?? null,
     updatedAt: (doc.updatedAt as Date | undefined)?.toISOString?.() ?? null,
   };
@@ -251,6 +259,26 @@ export async function PATCH(
   if (body.discountValue !== undefined) update.discountValue = body.discountValue == null || body.discountValue === "" ? null : Number(body.discountValue);
   if (body.vatRate !== undefined) update.vatRate = body.vatRate == null || body.vatRate === "" ? null : Number(body.vatRate);
 
+  if (body.language !== undefined) {
+    if (body.language !== "nl" && body.language !== "en") {
+      return NextResponse.json({ error: "Invalid language (nl or en)" }, { status: 400 });
+    }
+    update.language = body.language;
+  }
+  if (body.validUntilDate !== undefined) {
+    update.validUntilDate = typeof body.validUntilDate === "string" && body.validUntilDate.trim()
+      ? body.validUntilDate.trim()
+      : null;
+  }
+  if (body.versionLabel !== undefined) {
+    update.versionLabel = typeof body.versionLabel === "string" && body.versionLabel.trim()
+      ? body.versionLabel.trim()
+      : null;
+  }
+  if (body.challenge !== undefined) update.challenge = body.challenge || null;
+  if (body.context !== undefined) update.context = body.context || null;
+  if (body.approach !== undefined) update.approach = body.approach || null;
+
   if (body.status !== undefined) {
     if (!["draft", "ready", "accepted", "archived"].includes(body.status)) {
       return NextResponse.json({ error: "Invalid status" }, { status: 400 });
@@ -264,9 +292,15 @@ export async function PATCH(
   }
 
   // Detect status transitions that warrant an activity / acceptance-log entry
-  const prior = await ProjectPlanModel.findOne({ _id: planId, clientId: id }, { status: 1 }).lean();
+  const prior = await ProjectPlanModel.findOne({ _id: planId, clientId: id }, { status: 1, proposalNumber: 1 }).lean();
   const isMarkAsReady = prior && prior.status !== "ready" && update.status === "ready";
   const isArchive = prior && prior.status !== "archived" && update.status === "archived";
+
+  // First mark-as-ready (and the plan has no number yet): mint one.
+  // Atomic counter via ProposalSequence.findOneAndUpdate $inc/upsert.
+  if (isMarkAsReady && !prior?.proposalNumber) {
+    update.proposalNumber = await allocateNextProposalNumber();
+  }
 
   const mongoUpdate: Record<string, unknown> = { $set: update };
   if (isMarkAsReady) {

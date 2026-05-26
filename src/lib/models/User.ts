@@ -40,6 +40,9 @@ export interface IUser extends Document {
   role: string;
   status: "invited" | "active" | "inactive";
 
+  /** Linked ProjectRole — drives "functie" on proposals and inherits the role's bilingual bio. */
+  projectRoleId?: string;
+
   // Invitation tracking
   invitedBy?: Types.ObjectId;
   invitedAt?: Date;
@@ -112,6 +115,9 @@ const UserSchema = new Schema<IUser>(
     // Role & status
     role: { type: String, default: "member" },
     status: { type: String, enum: ["invited", "active", "inactive"], default: "active" },
+
+    // Linked ProjectRole (consultant function)
+    projectRoleId: { type: String },
 
     // Invitation tracking
     invitedBy: { type: Schema.Types.ObjectId, ref: "User" },

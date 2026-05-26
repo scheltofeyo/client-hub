@@ -1,5 +1,46 @@
 [
   {
+    "date": "2026-05-23",
+    "title": "Formeel voorstel-document: tweetalig, Aanleiding & aanpak, voorbehoud, juridisch",
+    "details": [
+      "Per voorstel instelbare taal (NL of EN) — alle copy op de publieke pagina en in de PDF past zich aan; geen taalwisselaar op de publieke pagina",
+      "Nieuwe velden op het voorstel: probleemomschrijving, aanleiding/context, aanpakbeschrijving, versielabel, geldig tot",
+      "Offertenummer (SUMM-{jaar}-{volgnummer}) wordt automatisch toegekend bij Mark as ready",
+      "Nieuwe 'Voorbehoud & tarieven'-sectie met uurtarieven afgeleid uit de ProjectRole-tabel + facturatieconditie + geldig-tot",
+      "Nieuwe 'Juridisch'-sectie met inklapbare algemene voorwaarden (admin bewerkbaar via Documents → Terms and conditions, tweetalig)",
+      "PDF compleet vernieuwd als formele meerpagina-document: voorpagina (SUMM-identiteit + voorstel-meta + klant + opsteller), Aanleiding & aanpak (uitdaging, context, aanpak, planning, team met rol-bio's), projecten, investering, voorbehoud, juridisch, en handtekening",
+      "Klant-form: 4 adresvelden voor de PDF-voorpagina (straat, postcode, plaats, land)",
+      "ProjectRole-form: tweetalige bio NL/EN — verschijnt onder de naam op de PDF team-pagina",
+      "Employee-profiel: keuze van Project role — bepaalt de 'functie' op het voorstel + koppelt de bilingual bio",
+      "Nieuwe admin-sectie Organization met SUMM-identiteit (logo, adres, KvK, BTW, IBAN, website, e-mail)",
+      "Na acceptatie: 'Download voorstel als PDF'-knop in zowel de succes-state als de bestaande accepted-card"
+    ]
+  },
+  {
+    "date": "2026-05-22",
+    "title": "Exporteer voorstellen naar PDF",
+    "details": [
+      "Nieuw kebab-menu item 'Open PDF preview' opent /proposal/{shareCode}/pdf in een nieuw tabblad",
+      "Op de preview-pagina staat een download-knop (rechtsonder) die ook publiek bezoekers kunnen gebruiken",
+      "Eigen, compactere PDF-layout (Ubuntu-font, zwart-op-wit, strakke marges) — apart van het publieke voorstel",
+      "Server-rendered via Playwright + headless Chromium; de download-knop wordt automatisch verborgen in de gerenderde PDF",
+      "Projecten blijven heel — geen page-breaks midden in een project",
+      "Geaccepteerde voorstellen tonen een 'Officially accepted' signature-block met de naam in handschrift-stijl als digitale handtekening",
+      "Header op elke pagina: SUMM-mark + voorsteltitel; footer: 'Confidential — Prepared for {client}' + paginanummer"
+    ]
+  },
+  {
+    "date": "2026-05-22",
+    "title": "Polish van de publieke voorstel-pagina",
+    "details": [
+      "Consistente editorial typografie met nieuwe typo-proposal-* composites",
+      "Hero met gecombineerde datum-meta, strakkere ritme en 'Your contact'-callout bij de proposer",
+      "Totaalbedrag in de Investment-sectie groter en sterker in merkkleur",
+      "Polish van de Accept-CTA (shadow), tweeregelige footer, en gelijkgetrokken typografie op de in-progress / accepted / error-schermen",
+      "Tooltip- en project-pill-kleuren gebruiken nu de juiste design tokens (geen losse hex meer)"
+    ]
+  },
+  {
     "date": "2026-05-18",
     "title": "Aparte scoring weights voor Top 3 vragen",
     "details": [

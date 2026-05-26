@@ -31,6 +31,7 @@ interface EmployeeData {
   contractHours: number | null;
   contractEndDate: string;
   jobTitle: string;
+  projectRoleId?: string | null;
   phone: string;
   emergencyContactName: string;
   emergencyContactPhone: string;
@@ -58,7 +59,7 @@ const TAB_FIELDS: Record<TabKey, string[]> = {
   employment: [
     "dateStarted", "employeeNumber",
     "vacationDays", "contractType", "contractHours", "contractEndDate",
-    "jobTitle",
+    "jobTitle", "projectRoleId",
   ],
   access: ["role", "status"],
   notes: ["notes"],
@@ -181,6 +182,8 @@ export default function EmployeeDetailEditor({
   const [contractHours, setContractHours] = useState(employee.contractHours);
   const [contractEndDate, setContractEndDate] = useState(employee.contractEndDate);
   const [jobTitle, setJobTitle] = useState(employee.jobTitle);
+  const [projectRoleId, setProjectRoleId] = useState(employee.projectRoleId ?? "");
+  const [projectRoleOptions, setProjectRoleOptions] = useState<{ id: string; name: string }[]>([]);
   const [phone, setPhone] = useState(employee.phone);
   const [emergencyContactName, setEmergencyContactName] = useState(employee.emergencyContactName);
   const [emergencyContactPhone, setEmergencyContactPhone] = useState(employee.emergencyContactPhone);
@@ -208,6 +211,12 @@ export default function EmployeeDetailEditor({
       .then((r) => (r.ok ? r.json() : []))
       .then((data: Array<{ slug: string; name: string }>) =>
         setRoleOptions(data.map((r) => ({ slug: r.slug, name: r.name })))
+      )
+      .catch(() => {});
+    fetch("/api/project-roles")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data: Array<{ id: string; name: string }>) =>
+        setProjectRoleOptions(data.map((r) => ({ id: r.id, name: r.name })))
       )
       .catch(() => {});
   }, [mode]);
@@ -275,6 +284,7 @@ export default function EmployeeDetailEditor({
     contractHours,
     contractEndDate: contractEndDate || null,
     jobTitle: jobTitle || null,
+    projectRoleId: projectRoleId || null,
     notes: notes || null,
     role,
     status,
@@ -581,6 +591,23 @@ export default function EmployeeDetailEditor({
             <SectionHeading>Employment</SectionHeading>
             <Field label="Job title" hint="Shown publicly (e.g. in email signatures)">
               <TextInput value={jobTitle} onChange={setJobTitle} placeholder="Design & Experience Lead" />
+            </Field>
+            <Field label="Project role" hint="Bepaalt de 'functie' op voorstellen en koppelt de meertalige rol-bio.">
+              <select
+                value={projectRoleId}
+                onChange={(e) => setProjectRoleId(e.target.value)}
+                className="w-full text-sm px-3 py-2 rounded-lg"
+                style={{
+                  border: "1px solid var(--border)",
+                  background: "var(--bg-input)",
+                  color: "var(--text-primary)",
+                }}
+              >
+                <option value="">— Geen —</option>
+                {projectRoleOptions.map((r) => (
+                  <option key={r.id} value={r.id}>{r.name}</option>
+                ))}
+              </select>
             </Field>
             <div className="grid grid-cols-2 gap-3 mt-3">
               <Field label="Employee number">

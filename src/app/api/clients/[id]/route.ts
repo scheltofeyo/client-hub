@@ -32,7 +32,7 @@ export async function PATCH(
   }
 
   const body = await req.json();
-  const { company, status, platform, clientSince, employees, website, description, primaryColor, contacts, leads, archetypeId, culturalDna, culturalLevels } = body;
+  const { company, status, platform, clientSince, employees, website, description, primaryColor, contacts, leads, archetypeId, culturalDna, culturalLevels, addressStreet, addressPostalCode, addressCity, addressCountry } = body;
 
   if (company !== undefined && !company?.trim()) {
     return NextResponse.json({ error: "Company name cannot be empty" }, { status: 400 });
@@ -57,6 +57,10 @@ export async function PATCH(
   if (archetypeId !== undefined) update.archetypeId = archetypeId || null;
   if (culturalDna !== undefined) update.culturalDna = culturalDna;
   if (culturalLevels !== undefined) update.culturalLevels = culturalLevels;
+  if (addressStreet !== undefined) update.addressStreet = typeof addressStreet === "string" ? addressStreet.trim() || null : null;
+  if (addressPostalCode !== undefined) update.addressPostalCode = typeof addressPostalCode === "string" ? addressPostalCode.trim() || null : null;
+  if (addressCity !== undefined) update.addressCity = typeof addressCity === "string" ? addressCity.trim() || null : null;
+  if (addressCountry !== undefined) update.addressCountry = typeof addressCountry === "string" ? addressCountry.trim() || null : null;
 
   const doc = await ClientModel.findByIdAndUpdate(id, { $set: update }, { new: true }).lean();
   if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -169,6 +173,10 @@ export async function PATCH(
     leads: doc.leads ?? [],
     culturalDna: doc.culturalDna ?? [],
     culturalLevels: doc.culturalLevels ?? [],
+    addressStreet: doc.addressStreet ?? null,
+    addressPostalCode: doc.addressPostalCode ?? null,
+    addressCity: doc.addressCity ?? null,
+    addressCountry: doc.addressCountry ?? null,
   });
 }
 

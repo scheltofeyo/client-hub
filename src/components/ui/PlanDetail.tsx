@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Trash2, ChevronDown, ChevronRight, Check, X, Send, Archive, Eye, EyeOff, Pencil, ExternalLink, MoreHorizontal, Link as LinkIcon, GripVertical } from "lucide-react";
+import { Plus, Trash2, ChevronDown, ChevronRight, Check, X, Send, Archive, Eye, EyeOff, Pencil, ExternalLink, MoreHorizontal, Link as LinkIcon, GripVertical, Download, Loader2 } from "lucide-react";
 import { useRightPanel } from "@/components/layout/RightPanel";
 import { usePermission } from "@/hooks/usePermission";
 import RichTextEditor from "@/components/ui/RichTextEditor";
@@ -61,6 +61,13 @@ interface PlanData {
   acceptedAt: string | null;
   presentedAt: string | null;
   acceptanceLog?: AcceptanceEvent[];
+  language?: "nl" | "en";
+  validUntilDate?: string | null;
+  proposalNumber?: string | null;
+  versionLabel?: string | null;
+  challenge?: string | null;
+  context?: string | null;
+  approach?: string | null;
 }
 
 interface AcceptanceEvent {
@@ -156,7 +163,7 @@ function calculateProjectPayout(p: DraftProject): number {
 const inputClass =
   "w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--primary)]/40";
 const inputStyle = {
-  background: "var(--bg-sidebar)",
+  background: "var(--bg-surface)",
   borderColor: "var(--border)",
   color: "var(--text-primary)",
 };
@@ -1424,7 +1431,9 @@ export default function PlanDetail({
   const [templates, setTemplates] = useState<Template[]>([]);
   const [assignableUsers, setAssignableUsers] = useState<{ id: string; name: string; image: string | null }[]>([]);
   const [error, setError] = useState("");
-  const [activeTab, setActiveTab] = useState<"projects" | "content">("projects");
+  const [activeTab, setActiveTab] = useState<"projects" | "content" | "settings">("projects");
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
+  const saveResetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [draggingProjectId, setDraggingProjectId] = useState<string | null>(null);
   const [dragOverProjectId, setDragOverProjectId] = useState<string | null>(null);
 
@@ -1562,6 +1571,11 @@ export default function PlanDetail({
   }
 
   async function patchPlan(patch: Record<string, unknown>) {
+    if (saveResetTimer.current) {
+      clearTimeout(saveResetTimer.current);
+      saveResetTimer.current = null;
+    }
+    setSaveState("saving");
     const res = await fetch(`/api/clients/${clientId}/plans/${planId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -1570,9 +1584,12 @@ export default function PlanDetail({
     if (res.ok) {
       const updated = await res.json();
       setData((prev) => (prev ? { ...prev, plan: { ...prev.plan, ...updated } } : prev));
+      setSaveState("saved");
+      saveResetTimer.current = setTimeout(() => setSaveState("idle"), 2000);
     } else {
       const d = await res.json().catch(() => ({}));
       setError(d.error ?? "Failed to update plan");
+      setSaveState("idle");
     }
   }
 
@@ -1688,6 +1705,7 @@ export default function PlanDetail({
       {([
         { value: "projects", label: "Projects" },
         { value: "content", label: "About" },
+        { value: "settings", label: "Settings" },
       ] as const).map(({ value, label }) => {
         const active = activeTab === value;
         return (
@@ -1727,6 +1745,24 @@ export default function PlanDetail({
 
   const headerActions = (
     <>
+      {saveState !== "idle" && (
+        <span
+          className="inline-flex items-center gap-1.5 text-xs"
+          style={{ color: "var(--text-muted)" }}
+        >
+          {saveState === "saving" ? (
+            <>
+              <Loader2 size={12} className="animate-spin" />
+              <span>Saving…</span>
+            </>
+          ) : (
+            <>
+              <Check size={12} />
+              <span>Saved</span>
+            </>
+          )}
+        </span>
+      )}
       {showStatusBadge && (
         <span
           className="typo-tag inline-flex items-center px-2 py-0.5 rounded-badge"
@@ -1846,10 +1882,6 @@ export default function PlanDetail({
 
           {activeTab === "content" && (
             <div className="space-y-10">
-              <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                Changes are saved automatically.
-              </p>
-
               {/* Title */}
               <section>
                 <h3 className="typo-section-title mb-1" style={{ color: "var(--text-primary)" }}>Title</h3>
@@ -1922,6 +1954,131 @@ export default function PlanDetail({
                   className={inputClass}
                   style={inputStyle}
                 />
+              </section>
+
+              {/* Background & approach — three optional rich-text fields */}
+              <section>
+                <h3 className="typo-section-title mb-1" style={{ color: "var(--text-primary)" }}>Background &amp; approach</h3>
+                <p className="text-sm mb-3" style={{ color: "var(--text-muted)" }}>
+                  Optional — appears on the public page and in the PDF below the summary.
+                </p>
+                <div className="space-y-4">
+                  <div>
+                    <label className="typo-label">Problem description (challenge)</label>
+                    <RichTextEditor
+                      content={plan.challenge ?? ""}
+                      onChange={(html) => setData((prev) => prev ? { ...prev, plan: { ...prev.plan, challenge: html } } : prev)}
+                      onBlur={(html) => {
+                        if (planAccepted || !canEdit) return;
+                        patchPlan({ challenge: html || null });
+                      }}
+                      placeholder="What challenge is the client facing?"
+                    />
+                  </div>
+                  <div>
+                    <label className="typo-label">Background / context</label>
+                    <RichTextEditor
+                      content={plan.context ?? ""}
+                      onChange={(html) => setData((prev) => prev ? { ...prev, plan: { ...prev.plan, context: html } } : prev)}
+                      onBlur={(html) => {
+                        if (planAccepted || !canEdit) return;
+                        patchPlan({ context: html || null });
+                      }}
+                      placeholder="What's the background for this proposal?"
+                    />
+                  </div>
+                  <div>
+                    <label className="typo-label">Approach description</label>
+                    <RichTextEditor
+                      content={plan.approach ?? ""}
+                      onChange={(html) => setData((prev) => prev ? { ...prev, plan: { ...prev.plan, approach: html } } : prev)}
+                      onBlur={(html) => {
+                        if (planAccepted || !canEdit) return;
+                        patchPlan({ approach: html || null });
+                      }}
+                      placeholder="How are we going to tackle it?"
+                    />
+                  </div>
+                </div>
+              </section>
+
+            </div>
+          )}
+
+          {activeTab === "settings" && (
+            <div className="space-y-8">
+              {/* Document settings — language, validity, version, offertenummer */}
+              <section>
+                <h3 className="typo-section-title mb-1" style={{ color: "var(--text-primary)" }}>Document settings</h3>
+                <p className="text-sm mb-3" style={{ color: "var(--text-muted)" }}>
+                  Language, validity, version. The proposal number is auto-assigned on &quot;Mark as ready&quot;.
+                </p>
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="typo-label">Language</label>
+                    <select
+                      value={plan.language ?? "nl"}
+                      disabled={planAccepted || !canEdit}
+                      onChange={(e) => {
+                        const v = e.target.value === "en" ? "en" : "nl";
+                        setData((prev) => prev ? { ...prev, plan: { ...prev.plan, language: v } } : prev);
+                        patchPlan({ language: v });
+                      }}
+                      className={inputClass}
+                      style={inputStyle}
+                    >
+                      <option value="nl">Dutch</option>
+                      <option value="en">English</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="typo-label">Valid until</label>
+                    <input
+                      type="date"
+                      value={plan.validUntilDate ?? ""}
+                      disabled={planAccepted || !canEdit}
+                      onChange={(e) => {
+                        const v = e.target.value || null;
+                        setData((prev) => prev ? { ...prev, plan: { ...prev.plan, validUntilDate: v } } : prev);
+                        patchPlan({ validUntilDate: v });
+                      }}
+                      className={inputClass}
+                      style={inputStyle}
+                      title={plan.presentedAt ? "Empty = defaults to 30 days after sending" : "Defaults to 30 days after sending unless filled in here"}
+                    />
+                  </div>
+                  <div>
+                    <label className="typo-label">Version</label>
+                    <input
+                      type="text"
+                      value={plan.versionLabel ?? ""}
+                      disabled={planAccepted || !canEdit}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setData((prev) => prev ? { ...prev, plan: { ...prev.plan, versionLabel: v } } : prev);
+                      }}
+                      onBlur={(e) => {
+                        if (planAccepted || !canEdit) return;
+                        patchPlan({ versionLabel: e.target.value.trim() || null });
+                      }}
+                      placeholder="V1"
+                      className={inputClass}
+                      style={inputStyle}
+                    />
+                  </div>
+                </div>
+                <div className="mt-3">
+                  <label className="typo-label">Proposal number</label>
+                  <input
+                    type="text"
+                    value={plan.proposalNumber ?? ""}
+                    disabled
+                    readOnly
+                    placeholder="Assigned on Mark as ready"
+                    className={inputClass}
+                    style={{ ...inputStyle, opacity: 0.65 }}
+                  />
+                </div>
               </section>
 
               {/* Pricing terms */}
@@ -2281,9 +2438,11 @@ function PlanActionsMenu({
   const [open, setOpen] = useState(false);
 
   const showOpenInTab = !!shareCode && status !== "archived";
+  const showPdfPreview = !!shareCode && (status === "ready" || status === "accepted");
   const url = typeof window !== "undefined" && shareCode
     ? `${window.location.origin}/proposal/${shareCode}`
     : shareCode ? `/proposal/${shareCode}` : "";
+  const pdfUrl = url ? `${url}/pdf` : "";
 
   function openLink() {
     if (!url) return;
@@ -2291,8 +2450,14 @@ function PlanActionsMenu({
     setOpen(false);
   }
 
+  function openPdfPreview() {
+    if (!pdfUrl) return;
+    window.open(pdfUrl, "_blank", "noopener,noreferrer");
+    setOpen(false);
+  }
+
   // If nothing's available to show, omit the menu entirely
-  if (!showOpenInTab && !canAcceptForClient && !canRevoke && !canArchive) return null;
+  if (!showOpenInTab && !canAcceptForClient && !canRevoke && !canArchive && !showPdfPreview) return null;
 
   return (
     <div className="relative" onClick={(e) => e.stopPropagation()}>
@@ -2323,7 +2488,18 @@ function PlanActionsMenu({
                 <span>Open in new tab</span>
               </button>
             )}
-            {showOpenInTab && (canAcceptForClient || canRevoke || canArchive) && (
+            {showPdfPreview && (
+              <button
+                type="button"
+                onClick={openPdfPreview}
+                className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm hover:bg-[var(--bg-hover)] transition-colors"
+                style={{ color: "var(--text-primary)" }}
+              >
+                <Download size={14} />
+                <span>Open PDF preview</span>
+              </button>
+            )}
+            {(showOpenInTab || showPdfPreview) && (canAcceptForClient || canRevoke || canArchive) && (
               <div style={{ height: 1, background: "var(--border)" }} />
             )}
             {canAcceptForClient && (

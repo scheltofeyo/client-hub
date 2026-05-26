@@ -44,6 +44,7 @@ export async function GET(
     contractHours: user.contractHours,
     contractEndDate: user.contractEndDate,
     jobTitle: user.jobTitle,
+    projectRoleId: user.projectRoleId ?? null,
     phone: user.phone,
     emergencyContactName: user.emergencyContactName,
     emergencyContactPhone: user.emergencyContactPhone,
@@ -95,6 +96,7 @@ export async function PATCH(
     "dateStarted", "employeeNumber",
     "vacationDays", "contractType", "contractHours", "contractEndDate",
     "jobTitle",
+    "projectRoleId",
     "notes", "role", "status",
   ];
 
@@ -141,6 +143,7 @@ export async function PATCH(
     contractHours: user.contractHours,
     contractEndDate: user.contractEndDate,
     jobTitle: user.jobTitle,
+    projectRoleId: user.projectRoleId ?? null,
     phone: user.phone,
     emergencyContactName: user.emergencyContactName,
     emergencyContactPhone: user.emergencyContactPhone,
