@@ -13,6 +13,8 @@ export interface IAcceptanceEvent {
   by: { userId?: string; name: string; email?: string; image?: string };
 }
 
+export type ProposalLanguage = "nl" | "en";
+
 export interface IProjectPlan extends Document {
   clientId: string;
   title: string;
@@ -31,6 +33,22 @@ export interface IProjectPlan extends Document {
   acceptedByClient?: { name: string; email: string };
   /** Full audit trail of accept / revoke events. Latest event last. */
   acceptanceLog?: IAcceptanceEvent[];
+
+  /** Language the proposal renders in (NL or EN). Defaults to "nl". */
+  language?: ProposalLanguage;
+  /** ISO date (YYYY-MM-DD) until which the proposal is valid. */
+  validUntilDate?: string;
+  /** Auto-assigned on first transition to `ready`, e.g. "SUMM-2026-001". Never reassigned. */
+  proposalNumber?: string;
+  /** Manual free-text version label (V1, V2, …). Proposer-controlled. */
+  versionLabel?: string;
+  /** Rich HTML — "Probleemomschrijving". */
+  challenge?: string;
+  /** Rich HTML — "Aanleiding / context". */
+  context?: string;
+  /** Rich HTML — "Aanpakbeschrijving". */
+  approach?: string;
+
   createdAt: Date;
   updatedAt: Date;
 }
@@ -96,6 +114,14 @@ const ProjectPlanSchema = new Schema<IProjectPlan>(
       ],
       default: undefined,
     },
+
+    language: { type: String, enum: ["nl", "en"], default: "nl" },
+    validUntilDate: { type: String, trim: true },
+    proposalNumber: { type: String, trim: true },
+    versionLabel: { type: String, trim: true },
+    challenge: { type: String },
+    context: { type: String },
+    approach: { type: String },
   },
   { timestamps: true }
 );

@@ -639,6 +639,58 @@ select:not(.appearance-none):not([multiple]):not([size]) {
 }
 
 
+/* Proposal-page typography — editorial scale, separate from the dense app UI above. */
+.typo-proposal-eyebrow {
+  font-size: 11px;
+  line-height: 1rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  color: var(--text-muted);
+}
+.typo-proposal-inline-label {
+  font-size: 10px;
+  line-height: 1rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--text-muted);
+}
+.typo-proposal-h1 {
+  font-size: clamp(3rem, 1.5rem + 4vw, 4.5rem);
+  line-height: 0.98;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  color: var(--text-primary);
+}
+.typo-proposal-h2 {
+  font-size: clamp(1.875rem, 1.5rem + 1.5vw, 2.25rem);
+  line-height: 1.05;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+}
+.typo-proposal-h2-large {
+  font-size: clamp(2.25rem, 1.5rem + 3vw, 3rem);
+  line-height: 1.05;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+}
+.typo-proposal-h3 {
+  font-size: clamp(1.5rem, 1.25rem + 1vw, 1.875rem);
+  line-height: 1.1;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--text-primary);
+}
+.typo-proposal-lead {
+  font-size: clamp(1rem, 0.875rem + 0.5vw, 1.125rem);
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+
 /* Project card — diagonal gradient + primary border on hover.
    Placed outside @layer so it always beats Tailwind's layered utilities. */
 .project-card-hover {

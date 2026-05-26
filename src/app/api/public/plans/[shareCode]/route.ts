@@ -6,6 +6,17 @@ import { SessionModel } from "@/lib/models/Session";
 import { ClientModel } from "@/lib/models/Client";
 import { ServiceModel } from "@/lib/models/Service";
 import { UserModel } from "@/lib/models/User";
+import { ProjectRoleModel } from "@/lib/models/ProjectRole";
+import { getOrganizationSettings } from "@/lib/models/OrganizationSettings";
+import { getOrSeedProposalTerms } from "@/lib/models/ProposalTermsSection";
+import { DEFAULT_VALIDITY_DAYS } from "@/lib/proposal-copy";
+
+function addDaysIso(dateIso: string, days: number): string {
+  const d = new Date(dateIso + "T00:00:00");
+  if (Number.isNaN(d.getTime())) return dateIso;
+  d.setDate(d.getDate() + days);
+  return d.toISOString().split("T")[0];
+}
 
 /**
  * Build the name shown on the public proposal. We deliberately skip `displayName`
@@ -53,7 +64,11 @@ export async function GET(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const client = await ClientModel.findById(plan.clientId, { _id: 1, company: 1, primaryColor: 1 }).lean();
+  const client = await ClientModel.findById(plan.clientId, {
+    _id: 1, company: 1, primaryColor: 1,
+    addressStreet: 1, addressPostalCode: 1, addressCity: 1, addressCountry: 1,
+    contacts: 1,
+  }).lean();
   if (!client) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   // Plan is still being worked on (draft) — never expose content, but render a friendly
@@ -72,11 +87,16 @@ export async function GET(
     });
   }
 
-  const [projects, services] = await Promise.all([
+  const [projects, services, projectRoles, organization, legalTermsAll] = await Promise.all([
     ProjectModel.find({ clientId: plan.clientId, planId: plan._id.toString() })
       .sort({ createdAt: 1 })
       .lean(),
     ServiceModel.find({}, { _id: 1, name: 1 }).lean(),
+    ProjectRoleModel.find({}, { name: 1, dayRate: 1, marginMultiplier: 1, rank: 1, bioNL: 1, bioEN: 1 })
+      .sort({ rank: 1, createdAt: 1 })
+      .lean(),
+    getOrganizationSettings(),
+    getOrSeedProposalTerms(),
   ]);
 
   const projectIds = projects.map((p) => p._id.toString());
@@ -102,11 +122,17 @@ export async function GET(
   const userDocs = referencedUserIds.size > 0
     ? await UserModel.find(
         { _id: { $in: Array.from(referencedUserIds) } },
-        { _id: 1, firstName: 1, preposition: 1, lastName: 1, googleName: 1, email: 1 }
+        { _id: 1, firstName: 1, preposition: 1, lastName: 1, googleName: 1, email: 1, projectRoleId: 1 }
       ).lean()
     : [];
   const publicNameById = new Map<string, string>(
     userDocs.map((u) => [u._id.toString(), publicName(u)])
+  );
+  const projectRoleIdByUserId = new Map<string, string | undefined>(
+    userDocs.map((u) => [u._id.toString(), (u as { projectRoleId?: string }).projectRoleId])
+  );
+  const projectRoleById = new Map<string, { name: string; bioNL?: string; bioEN?: string }>(
+    projectRoles.map((r) => [r._id.toString(), { name: r.name, bioNL: r.bioNL, bioEN: r.bioEN }])
   );
 
   type SanitizedTeamMember = { userId: string; name: string; image?: string; roleLabel?: string | null };
@@ -233,6 +259,66 @@ export async function GET(
   const vatAmount = plan.vatRate ? net * (Number(plan.vatRate) / 100) : 0;
   const total = net + vatAmount;
 
+  const language: "nl" | "en" = (plan.language as "nl" | "en" | undefined) ?? "nl";
+
+  // Resolved validity date: explicit value wins; otherwise presentedAt + default days.
+  const resolvedValidUntil =
+    plan.validUntilDate?.trim()
+      ? plan.validUntilDate.trim()
+      : plan.presentedAt
+        ? addDaysIso(plan.presentedAt, DEFAULT_VALIDITY_DAYS)
+        : null;
+
+  // Proposer's job title from their linked ProjectRole (if any), shown on the PDF cover.
+  const proposerProjectRoleId = plan.createdBy?.userId
+    ? projectRoleIdByUserId.get(plan.createdBy.userId)
+    : undefined;
+  const proposerRoleName = proposerProjectRoleId
+    ? projectRoleById.get(proposerProjectRoleId)?.name ?? null
+    : null;
+
+  // Team bios — attach the per-user role bio in the plan's language.
+  const teamWithBios = allTeam.map((m) => {
+    const roleId = projectRoleIdByUserId.get(m.userId);
+    const role = roleId ? projectRoleById.get(roleId) : undefined;
+    const bio = role ? (language === "en" ? role.bioEN : role.bioNL) ?? null : null;
+    return {
+      userId: m.userId,
+      name: m.name,
+      image: m.image,
+      roleName: role?.name ?? m.roleLabel ?? null,
+      roleLabel: m.roleLabel,
+      projectCount: m.projectCount,
+      bio,
+    };
+  });
+
+  // Rate table — only roles actually used in this plan's projects, hourlyRate = dayRate * marginMultiplier / 8.
+  const usedRoleIds = new Set<string>();
+  for (const p of projects) {
+    for (const line of p.roleAllocation ?? []) {
+      if (line.roleId) usedRoleIds.add(line.roleId);
+    }
+  }
+  const rates = projectRoles
+    .filter((r) => usedRoleIds.has(r._id.toString()) && Number(r.dayRate) > 0)
+    .map((r) => ({
+      name: r.name as string,
+      hourlyRate: Math.round((Number(r.dayRate) * Number(r.marginMultiplier ?? 1)) / 8),
+    }));
+
+  // Legal terms — picked per-language.
+  const legalTerms = legalTermsAll.map((t) => ({
+    slug: t.slug,
+    title: language === "en" ? t.titleEN : t.titleNL,
+    content: language === "en" ? t.contentEN : t.contentNL,
+  }));
+
+  // Primary contact — first contact entry on the client (if any).
+  const primaryContact = Array.isArray(client.contacts) && client.contacts.length > 0
+    ? client.contacts[0]
+    : null;
+
   return NextResponse.json({
     plan: {
       title: plan.title,
@@ -245,19 +331,48 @@ export async function GET(
       discountType: plan.discountType ?? null,
       discountValue: plan.discountValue ?? null,
       vatRate: plan.vatRate ?? null,
+      language,
+      validUntilDate: resolvedValidUntil,
+      proposalNumber: plan.proposalNumber ?? null,
+      versionLabel: plan.versionLabel ?? null,
+      challenge: plan.challenge ?? null,
+      context: plan.context ?? null,
+      approach: plan.approach ?? null,
       createdBy: {
         name: plan.createdBy?.userId
           ? publicNameById.get(plan.createdBy.userId) ?? plan.createdBy.name ?? ""
           : plan.createdBy?.name ?? "",
         image: plan.createdBy?.image ?? null,
+        roleName: proposerRoleName,
       },
     },
     client: {
       company: client.company as string,
       primaryColor: (client.primaryColor as string | undefined) ?? null,
+      contactName: primaryContact
+        ? [primaryContact.firstName, primaryContact.lastName].filter(Boolean).join(" ")
+        : null,
+      contactEmail: primaryContact?.email ?? null,
+      addressStreet: client.addressStreet ?? null,
+      addressPostalCode: client.addressPostalCode ?? null,
+      addressCity: client.addressCity ?? null,
+      addressCountry: client.addressCountry ?? null,
+    },
+    organization: {
+      addressStreet: organization.addressStreet ?? null,
+      addressPostalCode: organization.addressPostalCode ?? null,
+      addressCity: organization.addressCity ?? null,
+      addressCountry: organization.addressCountry ?? null,
+      kvkNumber: organization.kvkNumber ?? null,
+      btwNumber: organization.btwNumber ?? null,
+      iban: organization.iban ?? null,
+      website: organization.website ?? null,
+      email: organization.email ?? null,
     },
     projects: sanitizedProjects,
-    team: allTeam,
+    team: teamWithBios,
+    rates,
+    legalTerms,
     totals: {
       subtotal,
       discountAmount,

@@ -160,6 +160,20 @@ export const WEEK_CARD_TYPES: Record<WeekCardType, { label: string; color: strin
   event:     { label: "Event",     color: "var(--card-event)",     bg: "var(--card-event-bg)" },
 };
 
+/**
+ * Lowercase, ASCII-only, hyphenated slug suitable for filenames and URL fragments.
+ * Strips diacritics, replaces non-alphanumerics with hyphens, trims edges, max 60 chars.
+ */
+export function slugify(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 60);
+}
+
 /** Human-readable relative label for a number of days (e.g. "3 weeks ago"). */
 export function timeAgoLabel(days: number): string {
   if (days <= 0) return "Today";

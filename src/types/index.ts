@@ -116,6 +116,10 @@ export interface Client {
   archetypeId?: string;
   archetype?: string;
   folderStatus?: "pending" | "ready";
+  addressStreet?: string;
+  addressPostalCode?: string;
+  addressCity?: string;
+  addressCountry?: string;
 }
 
 export type ProjectStatus = "draft" | "not_started" | "in_progress" | "completed";

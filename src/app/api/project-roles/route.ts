@@ -4,7 +4,7 @@ import { requirePermission } from "@/lib/auth-helpers";
 import { connectDB } from "@/lib/mongodb";
 import { ProjectRoleModel } from "@/lib/models/ProjectRole";
 
-function serialize(d: { _id: { toString(): string }; name: string; dayRate?: number; marginMultiplier?: number; isExternal?: boolean; externalCostRate?: number; rank?: number; createdAt?: Date }) {
+function serialize(d: { _id: { toString(): string }; name: string; dayRate?: number; marginMultiplier?: number; isExternal?: boolean; externalCostRate?: number; rank?: number; bioNL?: string; bioEN?: string; createdAt?: Date }) {
   return {
     id: d._id.toString(),
     name: d.name,
@@ -13,6 +13,8 @@ function serialize(d: { _id: { toString(): string }; name: string; dayRate?: num
     isExternal: !!d.isExternal,
     externalCostRate: d.externalCostRate ?? undefined,
     rank: d.rank ?? 0,
+    bioNL: d.bioNL ?? "",
+    bioEN: d.bioEN ?? "",
     createdAt: d.createdAt instanceof Date ? d.createdAt.toISOString() : undefined,
   };
 }
@@ -28,7 +30,7 @@ export async function POST(req: NextRequest) {
   const forbidden = requirePermission(session, "admin.projectRoles");
   if (forbidden) return forbidden;
 
-  const { name, dayRate, marginMultiplier, isExternal, externalCostRate } = await req.json();
+  const { name, dayRate, marginMultiplier, isExternal, externalCostRate, bioNL, bioEN } = await req.json();
   if (!name?.trim()) {
     return NextResponse.json({ error: "Name is required" }, { status: 400 });
   }
@@ -48,6 +50,8 @@ export async function POST(req: NextRequest) {
           ? Number(externalCostRate)
           : undefined,
       rank,
+      bioNL: typeof bioNL === "string" ? bioNL.trim() : undefined,
+      bioEN: typeof bioEN === "string" ? bioEN.trim() : undefined,
     });
     return NextResponse.json(serialize(doc.toObject()), { status: 201 });
   } catch {

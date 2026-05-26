@@ -118,6 +118,10 @@ function EditClientForm({
     website: client.website ?? "",
     description: client.description ?? "",
     primaryColor: client.primaryColor ?? "",
+    addressStreet: client.addressStreet ?? "",
+    addressPostalCode: client.addressPostalCode ?? "",
+    addressCity: client.addressCity ?? "",
+    addressCountry: client.addressCountry ?? "",
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -291,6 +295,60 @@ function EditClientForm({
               <option key={p.id} value={p.slug}>{p.label}</option>
             ))}
           </select>
+        </div>
+      </div>
+
+      <div className="border-t pt-4" style={{ borderColor: "var(--border)" }}>
+        <p className="typo-label mb-2">Adres (gebruikt op voorstellen)</p>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label htmlFor="ec-street" className="typo-label">Straat + nr</label>
+            <input
+              id="ec-street"
+              type="text"
+              value={form.addressStreet}
+              onChange={(e) => set("addressStreet", e.target.value)}
+              placeholder="Voorbeeldstraat 1"
+              className={inputClass}
+              style={inputStyle}
+            />
+          </div>
+          <div>
+            <label htmlFor="ec-postal" className="typo-label">Postcode</label>
+            <input
+              id="ec-postal"
+              type="text"
+              value={form.addressPostalCode}
+              onChange={(e) => set("addressPostalCode", e.target.value)}
+              placeholder="1234 AB"
+              className={inputClass}
+              style={inputStyle}
+            />
+          </div>
+          <div>
+            <label htmlFor="ec-city" className="typo-label">Plaats</label>
+            <input
+              id="ec-city"
+              type="text"
+              value={form.addressCity}
+              onChange={(e) => set("addressCity", e.target.value)}
+              placeholder="Amsterdam"
+              className={inputClass}
+              style={inputStyle}
+            />
+          </div>
+          <div>
+            <label htmlFor="ec-country" className="typo-label">Land</label>
+            <input
+              id="ec-country"
+              type="text"
+              value={form.addressCountry}
+              onChange={(e) => set("addressCountry", e.target.value)}
+              placeholder="Nederland"
+              className={inputClass}
+              style={inputStyle}
+            />
+          </div>
         </div>
       </div>
 

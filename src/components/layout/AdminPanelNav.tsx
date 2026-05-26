@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
-import { Users, LayoutTemplate, Tag, Palette, ChevronRight, Shield, UserCheck, ClipboardList } from "lucide-react";
+import { Users, LayoutTemplate, Tag, Palette, ChevronRight, Shield, UserCheck, ClipboardList, FileText, Building2 } from "lucide-react";
 import type { Permission } from "@/lib/permissions";
 
 interface EmployeeItem {
@@ -222,6 +222,27 @@ export default function AdminPanelNav() {
             <ClipboardList size={14} strokeWidth={1.8} />
             <span className="flex-1">Survey templates</span>
           </Link>
+        )}
+
+        {perms.includes("admin.access" as Permission) && (
+          <>
+            <Link
+              href="/admin/documents"
+              data-active={pathname.startsWith("/admin/documents")}
+              className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm transition-colors nav-panel-item"
+            >
+              <FileText size={14} strokeWidth={1.8} />
+              <span className="flex-1">Documents</span>
+            </Link>
+            <Link
+              href="/admin/organization-settings"
+              data-active={pathname.startsWith("/admin/organization-settings")}
+              className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm transition-colors nav-panel-item"
+            >
+              <Building2 size={14} strokeWidth={1.8} />
+              <span className="flex-1">Organization</span>
+            </Link>
+          </>
         )}
       </div>
 

@@ -7,6 +7,10 @@ export interface IProjectRole extends Document {
   isExternal: boolean;
   externalCostRate?: number;
   rank: number;
+  /** Short bio shown on the proposal team page (NL). */
+  bioNL?: string;
+  /** Short bio shown on the proposal team page (EN). */
+  bioEN?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -19,6 +23,8 @@ const ProjectRoleSchema = new Schema<IProjectRole>(
     isExternal:       { type: Boolean, default: false },
     externalCostRate: { type: Number },
     rank:             { type: Number, default: 0 },
+    bioNL:            { type: String, trim: true },
+    bioEN:            { type: String, trim: true },
   },
   { timestamps: true }
 );

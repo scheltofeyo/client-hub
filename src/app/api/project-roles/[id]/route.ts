@@ -33,6 +33,15 @@ export async function PATCH(
   // Clear externalCostRate if role is being switched to internal.
   if (body.isExternal === false) update.externalCostRate = null;
 
+  if (body.bioNL !== undefined) {
+    const trimmed = typeof body.bioNL === "string" ? body.bioNL.trim() : "";
+    update.bioNL = trimmed || null;
+  }
+  if (body.bioEN !== undefined) {
+    const trimmed = typeof body.bioEN === "string" ? body.bioEN.trim() : "";
+    update.bioEN = trimmed || null;
+  }
+
   await connectDB();
   const setEntries = Object.entries(update).filter(([, v]) => v !== null);
   const unsetEntries = Object.entries(update).filter(([, v]) => v === null);
@@ -52,6 +61,8 @@ export async function PATCH(
       isExternal: !!doc.isExternal,
       externalCostRate: doc.externalCostRate ?? undefined,
       rank: doc.rank ?? 0,
+      bioNL: doc.bioNL ?? "",
+      bioEN: doc.bioEN ?? "",
     });
   } catch {
     return NextResponse.json({ error: "Name already exists" }, { status: 409 });

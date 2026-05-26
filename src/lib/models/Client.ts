@@ -44,6 +44,11 @@ export interface IClient extends Document {
   culturalLevels?: string[];
   archetypeId?: string;
   folderStatus?: "pending" | "ready";
+  /** Postal address — shown on the proposal PDF cover. */
+  addressStreet?: string;
+  addressPostalCode?: string;
+  addressCity?: string;
+  addressCountry?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -105,6 +110,10 @@ const ClientSchema = new Schema<IClient>(
     culturalLevels: { type: [String], default: [] },
     archetypeId: { type: String, trim: true },
     folderStatus: { type: String, enum: ["pending", "ready"] },
+    addressStreet: { type: String, trim: true },
+    addressPostalCode: { type: String, trim: true },
+    addressCity: { type: String, trim: true },
+    addressCountry: { type: String, trim: true },
   },
   { timestamps: true }
 );

@@ -5,6 +5,8 @@ import { requirePermission, hasPermission } from "@/lib/auth-helpers";
 import { SurveySessionModel } from "@/lib/models/SurveySession";
 import { SurveySubmissionModel } from "@/lib/models/SurveySubmission";
 import { computeSurveyResults } from "@/lib/surveys/compute-results";
+import { buildSurveyResultsMarkdown } from "@/lib/surveys/export-markdown";
+import { slugify } from "@/lib/utils";
 
 export async function GET(
   _req: NextRequest,
@@ -30,6 +32,26 @@ export async function GET(
     status: "completed",
   }).lean();
 
-  const { results } = await computeSurveyResults(surveySession, submissions);
-  return NextResponse.json(results);
+  const { results, questionMetas, archetypes } = await computeSurveyResults(
+    surveySession,
+    submissions
+  );
+
+  const markdown = buildSurveyResultsMarkdown({
+    session: surveySession,
+    archetypes,
+    results,
+    submissions,
+    questionMetas,
+  });
+
+  const filename = `${slugify(surveySession.title) || "survey"}-results.md`;
+  return new NextResponse(markdown, {
+    status: 200,
+    headers: {
+      "Content-Type": "text/markdown; charset=utf-8",
+      "Content-Disposition": `attachment; filename="${filename}"`,
+      "Cache-Control": "no-store",
+    },
+  });
 }

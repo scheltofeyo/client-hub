@@ -6,8 +6,11 @@ import type { AnalysisResult } from "@/lib/surveys/analyses";
 import type { ResultsData } from "./types";
 import { QuestionCard } from "./QuestionCard";
 import { AnalysesSection } from "./AnalysesSection";
+import { ExportResultsButton } from "./ExportResultsButton";
 
 interface ResultsTabProps {
+  /** Survey session id — used for the markdown export endpoint. */
+  sessionId: string;
   results: ResultsData | null;
   loading: boolean;
   /** Public participant-facing share URL — used by the empty-state CTA. */
@@ -32,6 +35,7 @@ interface ResultsTabProps {
  * Expand all / Collapse all buttons can drive every card at once.
  */
 export function ResultsTab({
+  sessionId,
   results,
   loading,
   shareUrl,
@@ -125,24 +129,27 @@ export function ResultsTab({
         <p className="text-sm font-medium" style={{ color: "var(--text-muted)" }}>
           {results.participantCount} respondent{results.participantCount === 1 ? "" : "s"}
         </p>
-        <button
-          type="button"
-          onClick={allClosed ? expandAll : collapseAll}
-          className="inline-flex items-center gap-1.5 rounded-button px-2.5 py-1 text-xs font-medium transition-colors hover:bg-surface"
-          style={{ color: "var(--text-muted)" }}
-        >
-          {allClosed ? (
-            <>
-              <ChevronsUpDown size={13} />
-              Show all
-            </>
-          ) : (
-            <>
-              <ChevronsDownUp size={13} />
-              Collapse all
-            </>
-          )}
-        </button>
+        <div className="flex items-center gap-1">
+          {results.participantCount > 0 && <ExportResultsButton sessionId={sessionId} />}
+          <button
+            type="button"
+            onClick={allClosed ? expandAll : collapseAll}
+            className="inline-flex items-center gap-1.5 rounded-button px-2.5 py-1 text-xs font-medium transition-colors hover:bg-surface"
+            style={{ color: "var(--text-muted)" }}
+          >
+            {allClosed ? (
+              <>
+                <ChevronsUpDown size={13} />
+                Show all
+              </>
+            ) : (
+              <>
+                <ChevronsDownUp size={13} />
+                Collapse all
+              </>
+            )}
+          </button>
+        </div>
       </div>
 
       {hasAnalysesSection && (
