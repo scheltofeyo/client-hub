@@ -134,14 +134,30 @@ export async function computeSurveyResults(
         const items = qm.rankingItems ?? [];
         const distLen = isTop3 ? TOP3_RANK_LENGTH : items.length;
         const itemDist = rankItemDistMap.get(qm.id);
+        const itemPoints = scoreMap.get(qm.id);
+        const totalPoints = items.reduce(
+          (sum, it) => sum + (itemPoints?.get(it.id) ?? 0),
+          0
+        );
         const ranked = items.map((it) => {
           const dist = itemDist?.get(it.id) ?? Array(distLen).fill(0);
           const totalAnswers = dist.reduce((sum, v) => sum + v, 0);
-          const weightedSum = dist.reduce((sum, count, idx) => sum + count * (idx + 1), 0);
-          const avgRank = totalAnswers > 0 ? weightedSum / totalAnswers : 0;
-          return { itemId: it.id, text: it.text, averageRank: Math.round(avgRank * 100) / 100, distribution: dist };
+          const meanRankSum = dist.reduce((sum, count, idx) => sum + count * (idx + 1), 0);
+          const avgRank = totalAnswers > 0 ? meanRankSum / totalAnswers : 0;
+          const points = itemPoints?.get(it.id) ?? 0;
+          const percentage = totalPoints > 0
+            ? Math.round((points / totalPoints) * 100)
+            : 0;
+          return {
+            itemId: it.id,
+            text: it.text,
+            averageRank: Math.round(avgRank * 100) / 100,
+            distribution: dist,
+            points,
+            percentage,
+          };
         });
-        return { ...base, type: qm.type, items: ranked };
+        return { ...base, type: qm.type, items: ranked, totalPoints };
       }
       case "multiple-choice": {
         const choices = qm.choices ?? [];

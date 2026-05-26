@@ -30,7 +30,7 @@ export function CopyChartButton({ chartRef, title }: CopyChartButtonProps) {
         void copy();
       }}
       disabled={status === "copying"}
-      className="btn-icon p-1 rounded-button"
+      className="btn-icon p-1 rounded-button relative"
       aria-label={label}
       title={label}
     >
