@@ -14,10 +14,10 @@ interface RankVerticalSortedBarProps {
 }
 
 /**
- * Vertical sorted bar chart for ranking results. Items along the x-axis,
- * scores rising up. Bars are sorted descending; labels wrap below each
- * bar. Score numbers sit above each bar so they stay readable when bars
- * are short.
+ * Vertical bar chart for ranking results. Items along the x-axis,
+ * scores rising up. Items render in the order they're passed in; labels
+ * wrap below each bar. Score numbers sit above each bar so they stay
+ * readable when bars are short.
  *
  * Pairs with the existing horizontal RankSortedBar — pick this when you
  * want a "ranked top-down" reading instead of "ranked left-to-right".
@@ -51,12 +51,11 @@ export function RankVerticalSortedBar({
   }, [reduceMotion]);
 
   const shown = visible || reduceMotion === true;
-  const sorted = [...items].sort((a, b) => b.score - a.score);
-  const max = sorted[0]?.score || 1;
+  const max = items.reduce((m, item) => (item.score > m ? item.score : m), 0) || 1;
   const duration = (reduceMotion ? 0 : ctx.enter.durationMs) / 1000;
   const stagger = (reduceMotion ? 0 : ctx.enter.staggerMs) / 1000;
 
-  if (sorted.length === 0) {
+  if (items.length === 0) {
     return (
       <div className={className}>
         <p className="text-xs italic text-text-muted">No responses yet.</p>
@@ -69,11 +68,11 @@ export function RankVerticalSortedBar({
       <div
         className="grid items-end gap-3"
         style={{
-          gridTemplateColumns: `repeat(${sorted.length}, minmax(0, 1fr))`,
+          gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))`,
           height,
         }}
       >
-        {sorted.map((item, i) => {
+        {items.map((item, i) => {
           const pct = max > 0 ? (item.score / max) * 100 : 0;
           const color = item.color ?? CHART_TOKENS.primary;
           return (
@@ -125,9 +124,9 @@ export function RankVerticalSortedBar({
       {/* Labels under bars */}
       <div
         className="mt-2 grid gap-3"
-        style={{ gridTemplateColumns: `repeat(${sorted.length}, minmax(0, 1fr))` }}
+        style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}
       >
-        {sorted.map((item) => (
+        {items.map((item) => (
           <div key={item.id} className="text-center">
             <p
               className="line-clamp-2 text-[11px] leading-tight"

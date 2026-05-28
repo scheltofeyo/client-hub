@@ -267,18 +267,20 @@ function renderChartSlot(args: {
 
   if (question.type === "general-ranking" || question.type === "general-top3") {
     const rankCount = Math.max(1, ...question.items.map((i) => i.distribution.length));
-    const items: RankItemDatum[] = question.items.map((i) => {
-      // Invert avg-rank so larger score = preferred.
-      const inverted = i.averageRank > 0 ? rankCount + 1 - i.averageRank : 0;
-      return {
+    const totalPoints = question.totalPoints;
+    // General ranking items don't have a meaningful source order — sort them
+    // by score descending so the highest-scoring item leads. (Archetype
+    // rankings keep their DB rank order; sort is done per question type.)
+    const items: RankItemDatum[] = question.items
+      .map((i) => ({
         id: i.itemId,
         label: i.text || "(no text)",
-        score: inverted,
-        scoreLabel: i.averageRank > 0 ? i.averageRank.toFixed(1) : "—",
-        scoreUnit: i.averageRank > 0 ? `avg rank of ${rankCount}` : undefined,
+        score: i.percentage,
+        scoreLabel: `${i.percentage}%`,
+        scoreUnit: totalPoints > 0 ? `${i.points} / ${totalPoints} pts` : undefined,
         distribution: i.distribution,
-      };
-    });
+      }))
+      .sort((a, b) => b.score - a.score);
     switch (chartKey) {
       case "sorted-bar":
         return <RankSortedBar items={items} />;
