@@ -21,6 +21,8 @@ function serializePlan(input: unknown) {
     createdBy: d.createdBy,
     acceptedBy: d.acceptedBy ?? null,
     acceptedAt: d.acceptedAt ?? null,
+    finalizedBy: d.finalizedBy ?? null,
+    finalizedAt: d.finalizedAt ?? null,
     presentedAt: d.presentedAt ?? null,
     createdAt: d.createdAt instanceof Date ? d.createdAt.toISOString() : undefined,
     updatedAt: d.updatedAt instanceof Date ? d.updatedAt.toISOString() : undefined,
@@ -40,9 +42,11 @@ export async function GET(
   const { id } = await params;
   await connectDB();
 
-  const [plansRaw, draftProjects] = await Promise.all([
+  const [plansRaw, planProjects] = await Promise.all([
     ProjectPlanModel.find({ clientId: id }).sort({ createdAt: -1 }).lean(),
-    ProjectModel.find({ clientId: id, status: "draft" }, { planId: 1, soldPrice: 1 }).lean(),
+    // Include all projects that belong to a plan (draft + promoted) so the list
+    // also shows accurate counts/subtotals for finalized plans.
+    ProjectModel.find({ clientId: id, planId: { $exists: true, $ne: null } }, { planId: 1, soldPrice: 1 }).lean(),
   ]);
 
   // Lazy backfill: ensure every plan has a shareCode.
@@ -55,9 +59,9 @@ export async function GET(
     })
   );
 
-  // Pre-compute draft count and subtotal per plan
+  // Pre-compute project count and subtotal per plan (across draft + promoted)
   const summaryByPlan = new Map<string, { draftCount: number; subtotal: number }>();
-  for (const p of draftProjects) {
+  for (const p of planProjects) {
     const pid = (p.planId as string | undefined)?.toString();
     if (!pid) continue;
     const entry = summaryByPlan.get(pid) ?? { draftCount: 0, subtotal: 0 };

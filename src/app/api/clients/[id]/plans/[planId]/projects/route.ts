@@ -95,8 +95,8 @@ export async function POST(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  if (plan.status === "accepted" || plan.status === "archived") {
-    return NextResponse.json({ error: "Cannot modify an accepted or archived plan" }, { status: 400 });
+  if (plan.status === "accepted" || plan.status === "finalized") {
+    return NextResponse.json({ error: "Cannot modify an accepted or finalized plan" }, { status: 400 });
   }
 
   const body = await req.json();

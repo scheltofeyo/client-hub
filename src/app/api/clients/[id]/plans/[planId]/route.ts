@@ -280,7 +280,7 @@ export async function PATCH(
   if (body.approach !== undefined) update.approach = body.approach || null;
 
   if (body.status !== undefined) {
-    if (!["draft", "ready", "accepted", "archived"].includes(body.status)) {
+    if (!["draft", "ready", "accepted"].includes(body.status)) {
       return NextResponse.json({ error: "Invalid status" }, { status: 400 });
     }
     // Accept transitions: go via the /accept endpoint so promotion logic runs.
@@ -294,7 +294,6 @@ export async function PATCH(
   // Detect status transitions that warrant an activity / acceptance-log entry
   const prior = await ProjectPlanModel.findOne({ _id: planId, clientId: id }, { status: 1, proposalNumber: 1 }).lean();
   const isMarkAsReady = prior && prior.status !== "ready" && update.status === "ready";
-  const isArchive = prior && prior.status !== "archived" && update.status === "archived";
 
   // First mark-as-ready (and the plan has no number yet): mint one.
   // Atomic counter via ProposalSequence.findOneAndUpdate $inc/upsert.
@@ -333,14 +332,6 @@ export async function PATCH(
       type: "plan.sent",
       metadata: { planId: doc._id.toString(), title: doc.title },
     });
-  } else if (isArchive) {
-    await recordActivity({
-      clientId: id,
-      actorId: session.user.id,
-      actorName: session.user.name ?? "Unknown",
-      type: "plan.archived",
-      metadata: { planId: doc._id.toString(), title: doc.title },
-    });
   }
 
   return NextResponse.json(serializePlan(doc));
@@ -362,18 +353,12 @@ export async function DELETE(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  // Refuse hard-delete if any accepted (promoted) projects still reference this plan.
-  // Plans containing only drafts are deleted with their drafts (and their tasks/sessions).
-  const acceptedCount = await ProjectModel.countDocuments({
-    clientId: id,
-    planId,
-    status: { $ne: "draft" },
-  });
-  if (acceptedCount > 0) {
-    return NextResponse.json(
-      { error: "Cannot delete a plan with accepted projects. Archive it instead." },
-      { status: 400 }
-    );
+  const plan = await ProjectPlanModel.findOne({ _id: planId, clientId: id }).lean();
+  if (!plan) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  // Finalized plans are permanent historical records — promoted projects depend on them.
+  if (plan.status === "finalized") {
+    return NextResponse.json({ error: "Cannot delete a finalized plan" }, { status: 400 });
   }
 
   const draftProjects = await ProjectModel.find({ clientId: id, planId, status: "draft" }, { _id: 1 }).lean();
@@ -387,8 +372,15 @@ export async function DELETE(
     ]);
   }
 
-  const doc = await ProjectPlanModel.findOneAndDelete({ _id: planId, clientId: id }).lean();
-  if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  await ProjectPlanModel.deleteOne({ _id: planId, clientId: id });
+
+  await recordActivity({
+    clientId: id,
+    actorId: session.user.id,
+    actorName: session.user.name ?? "Unknown",
+    type: "plan.deleted",
+    metadata: { planId, title: plan.title },
+  });
 
   return NextResponse.json({ success: true });
 }

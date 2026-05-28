@@ -2,25 +2,28 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { Download } from "lucide-react";
 import { fmtDate } from "@/lib/utils";
 
 interface PlanListItem {
   id: string;
   clientId: string;
   title: string;
-  status: "draft" | "ready" | "accepted" | "archived";
+  status: "draft" | "ready" | "accepted" | "finalized";
   draftCount: number;
   subtotal: number;
   presentedAt?: string | null;
   acceptedAt?: string | null;
+  finalizedAt?: string | null;
   createdAt?: string | null;
+  shareCode?: string | null;
 }
 
 const STATUS_BADGE: Record<PlanListItem["status"], { label: string; bg: string; color: string }> = {
   draft: { label: "Draft", bg: "var(--bg-hover)", color: "var(--text-muted)" },
   ready: { label: "Ready", bg: "var(--info-light)", color: "var(--info)" },
   accepted: { label: "Accepted", bg: "var(--success-light)", color: "var(--success)" },
-  archived: { label: "Archived", bg: "var(--bg-hover)", color: "var(--text-muted)" },
+  finalized: { label: "Finalized", bg: "var(--primary-light)", color: "var(--primary)" },
 };
 
 function formatEuro(n: number) {
@@ -87,17 +90,31 @@ export default function PlansListSection({ clientId }: { clientId: string }) {
           {plans.map((p, idx) => {
             const badge = STATUS_BADGE[p.status];
             const dateLabel = p.presentedAt ?? p.createdAt ?? "";
-            return (
-              <Link
-                key={p.id}
-                href={`/clients/${clientId}/projects/plans/${p.id}`}
-                className="grid items-center px-4 py-3 text-sm hover:bg-[var(--bg-hover)] transition-colors"
-                style={{
-                  gridTemplateColumns: "repeat(6, minmax(0, 1fr))",
-                  borderBottom: idx < plans.length - 1 ? "1px solid var(--border)" : undefined,
-                }}
-              >
-                <span className="font-medium truncate" style={{ color: "var(--text-primary)" }}>{p.title}</span>
+            const acceptedLabel = p.finalizedAt ?? p.acceptedAt ?? "";
+            const isFinalized = p.status === "finalized";
+            const borderBottom = idx < plans.length - 1 ? "1px solid var(--border)" : undefined;
+            const gridStyle = {
+              gridTemplateColumns: "repeat(6, minmax(0, 1fr))",
+              borderBottom,
+            };
+            const cells = (
+              <>
+                <span className="font-medium truncate flex items-center gap-2" style={{ color: "var(--text-primary)" }}>
+                  <span className="truncate">{p.title}</span>
+                  {isFinalized && p.shareCode && (
+                    <a
+                      href={`/proposal/${p.shareCode}/pdf`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="btn-icon p-1 rounded-md shrink-0"
+                      title="Open PDF"
+                      aria-label="Open PDF"
+                    >
+                      <Download size={14} />
+                    </a>
+                  )}
+                </span>
                 <span className="text-right tabular-nums" style={{ color: "var(--text-muted)" }}>
                   {p.draftCount}
                 </span>
@@ -108,7 +125,7 @@ export default function PlansListSection({ clientId }: { clientId: string }) {
                   {fmtDate(dateLabel)}
                 </span>
                 <span className="text-right text-xs" style={{ color: "var(--text-muted)" }}>
-                  {p.acceptedAt ? fmtDate(p.acceptedAt) : "—"}
+                  {acceptedLabel ? fmtDate(acceptedLabel) : "—"}
                 </span>
                 <span className="flex justify-end">
                   <span
@@ -118,6 +135,29 @@ export default function PlansListSection({ clientId }: { clientId: string }) {
                     {badge.label}
                   </span>
                 </span>
+              </>
+            );
+
+            if (isFinalized) {
+              return (
+                <div
+                  key={p.id}
+                  className="grid items-center px-4 py-3 text-sm"
+                  style={gridStyle}
+                >
+                  {cells}
+                </div>
+              );
+            }
+
+            return (
+              <Link
+                key={p.id}
+                href={`/clients/${clientId}/projects/plans/${p.id}`}
+                className="grid items-center px-4 py-3 text-sm hover:bg-[var(--bg-hover)] transition-colors"
+                style={gridStyle}
+              >
+                {cells}
               </Link>
             );
           })}

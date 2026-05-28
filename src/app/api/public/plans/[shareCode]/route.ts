@@ -59,11 +59,6 @@ export async function GET(
   const plan = await ProjectPlanModel.findOne({ shareCode }).lean();
   if (!plan) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  // Archived plans are not public.
-  if (plan.status === "archived") {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
-
   const client = await ClientModel.findById(plan.clientId, {
     _id: 1, company: 1, primaryColor: 1,
     addressStreet: 1, addressPostalCode: 1, addressCity: 1, addressCountry: 1,

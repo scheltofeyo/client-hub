@@ -125,6 +125,10 @@ function eventDescription(event: ActivityEvent): React.ReactNode {
       return title
         ? <><Bold>Plan</Bold><Dim> archived: </Dim><Italic>{title}</Italic></>
         : <><Bold>Plan</Bold><Dim> archived</Dim></>;
+    case "plan.deleted":
+      return title
+        ? <><Bold>Plan</Bold><Dim> deleted: </Dim><Italic>{title}</Italic></>
+        : <><Bold>Plan</Bold><Dim> deleted</Dim></>;
     case "contact.changed": {
       const parts: string[] = [];
       if (added && added.length > 0) parts.push(`added ${added.join(", ")}`);
@@ -237,7 +241,7 @@ function typeSummaryLabel(type: string, count: number): React.ReactNode {
 }
 
 function eventIcon(type: string) {
-  if (type === "log.deleted" || type === "task.deleted" || type === "project.deleted" || type === "sheet.deleted" || type === "event.deleted") return <Trash2 size={14} />;
+  if (type === "log.deleted" || type === "task.deleted" || type === "project.deleted" || type === "sheet.deleted" || type === "event.deleted" || type === "plan.deleted") return <Trash2 size={14} />;
   if (type === "log.followedup") return <CheckCheck size={14} />;
   if (type === "project.kicked_off") return <Rocket size={14} />;
   if (type.startsWith("log.")) return <NotebookPen size={14} />;
@@ -253,7 +257,7 @@ function eventIcon(type: string) {
 }
 
 function eventIconStyle(type: string): { background: string; color: string } {
-  if (type === "log.deleted" || type === "task.deleted" || type === "project.deleted" || type === "sheet.deleted" || type === "event.deleted") {
+  if (type === "log.deleted" || type === "task.deleted" || type === "project.deleted" || type === "sheet.deleted" || type === "event.deleted" || type === "plan.deleted") {
     return { background: "var(--activity-delete-bg)", color: "var(--activity-delete-color)" };
   }
   if (type.startsWith("log.")) return { background: "var(--activity-log-bg)", color: "var(--activity-log-color)" };

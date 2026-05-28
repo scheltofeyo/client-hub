@@ -21,6 +21,11 @@ export async function PATCH(
     name,
     summary,
     defaultDescription,
+    defaultWhy,
+    defaultHow,
+    defaultWhat,
+    defaultActivities,
+    defaultDeliverables,
     defaultSoldPrice,
     defaultServiceId,
     defaultDeliveryDays,
@@ -40,6 +45,11 @@ export async function PATCH(
     unset.description = "";
   }
   if (defaultDescription !== undefined) update.defaultDescription = defaultDescription?.trim() || null;
+  if (defaultWhy !== undefined) update.defaultWhy = defaultWhy?.trim() || null;
+  if (defaultHow !== undefined) update.defaultHow = defaultHow?.trim() || null;
+  if (defaultWhat !== undefined) update.defaultWhat = defaultWhat?.trim() || null;
+  if (defaultActivities !== undefined) update.defaultActivities = defaultActivities?.trim() || null;
+  if (defaultDeliverables !== undefined) update.defaultDeliverables = defaultDeliverables?.trim() || null;
   if (defaultSoldPrice !== undefined) update.defaultSoldPrice = defaultSoldPrice ? Number(defaultSoldPrice) : null;
   if (defaultServiceId !== undefined) update.defaultServiceId = defaultServiceId || null;
   if (defaultDeliveryDays !== undefined) update.defaultDeliveryDays = defaultDeliveryDays ? Number(defaultDeliveryDays) : null;
@@ -75,6 +85,11 @@ export async function PATCH(
     name: doc.name,
     summary: doc.summary,
     defaultDescription: doc.defaultDescription,
+    defaultWhy: doc.defaultWhy,
+    defaultHow: doc.defaultHow,
+    defaultWhat: doc.defaultWhat,
+    defaultActivities: doc.defaultActivities,
+    defaultDeliverables: doc.defaultDeliverables,
     defaultSoldPrice: doc.defaultSoldPrice,
     defaultServiceId: doc.defaultServiceId,
     defaultDeliveryDays: doc.defaultDeliveryDays,

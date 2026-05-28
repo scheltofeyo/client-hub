@@ -1101,6 +1101,11 @@ export default function EditTemplateEditor({
     name: template.name,
     summary: template.summary ?? "",
     defaultDescription: template.defaultDescription ?? "",
+    defaultWhy: template.defaultWhy ?? "",
+    defaultHow: template.defaultHow ?? "",
+    defaultWhat: template.defaultWhat ?? "",
+    defaultActivities: template.defaultActivities ?? "",
+    defaultDeliverables: template.defaultDeliverables ?? "",
     defaultSoldPrice:
       template.defaultSoldPrice != null ? String(template.defaultSoldPrice) : "",
     defaultServiceId: template.defaultServiceId ?? "",
@@ -1149,6 +1154,11 @@ export default function EditTemplateEditor({
         name: form.name,
         summary: form.summary || undefined,
         defaultDescription: form.defaultDescription || undefined,
+        defaultWhy: form.defaultWhy || undefined,
+        defaultHow: form.defaultHow || undefined,
+        defaultWhat: form.defaultWhat || undefined,
+        defaultActivities: form.defaultActivities || undefined,
+        defaultDeliverables: form.defaultDeliverables || undefined,
         defaultSoldPrice: form.defaultSoldPrice ? Number(form.defaultSoldPrice) : undefined,
         defaultServiceId: form.defaultServiceId || undefined,
         defaultDeliveryDays: form.defaultDeliveryDays ? Number(form.defaultDeliveryDays) : undefined,
@@ -1247,6 +1257,25 @@ export default function EditTemplateEditor({
               placeholder="Pre-fills the project description field…"
             />
           </div>
+
+          {(
+            [
+              { field: "defaultWhy", label: "Why", placeholder: "Why we're doing this project…" },
+              { field: "defaultWhat", label: "What", placeholder: "What we'll deliver…" },
+              { field: "defaultHow", label: "How", placeholder: "How we'll approach it…" },
+              { field: "defaultActivities", label: "Activities", placeholder: "Key activities or sessions…" },
+              { field: "defaultDeliverables", label: "Deliverables", placeholder: "Concrete deliverables for the client…" },
+            ] as const
+          ).map(({ field, label, placeholder }) => (
+            <div key={field}>
+              <label className="typo-label">{label}</label>
+              <RichTextEditor
+                content={form[field]}
+                onChange={(html) => set(field, html)}
+                placeholder={placeholder}
+              />
+            </div>
+          ))}
 
           <div>
             <label className="typo-label">

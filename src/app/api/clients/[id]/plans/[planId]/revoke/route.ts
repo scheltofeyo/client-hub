@@ -8,14 +8,12 @@ import { hasPermissionOrIsLead } from "@/lib/auth-helpers";
 import { recordActivity } from "@/lib/activity";
 
 /**
- * Revoke an accepted plan. Reverses the accept-flow:
- *   - Plan status: accepted → ready
- *   - Promoted projects (planId matches, status === "not_started") → back to "draft"
- *   - Clear acceptedBy, acceptedAt, acceptedByClient
+ * Revoke an accepted plan. Sends the plan back to draft so it can be edited
+ * and (re-)accepted later. Project records on the plan remain in their draft
+ * state — acceptance no longer promotes drafts (that now happens on finalize),
+ * so there is nothing to demote.
  *
- * Refuses to revoke if any promoted project has already moved past not_started
- * (in_progress or completed) — at that point real work has started and a revoke
- * would create cascading inconsistencies.
+ * Finalized plans cannot be revoked.
  */
 export async function POST(
   _req: NextRequest,
@@ -41,34 +39,24 @@ export async function POST(
     return NextResponse.json({ error: "Only accepted plans can be revoked" }, { status: 400 });
   }
 
-  // Find all projects promoted from this plan
-  const promoted = await ProjectModel.find({
+  // Defensive: if any project on the plan is somehow no longer a draft (e.g.
+  // manually flipped), refuse to revoke so we don't leave the plan in a state
+  // that contradicts live work.
+  const nonDraft = await ProjectModel.find({
     clientId: id,
     planId,
     status: { $ne: "draft" },
   }).lean();
-
-  const inFlight = promoted.filter((p) => p.status !== "not_started");
-  if (inFlight.length > 0) {
-    const titles = inFlight.map((p) => `"${p.title}"`).join(", ");
+  if (nonDraft.length > 0) {
+    const titles = nonDraft.map((p) => `"${p.title}"`).join(", ");
     return NextResponse.json(
       {
-        error: `Cannot revoke: ${inFlight.length} project${inFlight.length === 1 ? " has" : "s have"} already been kicked off (${titles}). Reset ${inFlight.length === 1 ? "it" : "them"} to upcoming first.`,
+        error: `Cannot revoke: ${nonDraft.length} project${nonDraft.length === 1 ? " is" : "s are"} no longer in draft (${titles}). Reset ${nonDraft.length === 1 ? "it" : "them"} first.`,
       },
       { status: 400 }
     );
   }
 
-  // Flip each promoted (not_started) project back to draft
-  await Promise.all(
-    promoted.map((p) =>
-      ProjectModel.findByIdAndUpdate(p._id, { $set: { status: "draft" } })
-    )
-  );
-
-  // Clear acceptance state on the plan + push a revoke event to the audit trail.
-  // Plan goes back to "draft" so the public link shows a maintenance state and the
-  // consultant can iterate before sharing again via "Mark as ready".
   const updated = await ProjectPlanModel.findByIdAndUpdate(
     planId,
     {
@@ -95,7 +83,7 @@ export async function POST(
     actorId: session.user.id,
     actorName: session.user.name ?? "Unknown",
     type: "plan.revoked",
-    metadata: { planId, title: plan.title, projectCount: promoted.length },
+    metadata: { planId, title: plan.title },
   });
 
   return NextResponse.json({
@@ -104,6 +92,5 @@ export async function POST(
     acceptedAt: null,
     acceptedBy: null,
     acceptedByClient: null,
-    revokedProjectIds: promoted.map((p) => p._id.toString()),
   });
 }

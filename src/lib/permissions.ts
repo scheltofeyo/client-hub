@@ -22,6 +22,7 @@ export const ALL_PERMISSIONS = [
   "projectPlans.edit",
   "projectPlans.delete",
   "projectPlans.accept",
+  "projectPlans.finalize",
 
   // Task management
   "tasks.create",
@@ -143,6 +144,7 @@ export const PERMISSION_DEPENDENCIES: Partial<Record<Permission, Permission>> = 
   "projectPlans.edit": "projectPlans.view",
   "projectPlans.delete": "projectPlans.view",
   "projectPlans.accept": "projectPlans.view",
+  "projectPlans.finalize": "projectPlans.view",
   "employees.view": "admin.access",
   "admin.leaveTypes": "admin.access",
   "admin.companyHolidays": "admin.access",
@@ -230,6 +232,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       { key: "projectPlans.edit", label: "Edit project plans", requires: "projectPlans.view" },
       { key: "projectPlans.delete", label: "Delete project plans", requires: "projectPlans.view" },
       { key: "projectPlans.accept", label: "Accept project plans (proxy for client approval)", requires: "projectPlans.view" },
+      { key: "projectPlans.finalize", label: "Finalize project plans (irreversible — promote drafts to live projects)", requires: "projectPlans.view" },
     ],
   },
   {
