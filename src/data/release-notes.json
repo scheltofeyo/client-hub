@@ -1,5 +1,57 @@
 [
   {
+    "date": "2026-05-28",
+    "title": "Projectplannen: project-cards starten ingeklapt",
+    "details": [
+      "Bij het openen van een plan zijn alle project-cards standaard ingeklapt — klik op een card om de details uit te vouwen"
+    ]
+  },
+  {
+    "date": "2026-05-28",
+    "title": "Projectplannen: verwijderen i.p.v. archiveren",
+    "details": [
+      "De Archive-actie is vervangen door Verwijderen — het plan en de bijbehorende draft-projecten (incl. taken) worden direct opgeruimd",
+      "Gefinaliseerde plannen blijven onveranderlijk bewaard als historisch document met PDF-download"
+    ]
+  },
+  {
+    "date": "2026-05-28",
+    "title": "Projectplannen: acceptatie en definitief maken zijn nu twee aparte stappen",
+    "details": [
+      "Na akkoord blijft een plan zichtbaar als geaccepteerd; projecten gaan pas live als je het plan via de banner definitief maakt",
+      "Definitief maken is onomkeerbaar — daarna verdwijnt het plan uit de detailweergave en blijft alleen vindbaar als PDF in het overzicht",
+      "Acceptatie intrekken blijft mogelijk zolang het plan nog niet definitief is"
+    ]
+  },
+  {
+    "date": "2026-05-28",
+    "title": "Publieke proposalpagina: body-tekst iets kleiner voor rustiger leesbeeld",
+    "details": [
+      "Rich-text body (samenvatting, aanleiding, project-secties) van 17px → 15px (mobiel 16px → 14px)",
+      "PDF-versie blijft ongewijzigd"
+    ]
+  },
+  {
+    "date": "2026-05-26",
+    "title": "Project-templates: consultant-summaries + SUMM-toon op Mission Statement",
+    "details": [
+      "Summaries herschreven naar consultant-facing keuzehulp ('wanneer kies je deze variant?') voor alle 31 templates; nooit klant-zichtbaar",
+      "Mission Statement M en L gevuld met volledige SUMM-copy (Why/What/How/Activities/Deliverables) als worked example",
+      "Veldvolgorde op het projectplan en in de template-editor: Why → What → How → Activities → Deliverables (SUMM-huisvolgorde)",
+      "Andere templates krijgen Why/What/How/Activities/Deliverables in subsequente passes via de /summ-template-copy skill"
+    ]
+  },
+  {
+    "date": "2026-05-26",
+    "title": "Project-templates: service-first weergave + seed-bibliotheek",
+    "details": [
+      "Admin templates-lijst, project picker en plan-builder dropdown groeperen templates nu service-first; templates zonder service vallen onderaan in een 'Ungrouped' bucket",
+      "Nieuwe seed-bibliotheek met ~30 SUMM-templates (Inspiratiesessie, Culturele Diagnose, Cultureel DNA, Career Framework, Leadership trainings, Feedback training, Rewards en meer) inclusief naam, summary, gekoppelde service, beschrijving en doorlooptijd",
+      "Seed is idempotent: `npm run seed:templates` schrijft alleen lege velden bij, handmatige aanpassingen blijven staan; gebruik `-- --force` voor een volledige herschrijving",
+      "Prijzen blijven leeg in de seed — rollen worden per template via de admin UI toegevoegd zodat de role-based pricing engine het budget bepaalt"
+    ]
+  },
+  {
     "date": "2026-05-26",
     "title": "Survey-resultaten exporteren als Markdown",
     "details": [

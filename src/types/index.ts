@@ -171,10 +171,12 @@ export interface ProjectTemplate {
   defaultPricingMode?: PricingMode;
   defaultRoleAllocation?: Omit<RoleAllocationLine, "assignedUser">[];
   taskCount?: number;
+  /** Best-effort resolved price for the badge in pickers. Manual = defaultSoldPrice; rolebased = computed with live role rates. */
+  effectivePrice?: number;
   createdAt?: string;
 }
 
-export type ProjectPlanStatus = "draft" | "ready" | "accepted" | "archived";
+export type ProjectPlanStatus = "draft" | "ready" | "accepted" | "finalized";
 export type PlanDiscountType = "percentage" | "amount";
 
 export interface ProjectPlan {

@@ -69,7 +69,7 @@ interface ProposalData {
     title: string;
     summary: string | null;
     proposerStatement: string | null;
-    status: "draft" | "ready" | "accepted" | "archived";
+    status: "draft" | "ready" | "accepted" | "finalized";
     presentedAt: string | null;
     acceptedAt: string | null;
     acceptedByClient: { name: string; email: string } | null;
@@ -384,7 +384,7 @@ export default function ProposalView({ shareCode }: { shareCode: string }) {
 
   const fullData = data as ProposalData;
   const { plan, client, projects, totals, rates, legalTerms } = fullData;
-  const isAccepted = plan.status === "accepted";
+  const isAccepted = plan.status === "accepted" || plan.status === "finalized";
   const brandColor = client.primaryColor ?? "var(--primary)";
   const acceptFg = buttonFg(brandColor);
   const showSubNav = projects.length >= 3;
@@ -750,7 +750,7 @@ export default function ProposalView({ shareCode }: { shareCode: string }) {
       </footer>
 
       <style jsx global>{`
-        .prose-proposal { font-size: 17px; }
+        .prose-proposal { font-size: 15px; }
         .prose-proposal :where(p) { margin: 0 0 0.85em 0; line-height: 1.7; }
         .prose-proposal :where(p:last-child) { margin-bottom: 0; }
         .prose-proposal :where(ul) { margin: 0 0 0.85em 1.5em; list-style: disc; }
@@ -759,7 +759,7 @@ export default function ProposalView({ shareCode }: { shareCode: string }) {
         .prose-proposal :where(strong) { font-weight: 600; }
         .prose-proposal :where(em) { font-style: italic; }
         @media (max-width: 640px) {
-          .prose-proposal { font-size: 16px; }
+          .prose-proposal { font-size: 14px; }
         }
       `}</style>
     </div>

@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Pencil, Trash2, Plus } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Pencil, Trash2, Plus, ChevronDown, ChevronRight } from "lucide-react";
 import { useRouter } from "next/navigation";
 import SteppedModal from "@/components/ui/SteppedModal";
 import ServicePills from "@/components/ui/ServicePills";
@@ -208,63 +208,124 @@ export default function AdminTemplatesTable({
     router.refresh();
   }
 
+  // Service-first grouping. Group order follows the services array (already
+  // rank-sorted); "Ungrouped" goes last and only renders when needed.
+  const UNGROUPED_KEY = "__ungrouped__";
+  const groups = useMemo(() => {
+    const byService = new Map<string, ProjectTemplate[]>();
+    for (const tpl of templates) {
+      const key = tpl.defaultServiceId || UNGROUPED_KEY;
+      const arr = byService.get(key) ?? [];
+      arr.push(tpl);
+      byService.set(key, arr);
+    }
+    const ordered: { id: string; name: string; items: ProjectTemplate[] }[] = [];
+    for (const s of services) {
+      const items = byService.get(s.id);
+      if (items && items.length > 0) ordered.push({ id: s.id, name: s.name, items });
+    }
+    const ungrouped = byService.get(UNGROUPED_KEY);
+    if (ungrouped && ungrouped.length > 0) {
+      ordered.push({ id: UNGROUPED_KEY, name: "Ungrouped", items: ungrouped });
+    }
+    return ordered;
+  }, [templates, services]);
+
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  function toggleGroup(id: string) {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
   return (
-    <div className="space-y-3">
-      {templates.map((tpl) => (
-        <div
-          key={tpl.id}
-          className="rounded-xl border p-4"
-          style={{ borderColor: "var(--border)", background: "var(--bg-sidebar)" }}
-        >
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
-                {tpl.name}
-              </p>
-              {tpl.summary && (
-                <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
-                  {tpl.summary}
-                </p>
+    <div className="space-y-4">
+      {groups.map((group) => {
+        const isCollapsed = collapsed.has(group.id);
+        return (
+          <div key={group.id} className="space-y-2">
+            <button
+              type="button"
+              onClick={() => toggleGroup(group.id)}
+              className="flex w-full items-center gap-2 px-1 py-1 text-left"
+            >
+              {isCollapsed ? (
+                <ChevronRight size={14} style={{ color: "var(--text-muted)" }} />
+              ) : (
+                <ChevronDown size={14} style={{ color: "var(--text-muted)" }} />
               )}
-              {tpl.defaultDescription && (
-                <RichTextDisplay
-                  html={tpl.defaultDescription}
-                  className="text-xs mt-1.5 line-clamp-2"
-                  style={{ color: "var(--text-muted)" }}
-                />
-              )}
-              <div className="flex gap-4 mt-1.5">
-                {tpl.defaultSoldPrice != null && (
-                  <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-                    Default price: €{tpl.defaultSoldPrice.toLocaleString()}
-                  </span>
-                )}
-                {tpl.defaultServiceId && (
-                  <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-                    Service: {services.find((s) => s.id === tpl.defaultServiceId)?.name ?? "—"}
-                  </span>
-                )}
+              <span className="typo-section-header" style={{ color: "var(--text-muted)" }}>
+                {group.name}
+              </span>
+              <span
+                className="text-xs px-1.5 py-0.5 rounded-badge tabular-nums"
+                style={{
+                  background: "var(--bg-elevated)",
+                  color: "var(--text-muted)",
+                  border: "1px solid var(--border)",
+                }}
+              >
+                {group.items.length}
+              </span>
+            </button>
+            {!isCollapsed && (
+              <div className="space-y-2">
+                {group.items.map((tpl) => (
+                  <div
+                    key={tpl.id}
+                    className="rounded-xl border p-4"
+                    style={{ borderColor: "var(--border)", background: "var(--bg-sidebar)" }}
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
+                          {tpl.name}
+                        </p>
+                        {tpl.summary && (
+                          <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
+                            {tpl.summary}
+                          </p>
+                        )}
+                        {tpl.defaultDescription && (
+                          <RichTextDisplay
+                            html={tpl.defaultDescription}
+                            className="text-xs mt-1.5 line-clamp-2"
+                            style={{ color: "var(--text-muted)" }}
+                          />
+                        )}
+                        {tpl.defaultSoldPrice != null && (
+                          <p className="text-xs mt-1.5" style={{ color: "var(--text-muted)" }}>
+                            Default price: €{tpl.defaultSoldPrice.toLocaleString()}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex gap-1 shrink-0">
+                        <button
+                          onClick={() => router.push(`/admin/templates/${tpl.id}`)}
+                          className="p-1.5 rounded-md btn-icon"
+                          title="Edit template"
+                        >
+                          <Pencil size={13} />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(tpl.id, tpl.name)}
+                          className="p-1.5 rounded-md btn-icon text-[var(--danger)] hover:bg-[var(--danger-light)]"
+                          title="Delete template"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
-            </div>
-            <div className="flex gap-1 shrink-0">
-              <button
-                onClick={() => router.push(`/admin/templates/${tpl.id}`)}
-                className="p-1.5 rounded-md btn-icon"
-                title="Edit template"
-              >
-                <Pencil size={13} />
-              </button>
-              <button
-                onClick={() => handleDelete(tpl.id, tpl.name)}
-                className="p-1.5 rounded-md btn-icon text-[var(--danger)] hover:bg-[var(--danger-light)]"
-                title="Delete template"
-              >
-                <Trash2 size={13} />
-              </button>
-            </div>
+            )}
           </div>
-        </div>
-      ))}
+        );
+      })}
 
       {templates.length === 0 && (
         <p className="text-sm" style={{ color: "var(--text-muted)" }}>

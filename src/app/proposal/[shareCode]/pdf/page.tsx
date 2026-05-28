@@ -68,7 +68,7 @@ interface ProposalData {
     title: string;
     summary: string | null;
     proposerStatement: string | null;
-    status: "ready" | "accepted";
+    status: "ready" | "accepted" | "finalized";
     presentedAt: string | null;
     acceptedAt: string | null;
     acceptedByClient: { name: string; email: string } | null;
@@ -127,7 +127,7 @@ async function loadProposal(shareCode: string): Promise<ProposalData | null> {
   await connectDB();
 
   const plan = await ProjectPlanModel.findOne({ shareCode }).lean();
-  if (!plan || plan.status === "archived" || plan.status === "draft") return null;
+  if (!plan || plan.status === "draft") return null;
 
   const client = await ClientModel.findById(plan.clientId, {
     _id: 1, company: 1, primaryColor: 1,
@@ -313,7 +313,7 @@ async function loadProposal(shareCode: string): Promise<ProposalData | null> {
       title: plan.title,
       summary: plan.summary ?? null,
       proposerStatement: plan.proposerStatement ?? null,
-      status: plan.status as "ready" | "accepted",
+      status: plan.status as "ready" | "accepted" | "finalized",
       presentedAt: plan.presentedAt ?? null,
       acceptedAt: plan.acceptedAt ?? null,
       acceptedByClient: plan.acceptedByClient ?? null,
@@ -383,19 +383,18 @@ function formatDateShort(s: string | null, lang: Language): string {
   return d.toLocaleDateString(localeFor(lang), { day: "numeric", month: "short", year: "numeric" });
 }
 
-function htmlToPlainBlocks(html: string | null): string[] {
-  if (!html) return [];
-  const cleaned = html
-    .replace(/<\s*\/(p|li|h[1-6])\s*>/gi, "\n")
-    .replace(/<\s*br\s*\/?>/gi, "\n")
-    .replace(/<[^>]+>/g, "")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'");
-  return cleaned.split("\n").map((s) => s.trim()).filter(Boolean);
+// Whitelist-sanitize rich-text HTML from the TipTap editor. Keeps the inline
+// formatting + list structure the editor can produce (p, strong, em, ul, ol,
+// li, br) and strips everything else, including all attributes. This lets the
+// PDF render bullets and bold/italic instead of flattening to plain paragraphs.
+const ALLOWED_RICH_TAGS = new Set(["p", "strong", "em", "ul", "ol", "li", "br"]);
+function sanitizeRichHtml(html: string | null): string {
+  if (!html) return "";
+  return html.replace(/<\/?([a-z][a-z0-9]*)\b[^>]*>/gi, (match, tag) => {
+    const t = (tag as string).toLowerCase();
+    if (!ALLOWED_RICH_TAGS.has(t)) return "";
+    return match.startsWith("</") ? `</${t}>` : `<${t}>`;
+  });
 }
 
 // ── Page ────────────────────────────────────────────────────────────────────
@@ -411,7 +410,9 @@ export default async function ProposalPdfPage({
 
   const { language: lang, plan, client, organization: org, projects, team, rates, legalTerms, totals } = data;
   const t = copyFor(lang);
-  const isAccepted = plan.status === "accepted";
+  // Both "accepted" and "finalized" plans were officially agreed to by the
+  // client — both should render the signature page and hide the validity pill.
+  const isAccepted = plan.status === "accepted" || plan.status === "finalized";
   // Subtle client-brand accent — only used in detail elements (section underlines,
   // project numbering, validity pill, signature border). Falls back to monochrome
   // black if no brand color is set on the client (or the value isn't a hex).
@@ -450,6 +451,14 @@ export default async function ProposalPdfPage({
           .lead { color: #444; font-size: 12px; margin: 0 0 8px 0; }
           .prose p { margin: 0 0 6px 0; }
           .prose p:last-child { margin-bottom: 0; }
+          .prose ul, .prose ol { margin: 0 0 6px 0; padding-left: 18px; }
+          .prose ul:last-child, .prose ol:last-child { margin-bottom: 0; }
+          .prose ul { list-style: disc; }
+          .prose ol { list-style: decimal; }
+          .prose li { margin: 1px 0; line-height: 1.45; }
+          .prose li > p { margin: 0; }
+          .prose strong { font-weight: 700; }
+          .prose em { font-style: italic; }
 
           /* Cover page */
           .cover { padding: 18mm 18mm; min-height: 297mm; display: flex; flex-direction: column; }
@@ -602,7 +611,7 @@ function CoverPage({
       </div>
 
       <div className="cover-bottom">
-        {plan.status !== "accepted" && plan.validUntilDate && (
+        {plan.status === "ready" && plan.validUntilDate && (
           <div className="validity-fullwidth">
             {t.validUntil(formatDate(plan.validUntilDate, lang))}
           </div>
@@ -662,35 +671,40 @@ function AanleidingPage({
       <h2 className="section">{t.aanleidingTitle}</h2>
 
       {plan.summary && (
-        <div className="prose" style={{ marginTop: 8 }}>
-          {htmlToPlainBlocks(plan.summary).map((p, i) => <p key={`s${i}`}>{p}</p>)}
-        </div>
+        <div
+          className="prose"
+          style={{ marginTop: 8 }}
+          dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(plan.summary) }}
+        />
       )}
 
       {plan.challenge && (
         <>
           <h3 className="subsection">{t.challengeLabel}</h3>
-          <div className="prose">
-            {htmlToPlainBlocks(plan.challenge).map((p, i) => <p key={`c${i}`}>{p}</p>)}
-          </div>
+          <div
+            className="prose"
+            dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(plan.challenge) }}
+          />
         </>
       )}
 
       {plan.context && (
         <>
           <h3 className="subsection">{t.contextLabel}</h3>
-          <div className="prose">
-            {htmlToPlainBlocks(plan.context).map((p, i) => <p key={`x${i}`}>{p}</p>)}
-          </div>
+          <div
+            className="prose"
+            dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(plan.context) }}
+          />
         </>
       )}
 
       {plan.approach && (
         <>
           <h3 className="subsection">{t.approachLabel}</h3>
-          <div className="prose">
-            {htmlToPlainBlocks(plan.approach).map((p, i) => <p key={`a${i}`}>{p}</p>)}
-          </div>
+          <div
+            className="prose"
+            dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(plan.approach) }}
+          />
         </>
       )}
 
@@ -730,62 +744,77 @@ function AanleidingPage({
   );
 }
 
+function ProjectArticle({
+  lang, project, index, t,
+}: { lang: Language; project: ProposalProject; index: number; t: ProposalCopy }) {
+  return (
+    <article className="project">
+      <h3 className="project-title">{index + 1}. {project.title}</h3>
+      <p className="pmeta">
+        {project.service && <span>{project.service}</span>}
+        {project.scheduledStartDate && project.scheduledEndDate && (
+          <span>
+            {formatDateShort(project.scheduledStartDate, lang)} – {formatDateShort(project.scheduledEndDate, lang)}
+          </span>
+        )}
+        {project.durationDays != null && (
+          <span>{project.durationDays} {project.durationDays === 1 ? t.dayLabel : t.daysLabel}</span>
+        )}
+        {project.soldPrice > 0 && <span>{formatEuro(project.soldPrice)}</span>}
+      </p>
+      {(["why", "how", "what", "activities", "deliverables"] as const).map((k) => {
+        const v = project.sections[k];
+        if (!v) return null;
+        const labelMap = {
+          why: t.whyLabel, how: t.howLabel, what: t.whatLabel,
+          activities: t.activitiesLabel, deliverables: t.deliverablesLabel,
+        } as const;
+        return (
+          <div className="field" key={k}>
+            <div className="field-label">{labelMap[k]}</div>
+            <div
+              className="prose"
+              dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(v) }}
+            />
+          </div>
+        );
+      })}
+      {project.sessions.length > 0 && (
+        <div className="sessions-row">
+          <div className="label">{t.sessionsLabel}</div>
+          <div>
+            {project.sessions
+              .map((s) => [s.date ? formatDateShort(s.date, lang) : t.tbdLabel, s.title, s.location].filter(Boolean).join(" — "))
+              .join(" · ")}
+          </div>
+        </div>
+      )}
+      {project.team.length > 0 && (
+        <div className="team-row">
+          {t.teamLabel}: {project.team.map((m) => (m.roleLabel ? `${m.name} (${m.roleLabel})` : m.name)).join(", ")}
+        </div>
+      )}
+    </article>
+  );
+}
+
 function ProjectsPage({ lang, projects, t }: { lang: Language; projects: ProposalProject[]; t: ProposalCopy }) {
   if (projects.length === 0) return null;
+  const [first, ...rest] = projects;
   return (
-    <section className="pdf-page section-block">
-      <h2 className="section">
-        {projects.length} {projects.length === 1 ? t.projectSingular : t.projectPlural}
-      </h2>
-      {projects.map((p, idx) => (
-        <article className="project" key={p.id}>
-          <h3 className="project-title">{idx + 1}. {p.title}</h3>
-          <p className="pmeta">
-            {p.service && <span>{p.service}</span>}
-            {p.scheduledStartDate && p.scheduledEndDate && (
-              <span>
-                {formatDateShort(p.scheduledStartDate, lang)} – {formatDateShort(p.scheduledEndDate, lang)}
-              </span>
-            )}
-            {p.durationDays != null && (
-              <span>{p.durationDays} {p.durationDays === 1 ? t.dayLabel : t.daysLabel}</span>
-            )}
-            {p.soldPrice > 0 && <span>{formatEuro(p.soldPrice)}</span>}
-          </p>
-          {(["why", "how", "what", "activities", "deliverables"] as const).map((k) => {
-            const v = p.sections[k];
-            if (!v) return null;
-            const labelMap = {
-              why: t.whyLabel, how: t.howLabel, what: t.whatLabel,
-              activities: t.activitiesLabel, deliverables: t.deliverablesLabel,
-            } as const;
-            return (
-              <div className="field" key={k}>
-                <div className="field-label">{labelMap[k]}</div>
-                <div className="prose">
-                  {htmlToPlainBlocks(v).map((para, i) => <p key={i}>{para}</p>)}
-                </div>
-              </div>
-            );
-          })}
-          {p.sessions.length > 0 && (
-            <div className="sessions-row">
-              <div className="label">{t.sessionsLabel}</div>
-              <div>
-                {p.sessions
-                  .map((s) => [s.date ? formatDateShort(s.date, lang) : t.tbdLabel, s.title, s.location].filter(Boolean).join(" — "))
-                  .join(" · ")}
-              </div>
-            </div>
-          )}
-          {p.team.length > 0 && (
-            <div className="team-row">
-              {t.teamLabel}: {p.team.map((m) => (m.roleLabel ? `${m.name} (${m.roleLabel})` : m.name)).join(", ")}
-            </div>
-          )}
-        </article>
+    <>
+      <section className="pdf-page section-block">
+        <h2 className="section">
+          {projects.length} {projects.length === 1 ? t.projectSingular : t.projectPlural}
+        </h2>
+        <ProjectArticle lang={lang} project={first} index={0} t={t} />
+      </section>
+      {rest.map((p, idx) => (
+        <section className="pdf-page section-block" key={p.id}>
+          <ProjectArticle lang={lang} project={p} index={idx + 1} t={t} />
+        </section>
       ))}
-    </section>
+    </>
   );
 }
 

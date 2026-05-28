@@ -1,9 +1,9 @@
 import mongoose, { Schema, Document, Model } from "mongoose";
 
-export type ProjectPlanStatus = "draft" | "ready" | "accepted" | "archived";
+export type ProjectPlanStatus = "draft" | "ready" | "accepted" | "finalized";
 export type PlanDiscountType = "percentage" | "amount";
 
-export type AcceptanceEventType = "created" | "sent" | "accepted" | "revoked";
+export type AcceptanceEventType = "created" | "sent" | "accepted" | "revoked" | "finalized";
 export type AcceptanceEventSource = "client" | "internal";
 
 export interface IAcceptanceEvent {
@@ -31,7 +31,10 @@ export interface IProjectPlan extends Document {
   presentedAt?: string;
   /** Set when accepted via the public share link, separate from internal acceptedBy. */
   acceptedByClient?: { name: string; email: string };
-  /** Full audit trail of accept / revoke events. Latest event last. */
+  /** Set when the plan is finalized (irreversible — projects are promoted to live). */
+  finalizedAt?: string;
+  finalizedBy?: { userId: string; name: string; image?: string };
+  /** Full audit trail of accept / revoke / finalize events. Latest event last. */
   acceptanceLog?: IAcceptanceEvent[];
 
   /** Language the proposal renders in (NL or EN). Defaults to "nl". */
@@ -69,7 +72,7 @@ const ProjectPlanSchema = new Schema<IProjectPlan>(
     summary: { type: String },
     status: {
       type: String,
-      enum: ["draft", "ready", "accepted", "archived"],
+      enum: ["draft", "ready", "accepted", "finalized"],
       default: "draft",
       index: true,
     },
@@ -89,11 +92,13 @@ const ProjectPlanSchema = new Schema<IProjectPlan>(
       ),
       required: false,
     },
+    finalizedAt: { type: String, trim: true },
+    finalizedBy: { type: UserSnapshotSchema, required: false },
     acceptanceLog: {
       type: [
         new Schema(
           {
-            type: { type: String, enum: ["created", "sent", "accepted", "revoked"], required: true },
+            type: { type: String, enum: ["created", "sent", "accepted", "revoked", "finalized"], required: true },
             at: { type: String, required: true },
             source: { type: String, enum: ["client", "internal"], required: true },
             by: {

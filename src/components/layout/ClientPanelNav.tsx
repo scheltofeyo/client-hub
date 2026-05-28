@@ -36,15 +36,16 @@ export default function ClientPanelNav({
   const [localSheets, setLocalSheets] = useState(sheets);
   const [showCompleted, setShowCompleted] = useState(false);
 
-  // Track active tab locally (updated via URL reads and tab-change events)
-  const [activeTab, setActiveTab] = useState(() => {
-    if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      const tab = params.get("tab")?.toLowerCase() ?? "dashboard";
-      return validTabs.includes(tab) ? tab : "dashboard";
-    }
-    return "dashboard";
-  });
+  // Track active tab locally (updated via URL reads and tab-change events).
+  // Always start with "dashboard" to avoid hydration mismatch — the effect
+  // below reads the actual ?tab= param on mount.
+  const [activeTab, setActiveTab] = useState("dashboard");
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get("tab")?.toLowerCase() ?? "dashboard";
+    if (validTabs.includes(tab) && tab !== "dashboard") setActiveTab(tab);
+  }, []);
 
   // Keep localSheets in sync with props on navigation (layout re-renders with fresh data)
   useEffect(() => {

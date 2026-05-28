@@ -27,6 +27,10 @@ export default async function PlanDetailPage({
   ]);
   if (!client || !plan) notFound();
 
+  // Finalized plans are hidden from the editor; they're only accessible as a
+  // PDF entry in the plans list. Send admins back to the client projects view.
+  if (plan.status === "finalized") redirect(`/clients/${id}`);
+
   return (
     <PlanDetail
       clientId={id}

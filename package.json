@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "seed": "npx tsx scripts/seed-roles.ts",
+    "seed:templates": "npx tsx scripts/seed-project-templates.ts",
     "seed:archetype-survey": "npx tsx scripts/seed-archetype-survey-cultural.ts",
     "seed:archetype-survey-nl": "npx tsx scripts/seed-archetype-survey-cultural-nl.ts",
     "backfill:project-status": "npx tsx scripts/backfill-project-status.ts"

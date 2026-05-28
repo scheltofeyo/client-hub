@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Plus, FileText, Layers } from "lucide-react";
+import { useState, useEffect, useMemo, useRef } from "react";
+import { Plus, FileText, FolderOpen } from "lucide-react";
 import { useRouter } from "next/navigation";
 import SteppedModal from "@/components/ui/SteppedModal";
 import ServicePills from "@/components/ui/ServicePills";
@@ -13,19 +13,33 @@ import type { ProjectLabel, ProjectTemplate, Service, TaskAssignee } from "@/typ
 
 type AssignableUser = { id: string; name: string; image: string | null };
 
+function formatEuro(n: number) {
+  return new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n);
+}
+
 /**
  * Standalone modal for creating a project.
  * Controlled externally via `open` / `onClose`.
+ *
+ * In plan-draft mode (`planId` is set), the modal short-circuits after the
+ * template pick: it POSTs to the plan's drafts endpoint, calls
+ * `onDraftCreated` with the response, and closes. Step 2 (project details)
+ * and the redirect to the project page are skipped.
  */
 export function AddProjectModal({
   clientId,
   open,
   onClose,
+  planId,
+  onDraftCreated,
 }: {
   clientId: string;
   open: boolean;
   onClose: () => void;
+  planId?: string;
+  onDraftCreated?: (result: { project: Record<string, unknown>; tasks: unknown[]; sessions: unknown[] }) => void;
 }) {
+  const isPlanDraftMode = !!planId;
   const [step, setStep] = useState(0);
   const [templates, setTemplates] = useState<ProjectTemplate[]>([]);
   const [services, setServices] = useState<Service[]>([]);
@@ -35,6 +49,10 @@ export function AddProjectModal({
   const [selectedTemplate, setSelectedTemplate] = useState<ProjectTemplate | null>(null);
   const [selectedMembers, setSelectedMembers] = useState<TaskAssignee[]>([]);
   const [addAsCompleted, setAddAsCompleted] = useState(false);
+  // Service-first picker: which service's templates are shown on step 1.
+  // `null` = haven't picked yet; "__ungrouped__" = pick from templates without a service.
+  const UNGROUPED_KEY = "__ungrouped__";
+  const [pickerServiceId, setPickerServiceId] = useState<string | null>(null);
 
   const [form, setForm] = useState({
     title: "",
@@ -47,6 +65,7 @@ export function AddProjectModal({
     labelId: "",
   });
   const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
   const [error, setError] = useState("");
   const router = useRouter();
 
@@ -58,6 +77,7 @@ export function AddProjectModal({
       setSelectedTemplate(null);
       setSelectedMembers([]);
       setAddAsCompleted(false);
+      setPickerServiceId(null);
       setForm({
         title: "",
         description: "",
@@ -99,10 +119,22 @@ export function AddProjectModal({
   function selectTemplate(tpl: ProjectTemplate | null) {
     setSelectedTemplate(tpl);
     setAddAsCompleted(false);
+
+    if (isPlanDraftMode) {
+      submitDraft(tpl);
+      return;
+    }
+
+    // When picking a template, prefer its defaultServiceId; otherwise use the
+    // service the user picked in step 0 (real service id only — Ungrouped acts
+    // like a no-service starting point).
+    const serviceId =
+      tpl?.defaultServiceId ??
+      (pickerServiceId && pickerServiceId !== UNGROUPED_KEY ? pickerServiceId : "");
     setForm({
       title: tpl?.name ?? "",
       description: tpl?.defaultDescription ?? "",
-      serviceId: tpl?.defaultServiceId ?? "",
+      serviceId,
       scheduledStartDate: "",
       scheduledEndDate: "",
       completedDate: "",
@@ -110,7 +142,36 @@ export function AddProjectModal({
       labelId: "",
     });
     setError("");
-    setStep(1);
+    setStep(2);
+  }
+
+  async function submitDraft(tpl: ProjectTemplate | null) {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+    setSubmitting(true);
+    setError("");
+    try {
+      const body = tpl
+        ? { templateId: tpl.id }
+        : { title: "New draft" };
+      const res = await fetch(`/api/clients/${clientId}/plans/${planId}/projects`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error ?? "Failed to add draft");
+        return;
+      }
+      const data = await res.json();
+      const { tasks = [], sessions = [], ...projectData } = data;
+      onDraftCreated?.({ project: projectData, tasks, sessions });
+      onClose();
+    } finally {
+      submittingRef.current = false;
+      setSubmitting(false);
+    }
   }
 
   function set(field: string, value: string) {
@@ -184,13 +245,49 @@ export function AddProjectModal({
     router.push(`/clients/${clientId}/projects/${data.id}`);
   }
 
-  const stepLabels = ["Choose a starting point", "Project details"];
+  const stepLabels = isPlanDraftMode
+    ? ["Choose service", "Choose template"]
+    : ["Choose service", "Choose template", "Project details"];
+
+  // Group templates by service for the picker. Group order follows `services`
+  // (rank-sorted by the API); only services with at least one template show up.
+  // Ungrouped (no defaultServiceId) is added last when present.
+  const templateGroups = useMemo(() => {
+    const byService = new Map<string, ProjectTemplate[]>();
+    for (const tpl of templates) {
+      const key = tpl.defaultServiceId || UNGROUPED_KEY;
+      const arr = byService.get(key) ?? [];
+      arr.push(tpl);
+      byService.set(key, arr);
+    }
+    const ordered: { id: string; name: string; items: ProjectTemplate[] }[] = [];
+    for (const s of services) {
+      const items = byService.get(s.id);
+      if (items && items.length > 0) ordered.push({ id: s.id, name: s.name, items });
+    }
+    const ungrouped = byService.get(UNGROUPED_KEY);
+    if (ungrouped && ungrouped.length > 0) {
+      ordered.push({ id: UNGROUPED_KEY, name: "Ungrouped", items: ungrouped });
+    }
+    return ordered;
+  }, [templates, services]);
+
+  const templatesForPickedService = useMemo(() => {
+    if (!pickerServiceId) return [] as ProjectTemplate[];
+    return templateGroups.find((g) => g.id === pickerServiceId)?.items ?? [];
+  }, [pickerServiceId, templateGroups]);
+
+  const pickedServiceName = useMemo(() => {
+    if (!pickerServiceId) return null;
+    if (pickerServiceId === UNGROUPED_KEY) return "Ungrouped";
+    return services.find((s) => s.id === pickerServiceId)?.name ?? null;
+  }, [pickerServiceId, services]);
 
   return (
     <SteppedModal
       open={open}
       onClose={onClose}
-      title="New Project"
+      title={isPlanDraftMode ? "Add draft project" : "New Project"}
       steps={stepLabels}
       currentStep={step}
       footer={
@@ -202,11 +299,22 @@ export function AddProjectModal({
           >
             Cancel
           </button>
+          ) : step === 1 ? (
+            <button
+              type="button"
+              onClick={() => {
+                setPickerServiceId(null);
+                setStep(0);
+              }}
+              className="px-4 py-2 rounded-lg text-sm font-medium btn-ghost"
+            >
+              Back
+            </button>
           ) : (
             <>
               <button
                 type="button"
-                onClick={() => setStep(0)}
+                onClick={() => setStep(pickerServiceId ? 1 : 0)}
                 className="px-4 py-2 rounded-lg text-sm font-medium btn-ghost"
               >
                 Back
@@ -233,86 +341,142 @@ export function AddProjectModal({
         }
       >
         {step === 0 ? (
-          /* ── Step 1: Template picker ── */
+          /* ── Step 0: Service picker ── */
           <div className="space-y-3">
             {loading ? (
               <p className="text-sm py-8 text-center" style={{ color: "var(--text-muted)" }}>
-                Loading templates…
+                Loading…
               </p>
             ) : (
-              <div className="grid grid-cols-2 gap-3">
-                {/* Start clean card */}
+              <div className="space-y-3">
+                {/* Start clean — full-width row, highlights the blank path */}
                 <button
                   type="button"
                   onClick={() => selectTemplate(null)}
-                  className="text-left px-4 py-4 rounded-xl border transition-all hover:border-[var(--primary)] hover:shadow-sm"
+                  className="flex items-center gap-3 w-full px-4 py-3 rounded-xl border transition-all hover:border-[var(--primary)] hover:shadow-sm text-left"
                   style={{
                     borderColor: "var(--border)",
                     background: "var(--bg-sidebar)",
                   }}
                 >
-                  <div className="flex items-center gap-2 mb-2">
-                    <div
-                      className="w-8 h-8 rounded-lg flex items-center justify-center"
-                      style={{ background: "var(--bg-elevated)" }}
-                    >
-                      <Plus size={16} style={{ color: "var(--text-muted)" }} />
-                    </div>
+                  <div
+                    className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+                    style={{ background: "var(--bg-elevated)" }}
+                  >
+                    <Plus size={16} style={{ color: "var(--text-muted)" }} />
                   </div>
-                  <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
-                    Start clean
-                  </p>
-                  <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
-                    Blank project — fill in everything yourself
-                  </p>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
+                      Start clean
+                    </p>
+                    <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
+                      Blank project — fill in everything yourself
+                    </p>
+                  </div>
                 </button>
 
-                {/* Template cards */}
-                {templates.map((tpl) => (
+                {/* Service cards (only services that have templates) */}
+                <div className="grid grid-cols-2 gap-3">
+                  {templateGroups.map((group) => (
+                    <button
+                      key={group.id}
+                      type="button"
+                      onClick={() => {
+                        setPickerServiceId(group.id);
+                        setStep(1);
+                      }}
+                      className="flex items-center gap-3 px-4 py-3 rounded-xl border transition-all hover:border-[var(--primary)] hover:shadow-sm text-left"
+                      style={{
+                        borderColor: "var(--border)",
+                        background: "var(--bg-sidebar)",
+                      }}
+                    >
+                      <div
+                        className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+                        style={{ background: "var(--primary-light)" }}
+                      >
+                        <FolderOpen size={16} style={{ color: "var(--primary)" }} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate" style={{ color: "var(--text-primary)" }}>
+                          {group.name}
+                        </p>
+                        <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
+                          {group.items.length} template{group.items.length === 1 ? "" : "s"}
+                        </p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {!loading && templateGroups.length === 0 && (
+              <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                No templates yet. Use &ldquo;Start clean&rdquo; above or create templates in the Admin panel.
+              </p>
+            )}
+          </div>
+        ) : step === 1 ? (
+          /* ── Step 1: Template picker (filtered by selected service) ── */
+          <div className="space-y-3">
+            {pickedServiceName && (
+              <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                Service: <span style={{ color: "var(--text-primary)" }}>{pickedServiceName}</span>
+              </p>
+            )}
+            <div className="rounded-xl border overflow-hidden" style={{ borderColor: "var(--border)" }}>
+              {/* "Use this service without a template" — only for real services */}
+              {pickerServiceId && pickerServiceId !== UNGROUPED_KEY && (
+                <button
+                  type="button"
+                  onClick={() => selectTemplate(null)}
+                  className="flex items-start justify-between gap-4 w-full px-4 py-3 text-left hover:bg-[var(--bg-hover)] transition-colors"
+                  style={{ borderBottom: "1px solid var(--border)" }}
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
+                      No template
+                    </p>
+                    <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+                      Start blank with this service
+                    </p>
+                  </div>
+                </button>
+              )}
+
+              {templatesForPickedService.map((tpl, idx) => {
+                const isLast = idx === templatesForPickedService.length - 1;
+                return (
                   <button
                     key={tpl.id}
                     type="button"
                     onClick={() => selectTemplate(tpl)}
-                    className="text-left px-4 py-4 rounded-xl border transition-all hover:border-[var(--primary)] hover:shadow-sm"
-                    style={{
-                      borderColor: "var(--border)",
-                      background: "var(--bg-sidebar)",
-                    }}
+                    className="flex items-start justify-between gap-4 w-full px-4 py-3 text-left hover:bg-[var(--bg-hover)] transition-colors"
+                    style={isLast ? undefined : { borderBottom: "1px solid var(--border)" }}
                   >
-                    <div className="flex items-center gap-2 mb-2">
-                      <div
-                        className="w-8 h-8 rounded-lg flex items-center justify-center"
-                        style={{ background: "var(--primary-light)" }}
-                      >
-                        <Layers size={16} style={{ color: "var(--primary)" }} />
-                      </div>
-                    </div>
-                    <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
-                      {tpl.name}
-                    </p>
-                    {tpl.summary && (
-                      <p className="text-xs mt-0.5 line-clamp-2" style={{ color: "var(--text-muted)" }}>
-                        {tpl.summary}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
+                        {tpl.name}
                       </p>
-                    )}
-                    {(tpl.taskCount ?? 0) > 0 && (
+                      {tpl.summary && (
+                        <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+                          {tpl.summary}
+                        </p>
+                      )}
+                    </div>
+                    {tpl.effectivePrice != null && tpl.effectivePrice > 0 && (
                       <span
-                        className="inline-block mt-2 px-2 py-0.5 rounded-full text-[10px] font-medium"
+                        className="shrink-0 inline-block px-2.5 py-0.5 rounded-full text-xs font-medium tabular-nums"
                         style={{ background: "var(--primary-light)", color: "var(--primary)" }}
                       >
-                        {tpl.taskCount} task{tpl.taskCount === 1 ? "" : "s"}
+                        {formatEuro(tpl.effectivePrice)}
                       </span>
                     )}
                   </button>
-                ))}
-              </div>
-            )}
-
-            {!loading && templates.length === 0 && (
-              <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                No templates yet. An admin can create them in the Admin panel.
-              </p>
-            )}
+                );
+              })}
+            </div>
           </div>
         ) : (
           /* ── Step 2: Project details ── */

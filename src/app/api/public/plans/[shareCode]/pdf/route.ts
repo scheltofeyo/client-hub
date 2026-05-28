@@ -39,7 +39,7 @@ export async function GET(
 
   const plan = await ProjectPlanModel.findOne({ shareCode }).lean();
   if (!plan) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  if (plan.status === "archived" || plan.status === "draft") {
+  if (plan.status === "draft") {
     return NextResponse.json({ error: "This proposal is not available for download" }, { status: 400 });
   }
 

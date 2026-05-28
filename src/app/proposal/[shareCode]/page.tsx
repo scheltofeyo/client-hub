@@ -13,9 +13,9 @@ export default async function ProposalPage({
   const { shareCode } = await params;
   await connectDB();
   const exists = await ProjectPlanModel.findOne({ shareCode })
-    .select("_id status")
+    .select("_id")
     .lean();
-  if (!exists || exists.status === "archived") notFound();
+  if (!exists) notFound();
 
   return <ProposalView shareCode={shareCode} />;
 }
