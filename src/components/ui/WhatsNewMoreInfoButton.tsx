@@ -15,7 +15,7 @@ export default function WhatsNewMoreInfoButton({ releaseNote }: { releaseNote: R
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="btn-secondary border inline-flex items-center gap-1.5 text-xs"
+        className="btn-border border inline-flex items-center gap-1.5 text-xs"
       >
         <Sparkles size={12} />
         Meer info

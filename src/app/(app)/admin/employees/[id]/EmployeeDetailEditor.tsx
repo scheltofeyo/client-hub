@@ -388,7 +388,7 @@ export default function EmployeeDetailEditor({
               <button
                 onClick={handleReactivate}
                 disabled={reactivating}
-                className="btn-secondary border text-sm px-3 py-1.5 rounded-lg flex items-center gap-1.5"
+                className="btn-border border text-sm px-3 py-1.5 rounded-lg flex items-center gap-1.5"
               >
                 <RotateCcw size={14} />
                 {reactivating ? "Reactivating\u2026" : "Reactivate"}
@@ -505,7 +505,7 @@ export default function EmployeeDetailEditor({
               <div
                 className="rounded-lg px-4 py-3 flex items-center gap-3 text-sm mb-4"
                 style={{
-                  background: "var(--bg-hover)",
+                  background: "var(--bg-neutral)",
                   border: "1px solid var(--border)",
                   color: "var(--text-muted)",
                 }}

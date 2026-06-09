@@ -345,7 +345,7 @@ function CultureSection({
             <button
               onClick={() => setShowAddRow(true)}
               disabled={saving || showAddRow}
-              className="btn-secondary border rounded-button text-xs inline-flex items-center gap-1 px-2.5 py-1"
+              className="btn-border border rounded-button text-xs inline-flex items-center gap-1 px-2.5 py-1"
             >
               <Plus size={12} />
               Niveau toevoegen
@@ -565,7 +565,7 @@ function SortableLevelRow({
               <button
                 onClick={onCancelDelete}
                 className="text-xs px-2 py-0.5 rounded-button"
-                style={{ background: "var(--bg-hover)", color: "var(--text-muted)" }}
+                style={{ background: "var(--bg-neutral)", color: "var(--text-muted)" }}
               >
                 Nee
               </button>

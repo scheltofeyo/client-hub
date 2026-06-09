@@ -161,7 +161,7 @@ export default function AdminRolesTable({ initialRoles }: { initialRoles: Role[]
             <div
               className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center"
               style={{
-                background: role.isSystem ? "var(--primary-light)" : "var(--bg-hover)",
+                background: role.isSystem ? "var(--primary-light)" : "var(--bg-neutral)",
                 color: role.isSystem ? "var(--primary)" : "var(--text-muted)",
               }}
             >
@@ -186,14 +186,14 @@ export default function AdminRolesTable({ initialRoles }: { initialRoles: Role[]
 
             <span
               className="text-xs px-2 py-0.5 rounded-full"
-              style={{ background: "var(--bg-hover)", color: "var(--text-muted)" }}
+              style={{ background: "var(--bg-neutral)", color: "var(--text-muted)" }}
             >
               {role.permissions.length} permission{role.permissions.length !== 1 ? "s" : ""}
             </span>
 
             <span
               className="text-xs px-2 py-0.5 rounded-full"
-              style={{ background: "var(--bg-hover)", color: "var(--text-muted)" }}
+              style={{ background: "var(--bg-neutral)", color: "var(--text-muted)" }}
             >
               {role.userCount} user{role.userCount !== 1 ? "s" : ""}
             </span>

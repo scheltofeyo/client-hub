@@ -516,7 +516,7 @@ function EventCard({
           <div className="flex items-center gap-2 mt-auto pt-0.5">
             <span
               className="flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded"
-              style={{ background: "var(--bg-hover)", color: "var(--text-muted)" }}
+              style={{ background: "var(--bg-neutral)", color: "var(--text-muted)" }}
             >
               <RefreshCw size={9} strokeWidth={2.5} />
               {recurrenceLabel(event.recurrenceInterval!, event.recurrenceUnit!)}

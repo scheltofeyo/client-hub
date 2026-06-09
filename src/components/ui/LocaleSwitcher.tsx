@@ -10,7 +10,7 @@ export default function LocaleSwitcher({
   onChange: (l: Locale) => void;
 }) {
   return (
-    <div className="flex items-center gap-0.5 rounded-full p-0.5" style={{ background: "var(--bg-hover)" }}>
+    <div className="flex items-center gap-0.5 rounded-full p-0.5" style={{ background: "var(--bg-neutral)" }}>
       {(["nl", "en"] as const).map((l) => (
         <button
           key={l}

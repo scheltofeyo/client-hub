@@ -34,7 +34,7 @@ export function DnaBadge({ count }: { count: number }) {
   ) : (
     <span
       className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium shrink-0"
-      style={{ background: "var(--bg-hover)", color: "var(--text-muted)" }}
+      style={{ background: "var(--bg-neutral)", color: "var(--text-muted)" }}
     >
       <Dna size={11} />
       —

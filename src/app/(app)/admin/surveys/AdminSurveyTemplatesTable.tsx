@@ -125,7 +125,7 @@ function NewTemplateForm({
                 onClick={() => toggleArchetype(a.id)}
                 className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors"
                 style={{
-                  background: on ? a.color : "var(--bg-hover)",
+                  background: on ? a.color : "var(--bg-neutral)",
                   color: on ? "#fff" : "var(--text-muted)",
                   borderColor: on ? a.color : "var(--border)",
                 }}
@@ -242,7 +242,7 @@ export default function AdminSurveyTemplatesTable({
                     <span
                       className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium"
                       style={{
-                        background: t.status === "active" ? "var(--success-light)" : "var(--bg-hover)",
+                        background: t.status === "active" ? "var(--success-light)" : "var(--bg-neutral)",
                         color: t.status === "active" ? "var(--success)" : "var(--text-muted)",
                       }}
                     >

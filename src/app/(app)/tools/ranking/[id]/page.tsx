@@ -160,7 +160,7 @@ export default function RankingSessionDetailPage() {
           </div>
           <div className="flex items-center gap-2">
             {isDraft && canEdit && (
-              <Link href={`/tools/ranking/${id}/edit`} className="btn-secondary border rounded-lg text-sm px-3 py-2 inline-flex items-center gap-1.5">
+              <Link href={`/tools/ranking/${id}/edit`} className="btn-border border rounded-lg text-sm px-3 py-2 inline-flex items-center gap-1.5">
                 <Pencil size={13} />
                 Edit
               </Link>
@@ -168,7 +168,7 @@ export default function RankingSessionDetailPage() {
             {(isOpen || isClosed) && (
               <button
                 onClick={handleCopyQr}
-                className="btn-primary-light rounded-lg text-sm px-3 py-2 inline-flex items-center gap-1.5 font-medium"
+                className="btn-secondary rounded-lg text-sm px-3 py-2 inline-flex items-center gap-1.5 font-medium"
                 style={{ color: "var(--primary)" }}
               >
                 {qrCopied ? <Check size={14} style={{ color: "var(--success)" }} /> : <QrCode size={14} />}
@@ -586,7 +586,7 @@ function MatchResultsPanel({ submissions, values }: { submissions: Submission[];
       {/* Header + algorithm toggle */}
       <div className="flex items-center justify-between mb-3">
         <h3 className="typo-section-header" style={{ color: "var(--primary)" }}>Match results</h3>
-        <div className="flex items-center gap-1 p-1 rounded-button" style={{ background: "var(--bg-hover)" }}>
+        <div className="flex items-center gap-1 p-1 rounded-button" style={{ background: "var(--bg-neutral)" }}>
           {(["greedy", "balanced"] as const).map((alg) => (
             <button
               key={alg}
@@ -620,7 +620,7 @@ function MatchResultsPanel({ submissions, values }: { submissions: Submission[];
                     <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold ring-2 ring-white" style={{ background: "var(--primary-light)", color: "var(--primary)" }}>
                       {pair.participant1.participantName.charAt(0).toUpperCase()}
                     </div>
-                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold ring-2 ring-white" style={{ background: "var(--bg-hover)", color: "var(--text-primary)" }}>
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold ring-2 ring-white" style={{ background: "var(--bg-neutral)", color: "var(--text-primary)" }}>
                       {pair.participant2.participantName.charAt(0).toUpperCase()}
                     </div>
                   </div>
@@ -651,7 +651,7 @@ function MatchResultsPanel({ submissions, values }: { submissions: Submission[];
                 <div className="px-4 pb-4 border-t" style={{ borderColor: "var(--border)" }}>
                   {/* Opposition progress bar */}
                   <div className="mt-3 mb-4">
-                    <div className="w-full h-2 rounded-full" style={{ background: "var(--bg-hover)" }}>
+                    <div className="w-full h-2 rounded-full" style={{ background: "var(--bg-neutral)" }}>
                       <div
                         className="h-2 rounded-full transition-all"
                         style={{ width: `${oppositionPct}%`, background: "var(--primary)" }}

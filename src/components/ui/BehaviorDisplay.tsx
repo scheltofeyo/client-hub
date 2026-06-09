@@ -67,7 +67,7 @@ export default function BehaviorDisplay({ levels, behaviors, color, variant = "c
                         color: "#fff",
                       }
                     : {
-                        backgroundColor: useWhite ? "rgba(255,255,255,0.15)" : useDark ? "rgba(0,0,0,0.06)" : "var(--bg-hover)",
+                        backgroundColor: useWhite ? "rgba(255,255,255,0.15)" : useDark ? "rgba(0,0,0,0.06)" : "var(--bg-neutral)",
                         color: useWhite ? "rgba(255,255,255,0.7)" : useDark ? "rgba(0,0,0,0.5)" : "var(--text-muted)",
                         border: useWhite ? "1px solid rgba(255,255,255,0.2)" : useDark ? "1px solid rgba(0,0,0,0.1)" : "1px solid var(--border)",
                       }

@@ -30,7 +30,7 @@ export default function DeleteClientButton({ id, company }: { id: string; compan
     <>
       <button
         onClick={() => setOpen(true)}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border btn-secondary"
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border btn-border"
       >
         <Trash2 size={13} />
         Delete

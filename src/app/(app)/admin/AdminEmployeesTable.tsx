@@ -33,14 +33,14 @@ function statusColor(status: string) {
   switch (status) {
     case "active": return { bg: "var(--success-light)", color: "var(--success)" };
     case "invited": return { bg: "var(--warning-light)", color: "var(--warning)" };
-    case "inactive": return { bg: "var(--bg-hover)", color: "var(--text-muted)" };
-    default: return { bg: "var(--bg-hover)", color: "var(--text-muted)" };
+    case "inactive": return { bg: "var(--bg-neutral)", color: "var(--text-muted)" };
+    default: return { bg: "var(--bg-neutral)", color: "var(--text-muted)" };
   }
 }
 
 function roleBadge(role: string) {
   if (role === "admin") return { bg: "var(--primary-light)", color: "var(--primary)" };
-  if (role !== "member") return { bg: "var(--bg-hover)", color: "var(--text-secondary)" };
+  if (role !== "member") return { bg: "var(--bg-neutral)", color: "var(--text-secondary)" };
   return null;
 }
 
@@ -151,7 +151,7 @@ export default function AdminEmployeesTable({
                 onClick={() => toggleFilter(s)}
                 className="text-xs font-medium px-2.5 py-1 rounded-full capitalize transition-opacity"
                 style={{
-                  background: active ? sc.bg : "var(--bg-hover)",
+                  background: active ? sc.bg : "var(--bg-neutral)",
                   color: active ? sc.color : "var(--text-muted)",
                   opacity: active ? 1 : 0.6,
                 }}

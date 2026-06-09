@@ -29,7 +29,7 @@ const CONFIG: Record<
   readonly: {
     label: "Read-only",
     icon: Eye,
-    bg: "var(--bg-hover)",
+    bg: "var(--bg-neutral)",
     fg: "var(--text-muted)",
   },
 };

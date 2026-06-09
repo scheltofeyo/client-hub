@@ -34,7 +34,7 @@ export default function AppError({
           <button type="button" onClick={reset} className="btn-primary px-3 py-1.5 rounded-button text-sm">
             Opnieuw proberen
           </button>
-          <Link href="/dashboard" className="btn-secondary border px-3 py-1.5 rounded-button text-sm">
+          <Link href="/dashboard" className="btn-border border px-3 py-1.5 rounded-button text-sm">
             Terug naar dashboard
           </Link>
         </div>

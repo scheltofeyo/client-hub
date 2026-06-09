@@ -17,7 +17,7 @@ export default function SheetActions({ url }: { url: string }) {
       <button
         type="button"
         onClick={copyLink}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm border btn-secondary"
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm border btn-border"
       >
         {copied ? <Check size={14} /> : <Copy size={14} />}
         {copied ? "Copied!" : "Copy"}
@@ -26,7 +26,7 @@ export default function SheetActions({ url }: { url: string }) {
         href={url}
         target="_blank"
         rel="noopener noreferrer"
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm border btn-secondary"
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm border btn-border"
       >
         <ExternalLink size={14} />
         Open

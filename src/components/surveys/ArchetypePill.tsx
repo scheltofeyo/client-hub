@@ -48,7 +48,7 @@ export default function ArchetypePill({
     if (variant === "solid") {
       return effectivelyOn
         ? { background: archetype.color, color: "#fff", borderColor: archetype.color }
-        : { background: "var(--bg-hover)", color: "var(--text-muted)", borderColor: "var(--border)" };
+        : { background: "var(--bg-neutral)", color: "var(--text-muted)", borderColor: "var(--border)" };
     }
     if (variant === "soft") {
       return {

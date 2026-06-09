@@ -178,7 +178,7 @@ export default function ContentTab({ clientId, initialDna, initialLevels, canEdi
                 <Plus size={14} />
                 Add value
               </button>
-              <button onClick={() => setShowImport(true)} className="btn-secondary border rounded-lg text-sm px-4 py-2 inline-flex items-center gap-1.5">
+              <button onClick={() => setShowImport(true)} className="btn-border border rounded-lg text-sm px-4 py-2 inline-flex items-center gap-1.5">
                 <ClipboardPaste size={14} />
                 Import
               </button>
@@ -728,7 +728,7 @@ function ImportDnaModal({
                             className="flex-1 px-3 py-1.5 rounded-button border text-sm"
                             style={{
                               borderColor: "var(--border)",
-                              background: isExisting ? "var(--bg-hover)" : "var(--bg-surface)",
+                              background: isExisting ? "var(--bg-neutral)" : "var(--bg-surface)",
                               color: "var(--text-primary)",
                               opacity: isExisting ? 0.7 : 1,
                             }}
@@ -1002,7 +1002,7 @@ function DnaValueForm({
                     onClick={() => setActiveBehaviorTab(level)}
                     className="px-2.5 py-1 rounded-button text-xs font-medium transition-colors"
                     style={{
-                      background: isActive ? "var(--primary-light)" : "var(--bg-hover)",
+                      background: isActive ? "var(--primary-light)" : "var(--bg-neutral)",
                       color: isActive ? "var(--primary)" : "var(--text-muted)",
                     }}
                   >

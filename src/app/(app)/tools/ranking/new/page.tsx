@@ -219,7 +219,7 @@ export default function CreateRankingSessionPage() {
                   </button>
                   <button
                     onClick={() => { setShowWizard(true); setShowImport(true); }}
-                    className="btn-secondary border rounded-lg text-sm px-4 py-2 inline-flex items-center gap-1.5"
+                    className="btn-border border rounded-lg text-sm px-4 py-2 inline-flex items-center gap-1.5"
                   >
                     <ClipboardPaste size={14} />
                     Import from spreadsheet

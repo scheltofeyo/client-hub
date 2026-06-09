@@ -29,6 +29,23 @@ export function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
+/**
+ * Short, human due-date label for a task. Both args are "YYYY-MM-DD".
+ * Overdue/near dates surface as deltas (`3d overdue`, `Due today`, `Tomorrow`);
+ * everything else shows the short absolute date (`Apr 15`). Matches the brand
+ * guide's date conventions (deltas, not raw ISO).
+ */
+export function dueLabel(completionDate: string, today: string) {
+  const [cy, cm, cd] = completionDate.split("-").map(Number);
+  const [ty, tm, td] = today.split("-").map(Number);
+  if (!cy || !ty) return completionDate;
+  const days = Math.round((Date.UTC(cy, cm - 1, cd) - Date.UTC(ty, tm - 1, td)) / 86_400_000);
+  if (days < 0) return `${-days}d overdue`;
+  if (days === 0) return "Due today";
+  if (days === 1) return "Tomorrow";
+  return new Date(cy, cm - 1, cd).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
 // ── AssigneeAvatars ────────────────────────────────────────────────────────────
 
 export function AssigneeAvatars({
@@ -489,20 +506,20 @@ export function SubtaskRow({
       <button
         type="button"
         onClick={canToggleComplete ? (e) => { e.stopPropagation(); onToggleComplete(task); } : (e) => e.stopPropagation()}
-        className="flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors"
+        className="flex-shrink-0 w-[18px] h-[18px] rounded-full flex items-center justify-center transition-colors"
         style={{
-          borderColor: isDone ? "var(--primary-light)" : "var(--border)",
+          border: `1.5px solid ${isDone ? "var(--primary-light)" : "var(--border)"}`,
           background: "var(--bg-surface)",
           cursor: canToggleComplete ? "pointer" : "not-allowed",
           opacity: canComplete ? 1 : 0.5,
         }}
         aria-disabled={!canComplete}
       >
-        {isDone && <Check size={14} color="var(--primary)" strokeWidth={3} />}
+        {isDone && <Check size={11} color="var(--primary)" strokeWidth={3} />}
       </button>
 
       <span
-        className={`flex-1 text-sm transition-colors ${isDone ? "" : "text-[var(--text-primary)] group-hover:text-[var(--primary)]"}`}
+        className={`flex-1 text-[13px] transition-colors ${isDone ? "" : "text-[var(--text-primary)] group-hover:text-[var(--primary)]"}`}
         style={{ color: isDone ? "var(--text-muted)" : undefined }}
       >
         {task.title}
@@ -532,8 +549,8 @@ export function SubtaskRow({
             </div>
             <AssigneeAvatars assignees={task.assignees} userImages={userImages} />
             {task.completionDate && (
-              <span className="text-xs" style={{ color: isOverdue ? "var(--destructive)" : "var(--text-muted)" }}>
-                {task.completionDate}
+              <span className="text-xs tabular-nums" style={{ color: isOverdue ? "var(--destructive)" : "var(--text-muted)" }}>
+                {dueLabel(task.completionDate, today)}
               </span>
             )}
           </>
@@ -703,7 +720,7 @@ export function TaskRow({
 
       {/* Main task row — also a drop target (top-level reorder + subtask→parent) */}
       <div
-        className="flex items-center gap-2 py-2.5 group rounded-lg -mx-2 px-2"
+        className="flex items-center gap-2 py-2.5 group -mx-2 px-2"
         style={{ ...rowBorderStyle, cursor: (canEdit || navigateHref) ? "pointer" : "default" }}
         onClick={navigateHref ? () => router.push(navigateHref) : canEdit ? () => onEdit(task) : undefined}
         onDragOver={onDragOver ? (e) => { e.preventDefault(); e.stopPropagation(); onDragOver(task.id); } : undefined}
@@ -808,8 +825,8 @@ export function TaskRow({
                     <AlertTriangle size={13} style={{ color: "var(--destructive)" }} aria-label="Subtask overdue" />
                   )}
                   {task.completionDate && (
-                    <span className="text-xs" style={{ color: isOverdue ? "var(--destructive)" : "var(--text-muted)" }}>
-                      {task.completionDate}
+                    <span className="text-xs tabular-nums" style={{ color: isOverdue ? "var(--destructive)" : "var(--text-muted)" }}>
+                      {dueLabel(task.completionDate, today)}
                     </span>
                   )}
                 </>

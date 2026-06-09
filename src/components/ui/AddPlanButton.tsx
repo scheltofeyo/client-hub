@@ -33,7 +33,7 @@ export default function AddPlanButton({ clientId }: { clientId: string }) {
     <button
       onClick={createPlan}
       disabled={creating}
-      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium btn-secondary border disabled:opacity-60"
+      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium btn-border border disabled:opacity-60"
     >
       {creating ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
       {creating ? "Creating…" : "Add Plan"}

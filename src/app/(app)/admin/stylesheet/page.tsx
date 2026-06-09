@@ -126,10 +126,20 @@ export default function StylesheetPage() {
 
         <div className={row}>
           <span className={label} style={{ color: "var(--text-muted)" }}>secondary</span>
-          <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm border btn-secondary">
+          <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm btn-secondary">
             <Pencil size={14} /> Button
           </button>
-          <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm border btn-secondary" disabled>
+          <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm btn-secondary" disabled>
+            <Pencil size={14} /> Disabled
+          </button>
+        </div>
+
+        <div className={row}>
+          <span className={label} style={{ color: "var(--text-muted)" }}>border</span>
+          <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm border btn-border">
+            <Pencil size={14} /> Button
+          </button>
+          <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm border btn-border" disabled>
             <Pencil size={14} /> Disabled
           </button>
         </div>
