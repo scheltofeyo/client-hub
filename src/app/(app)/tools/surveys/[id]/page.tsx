@@ -328,7 +328,7 @@ export default function SurveyDetailPage() {
             {isDraft && canEdit && (
               <Link
                 href={`/tools/surveys/${id}/edit`}
-                className="btn-secondary border rounded-lg text-sm px-3 py-2 inline-flex items-center gap-1.5"
+                className="btn-border border rounded-lg text-sm px-3 py-2 inline-flex items-center gap-1.5"
               >
                 <Pencil size={13} />
                 Edit content
@@ -337,7 +337,7 @@ export default function SurveyDetailPage() {
             {(isOpen || isClosed) && (
               <button
                 onClick={handleCopyQr}
-                className="btn-primary-light rounded-lg text-sm px-3 py-2 inline-flex items-center gap-1.5 font-medium"
+                className="btn-secondary rounded-lg text-sm px-3 py-2 inline-flex items-center gap-1.5 font-medium"
                 style={{ color: "var(--primary)" }}
               >
                 {qrCopied ? <Check size={14} style={{ color: "var(--success)" }} /> : <QrCode size={14} />}

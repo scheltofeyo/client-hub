@@ -159,7 +159,7 @@ export default function CompleteProjectButton({
       <button
         onClick={handleClick}
         disabled={loading || completing}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border btn-secondary disabled:opacity-50"
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border btn-border disabled:opacity-50"
       >
         <CheckCircle size={13} />
         {loading ? "Checking…" : "Mark as Completed"}

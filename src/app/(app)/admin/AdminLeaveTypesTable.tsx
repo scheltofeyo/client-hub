@@ -260,7 +260,7 @@ export default function AdminLeaveTypesTable({ initialLeaveTypes }: { initialLea
         );
       })}
       {leaveTypes.length === 0 && <p className="text-sm" style={{ color: "var(--text-muted)" }}>No leave types yet.</p>}
-      <button onClick={openAddPanel} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium btn-secondary border" style={{ borderColor: "var(--border)" }}>
+      <button onClick={openAddPanel} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium btn-border border" style={{ borderColor: "var(--border)" }}>
         <Plus size={13} />New leave type
       </button>
     </div>

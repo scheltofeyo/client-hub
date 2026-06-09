@@ -221,7 +221,7 @@ function ResultsEmptyState({ shareUrl }: { shareUrl: string }) {
           <button
             type="button"
             onClick={copy}
-            className="btn-secondary border inline-flex items-center gap-1.5 mt-4 px-3 py-2 rounded-button text-sm"
+            className="btn-border border inline-flex items-center gap-1.5 mt-4 px-3 py-2 rounded-button text-sm"
             style={{ borderColor: "var(--border)" }}
           >
             {copied ? <Check size={14} /> : <Copy size={14} />}

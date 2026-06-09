@@ -49,7 +49,7 @@ export default function SectionCard({
 
   const outerStyle: React.CSSProperties = {
     background: locked
-      ? "var(--bg-hover)"
+      ? "var(--bg-neutral)"
       : isNested
         ? "var(--bg-elevated)"
         : "var(--bg-surface)",

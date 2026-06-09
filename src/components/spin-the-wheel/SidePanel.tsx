@@ -130,7 +130,7 @@ export default function SidePanel({
             </div>
 
             {/* Add Participant */}
-            <div className="p-6 border-b" style={{ borderColor: "var(--border)", background: "var(--bg-hover)" }}>
+            <div className="p-6 border-b" style={{ borderColor: "var(--border)", background: "var(--bg-neutral)" }}>
               <label className="typo-label" style={{ color: "var(--text-primary)" }}>
                 Add Participants
               </label>

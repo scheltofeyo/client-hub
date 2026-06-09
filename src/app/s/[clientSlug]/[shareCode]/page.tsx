@@ -1188,7 +1188,7 @@ function PageShell({
         {progress !== null && progress !== undefined && (
           <div
             className="absolute top-0 left-0 right-0 h-[3px]"
-            style={{ background: "var(--bg-hover)" }}
+            style={{ background: "var(--bg-neutral)" }}
             aria-hidden="true"
           >
             <div

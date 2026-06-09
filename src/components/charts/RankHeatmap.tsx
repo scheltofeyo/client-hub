@@ -19,8 +19,9 @@ interface RankHeatmapProps {
 }
 
 /**
- * items × rank-positions heatmap. Cell intensity = count / max(count)
- * interpolated from `--bg-hover` (0) to `--primary` (max). Count number
+ * items × rank-positions heatmap. Cell intensity = count / max(count):
+ * empty cells use the neutral gridline (`--border`); filled cells use
+ * `--primary` ramped via opacity up to the max count. Count number
  * is rendered inside each cell. Items render in the order they're passed
  * in (caller is responsible for ordering).
  */

@@ -20,7 +20,7 @@ interface PlanListItem {
 }
 
 const STATUS_BADGE: Record<PlanListItem["status"], { label: string; bg: string; color: string }> = {
-  draft: { label: "Draft", bg: "var(--bg-hover)", color: "var(--text-muted)" },
+  draft: { label: "Draft", bg: "var(--bg-neutral)", color: "var(--text-muted)" },
   ready: { label: "Ready", bg: "var(--info-light)", color: "var(--info)" },
   accepted: { label: "Accepted", bg: "var(--success-light)", color: "var(--success)" },
   finalized: { label: "Finalized", bg: "var(--primary-light)", color: "var(--primary)" },

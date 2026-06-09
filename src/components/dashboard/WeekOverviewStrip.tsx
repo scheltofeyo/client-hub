@@ -141,7 +141,7 @@ export default function WeekOverviewStrip({ days, items, teamData, selectedDate,
                   className="h-2.5 rounded-full overflow-hidden flex"
                   style={{
                     width: totalItems > 0 && maxTotal > 0 ? `${Math.max(30, (totalItems / maxTotal) * 100)}%` : "100%",
-                    background: "var(--bg-hover)",
+                    background: "var(--bg-neutral)",
                   }}
                 >
                   {BAR_ORDER.map((type) => {

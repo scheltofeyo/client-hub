@@ -619,7 +619,7 @@ export default function OverviewTab({
               <Link
                 href={`/clients/${clientId}?tab=logbook`}
                 onClick={(e) => switchClientTab(e, clientId, "logbook")}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border btn-secondary"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border btn-border"
               >
                 <BookOpen size={13} />
                 View logbook
@@ -816,7 +816,7 @@ export default function OverviewTab({
                   <Link
                     href={`/clients/${clientId}?tab=events`}
                     onClick={(e) => switchClientTab(e, clientId, "events")}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border btn-secondary"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border btn-border"
                   >
                     <CalendarDays size={13} />
                     View all events
@@ -845,7 +845,7 @@ export default function OverviewTab({
               <Link
                 href={`/clients/${clientId}?tab=activity`}
                 onClick={(e) => switchClientTab(e, clientId, "activity")}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border btn-secondary"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border btn-border"
               >
                 <FolderOpen size={13} />
                 View all activity

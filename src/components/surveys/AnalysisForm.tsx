@@ -278,7 +278,7 @@ export function AnalysisForm({
               <button
                 type="button"
                 onClick={addSide}
-                className="btn-secondary border inline-flex items-center gap-1.5 px-3 py-1.5 rounded-button text-sm"
+                className="btn-border border inline-flex items-center gap-1.5 px-3 py-1.5 rounded-button text-sm"
                 style={{ borderColor: "var(--border)" }}
               >
                 <Plus size={12} />

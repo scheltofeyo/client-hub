@@ -153,7 +153,7 @@ export default function AddBlockMenu({
         className={
           size === "sm"
             ? "btn-tertiary inline-flex items-center gap-1.5 px-2 py-1 rounded-button text-xs"
-            : "btn-secondary border inline-flex items-center gap-1.5 px-3 py-1.5 rounded-button text-xs"
+            : "btn-border border inline-flex items-center gap-1.5 px-3 py-1.5 rounded-button text-xs"
         }
         style={size === "md" ? { borderColor: "var(--border)" } : undefined}
         aria-haspopup="menu"

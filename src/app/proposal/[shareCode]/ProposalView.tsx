@@ -466,7 +466,7 @@ export default function ProposalView({ shareCode }: { shareCode: string }) {
       <div style={{ height: 4, background: brandColor }} />
 
       {/* ─── Hero — full-width, slightly darker bg ─── */}
-      <header style={{ background: "var(--bg-hover)" }}>
+      <header style={{ background: "var(--bg-neutral)" }}>
         <div className="max-w-3xl mx-auto px-6 md:px-10 pt-14 md:pt-20 pb-16 md:pb-20">
           {/* Consolidated meta line: Proposal · date  (version / number on a second line if present) */}
           <p className="typo-proposal-eyebrow mb-1" style={{ color: brandColor }}>

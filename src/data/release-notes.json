@@ -1,5 +1,15 @@
 [
   {
+    "date": "2026-06-02",
+    "title": "Vernieuwd visueel systeem: kleuren, typografie en interactie",
+    "details": [
+      "Verfijnd kleurenpalet — diepere indigo-inkt, iets warmere violet-grijzen en een rustiger donkere modus (indigo i.p.v. bijna-zwart)",
+      "Steviger typografie — vettere pagina- en paneltitels, beter leesbare formulier-labels en grotere metric-cijfers",
+      "Hover- en selectie-vlakken kleuren nu mee in de merk-violet door het hele platform",
+      "Taakregels: deadlines tonen nu '3d te laat' / 'Vandaag' / 'Morgen' i.p.v. een ruwe datum, en subtaken zijn duidelijker ondergeschikt"
+    ]
+  },
+  {
     "date": "2026-05-28",
     "title": "Projectplannen: project-cards starten ingeklapt",
     "details": [

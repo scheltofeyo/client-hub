@@ -244,7 +244,7 @@ export default function AdminProjectLabelsTable({
 
       <button
         onClick={openAddPanel}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium btn-secondary border"
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium btn-border border"
         style={{ borderColor: "var(--border)" }}
       >
         <Plus size={13} />

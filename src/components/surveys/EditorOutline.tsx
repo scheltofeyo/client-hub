@@ -350,7 +350,7 @@ function OutlineRow({
       {badge && (
         <span
           className="text-[10px] px-1.5 py-0.5 rounded-badge"
-          style={{ background: "var(--bg-hover)", color: "var(--text-muted)" }}
+          style={{ background: "var(--bg-neutral)", color: "var(--text-muted)" }}
         >
           {badge}
         </span>

@@ -68,7 +68,7 @@ export function AnalysesSection({
           <button
             type="button"
             onClick={onCreate}
-            className="btn-secondary border inline-flex items-center gap-1.5 rounded-button px-3 py-1.5 text-xs font-medium"
+            className="btn-border border inline-flex items-center gap-1.5 rounded-button px-3 py-1.5 text-xs font-medium"
           >
             <Plus size={13} />
             New analysis

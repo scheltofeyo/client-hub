@@ -295,7 +295,7 @@ export default function ContactsSection({
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => setConfirmDelete(null)}
-                className="border px-3 py-1.5 rounded-lg text-sm font-medium btn-secondary"
+                className="border px-3 py-1.5 rounded-lg text-sm font-medium btn-border"
               >
                 Cancel
               </button>

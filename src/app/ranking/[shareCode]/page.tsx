@@ -65,7 +65,7 @@ function StepIndicator({ currentStep, locale }: { currentStep: number; locale: L
               <div
                 className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold transition-colors"
                 style={{
-                  background: done ? "var(--primary)" : active ? "var(--bg-surface)" : "var(--bg-hover)",
+                  background: done ? "var(--primary)" : active ? "var(--bg-surface)" : "var(--bg-neutral)",
                   color: done ? "white" : active ? "var(--primary)" : "var(--text-muted)",
                   border: active ? "2px solid var(--primary)" : "none",
                 }}
@@ -117,7 +117,7 @@ function SortableValueCard({ value, index, onShowDetail, locale }: { value: Rank
       </svg>
       <span
         className="w-6 h-6 rounded-button flex items-center justify-center text-xs tabular-nums shrink-0"
-        style={{ background: "var(--bg-hover)", color: "var(--text-muted)" }}
+        style={{ background: "var(--bg-neutral)", color: "var(--text-muted)" }}
       >
         {index + 1}
       </span>
@@ -130,7 +130,7 @@ function SortableValueCard({ value, index, onShowDetail, locale }: { value: Rank
           onClick={(e) => { e.stopPropagation(); onShowDetail(value); }}
           onPointerDown={(e) => e.stopPropagation()}
           className="w-6 h-6 rounded-full flex items-center justify-center shrink-0 transition-colors"
-          style={{ background: "var(--bg-hover)", color: "var(--text-muted)" }}
+          style={{ background: "var(--bg-neutral)", color: "var(--text-muted)" }}
           aria-label={t(locale, "aria.viewDetails")}
         >
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -156,7 +156,7 @@ function ValueReadAgainCard({ value, onShowDetail, locale }: { value: RankingVal
       {hasDetail && (
         <span
           className="w-6 h-6 rounded-full flex items-center justify-center shrink-0"
-          style={{ background: "var(--bg-hover)", color: "var(--text-muted)" }}
+          style={{ background: "var(--bg-neutral)", color: "var(--text-muted)" }}
           aria-hidden="true"
         >
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -714,7 +714,7 @@ function StepMatchContent({
               {/* Other two */}
               {otherSubs.map((s) => (
                 <div key={s.id} className="w-12 h-12 rounded-full flex items-center justify-center text-lg font-semibold ring-2 ring-white"
-                  style={{ background: "var(--bg-hover)", color: "var(--text-primary)" }}>
+                  style={{ background: "var(--bg-neutral)", color: "var(--text-primary)" }}>
                   {s.participantName.charAt(0).toUpperCase()}
                 </div>
               ))}
@@ -799,7 +799,7 @@ function StepMatchContent({
               {(isMe1 ? myPair.participant1 : myPair.participant2).participantName.charAt(0).toUpperCase()}
             </div>
             <div className="w-12 h-12 rounded-full flex items-center justify-center text-lg font-semibold ring-2 ring-white"
-              style={{ background: "var(--bg-hover)", color: "var(--text-primary)" }}>
+              style={{ background: "var(--bg-neutral)", color: "var(--text-primary)" }}>
               {partner.participantName.charAt(0).toUpperCase()}
             </div>
           </div>

@@ -135,7 +135,7 @@ export default function NewSurveyPage() {
         <div className="mb-5">
           <label className="typo-label" style={{ color: "var(--text-muted)" }}>How do you want to start? *</label>
           {loading ? (
-            <div className="h-10 rounded-button border animate-pulse" style={{ borderColor: "var(--border)", background: "var(--bg-hover)" }} />
+            <div className="h-10 rounded-button border animate-pulse" style={{ borderColor: "var(--border)", background: "var(--bg-neutral)" }} />
           ) : (
             <div className="space-y-2">
               <button

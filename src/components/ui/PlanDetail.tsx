@@ -124,7 +124,7 @@ function draftTaskToTask(t: DraftTask): Task {
 // ── Utility ───────────────────────────────────────────────────────────────────
 
 const STATUS_BADGE: Record<PlanData["status"], { label: string; bg: string; color: string }> = {
-  draft: { label: "Draft", bg: "var(--bg-hover)", color: "var(--text-muted)" },
+  draft: { label: "Draft", bg: "var(--bg-neutral)", color: "var(--text-muted)" },
   ready: { label: "Ready", bg: "var(--info-light)", color: "var(--info)" },
   accepted: { label: "Accepted", bg: "var(--success-light)", color: "var(--success)" },
   finalized: { label: "Finalized", bg: "var(--primary-light)", color: "var(--primary)" },
@@ -1062,7 +1062,7 @@ function DraftCard({
                     <span
                       className="ml-1.5 inline-flex items-center justify-center text-[10px] rounded-full px-1.5"
                       style={{
-                        background: active ? "var(--brand-light, var(--primary-light))" : "var(--bg-hover)",
+                        background: active ? "var(--brand-light, var(--primary-light))" : "var(--bg-neutral)",
                         color: active ? "var(--primary)" : "var(--text-muted)",
                       }}
                     >
@@ -1266,7 +1266,7 @@ function DraftCard({
             <div>
               <p
                 className="text-xs mb-3 px-2.5 py-1.5 rounded-md inline-block"
-                style={{ background: "var(--bg-hover)", color: "var(--text-muted)" }}
+                style={{ background: "var(--bg-neutral)", color: "var(--text-muted)" }}
               >
                 Tasks are never shared with the client — they&apos;re for your team only.
               </p>
@@ -1730,7 +1730,7 @@ export default function PlanDetail({
                 <button
                   type="button"
                   onClick={revokePlan}
-                  className="px-3 py-1.5 rounded-lg text-sm font-medium btn-secondary border"
+                  className="px-3 py-1.5 rounded-lg text-sm font-medium btn-border border"
                   style={{ borderColor: "var(--border)" }}
                 >
                   Revoke acceptance
@@ -2431,7 +2431,7 @@ function CopyLinkButton({ shareCode }: { shareCode: string }) {
   return (
     <button
       onClick={handleCopy}
-      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium btn-secondary border"
+      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium btn-border border"
       style={{ borderColor: "var(--border)" }}
       title={copied ? "Link copied" : "Copy public proposal link"}
     >

@@ -262,7 +262,8 @@ All button variants are `@layer components` in `globals.css`. Use them before cr
 | Class | Use |
 |---|---|
 | `btn-primary` | Primary action |
-| `btn-secondary` | Secondary/outline action (requires `border` class on the element) |
+| `btn-secondary` | Secondary action — filled `--primary-light` brand tint, no border (the quiet sibling of `btn-primary`). `btn-primary-light` is a deprecated alias. |
+| `btn-border` | Outlined low-emphasis action — transparent + hairline (requires the `border` utility on the element). Was previously called `btn-secondary`. |
 | `btn-danger` | Destructive action |
 | `btn-ghost` | Subtle / cancel |
 | `btn-tertiary` | Inline low-emphasis (e.g. "+ New task") |
@@ -288,8 +289,12 @@ All visual tokens are CSS custom properties in `globals.css` (`:root` for light,
 | Activity | `--activity-delete-bg`, `--activity-delete-color`, etc. | Activity log badge colors |
 | Leave | `--leave-sick`, `--leave-personal` (+ `-bg`) | Leave type colors |
 
+**Interaction fills:** `--bg-hover` and `--bg-selected` both alias `--primary-light` — hover and selected states are a violet brand tint **platform-wide** (rows, nav, lists). For a *static* neutral fill that should NOT read as interactive (status badges, skeletons, disabled/locked surfaces, segmented-control tracks, neutral avatars), use `--bg-neutral` instead.
+
+**Elevation:** a 7-step `--elevation-0…6` ramp (violet-tinted ambient on light, near-black on dark) is the source of truth for shadows; the semantic `--shadow-subtle/card/dropdown/sheet` names alias into it.
+
 **Tailwind utilities** from `@theme` (use these in class names):
-- Surfaces: `bg-surface`, `bg-elevated`, `bg-app`, `bg-hover`, `bg-sidebar`
+- Surfaces: `bg-surface`, `bg-elevated`, `bg-app`, `bg-hover` (brand tint), `bg-sidebar`
 - Borders: `border-border-default`, `border-border-strong`
 - Text: `text-text-primary`, `text-text-muted`
 - Brand: `bg-brand`, `text-brand`, `bg-brand-light`
@@ -301,14 +306,18 @@ All visual tokens are CSS custom properties in `globals.css` (`:root` for light,
 
 | Class | Equivalent | Use |
 |---|---|---|
-| `typo-page-title` | `text-xl font-semibold` | Page-level h1 headings |
-| `typo-modal-title` | `text-lg font-semibold` | Modal / large panel headings |
-| `typo-section-title` | `text-base font-semibold` | Major section within a page |
+| `typo-display` | `text-[28px] font-bold` | Hero / greeting moment (rare; My Day) |
+| `typo-page-title` | `text-[22px] font-bold` | Page-level h1 headings |
+| `typo-modal-title` | `text-lg font-bold` | Modal / right-panel headings |
+| `typo-section-title` | `text-sm font-semibold uppercase tracking-wide` | Small group label inside a page (kept uppercase) |
 | `typo-card-title` | `text-sm font-semibold` | Card / item titles |
-| `typo-section-header` | `text-xs font-semibold uppercase tracking-wide` | Uppercase section headers, table headers |
-| `typo-tag` | `10px font-semibold uppercase tracking-wide` | Small uppercase tags / badge labels |
-| `typo-metric` | `text-2xl font-semibold tabular-nums` | Large numeric metric displays |
-| `typo-label` | `block text-xs font-medium mb-1` + muted color | Form field labels (includes display, margin, color) |
+| `typo-section-header` | `text-xs font-semibold uppercase tracking-wider` | Uppercase section headers, table headers |
+| `typo-tag` | `10px font-bold uppercase tracking-widest` | Small uppercase tags / badge labels |
+| `typo-body` | `text-sm` | Default paragraph / table-cell body |
+| `typo-body-sm` | `text-[13px]` | Secondary body (sub-rows, descriptions) |
+| `typo-caption` | `text-xs` + muted color | Metadata, dates, helper text |
+| `typo-metric` | `text-[32px] font-semibold tabular-nums` | Large numeric metric displays |
+| `typo-label` | `block text-[13px] font-semibold mb-1.5` + primary ink | Form field labels (includes display, margin, color) |
 
 **Runtime style utilities** (`src/lib/styles.ts`):
 - `ACCENT_COLORS` — accent palette as CSS var array (replaces duplicated hex arrays)

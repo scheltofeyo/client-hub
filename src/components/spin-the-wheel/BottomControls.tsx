@@ -51,7 +51,7 @@ export default function BottomControls({
       onClick={onSpin}
       disabled={!hasNames || isSpinning}
       className={cn(
-        "btn-secondary border-2 font-semibold shadow-xl transition-all transform hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed",
+        "btn-border border-2 font-semibold shadow-xl transition-all transform hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed",
         sizeClass
       )}
       style={{
