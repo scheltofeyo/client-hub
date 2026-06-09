@@ -52,7 +52,15 @@ export type QuestionResult =
     })
   | (QuestionBase & {
       type: "general-ranking" | "general-top3";
-      items: { itemId: string; text: string; averageRank: number; distribution: number[] }[];
+      items: {
+        itemId: string;
+        text: string;
+        averageRank: number;
+        distribution: number[];
+        points: number;
+        percentage: number;
+      }[];
+      totalPoints: number;
     })
   | (QuestionBase & {
       type: "multiple-choice";

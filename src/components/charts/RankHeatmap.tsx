@@ -22,9 +22,8 @@ interface RankHeatmapProps {
  * items × rank-positions heatmap. Cell intensity = count / max(count):
  * empty cells use the neutral gridline (`--border`); filled cells use
  * `--primary` ramped via opacity up to the max count. Count number
- * is rendered inside each cell. Items sorted by weighted-rank average
- * (lowest avg = top), to keep the visual reading "the most preferred is
- * at the top".
+ * is rendered inside each cell. Items render in the order they're passed
+ * in (caller is responsible for ordering).
  */
 export function RankHeatmap({ items, ranks, cellSize = 40, className }: RankHeatmapProps) {
   if (items.length === 0) {
@@ -38,8 +37,6 @@ export function RankHeatmap({ items, ranks, cellSize = 40, className }: RankHeat
   }
 
   const rankCount = ranks ?? Math.max(...items.map((i) => i.distribution.length));
-  // sort by weighted avg rank ascending (best first)
-  const sorted = [...items].sort((a, b) => avgRank(a.distribution) - avgRank(b.distribution));
   const maxCount = Math.max(1, ...items.flatMap((i) => i.distribution));
 
   return (
@@ -67,7 +64,7 @@ export function RankHeatmap({ items, ranks, cellSize = 40, className }: RankHeat
           </tr>
         </thead>
         <tbody>
-          {sorted.map((item) => (
+          {items.map((item) => (
             <tr key={item.id}>
               <th
                 scope="row"
@@ -104,15 +101,4 @@ export function RankHeatmap({ items, ranks, cellSize = 40, className }: RankHeat
       </table>
     </div>
   );
-}
-
-function avgRank(distribution: number[]): number {
-  let sum = 0;
-  let total = 0;
-  for (let i = 0; i < distribution.length; i += 1) {
-    const c = distribution[i] ?? 0;
-    sum += c * (i + 1);
-    total += c;
-  }
-  return total > 0 ? sum / total : Infinity;
 }

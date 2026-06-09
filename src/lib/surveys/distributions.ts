@@ -9,11 +9,13 @@ export interface SubmissionLike {
 }
 
 export interface SurveyAccumulators {
-  /** archetype-ranking: qid → archetypeId → total points */
+  /** Weighted point totals — qid → optionId → total points. Populated for
+   *  archetype-ranking, archetype-top3 (keyed by archetypeId),
+   *  general-ranking and general-top3 (keyed by itemId). */
   scoreMap: Map<string, Map<string, number>>;
   /** archetype-ranking: qid → archetypeId → rank-bucket distribution */
   rankDistMap: Map<string, Map<string, number[]>>;
-  /** general-ranking: qid → itemId → rank-bucket distribution */
+  /** general-ranking / general-top3: qid → itemId → rank-bucket distribution */
   rankItemDistMap: Map<string, Map<string, number[]>>;
   /** multiple-choice: qid → choiceId → selection count */
   choiceCountMap: Map<string, Map<string, number>>;
@@ -98,6 +100,7 @@ export function buildAccumulators(
         (answerType === "general-top3" && meta.type === "general-top3")
       ) {
         const isTop3 = answerType === "general-top3";
+        const weightsForType = isTop3 ? top3Weights : rankWeights;
         const rankings = (a.rankings ?? {}) as Record<string, number>;
         const items = meta.rankingItems ?? [];
         const maxRank = isTop3 ? TOP3_RANK_LENGTH : items.length;
@@ -105,10 +108,17 @@ export function buildAccumulators(
         let answered = false;
         let itemDist = acc.rankItemDistMap.get(meta.id);
         if (!itemDist) { itemDist = new Map(); acc.rankItemDistMap.set(meta.id, itemDist); }
+        // General questions accumulate weighted points so results respect the
+        // session's rankWeights / top3Weights configuration, mirroring how
+        // archetype-ranking and archetype-top3 already work.
+        let itemScores = acc.scoreMap.get(meta.id);
+        if (!itemScores) { itemScores = new Map(); acc.scoreMap.set(meta.id, itemScores); }
         for (const item of items) {
           const rank = Number(rankings[item.id]);
           if (!rank || rank < 1 || rank > maxRank) continue;
           answered = true;
+          const weight = weightsForType[rank - 1] ?? 0;
+          itemScores.set(item.id, (itemScores.get(item.id) ?? 0) + weight);
           let dist = itemDist.get(item.id);
           if (!dist) { dist = Array(distLen).fill(0); itemDist.set(item.id, dist); }
           dist[rank - 1] += 1;

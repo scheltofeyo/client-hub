@@ -542,9 +542,11 @@ function computeDelta2(analysis: AnalysisConfig, ctx: AnalysisComputeContext): A
     { id: left.id, label: left.label, n: aggL.n, questionIds: left.questionIds, values: keys.map((k) => ({ keyId: k.id, value: aggL.values[k.id] ?? 0 })) },
     { id: right.id, label: right.label, n: aggR.n, questionIds: right.questionIds, values: keys.map((k) => ({ keyId: k.id, value: aggR.values[k.id] ?? 0 })) },
   ];
+  // Delta is "change from left baseline to right comparison" — so right minus
+  // left. Positive = the right side grew vs. left, negative = it shrank.
   const derived = keys.map((k) => ({
     keyId: k.id,
-    value: (aggL.values[k.id] ?? 0) - (aggR.values[k.id] ?? 0),
+    value: (aggR.values[k.id] ?? 0) - (aggL.values[k.id] ?? 0),
   }));
   return {
     ...baseResult(analysis, lowConfidence),

@@ -42,10 +42,6 @@ export function Dumbbell({
   domainMax,
 }: DumbbellProps) {
   useChartContext();
-  const sorted = [...rows].sort(
-    (a, b) => Math.abs(b.rightValue - b.leftValue) - Math.abs(a.rightValue - a.leftValue)
-  );
-
   const isPercent = unitSuffix === "%";
   const allValues = rows.flatMap((r) => [r.leftValue, r.rightValue]);
   // Percent data always plots on a fixed 0-100 domain so cards stay comparable.
@@ -68,7 +64,7 @@ export function Dumbbell({
       </div>
 
       <ul className="space-y-2">
-        {sorted.map((row) => {
+        {rows.map((row) => {
           const left = pctOf(row.leftValue);
           const right = pctOf(row.rightValue);
           const delta = row.rightValue - row.leftValue;

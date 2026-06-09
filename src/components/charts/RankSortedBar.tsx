@@ -12,7 +12,8 @@ interface RankSortedBarProps {
 }
 
 /**
- * Ranking alternative: a flat sorted bar of scores. Caller pre-computes
+ * Ranking alternative: a flat bar chart of scores. Items render in the order
+ * they're passed in (caller is responsible for ordering). Caller pre-computes
  * `score` (the bar value, larger = higher rank) and `scoreLabel` (the
  * display string — Borda % or formatted avg rank).
  *
@@ -44,15 +45,14 @@ export function RankSortedBar({ items, className }: RankSortedBarProps) {
   }, [reduceMotion]);
 
   const shown = visible || reduceMotion === true;
-  const sorted = [...items].sort((a, b) => b.score - a.score);
-  const max = sorted[0]?.score || 1;
+  const max = items.reduce((m, item) => (item.score > m ? item.score : m), 0) || 1;
   const duration = (reduceMotion ? 0 : ctx.enter.durationMs) / 1000;
   const stagger = (reduceMotion ? 0 : ctx.enter.staggerMs) / 1000;
 
   return (
     <div ref={ref} className={className}>
       <ul className="flex flex-col gap-3">
-        {sorted.map((item, i) => {
+        {items.map((item, i) => {
           const pct = max > 0 ? (item.score / max) * 100 : 0;
           const color = item.color ?? CHART_TOKENS.primary;
           return (

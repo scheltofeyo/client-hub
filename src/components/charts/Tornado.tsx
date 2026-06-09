@@ -98,26 +98,28 @@ export function Tornado({
                 </span>
               </div>
               <div className="grid grid-cols-2 gap-1" aria-hidden="true">
-                {/* Left half: bar grows leftward from centre */}
+                {/* Left half: bar grows leftward from centre. Opaque when the
+                    left side is the larger one (delta = right - left < 0). */}
                 <div className="flex justify-end">
                   <div
                     className="h-2 rounded-l-full"
                     style={{
                       width: `${leftPct}%`,
                       background: rowColor,
-                      opacity: row.delta > 0 ? 1 : 0.4,
+                      opacity: row.delta < 0 ? 1 : 0.4,
                       transition: "width 300ms cubic-bezier(0.2, 0, 0, 1)",
                     }}
                   />
                 </div>
-                {/* Right half: bar grows rightward from centre */}
+                {/* Right half: bar grows rightward from centre. Opaque when the
+                    right side is the larger one (delta > 0). */}
                 <div className="flex justify-start">
                   <div
                     className="h-2 rounded-r-full"
                     style={{
                       width: `${rightPct}%`,
                       background: rowColor,
-                      opacity: row.delta < 0 ? 1 : 0.4,
+                      opacity: row.delta > 0 ? 1 : 0.4,
                       transition: "width 300ms cubic-bezier(0.2, 0, 0, 1)",
                     }}
                   />
