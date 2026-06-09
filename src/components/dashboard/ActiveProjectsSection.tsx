@@ -12,12 +12,23 @@ export default function ActiveProjectsSection({ clients, projectsByClient }: Pro
   if (!hasProjects) return null;
 
   return (
-    <ClientsTimeline
-      clients={clients}
-      projectsByClient={projectsByClient}
-      pxPerDay={12}
-      title="Active and upcoming projects"
-      collapsible={false}
-    />
+    <section className="space-y-3">
+      <h2 className="typo-section-title" style={{ color: "var(--text-primary)" }}>
+        Active and upcoming projects
+      </h2>
+      {/* The gantt's own root is already a rounded, bordered surface box — give
+          it a light elevation so it lifts off the page (no extra panel). The
+          wrapper's rounding matches so the shadow follows the rounded corners. */}
+      <div className="rounded-xl shadow-subtle">
+        <ClientsTimeline
+          clients={clients}
+          projectsByClient={projectsByClient}
+          pxPerDay={12}
+          showHeader={false}
+          collapsible={false}
+          defaultSectionsCollapsed
+        />
+      </div>
+    </section>
   );
 }

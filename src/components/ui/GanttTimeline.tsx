@@ -99,12 +99,12 @@ const STYLES = {
   sectionHeader: {
     height: SECTION_H,
     borderBottom: "1px solid var(--border)",
-    background: "var(--text-muted-light, color-mix(in srgb, var(--text-muted) 6%, var(--bg-surface)))",
+    background: "color-mix(in srgb, var(--text-muted) 6%, var(--bg-surface))",
   },
   sectionSpacer: {
     height: SECTION_H,
     borderBottom: "1px solid var(--border)",
-    background: "var(--text-muted-light, color-mix(in srgb, var(--text-muted) 6%, var(--bg-surface)))",
+    background: "color-mix(in srgb, var(--text-muted) 6%, var(--bg-surface))",
     position: "relative" as const,
     zIndex: 2,
   },

@@ -47,40 +47,24 @@ export default function WeekOverviewStrip({ days, items, teamData, selectedDate,
   }, [teamData.timeOff, days]);
 
   // Index birthdays by date
-  const birthdaysList = teamData.birthdays;
   const birthdaysByDate = useMemo(() => {
     const map = new Map<string, BirthdayItem[]>();
-    for (const b of birthdaysList) {
+    for (const b of teamData.birthdays) {
       if (!map.has(b.date)) map.set(b.date, []);
       map.get(b.date)!.push(b);
     }
     return map;
-  }, [birthdaysList]);
+  }, [teamData.birthdays]);
 
   // Index company holidays by date
   const holidayByDate = useMemo(() => {
     const map = new Map<string, string>();
-    for (const h of teamData.companyHolidays) {
-      map.set(h.date, h.label);
-    }
+    for (const h of teamData.companyHolidays) map.set(h.date, h.label);
     return map;
   }, [teamData.companyHolidays]);
 
-  // Max total items across all days (for relative bar widths)
-  const maxTotal = useMemo(() => {
-    let max = 0;
-    for (const day of days) {
-      const typeMap = dayStats.get(day.date);
-      if (!typeMap) continue;
-      let total = 0;
-      for (const count of typeMap.values()) total += count;
-      if (total > max) max = total;
-    }
-    return max;
-  }, [days, dayStats]);
-
   return (
-    <div className="grid grid-cols-5 gap-2">
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
       {days.map((day) => {
         const isSelected = day.date === selectedDate;
         const typeMap = dayStats.get(day.date);
@@ -88,32 +72,32 @@ export default function WeekOverviewStrip({ days, items, teamData, selectedDate,
         const timeOff = timeOffByDate.get(day.date) ?? [];
         const dayBirthdays = birthdaysByDate.get(day.date) ?? [];
         const holiday = holidayByDate.get(day.date);
+        const hasFooter = timeOff.length > 0 || dayBirthdays.length > 0;
+
+        // Emphasis ring without shifting layout (border stays 1px).
+        const boxShadow = isSelected
+          ? "0 0 0 1px var(--primary), var(--shadow-card)"
+          : undefined;
 
         return (
-          <div key={day.date} className="relative">
-            <button
-              type="button"
-              onClick={() => onSelectDate(day.date)}
-              className="w-full rounded-xl border p-3 text-left transition-all cursor-pointer"
-              style={{
-                background: holiday
-                  ? "var(--primary-light)"
-                  : isSelected
-                    ? "var(--primary-light)"
-                    : "var(--bg-surface)",
-                borderColor: isSelected
-                  ? "var(--primary)"
-                  : day.isToday
-                    ? "var(--primary)"
-                    : "var(--border)",
-                borderWidth: isSelected ? 2 : day.isToday ? 2 : 1,
-              }}
-            >
-              {/* Day header */}
-              <div className="flex items-baseline gap-1.5 mb-2">
+          <button
+            key={day.date}
+            type="button"
+            onClick={() => onSelectDate(day.date)}
+            aria-pressed={isSelected}
+            className="group flex w-full flex-col rounded-card border p-3.5 text-left transition-all duration-150 cursor-pointer hover:shadow-subtle"
+            style={{
+              background: isSelected || holiday ? "var(--primary-light)" : "var(--bg-surface)",
+              borderColor: isSelected || day.isToday ? "var(--primary)" : "var(--border)",
+              boxShadow,
+            }}
+          >
+            {/* Day header */}
+            <div className="flex items-baseline justify-between gap-1.5">
+              <div className="flex items-baseline gap-1.5">
                 <span
-                  className="text-xs font-medium uppercase tracking-wide"
-                  style={{ color: "var(--text-muted)" }}
+                  className="typo-tag"
+                  style={{ color: day.isToday ? "var(--primary)" : "var(--text-muted)" }}
                 >
                   {day.dayName}
                 </span>
@@ -124,89 +108,102 @@ export default function WeekOverviewStrip({ days, items, teamData, selectedDate,
                   {day.label}
                 </span>
               </div>
-
-              {/* Company holiday label */}
-              {holiday && (
-                <p className="text-xs font-medium mb-2 truncate" style={{ color: "var(--primary)" }}>
-                  {holiday}
-                </p>
+              {day.isToday && (
+                <span
+                  className="h-1.5 w-1.5 rounded-full"
+                  style={{ background: "var(--primary)" }}
+                  aria-label="Today"
+                />
               )}
+            </div>
 
-              {/* Events section */}
-              <div className="mb-2">
-                <p className="typo-tag mb-1" style={{ color: "var(--text-muted)" }}>
-                  Events
-                </p>
-                <div
-                  className="h-2.5 rounded-full overflow-hidden flex"
-                  style={{
-                    width: totalItems > 0 && maxTotal > 0 ? `${Math.max(30, (totalItems / maxTotal) * 100)}%` : "100%",
-                    background: "var(--bg-neutral)",
-                  }}
+            {/* Holiday label */}
+            {holiday && (
+              <p
+                className="typo-caption mt-2 truncate font-medium"
+                style={{ color: "var(--primary)" }}
+              >
+                {holiday}
+              </p>
+            )}
+
+            {/* Count + composition bar */}
+            <div className="mt-3">
+              <div className="flex items-baseline gap-1.5">
+                <span
+                  className="text-[18px] font-bold leading-none tabular-nums"
+                  style={{ color: totalItems > 0 ? "var(--text-primary)" : "var(--text-muted)" }}
                 >
-                  {BAR_ORDER.map((type) => {
-                    const count = typeMap?.get(type) ?? 0;
-                    if (count === 0) return null;
-                    const pct = (count / totalItems) * 100;
-                    return (
-                      <div
-                        key={type}
-                        className="h-full"
-                        style={{
-                          width: `${pct}%`,
-                          background: WEEK_CARD_TYPES[type].color,
-                          minWidth: 4,
-                        }}
-                      />
-                    );
-                  })}
-                </div>
+                  {totalItems}
+                </span>
+                <span className="typo-caption" style={{ color: "var(--text-muted)" }}>
+                  {totalItems === 1 ? "item" : "items"}
+                </span>
               </div>
+              <div
+                className="mt-2 h-1.5 w-full overflow-hidden rounded-full flex"
+                style={{ background: "var(--bg-neutral)" }}
+              >
+                {BAR_ORDER.map((type) => {
+                  const count = typeMap?.get(type) ?? 0;
+                  if (count === 0 || totalItems === 0) return null;
+                  return (
+                    <div
+                      key={type}
+                      className="h-full"
+                      style={{
+                        width: `${(count / totalItems) * 100}%`,
+                        background: WEEK_CARD_TYPES[type].color,
+                        minWidth: 4,
+                      }}
+                    />
+                  );
+                })}
+              </div>
+            </div>
 
-              {/* Time off section */}
-              {timeOff.length > 0 && (
-                <div className="mb-2">
-                  <p className="typo-tag mb-1" style={{ color: "var(--text-muted)" }}>
-                    Time off
-                  </p>
-                  <div className="flex items-center gap-1 flex-wrap">
+            {/* Team footer */}
+            {hasFooter && (
+              <div
+                className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t pt-3"
+                style={{ borderColor: "var(--border)" }}
+              >
+                {timeOff.length > 0 && (
+                  <div className="flex items-center -space-x-1.5">
                     {timeOff.slice(0, 3).map((person) => (
-                      <UserAvatar
+                      <div
                         key={person.userId}
-                        name={person.userName ?? ""}
-                        image={person.userImage ?? null}
-                        size={18}
-                      />
+                        className="rounded-full"
+                        style={{ boxShadow: "0 0 0 2px var(--bg-surface)" }}
+                      >
+                        <UserAvatar
+                          name={person.userName ?? ""}
+                          image={person.userImage ?? null}
+                          size={20}
+                        />
+                      </div>
                     ))}
                     {timeOff.length > 3 && (
-                      <span className="text-[10px] font-medium" style={{ color: "var(--text-muted)" }}>
+                      <span
+                        className="flex h-5 items-center rounded-full pl-2.5 text-[10px] font-semibold"
+                        style={{ color: "var(--text-muted)" }}
+                      >
                         +{timeOff.length - 3}
                       </span>
                     )}
                   </div>
-                </div>
-              )}
-
-              {/* Birthdays section */}
-              {dayBirthdays.length > 0 && (
-                <div>
-                  <p className="typo-tag mb-1" style={{ color: "var(--birthday)" }}>
-                    Birthdays
-                  </p>
-                  <div className="flex items-center gap-1 flex-wrap">
-                    {dayBirthdays.map((b) => (
-                      <div key={b.userId} className="flex items-center gap-1">
-                        <Cake size={12} style={{ color: "var(--birthday)" }} />
-                        <span className="text-[10px] font-medium" style={{ color: "var(--text-primary)" }}>
-                          {b.userName.split(" ")[0]}
-                        </span>
-                      </div>
-                    ))}
+                )}
+                {dayBirthdays.length > 0 && (
+                  <div className="flex items-center gap-1">
+                    <Cake size={12} style={{ color: "var(--birthday)" }} />
+                    <span className="text-[10px] font-semibold" style={{ color: "var(--text-primary)" }}>
+                      {dayBirthdays.map((b) => b.userName.split(" ")[0]).join(", ")}
+                    </span>
                   </div>
-                </div>
-              )}
-            </button>
-          </div>
+                )}
+              </div>
+            )}
+          </button>
         );
       })}
     </div>

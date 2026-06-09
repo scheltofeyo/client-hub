@@ -2,7 +2,8 @@
 
 import { useState, useMemo, useRef, useEffect } from "react";
 import Link from "next/link";
-import { ChevronDown, ChevronRight, CheckSquare } from "lucide-react";
+import { ChevronDown, ChevronRight, CheckSquare, CheckCircle2, AlertTriangle, Clock } from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { TaskRow } from "@/components/ui/task-row";
 import type { Task, MyDayTaskData } from "@/types";
 import { resolveClientColor } from "@/lib/styles";
@@ -59,6 +60,20 @@ function groupByClientAndProject(tasks: EnrichedTask[]): ClientGroup[] {
   return groups;
 }
 
+// ── Chips ────────────────────────────────────────────────────────────────────
+
+function Chip({ icon: Icon, label, bg, color }: { icon: typeof Clock; label: string; bg: string; color: string }) {
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded-badge px-2 py-0.5 text-xs font-semibold tabular-nums"
+      style={{ background: bg, color }}
+    >
+      <Icon size={12} />
+      {label}
+    </span>
+  );
+}
+
 // ── Props ────────────────────────────────────────────────────────────────────
 
 interface Props {
@@ -70,6 +85,8 @@ interface Props {
 // ── Component ────────────────────────────────────────────────────────────────
 
 export default function MyDayTasksSection({ myTasks, allTasks, today }: Props & { today?: string }) {
+  const reduceMotion = useReducedMotion();
+  const todayISO = today ?? new Date().toISOString().slice(0, 10);
   const [filter, setFilter] = useState<"mine" | "all">("mine");
   const [myTasksState, setMyTasksState] = useState<MyDayTaskData>(myTasks);
   const [allTasksState, setAllTasksState] = useState<MyDayTaskData>(allTasks);
@@ -92,6 +109,18 @@ export default function MyDayTasksSection({ myTasks, allTasks, today }: Props & 
   );
 
   const clientGroups = useMemo(() => groupByClientAndProject(visibleTasks), [visibleTasks]);
+
+  // Action focus: overdue / due-today counts from the currently visible tasks.
+  const { overdueCount, todayCount } = useMemo(() => {
+    let overdue = 0;
+    let dueToday = 0;
+    for (const t of visibleTasks) {
+      if (!t.completionDate) continue;
+      if (t.completionDate < todayISO) overdue++;
+      else if (t.completionDate === todayISO) dueToday++;
+    }
+    return { overdueCount: overdue, todayCount: dueToday };
+  }, [visibleTasks, todayISO]);
 
   // Auto-select first client if none selected or current selection has no tasks
   const selectedClientId = useMemo(() => {
@@ -155,25 +184,49 @@ export default function MyDayTasksSection({ myTasks, allTasks, today }: Props & 
     }
   }
 
-  const totalCount = useMemo(
-    () => (filter === "mine" ? myTasksState.tasks : allTasksState.tasks).filter((t) => !t.completedAt).length,
-    [filter, myTasksState.tasks, allTasksState.tasks]
-  );
+  const hasTasks = clientGroups.length > 0;
+  const allClear = hasTasks && overdueCount === 0 && todayCount === 0;
 
   return (
-    <div>
-      {/* Header row with title and filter */}
-      <div className="flex items-center gap-3 mb-3">
-        <h2 className="typo-section-title" style={{ color: "var(--text-primary)" }}>Tasks</h2>
-        {totalCount > 0 && (
-          <span
-            className="text-xs font-semibold px-2 py-0.5 rounded-full"
-            style={{ background: "var(--primary-light)", color: "var(--primary)" }}
-          >
-            {totalCount}
-          </span>
+    <div
+      className="rounded-card border p-5 shadow-subtle sm:p-6"
+      style={{ borderColor: "var(--border)", background: "var(--bg-surface)" }}
+    >
+      {/* Header: title + action focus + filter */}
+      <div className="mb-5 flex flex-wrap items-center gap-x-3 gap-y-2">
+        <CheckSquare size={15} style={{ color: "var(--text-muted)" }} />
+        <h2 className="typo-card-title" style={{ color: "var(--text-primary)" }}>Tasks</h2>
+
+        {overdueCount > 0 && (
+          <Chip
+            icon={AlertTriangle}
+            label={`${overdueCount} overdue`}
+            bg="var(--danger-light)"
+            color="var(--danger)"
+          />
         )}
-        <div className="ml-auto flex gap-1">
+        {todayCount > 0 && (
+          <Chip
+            icon={Clock}
+            label={`${todayCount} today`}
+            bg="var(--primary-light)"
+            color="var(--primary)"
+          />
+        )}
+        {allClear && (
+          <Chip
+            icon={CheckCircle2}
+            label="All clear"
+            bg="var(--success-light)"
+            color="var(--success)"
+          />
+        )}
+
+        {/* Segmented mine / all filter */}
+        <div
+          className="ml-auto inline-flex rounded-button border p-0.5"
+          style={{ borderColor: "var(--border)" }}
+        >
           {(["mine", "all"] as const).map((f) => {
             const isActive = filter === f;
             return (
@@ -181,13 +234,11 @@ export default function MyDayTasksSection({ myTasks, allTasks, today }: Props & 
                 key={f}
                 type="button"
                 onClick={() => setFilter(f)}
-                className="px-2.5 py-1 rounded-lg text-xs font-medium transition-colors"
+                className="rounded-[6px] px-2.5 py-1 text-xs font-medium transition-colors"
                 style={{
                   background: isActive ? "var(--primary-light)" : "transparent",
                   color: isActive ? "var(--primary)" : "var(--text-muted)",
                 }}
-                onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.color = "var(--primary)"; }}
-                onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.color = "var(--text-muted)"; }}
               >
                 {f === "mine" ? "My tasks" : "All tasks"}
               </button>
@@ -196,17 +247,26 @@ export default function MyDayTasksSection({ myTasks, allTasks, today }: Props & 
         </div>
       </div>
 
-      {clientGroups.length === 0 ? (
-        <div className="rounded-xl border p-6 text-center" style={{ borderColor: "var(--border)", background: "var(--bg-surface)" }}>
-          <CheckSquare size={24} className="mx-auto mb-2" style={{ color: "var(--text-muted)" }} />
-          <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+      {!hasTasks ? (
+        // Delight: an earned "all caught up" moment instead of a flat empty state
+        <div className="flex flex-col items-center justify-center gap-3 py-14 text-center">
+          <div
+            className="flex h-12 w-12 items-center justify-center rounded-full"
+            style={{ background: "var(--primary-light)" }}
+          >
+            <CheckCircle2 size={24} style={{ color: "var(--primary)" }} />
+          </div>
+          <p className="typo-card-title" style={{ color: "var(--text-primary)" }}>
+            All caught up
+          </p>
+          <p className="typo-caption" style={{ color: "var(--text-muted)" }}>
             {filter === "mine" ? "No open tasks assigned to you." : "No open tasks for your clients."}
           </p>
         </div>
       ) : (
         <>
           {/* Client tabs */}
-          <div className="flex items-center gap-3 mb-4 border-b" style={{ borderColor: "var(--border)" }}>
+          <div className="mb-5 flex items-center gap-4 border-b" style={{ borderColor: "var(--border)" }}>
             {clientGroups.map((group) => {
               const isActive = group.clientId === selectedClientId;
               const { bg, fg } = resolveClientColor(group.clientName, group.clientPrimaryColor);
@@ -214,17 +274,15 @@ export default function MyDayTasksSection({ myTasks, allTasks, today }: Props & 
                 <button
                   key={group.clientId}
                   type="button"
-                  className="group flex items-center gap-1.5 pb-2 -mb-px transition-colors cursor-pointer"
-                  style={{
-                    borderBottom: isActive ? "2px solid var(--primary)" : "2px solid transparent",
-                  }}
+                  className="group flex cursor-pointer items-center gap-1.5 pb-2.5 -mb-px transition-colors"
+                  style={{ borderBottom: isActive ? "2px solid var(--primary)" : "2px solid transparent" }}
                   onClick={() => setActiveClientId(group.clientId)}
                   title={group.clientName}
                   onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.borderBottomColor = "var(--border)"; }}
                   onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.borderBottomColor = "transparent"; }}
                 >
                   <div
-                    className="w-5 h-5 rounded flex-none flex items-center justify-center text-[10px] font-bold"
+                    className="flex h-5 w-5 flex-none items-center justify-center rounded text-[10px] font-bold"
                     style={{ background: bg, color: fg }}
                   >
                     {monogram(group.clientName)}
@@ -235,7 +293,7 @@ export default function MyDayTasksSection({ myTasks, allTasks, today }: Props & 
                     </span>
                   )}
                   <span
-                    className="text-[10px] font-medium"
+                    className="text-[10px] font-medium tabular-nums"
                     style={{ color: isActive ? "var(--primary)" : "var(--text-muted)" }}
                   >
                     {group.totalOpen}
@@ -245,17 +303,24 @@ export default function MyDayTasksSection({ myTasks, allTasks, today }: Props & 
             })}
           </div>
 
-          {/* Task list grouped by project */}
-          {selectedGroup && (
-            <div className="flex flex-col gap-1">
-              {selectedGroup.projects.map(({ projectId, projectName, tasks }) => {
+          {/* Task list grouped by project — crossfades on filter / client switch */}
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={`${filter}:${selectedClientId}`}
+              initial={reduceMotion ? false : { opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -4 }}
+              transition={{ duration: reduceMotion ? 0.12 : 0.2, ease: [0.22, 1, 0.36, 1] }}
+              className="flex flex-col gap-1.5"
+            >
+              {selectedGroup?.projects.map(({ projectId, projectName, tasks }) => {
                 const sectionKey = `${selectedGroup.clientId}::${projectId ?? "general"}`;
                 const isCollapsed = collapsedProjects.has(sectionKey);
                 return (
                   <div key={sectionKey}>
                     <button
                       type="button"
-                      className="w-full flex items-center gap-2 px-2 py-2 text-left transition-colors hover:bg-[var(--bg-hover)] rounded-lg"
+                      className="flex w-full items-center gap-2 rounded-button px-2 py-2 text-left transition-colors hover:bg-[var(--bg-hover)]"
                       onClick={() => setCollapsedProjects((prev) => {
                         const next = new Set(prev);
                         if (next.has(sectionKey)) next.delete(sectionKey); else next.add(sectionKey);
@@ -268,26 +333,26 @@ export default function MyDayTasksSection({ myTasks, allTasks, today }: Props & 
                       {projectId ? (
                         <Link
                           href={`/clients/${selectedGroup.clientId}/projects/${projectId}/tasks`}
-                          className="font-medium text-sm truncate hover:underline"
+                          className="truncate text-sm font-medium hover:underline"
                           style={{ color: "var(--text-primary)" }}
                           onClick={(e) => e.stopPropagation()}
                         >
                           {projectName}
                         </Link>
                       ) : (
-                        <span className="font-medium text-sm" style={{ color: "var(--text-muted)" }}>
+                        <span className="text-sm font-medium" style={{ color: "var(--text-muted)" }}>
                           {projectName}
                         </span>
                       )}
                       <span
-                        className="flex-shrink-0 text-xs px-2 py-0.5 rounded-full font-medium tabular-nums ml-auto"
-                        style={{ background: "var(--border)", color: "var(--text-muted)" }}
+                        className="ml-auto flex-shrink-0 rounded-badge px-2 py-0.5 text-xs font-medium tabular-nums"
+                        style={{ background: "var(--bg-neutral)", color: "var(--text-muted)" }}
                       >
                         {tasks.length}
                       </span>
                     </button>
                     {!isCollapsed && (
-                      <div className="px-2 pb-2">
+                      <div className="px-2 pb-1.5">
                         {tasks.map((task) => {
                           const href = task.projectId
                             ? `/clients/${selectedGroup.clientId}/projects/${task.projectId}/tasks`
@@ -314,7 +379,7 @@ export default function MyDayTasksSection({ myTasks, allTasks, today }: Props & 
                               canEdit={false}
                               canDelete={false}
                               navigateHref={href}
-                              today={today}
+                              today={todayISO}
                             />
                           );
                         })}
@@ -323,8 +388,8 @@ export default function MyDayTasksSection({ myTasks, allTasks, today }: Props & 
                   </div>
                 );
               })}
-            </div>
-          )}
+            </motion.div>
+          </AnimatePresence>
         </>
       )}
     </div>
