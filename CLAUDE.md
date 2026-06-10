@@ -289,6 +289,8 @@ All visual tokens are CSS custom properties in `globals.css` (`:root` for light,
 | Activity | `--activity-delete-bg`, `--activity-delete-color`, etc. | Activity log badge colors |
 | Leave | `--leave-sick`, `--leave-personal` (+ `-bg`) | Leave type colors |
 
+**Page canvas:** `--bg-tinted` is the **default background for main-section page canvases** (My Day, the dashboard, the clients list, client detail) — the tinted surface that sits *behind* `--bg-surface` cards/panels to give depth. The app shell's `<main>` is `--bg-surface` (white), so a page that wants the canvas look must set `--bg-tinted` on its own scroll container. Never use `--bg-surface` as a page background (it's a card fill) or `--bg-app` (darker; reserved for the outer app frame).
+
 **Interaction fills:** `--bg-hover` and `--bg-selected` both alias `--primary-light` — hover and selected states are a violet brand tint **platform-wide** (rows, nav, lists). For a *static* neutral fill that should NOT read as interactive (status badges, skeletons, disabled/locked surfaces, segmented-control tracks, neutral avatars), use `--bg-neutral` instead.
 
 **Elevation:** a 7-step `--elevation-0…6` ramp (violet-tinted ambient on light, near-black on dark) is the source of truth for shadows; the semantic `--shadow-subtle/card/dropdown/sheet` names alias into it.

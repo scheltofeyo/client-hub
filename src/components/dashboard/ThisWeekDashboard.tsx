@@ -16,12 +16,14 @@ export default function ThisWeekDashboard({
 }: Props) {
   return (
     <div
-      className="flex-1 overflow-y-auto p-8 space-y-6"
-      style={{ background: "var(--bg-surface)" }}
+      className="flex-1 overflow-y-auto"
+      style={{ background: "var(--bg-tinted)" }}
     >
-      <WeekHeader weekOffset={weekOffset} weekLabel={weekLabel} />
-      {weekContentSlot}
-      {ganttSlot}
+      <div className="mx-auto w-full max-w-[1400px] px-6 py-7 sm:px-8 space-y-6">
+        <WeekHeader weekOffset={weekOffset} weekLabel={weekLabel} />
+        {weekContentSlot}
+        {ganttSlot}
+      </div>
     </div>
   );
 }

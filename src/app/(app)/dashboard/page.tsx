@@ -37,43 +37,49 @@ async function GanttSection() {
 function WeekContentSkeleton() {
   return (
     <div className="space-y-6 animate-pulse">
-      <div className="grid grid-cols-5 gap-2">
+      {/* Summary bar */}
+      <div
+        className="flex flex-wrap items-center gap-5 rounded-card border px-5 py-4 shadow-subtle"
+        style={{ borderColor: "var(--border)", background: "var(--bg-surface)" }}
+      >
+        {[80, 70, 64, 76].map((w, i) => (
+          <div key={i} className="h-4 rounded-full" style={{ background: "var(--border)", width: w }} />
+        ))}
+      </div>
+
+      {/* Week strip */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         {Array.from({ length: 5 }).map((_, i) => (
           <div
             key={i}
-            className="rounded-xl border p-3 flex flex-col gap-2"
+            className="flex flex-col gap-3 rounded-card border p-3.5 shadow-subtle"
             style={{ borderColor: "var(--border)", background: "var(--bg-surface)" }}
           >
             <div className="flex items-center justify-between">
-              <div className="h-3 w-8 rounded" style={{ background: "var(--border)" }} />
-              <div className="h-5 w-5 rounded" style={{ background: "var(--border)" }} />
+              <div className="h-3.5 w-16 rounded" style={{ background: "var(--border)" }} />
             </div>
-            <div className="flex flex-col gap-1.5 mt-1">
-              <div className="h-2 w-full rounded-full" style={{ background: "var(--border)" }} />
-              <div className="h-2 w-3/4 rounded-full" style={{ background: "var(--border)" }} />
-            </div>
+            <div className="h-5 w-10 rounded" style={{ background: "var(--border)" }} />
+            <div className="h-1.5 w-full rounded-full" style={{ background: "var(--border)" }} />
           </div>
         ))}
       </div>
 
+      {/* Day detail panels */}
       <div>
-        <div className="h-4 w-40 rounded mb-4" style={{ background: "var(--border)" }} />
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="mb-3 h-4 w-40 rounded" style={{ background: "var(--border)" }} />
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           {Array.from({ length: 3 }).map((_, i) => (
             <div
               key={i}
-              className="rounded-xl border p-4 flex flex-col gap-3"
+              className="flex flex-col gap-3 rounded-card border p-4 shadow-subtle"
               style={{ borderColor: "var(--border)", background: "var(--bg-surface)" }}
             >
               <div className="h-3.5 w-28 rounded" style={{ background: "var(--border)" }} />
               <div className="space-y-2.5">
                 {Array.from({ length: 2 }).map((_, j) => (
-                  <div key={j} className="flex items-start gap-2.5">
-                    <div className="w-2 h-2 rounded-full mt-1 flex-none" style={{ background: "var(--border)" }} />
-                    <div className="flex-1 space-y-1.5">
-                      <div className="h-3.5 w-4/5 rounded" style={{ background: "var(--border)" }} />
-                      <div className="h-3 w-3/5 rounded" style={{ background: "var(--border)" }} />
-                    </div>
+                  <div key={j} className="space-y-1.5">
+                    <div className="h-3.5 w-4/5 rounded" style={{ background: "var(--border)" }} />
+                    <div className="h-3 w-3/5 rounded" style={{ background: "var(--border)" }} />
                   </div>
                 ))}
               </div>
@@ -87,14 +93,19 @@ function WeekContentSkeleton() {
 
 function GanttSectionSkeleton() {
   return (
-    <div className="animate-pulse">
-      <div className="h-4 w-36 rounded mb-3" style={{ background: "var(--border)" }} />
-      {[65, 40, 55, 30].map((w, i) => (
-        <div key={i} className="flex items-center gap-3 py-1.5">
-          <div className="w-[18px] h-[18px] rounded flex-none" style={{ background: "var(--border)" }} />
-          <div className="h-3 rounded-full flex-none" style={{ background: "var(--border)", width: `${w}%` }} />
-        </div>
-      ))}
+    <div className="space-y-3 animate-pulse">
+      <div className="h-4 w-44 rounded" style={{ background: "var(--border)" }} />
+      <div
+        className="rounded-xl border p-4 shadow-subtle"
+        style={{ borderColor: "var(--border)", background: "var(--bg-surface)" }}
+      >
+        {[65, 40, 55, 30].map((w, i) => (
+          <div key={i} className="flex items-center gap-3 py-1.5">
+            <div className="h-[18px] w-[18px] flex-none rounded" style={{ background: "var(--border)" }} />
+            <div className="h-3 flex-none rounded-full" style={{ background: "var(--border)", width: `${w}%` }} />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

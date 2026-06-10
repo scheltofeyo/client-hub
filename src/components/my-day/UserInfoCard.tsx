@@ -17,8 +17,8 @@ export default function UserInfoCard({ info }: { info: MyDayUserInfo }) {
 
   return (
     <div
-      className="w-full rounded-xl border flex flex-col sticky top-6 overflow-hidden bg-white dark:bg-[var(--bg-sidebar)]"
-      style={{ borderColor: "var(--border)", boxShadow: "0 1px 3px 0 rgba(0,0,0,0.06), 0 1px 2px -1px rgba(0,0,0,0.04)" }}
+      className="w-full rounded-card border flex flex-col sticky top-6 overflow-hidden shadow-subtle"
+      style={{ borderColor: "var(--border)", background: "var(--bg-surface)" }}
     >
       {/* Tinted header with avatar */}
       <div

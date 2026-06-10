@@ -57,7 +57,7 @@
   --bg-hover: var(--primary-light); /* hover/selected fill — brand tint, platform-wide */
   --bg-selected: var(--primary-light); /* selected row / nav item (same brand tint) */
   --bg-neutral: #e8e6f3; /* legacy neutral fill (rarely needed) */
-  --bg-tinted: #fbfaff;
+  --bg-tinted: #fbfaff; /* DEFAULT page canvas for main sections (My Day, dashboard, clients) — sits behind --bg-surface cards */
   --border: #e0deef;
   --border-strong: #c0bcd6;
   --text-primary: #1a1830; /* deep indigo ink — mirrors dark surface */
@@ -179,7 +179,7 @@
   --bg-hover: var(--primary-light);
   --bg-selected: var(--primary-light);
   --bg-neutral: #2c2a4c;
-  --bg-tinted: #1a1830;
+  --bg-tinted: #1a1830; /* DEFAULT page canvas for main sections — sits behind --bg-surface cards */
   --border: #383463;
   --border-strong: #4b4680;
   --text-primary: #efeef8;
