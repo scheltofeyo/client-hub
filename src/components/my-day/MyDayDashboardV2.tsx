@@ -1,12 +1,13 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { Sunrise, Sun, Moon } from "lucide-react";
 
-function getGreeting() {
+function getTimeOfDay(): { greeting: string; Icon: typeof Sun } {
   const h = new Date().getHours();
-  if (h < 12) return "Good morning";
-  if (h < 18) return "Good afternoon";
-  return "Good evening";
+  if (h < 12) return { greeting: "Good morning", Icon: Sunrise };
+  if (h < 18) return { greeting: "Good afternoon", Icon: Sun };
+  return { greeting: "Good evening", Icon: Moon };
 }
 
 interface Props {
@@ -24,7 +25,7 @@ export default function MyDayDashboardV2({
   tasksSlot,
   userInfoSlot,
 }: Props) {
-  const greeting = getGreeting();
+  const { greeting, Icon } = getTimeOfDay();
   const today = new Date().toLocaleDateString("en-US", {
     weekday: "long",
     year: "numeric",
@@ -33,22 +34,33 @@ export default function MyDayDashboardV2({
   });
 
   return (
-    <div className="flex-1 overflow-y-auto p-8 flex flex-col gap-6">
-      <div>
-        <h1 className="typo-page-title" style={{ color: "var(--text-primary)" }} suppressHydrationWarning>
-          {greeting}, {firstName}
-        </h1>
-        <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }} suppressHydrationWarning>{today}</p>
-      </div>
-
-      <div className="flex gap-6 items-start">
-        <div className="flex-1 flex flex-col gap-8 min-w-0">
-          <section>{ganttSlot}</section>
-          <section>{eventsSlot}</section>
-          <section>{tasksSlot}</section>
+    <div className="flex-1 overflow-y-auto" style={{ background: "var(--bg-tinted)" }}>
+      <div className="mx-auto w-full max-w-[1400px] px-6 py-8 sm:px-8">
+        {/* Greeting — the personal moment */}
+        <div className="mb-8" suppressHydrationWarning>
+          <h1
+            className="typo-page-title inline-flex items-center gap-2.5"
+            style={{ color: "var(--text-primary)" }}
+            suppressHydrationWarning
+          >
+            <Icon size={22} style={{ color: "var(--primary)" }} aria-hidden />
+            {greeting}, {firstName}
+          </h1>
+          <p className="typo-caption mt-1" style={{ color: "var(--text-muted)" }} suppressHydrationWarning>
+            {today}
+          </p>
         </div>
 
-        <div className="w-1/3 flex-none">{userInfoSlot}</div>
+        {/* Action-first: tasks, then near-term events, then the gantt as context */}
+        <div className="flex flex-col gap-8 lg:flex-row lg:items-start">
+          <div className="flex min-w-0 flex-1 flex-col gap-10">
+            <section>{tasksSlot}</section>
+            <section>{eventsSlot}</section>
+            <section>{ganttSlot}</section>
+          </div>
+
+          <div className="w-full flex-none lg:w-1/3 lg:max-w-sm">{userInfoSlot}</div>
+        </div>
       </div>
     </div>
   );

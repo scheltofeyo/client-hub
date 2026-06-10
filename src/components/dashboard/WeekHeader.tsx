@@ -18,44 +18,48 @@ export default function WeekHeader({ weekOffset, weekLabel }: Props) {
   }
 
   return (
-    <div className="flex items-center justify-between">
+    <div className="flex items-end justify-between gap-4">
       <div>
-        <h1
-          className="text-xl font-semibold"
-          style={{ color: "var(--text-primary)" }}
-        >
-          This Week
+        <h1 className="typo-page-title" style={{ color: "var(--text-primary)" }}>
+          This week
         </h1>
-        <p className="text-sm mt-0.5" style={{ color: "var(--text-muted)" }}>
+        <p className="typo-caption mt-0.5" style={{ color: "var(--text-muted)" }}>
           {weekLabel}
         </p>
       </div>
-      <div className="flex items-center gap-1">
+
+      <div className="flex items-center gap-2">
         {weekOffset !== 0 && (
           <button
             type="button"
-            className="btn-ghost text-xs px-2.5 py-1.5 rounded-lg mr-1"
+            className="btn-border border text-xs px-3 py-1.5 rounded-button"
             onClick={() => navigate(0)}
           >
             Today
           </button>
         )}
-        <button
-          type="button"
-          className="btn-icon p-1.5 rounded-lg"
-          onClick={() => navigate(weekOffset - 1)}
-          aria-label="Previous week"
+        <div
+          className="flex items-center rounded-button border overflow-hidden"
+          style={{ borderColor: "var(--border)", background: "var(--bg-surface)" }}
         >
-          <ChevronLeft size={16} />
-        </button>
-        <button
-          type="button"
-          className="btn-icon p-1.5 rounded-lg"
-          onClick={() => navigate(weekOffset + 1)}
-          aria-label="Next week"
-        >
-          <ChevronRight size={16} />
-        </button>
+          <button
+            type="button"
+            className="btn-icon p-1.5"
+            onClick={() => navigate(weekOffset - 1)}
+            aria-label="Previous week"
+          >
+            <ChevronLeft size={16} />
+          </button>
+          <div className="w-px self-stretch" style={{ background: "var(--border)" }} />
+          <button
+            type="button"
+            className="btn-icon p-1.5"
+            onClick={() => navigate(weekOffset + 1)}
+            aria-label="Next week"
+          >
+            <ChevronRight size={16} />
+          </button>
+        </div>
       </div>
     </div>
   );

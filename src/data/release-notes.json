@@ -70,6 +70,26 @@
     ]
   },
   {
+    "date": "2026-06-09",
+    "title": "Vernieuwde 'My Day'-pagina",
+    "details": [
+      "Actie-eerst: je taken staan nu bovenaan, met chips die direct tonen wat te laat is of vandaag speelt",
+      "Meer lucht en rust in de lay-out, met duidelijke panelen en diepte",
+      "Persoonlijke ochtend/middag/avond-begroeting met passend icoon, en een warme 'All caught up' als je niks openstaan hebt",
+      "Actieve projecten onderaan als overzicht, ingeklapt, met een lichte schaduw"
+    ]
+  },
+  {
+    "date": "2026-06-09",
+    "title": "Vernieuwd 'Deze week'-dashboard",
+    "details": [
+      "Nieuwe samenvattingsbalk bovenaan: in één oogopslag het aantal deadlines, opleveringen, kick-offs, follow-ups en wie er vrij is",
+      "De dag-detailkolommen zijn nu echte panelen met meer diepte en rustiger kleurgebruik",
+      "Duidelijkere weekstrip met een telling per dag en een compacte verdeling per type",
+      "Soepele overgang bij het wisselen van geselecteerde dag (respecteert 'verminderde beweging')"
+    ]
+  },
+  {
     "date": "2026-06-02",
     "title": "Vernieuwd visueel systeem: kleuren, typografie en interactie",
     "details": [

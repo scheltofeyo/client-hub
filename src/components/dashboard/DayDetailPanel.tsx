@@ -43,14 +43,16 @@ export default function DayDetailPanel({ day, items, teamData }: Props) {
 
   return (
     <div>
-      <h2
-        className="typo-section-title mb-4"
-        style={{ color: "var(--text-primary)" }}
-      >
+      <h2 className="typo-card-title mb-3" style={{ color: "var(--text-primary)" }}>
         {dayLabel}
+        {day.isToday && (
+          <span className="ml-2 typo-caption font-normal" style={{ color: "var(--primary)" }}>
+            Today
+          </span>
+        )}
       </h2>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <ProjectEventsColumn items={projectEvents} />
         <OtherEventsColumn items={otherEvents} />
         <TeamColumn

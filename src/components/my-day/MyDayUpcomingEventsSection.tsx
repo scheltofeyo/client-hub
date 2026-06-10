@@ -49,12 +49,12 @@ export default function MyDayUpcomingEventsSection({ events, eventTypes, todayIS
   const total = today.length + thisWeek.length + thisMonth.length;
 
   return (
-    <div>
-      <div className="flex items-center gap-2 mb-3">
+    <div className="space-y-3">
+      <div className="flex items-center gap-2">
         <h2 className="typo-section-title" style={{ color: "var(--text-primary)" }}>Upcoming events</h2>
         {total > 0 && (
           <span
-            className="text-xs font-semibold px-2 py-0.5 rounded-full"
+            className="rounded-badge px-2 py-0.5 text-xs font-semibold tabular-nums"
             style={{ background: "var(--primary-light)", color: "var(--primary)" }}
           >
             {total}
@@ -62,7 +62,7 @@ export default function MyDayUpcomingEventsSection({ events, eventTypes, todayIS
         )}
       </div>
 
-      <div className="flex gap-4 items-stretch">
+      <div className="flex flex-col gap-5 sm:flex-row sm:items-stretch">
         <Column title="Today" emptyText="Nothing today" events={today} eventTypes={eventTypes} />
         <Column title="This week" emptyText="Nothing this week" events={thisWeek} eventTypes={eventTypes} />
         <Column title="This month" emptyText="Nothing this month" events={thisMonth} eventTypes={eventTypes} />
@@ -83,27 +83,27 @@ function Column({
   eventTypes: EventType[];
 }) {
   return (
-    <div className="flex-1 min-w-0 flex flex-col gap-2">
+    <div className="flex min-w-0 flex-1 flex-col gap-2.5">
       <div className="flex items-center gap-1.5">
         <h3 className="typo-section-header" style={{ color: "var(--text-muted)" }}>{title}</h3>
         {events.length > 0 && (
-          <span className="text-[10px] font-semibold" style={{ color: "var(--text-muted)" }}>
+          <span className="text-[10px] font-semibold tabular-nums" style={{ color: "var(--text-muted)" }}>
             {events.length}
           </span>
         )}
       </div>
       {events.length === 0 ? (
         <div
-          className="rounded-xl border p-4 text-center flex-1 flex items-center justify-center"
+          className="flex flex-1 items-center justify-center rounded-card border p-5 text-center"
           style={{ borderColor: "var(--border)", background: "var(--bg-surface)" }}
         >
           <div className="flex flex-col items-center gap-1.5">
             <CalendarDays size={18} style={{ color: "var(--text-muted)" }} />
-            <p className="text-xs" style={{ color: "var(--text-muted)" }}>{emptyText}</p>
+            <p className="typo-caption" style={{ color: "var(--text-muted)" }}>{emptyText}</p>
           </div>
         </div>
       ) : (
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-2.5">
           {events.map((event) => (
             <EventCard key={event.id} event={event} eventTypes={eventTypes} />
           ))}
@@ -128,14 +128,14 @@ function EventCard({ event, eventTypes }: { event: UpcomingEvent; eventTypes: Ev
   return (
     <Link
       href={`/clients/${event.clientId}?tab=events`}
-      className="flex rounded-xl border overflow-hidden transition-opacity hover:opacity-80"
+      className="flex overflow-hidden rounded-card border shadow-subtle transition-[transform,box-shadow] duration-150 hover:-translate-y-0.5 hover:shadow-card motion-reduce:transition-none motion-reduce:hover:translate-y-0"
       style={{ borderColor: "var(--border)", background: "var(--bg-surface)" }}
     >
       <div
-        className="flex flex-col items-center justify-center shrink-0 px-3 py-3 gap-0.5"
+        className="flex shrink-0 flex-col items-center justify-center gap-0.5 px-3 py-3"
         style={{
           width: 56,
-          background: `linear-gradient(160deg, ${color}30 0%, ${color}12 100%)`,
+          background: `linear-gradient(160deg, color-mix(in srgb, ${color} 22%, transparent) 0%, color-mix(in srgb, ${color} 8%, transparent) 100%)`,
           borderRight: "1px solid var(--border)",
         }}
       >
@@ -146,7 +146,7 @@ function EventCard({ event, eventTypes }: { event: UpcomingEvent; eventTypes: Ev
           {dayStr}
         </span>
       </div>
-      <div className="flex flex-col flex-1 min-w-0 px-3 py-2.5 gap-1">
+      <div className="flex min-w-0 flex-1 flex-col gap-1 px-3 py-2.5">
         <div className="flex items-center gap-1.5">
           <span className="typo-tag truncate" style={{ color }}>
             {label}
@@ -156,14 +156,14 @@ function EventCard({ event, eventTypes }: { event: UpcomingEvent; eventTypes: Ev
         <p className="typo-card-title leading-snug line-clamp-2" style={{ color: "var(--text-primary)" }}>
           {event.title}
         </p>
-        <div className="flex items-center gap-1.5 mt-auto pt-1 min-w-0">
+        <div className="mt-auto flex min-w-0 items-center gap-1.5 pt-1">
           <div
-            className="w-4 h-4 rounded flex-none flex items-center justify-center text-[9px] font-bold"
+            className="flex h-4 w-4 flex-none items-center justify-center rounded text-[9px] font-bold"
             style={{ background: bg, color: fg }}
           >
             {monogram(event.clientName)}
           </div>
-          <span className="text-xs truncate" style={{ color: "var(--text-muted)" }}>
+          <span className="truncate text-xs" style={{ color: "var(--text-muted)" }}>
             {event.clientName}
           </span>
         </div>
