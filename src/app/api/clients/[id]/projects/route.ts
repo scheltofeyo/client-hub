@@ -4,24 +4,17 @@ import { connectDB } from "@/lib/mongodb";
 import { ClientModel } from "@/lib/models/Client";
 import { ProjectModel } from "@/lib/models/Project";
 import { TaskModel } from "@/lib/models/Task";
-import { TemplateTaskModel } from "@/lib/models/TemplateTask";
-import { SessionModel } from "@/lib/models/Session";
-import { TemplateSessionModel } from "@/lib/models/TemplateSession";
+import { ProjectTemplateModel } from "@/lib/models/ProjectTemplate";
 import { UserModel } from "@/lib/models/User";
 import { recordActivity } from "@/lib/activity";
 import type { TaskAssignee } from "@/types";
 import { hasPermissionOrIsLead } from "@/lib/auth-helpers";
-
-function mergeAssignees(a: TaskAssignee[], b: TaskAssignee[]): TaskAssignee[] {
-  const seen = new Set<string>();
-  const out: TaskAssignee[] = [];
-  for (const x of [...a, ...b]) {
-    if (seen.has(x.userId)) continue;
-    seen.add(x.userId);
-    out.push(x);
-  }
-  return out;
-}
+import {
+  buildProjectFieldsFromTemplate,
+  instantiateTemplateTasks,
+  instantiateTemplateSessions,
+  type TemplateProjectFields,
+} from "@/lib/template-instantiation";
 
 export async function GET(
   _req: NextRequest,
@@ -120,141 +113,86 @@ export async function POST(
     ? new Date(`${completion}T12:00:00Z`).toISOString()
     : undefined;
 
+  // Snapshot plan content + budget from the template (the form only carries
+  // title/description/service/members — why/what/how, activities, deliverables
+  // and the budget come from the template here, mirroring the plan-draft route).
+  let templateFields: TemplateProjectFields | null = null;
+  if (templateId) {
+    const template = await ProjectTemplateModel.findById(templateId).lean();
+    if (!template) {
+      return NextResponse.json({ error: "Template not found" }, { status: 404 });
+    }
+    templateFields = await buildProjectFieldsFromTemplate(template);
+  }
+
   const doc = await ProjectModel.create({
     clientId: id,
     title: title.trim(),
     description: description?.trim() || undefined,
     status: isCompleted ? "completed" : "not_started",
     templateId: templateId || undefined,
-    serviceId: serviceId || undefined,
+    serviceId: serviceId || templateFields?.serviceId || undefined,
     members: memberAssignees,
+    ...(templateFields
+      ? {
+          why: templateFields.why,
+          how: templateFields.how,
+          what: templateFields.what,
+          activities: templateFields.activities,
+          deliverables: templateFields.deliverables,
+          pricingMode: templateFields.pricingMode,
+          roleAllocation: templateFields.roleAllocation,
+          discountType: templateFields.discountType,
+          discountValue: templateFields.discountValue,
+        }
+      : {}),
     ...(isCompleted
       ? {
           completedDate: completion,
           kickedOffAt: completion,
           deliveryDate: completion,
-          soldPrice: soldPrice ? Number(soldPrice) : undefined,
+          soldPrice: soldPrice ? Number(soldPrice) : templateFields?.soldPrice,
           labelId: labelId || undefined,
         }
       : {
           scheduledStartDate: scheduledStartDate?.trim() || undefined,
           scheduledEndDate: scheduledEndDate?.trim() || undefined,
+          soldPrice: templateFields?.soldPrice,
         }),
   });
 
-  // Bulk-create tasks from template if one was used
+  // Instantiate template tasks + sessions (shared with the plan-draft route)
   if (templateId) {
-    const templateTasks = await TemplateTaskModel.find({ templateId })
-      .sort({ order: 1 })
-      .lean();
-
-    if (templateTasks.length > 0) {
-      // Resolve client lead assignees if any task needs them
-      const needsLeads = templateTasks.some((t) => t.assignToClientLead);
-      let leadAssignees: TaskAssignee[] = [];
-      if (needsLeads && (client.leads ?? []).length > 0) {
-        const leadIds = (client.leads ?? []).map((l) => l.userId);
-        const leadUsers = await UserModel.find(
-          { _id: { $in: leadIds } },
-          { _id: 1, image: 1 }
-        ).lean();
-        const imgMap = Object.fromEntries(
-          leadUsers.map((u) => [u._id.toString(), u.image ?? undefined])
-        );
-        leadAssignees = (client.leads ?? []).map((l) => ({
-          userId: l.userId,
-          name: l.name,
-          image: imgMap[l.userId],
-        }));
-      }
-
-      const projectId = doc._id.toString();
-      const idMap: Record<string, string> = {};
-
-      const completionFields = isCompleted
-        ? {
-            completedAt: completedAtIso,
-            completedById: session.user.id,
-            completedByName: session.user.name ?? "Unknown",
-          }
-        : {};
-
-      // Pass 1: top-level tasks (no parentTaskId)
-      const topLevel = templateTasks.filter((t) => !t.parentTaskId);
-      for (const tt of topLevel) {
-        const created = await TaskModel.create({
-          clientId: id,
-          projectId,
-          title: tt.title,
-          description: tt.description || undefined,
-          assignees: mergeAssignees(
-            tt.assignToClientLead ? leadAssignees : [],
-            memberAssignees,
-          ),
-          createdById: session.user.id,
-          createdByName: session.user.name ?? "Unknown",
-          ...completionFields,
-        });
-        idMap[tt._id.toString()] = created._id.toString();
-      }
-
-      // Pass 2: subtasks
-      const subtasks = templateTasks.filter((t) => !!t.parentTaskId);
-      for (const tt of subtasks) {
-        const resolvedParentId = idMap[tt.parentTaskId!];
-        if (!resolvedParentId) continue; // orphan — skip gracefully
-        const created = await TaskModel.create({
-          clientId: id,
-          projectId,
-          parentTaskId: resolvedParentId,
-          title: tt.title,
-          description: tt.description || undefined,
-          assignees: mergeAssignees(
-            tt.assignToClientLead ? leadAssignees : [],
-            memberAssignees,
-          ),
-          createdById: session.user.id,
-          createdByName: session.user.name ?? "Unknown",
-          ...completionFields,
-        });
-        idMap[tt._id.toString()] = created._id.toString();
-      }
-    }
-
-    // Instantiate draft sessions + Plan-tasks from template sessions
-    const templateSessions = await TemplateSessionModel.find({ templateId })
-      .sort({ order: 1 })
-      .lean();
-    const projectId = doc._id.toString();
-    const sessionTaskCompletion = isCompleted
+    const taskCompletionFields = isCompleted
       ? {
           completedAt: completedAtIso,
           completedById: session.user.id,
           completedByName: session.user.name ?? "Unknown",
         }
       : {};
-    for (const ts of templateSessions) {
-      const draft = await SessionModel.create({
-        clientId: id,
-        projectId,
-        title: ts.title,
-        info: ts.info || undefined,
-        templateSessionId: ts._id.toString(),
-        participants: [],
-        createdById: session.user.id,
-        createdByName: session.user.name ?? "Unknown",
-      });
-      await TaskModel.create({
-        clientId: id,
-        projectId,
-        sessionId: draft._id.toString(),
-        title: `Plan ${ts.title}`,
-        assignees: memberAssignees,
-        createdById: session.user.id,
-        createdByName: session.user.name ?? "Unknown",
-        ...sessionTaskCompletion,
-      });
-    }
+    const projectId = doc._id.toString();
+    const createdById = session.user.id;
+    const createdByName = session.user.name ?? "Unknown";
+
+    await instantiateTemplateTasks({
+      templateId,
+      clientId: id,
+      projectId,
+      leads: client.leads ?? [],
+      extraAssignees: memberAssignees,
+      completionFields: taskCompletionFields,
+      createdById,
+      createdByName,
+    });
+    await instantiateTemplateSessions({
+      templateId,
+      clientId: id,
+      projectId,
+      planTaskAssignees: memberAssignees,
+      completionFields: taskCompletionFields,
+      createdById,
+      createdByName,
+    });
   }
 
   // For "add as completed", create the Deliver task already marked done

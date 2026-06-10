@@ -1,3 +1,7 @@
+import type { DiscountType } from "@/lib/pricing";
+
+export type { DiscountType };
+
 export type ClientStatus = string;
 
 export interface ClientStatusOption {
@@ -141,6 +145,8 @@ export interface Project {
   completedDate?: string;
   deliveryDate?: string;
   soldPrice?: number;
+  discountType?: DiscountType;
+  discountValue?: number;
   pricingMode?: PricingMode;
   roleAllocation?: RoleAllocationLine[];
   templateId?: string;
@@ -155,6 +161,38 @@ export interface Project {
   createdAt?: string;
 }
 
+// ── Finance / revenue analytics ──────────────────────────────────────
+// Live-derived from projects (no payment data exists). One row per project.
+export type RevenueBucket = "realized" | "ongoing" | "pipeline";
+
+export interface RevenueRow {
+  projectId: string;
+  title: string;
+  bucket: RevenueBucket;
+  clientId: string;
+  company: string;
+  serviceId: string | null;
+  service: string; // "Geen service" fallback
+  labelId: string | null;
+  label: string; // "Geen label" fallback
+  omzet: number;
+  kosten: number;
+  marge: number;
+  // Revenue recognition (realized = completion date)
+  recogMonth: string | null; // "YYYY-MM"
+  recogYear: number | null;
+  recogQuarter: string | null; // "YYYY-Qn"
+  // Price-evolution axis: sale/kickoff moment (incl. ongoing & pipeline)
+  saleYear: number | null;
+}
+
+export interface RevenueAnalytics {
+  rows: RevenueRow[];
+  years: number[]; // sorted asc, from recogYear
+  quarters: string[]; // sorted asc "YYYY-Qn"
+  saleYears: number[]; // sorted asc, from saleYear (price evolution)
+}
+
 export interface ProjectTemplate {
   id: string;
   name: string;
@@ -166,6 +204,8 @@ export interface ProjectTemplate {
   defaultActivities?: string;
   defaultDeliverables?: string;
   defaultSoldPrice?: number;
+  defaultDiscountType?: DiscountType;
+  defaultDiscountValue?: number;
   defaultServiceId?: string;
   defaultDeliveryDays?: number;
   defaultPricingMode?: PricingMode;
@@ -177,7 +217,6 @@ export interface ProjectTemplate {
 }
 
 export type ProjectPlanStatus = "draft" | "ready" | "accepted" | "finalized";
-export type PlanDiscountType = "percentage" | "amount";
 
 export interface ProjectPlan {
   id: string;
@@ -185,8 +224,6 @@ export interface ProjectPlan {
   title: string;
   summary?: string;
   status: ProjectPlanStatus;
-  discountType?: PlanDiscountType;
-  discountValue?: number;
   vatRate?: number;
   createdBy: TaskAssignee;
   acceptedBy?: TaskAssignee;

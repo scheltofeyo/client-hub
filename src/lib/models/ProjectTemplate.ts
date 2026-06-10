@@ -1,5 +1,6 @@
 import mongoose, { Schema, Document, Model } from "mongoose";
 import type { PricingMode, IRoleAllocationLine } from "./Project";
+import type { DiscountType } from "@/lib/pricing";
 
 export interface IProjectTemplate extends Document {
   name: string;
@@ -11,6 +12,8 @@ export interface IProjectTemplate extends Document {
   defaultActivities?: string;
   defaultDeliverables?: string;
   defaultSoldPrice?: number;
+  defaultDiscountType?: DiscountType;
+  defaultDiscountValue?: number;
   defaultServiceId?: string;
   defaultDeliveryDays?: number;
   defaultPricingMode?: PricingMode;
@@ -43,6 +46,8 @@ const ProjectTemplateSchema = new Schema<IProjectTemplate>(
     defaultActivities: { type: String },
     defaultDeliverables: { type: String },
     defaultSoldPrice: { type: Number },
+    defaultDiscountType: { type: String, enum: ["percentage", "amount"] },
+    defaultDiscountValue: { type: Number },
     defaultServiceId: { type: String },
     defaultDeliveryDays: { type: Number },
     defaultPricingMode: { type: String, enum: ["manual", "rolebased"], default: "rolebased" },

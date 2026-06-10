@@ -4,7 +4,9 @@ import { connectDB } from "./mongodb";
 import { withRetry } from "./db-retry";
 import { ClientModel } from "./models/Client";
 import { UserModel } from "./models/User";
-import { ProjectModel } from "./models/Project";
+import { ProjectModel, calculateExternalCost } from "./models/Project";
+import { netPriceFor } from "./pricing";
+import { ProjectPlanModel, type ProjectPlanStatus } from "./models/ProjectPlan";
 import { ProjectTemplateModel } from "./models/ProjectTemplate";
 import { ArchetypeModel } from "./models/Archetype";
 import { ServiceModel } from "./models/Service";
@@ -26,9 +28,9 @@ import { RoleModel } from "./models/Role";
 import { LeaveTypeModel, DEFAULT_LEAVE_TYPES } from "./models/LeaveType";
 import { TimeOffModel } from "./models/TimeOff";
 import { CompanyHolidayModel } from "./models/CompanyHoliday";
-import type { Archetype, BirthdayItem, Client, ClientLead, ClientPlatformOption, ClientStatusOption, CompanyHoliday, Contact, DashboardStats, EventType, LeaveType, Log, LogSignal, MyDayFollowUpData, MyDayTaskData, MyDayUserInfo, MyProjectOverview, Project, ProjectLabel, ProjectRole, ProjectStatus, ProjectTemplate, RecurrenceUnit, Service, Session, Sheet, Task, TemplateSession, TemplateTask, TimelineEvent, TimeOffEntry, TimeOffBalance, WeekTeamData } from "@/types";
+import type { Archetype, BirthdayItem, Client, ClientLead, ClientPlatformOption, ClientStatusOption, CompanyHoliday, Contact, DashboardStats, EventType, LeaveType, Log, LogSignal, MyDayFollowUpData, MyDayTaskData, MyDayUserInfo, MyProjectOverview, Project, ProjectLabel, ProjectRole, ProjectStatus, ProjectTemplate, RecurrenceUnit, RevenueAnalytics, RevenueBucket, RevenueRow, Service, Session, Sheet, Task, TemplateSession, TemplateTask, TimelineEvent, TimeOffEntry, TimeOffBalance, WeekTeamData } from "@/types";
 import type { WeekCalendarItem } from "@/lib/utils";
-import { mapToWeekday } from "@/lib/utils";
+import { mapToWeekday, isLiveProject } from "@/lib/utils";
 
 function mapClient(doc: ReturnType<typeof Object.assign>, archetypeMap?: Map<string, string>, platformLabelMap?: Map<string, string>): Client {
   return {
@@ -230,12 +232,21 @@ function mapProject(doc: ReturnType<typeof Object.assign>, serviceMap?: Map<stri
   return {
     id: doc._id.toString(),
     clientId: doc.clientId,
+    planId: doc.planId ?? undefined,
     title: doc.title,
     description: doc.description,
+    why: doc.why ?? undefined,
+    how: doc.how ?? undefined,
+    what: doc.what ?? undefined,
+    activities: doc.activities ?? undefined,
+    deliverables: doc.deliverables ?? undefined,
+    hiddenSections: Array.isArray(doc.hiddenSections) ? doc.hiddenSections : undefined,
     status: doc.status,
     completedDate: doc.completedDate,
     deliveryDate: doc.deliveryDate ?? undefined,
     soldPrice: doc.soldPrice,
+    discountType: doc.discountType ?? undefined,
+    discountValue: doc.discountValue ?? undefined,
     pricingMode: doc.pricingMode ?? "manual",
     roleAllocation: Array.isArray(doc.roleAllocation)
       ? doc.roleAllocation.map((l: Record<string, unknown>) => ({
@@ -327,6 +338,22 @@ export const getProjectById = cache(async (projectId: string): Promise<Project |
   if (!doc) return null;
   return mapProject(doc, serviceMap, labelMap);
 });
+
+/** Lightweight plan lookup for provenance display on project pages. */
+export const getPlanSummaryById = cache(
+  async (planId: string): Promise<{ id: string; title: string; shareCode: string; status: ProjectPlanStatus } | null> => {
+    if (!mongoose.Types.ObjectId.isValid(planId)) return null;
+    await connectDB();
+    const doc = await ProjectPlanModel.findById(planId).lean();
+    if (!doc) return null;
+    return {
+      id: doc._id.toString(),
+      title: doc.title,
+      shareCode: doc.shareCode,
+      status: doc.status,
+    };
+  }
+);
 
 export async function getServices(): Promise<Service[]> {
   const docs = await fetchServiceDocs();
@@ -612,6 +639,8 @@ export async function getProjectTemplates(): Promise<ProjectTemplate[]> {
     summary: doc.summary ?? (doc as { description?: string }).description,
     defaultDescription: doc.defaultDescription,
     defaultSoldPrice: doc.defaultSoldPrice,
+    defaultDiscountType: doc.defaultDiscountType,
+    defaultDiscountValue: doc.defaultDiscountValue,
     defaultServiceId: doc.defaultServiceId,
     defaultDeliveryDays: doc.defaultDeliveryDays,
     createdAt: doc.createdAt?.toISOString().split("T")[0],
@@ -633,6 +662,8 @@ export const getProjectTemplateById = cache(async (id: string): Promise<ProjectT
     defaultActivities: doc.defaultActivities,
     defaultDeliverables: doc.defaultDeliverables,
     defaultSoldPrice: doc.defaultSoldPrice,
+    defaultDiscountType: doc.defaultDiscountType,
+    defaultDiscountValue: doc.defaultDiscountValue,
     defaultServiceId: doc.defaultServiceId,
     defaultDeliveryDays: doc.defaultDeliveryDays,
     defaultPricingMode: doc.defaultPricingMode ?? "rolebased",
@@ -1445,6 +1476,95 @@ export const getProjectsByAllClients = cache(async (): Promise<Map<string, Proje
   return map;
 });
 
+// ── Finance: revenue analytics (live-derived from projects) ──────────────────
+/**
+ * Company-wide revenue analytics, derived live from projects (no payment data
+ * exists — soldPrice and the per-project discount are the only financial
+ * facts; omzet is the net price after discount). One flat row per project; the
+ * dashboard pivots client-side.
+ *
+ * - Revenue is recognized on the COMPLETION date (`completedDate`) → bucket
+ *   "realized". Booked-but-not-delivered projects are "ongoing" (recognized on
+ *   the expected delivery date), drafts on unfinalized plans are "pipeline".
+ * - `saleYear` (kickoff/creation year) powers the price-evolution view and
+ *   includes ongoing + pipeline so recent pricing shows up before delivery.
+ */
+export const getRevenueAnalytics = cache(async (): Promise<RevenueAnalytics> => {
+  await connectDB();
+  const [docs, serviceDocs, labelMap, clients] = await Promise.all([
+    ProjectModel.find({}).sort({ createdAt: -1 }).lean(),
+    fetchServiceDocs(),
+    buildProjectLabelMap(),
+    getClients(),
+  ]);
+  const serviceMap = new Map<string, string>();
+  serviceDocs.forEach((d) => serviceMap.set(d._id.toString(), d.name));
+  const companyMap = new Map<string, string>();
+  clients.forEach((c) => companyMap.set(c.id, c.company));
+
+  const quarterOf = (month: string): string => {
+    const q = Math.floor((Number(month.slice(5, 7)) - 1) / 3) + 1;
+    return `${month.slice(0, 4)}-Q${q}`;
+  };
+
+  const rows: RevenueRow[] = [];
+  const years = new Set<number>();
+  const quarters = new Set<string>();
+  const saleYears = new Set<number>();
+
+  for (const doc of docs) {
+    const p = mapProject(doc, serviceMap, labelMap);
+    const omzet = netPriceFor(p.soldPrice ?? 0, p.discountType, p.discountValue);
+    const kosten = calculateExternalCost(p.roleAllocation);
+
+    const bucket: RevenueBucket =
+      p.status === "completed" ? "realized" : p.status === "draft" ? "pipeline" : "ongoing";
+
+    let recogMonth: string | null = null;
+    if (bucket === "realized") recogMonth = p.completedDate ? p.completedDate.slice(0, 7) : null;
+    else if (bucket === "ongoing") recogMonth = p.deliveryDate ? p.deliveryDate.slice(0, 7) : null;
+
+    const recogYear = recogMonth ? Number(recogMonth.slice(0, 4)) : null;
+    const recogQuarter = recogMonth ? quarterOf(recogMonth) : null;
+
+    const saleDate = p.kickedOffAt ?? p.createdAt ?? null;
+    const saleYear = saleDate ? Number(saleDate.slice(0, 4)) : null;
+
+    // The year/quarter selectors track REALIZED revenue (the historical series).
+    if (bucket === "realized" && recogYear != null) {
+      years.add(recogYear);
+      if (recogQuarter) quarters.add(recogQuarter);
+    }
+    if (saleYear != null) saleYears.add(saleYear);
+
+    rows.push({
+      projectId: p.id,
+      title: p.title,
+      bucket,
+      clientId: p.clientId,
+      company: companyMap.get(p.clientId) ?? "Onbekende klant",
+      serviceId: p.serviceId ?? null,
+      service: p.service ?? "Geen service",
+      labelId: p.labelId ?? null,
+      label: p.label ?? "Geen label",
+      omzet,
+      kosten,
+      marge: omzet - kosten,
+      recogMonth,
+      recogYear,
+      recogQuarter,
+      saleYear,
+    });
+  }
+
+  return {
+    rows,
+    years: [...years].sort((a, b) => a - b),
+    quarters: [...quarters].sort(),
+    saleYears: [...saleYears].sort((a, b) => a - b),
+  };
+});
+
 // ── "This Week" dashboard data ──────────────────────────────────────────────
 
 /**
@@ -1920,13 +2040,58 @@ export async function getMyUpcomingDeadlines(
   });
 }
 
-async function buildProjectNameMap(projectIds: string[]): Promise<Map<string, string>> {
+async function buildProjectInfoMap(
+  projectIds: string[]
+): Promise<Map<string, { title: string; status: string; kickedOffAt?: string }>> {
   if (projectIds.length === 0) return new Map();
   const docs = await ProjectModel.find(
     { _id: { $in: projectIds } },
-    { _id: 1, title: 1 }
+    { _id: 1, title: 1, status: 1, kickedOffAt: 1 }
   ).lean();
-  return new Map(docs.map((d) => [d._id.toString(), d.title as string]));
+  return new Map(
+    docs.map((d) => [
+      d._id.toString(),
+      {
+        title: d.title as string,
+        status: d.status as string,
+        kickedOffAt: (d.kickedOffAt as string | undefined) || undefined,
+      },
+    ])
+  );
+}
+
+/**
+ * Shared tail for the My Day task views. A task with a projectId only surfaces
+ * if its project is "live" (non-draft and kicked off) per the shared
+ * {@link isLiveProject} rule — mirroring the per-client Tasks board, which hides
+ * draft proposals and not-yet-kicked-off projects. Tasks without a projectId
+ * (client-level / "General") always surface. This also defensively hides any
+ * orphaned tasks left behind by past deletes (their projectId no longer
+ * resolves to a project).
+ */
+async function buildVisibleMyDayTaskData(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  docs: any[],
+  clientMap: Map<string, ClientInfo>,
+  imageMap: Map<string, string>,
+): Promise<MyDayTaskData> {
+  const projectIds = [...new Set(docs.map((d) => d.projectId as string).filter(Boolean))];
+  const projectInfo = await buildProjectInfoMap(projectIds);
+
+  const visible = docs.filter((d) => {
+    if (!d.projectId) return true;
+    const info = projectInfo.get(d.projectId as string);
+    return !!info && isLiveProject(info);
+  });
+
+  const subtaskDocs = visible.length > 0
+    ? await TaskModel.find({ parentTaskId: { $in: visible.map((d) => d._id.toString()) } })
+        .sort({ order: 1, createdAt: 1 })
+        .lean()
+    : [];
+
+  const projectNameMap = new Map([...projectInfo].map(([id, v]) => [id, v.title]));
+  return buildMyDayTaskData(visible, subtaskDocs, clientMap, projectNameMap, imageMap);
 }
 
 function buildMyDayTaskData(
@@ -1977,15 +2142,7 @@ export async function getMyDayTasks(userId: string): Promise<MyDayTaskData> {
     buildUserImageMap(),
   ]);
 
-  const projectIds = [...new Set(docs.map((d) => d.projectId as string).filter(Boolean))];
-  const [projectNameMap, subtaskDocs] = await Promise.all([
-    buildProjectNameMap(projectIds),
-    docs.length > 0
-      ? TaskModel.find({ parentTaskId: { $in: docs.map((d) => d._id.toString()) } }).sort({ order: 1, createdAt: 1 }).lean()
-      : Promise.resolve([]),
-  ]);
-
-  return buildMyDayTaskData(docs, subtaskDocs, clientMap, projectNameMap, imageMap);
+  return buildVisibleMyDayTaskData(docs, clientMap, imageMap);
 }
 
 /** Fetch all open tasks for clients where userId is a lead OR has assigned tasks. */
@@ -2041,15 +2198,7 @@ export async function getMyLeadClientTasks(userId: string): Promise<MyDayTaskDat
     buildUserImageMap(),
   ]);
 
-  const projectIds = [...new Set(docs.map((d) => d.projectId as string).filter(Boolean))];
-  const [projectNameMap, subtaskDocs] = await Promise.all([
-    buildProjectNameMap(projectIds),
-    docs.length > 0
-      ? TaskModel.find({ parentTaskId: { $in: docs.map((d) => d._id.toString()) } }).sort({ order: 1, createdAt: 1 }).lean()
-      : Promise.resolve([]),
-  ]);
-
-  return buildMyDayTaskData(docs, subtaskDocs, clientMap, projectNameMap, imageMap);
+  return buildVisibleMyDayTaskData(docs, clientMap, imageMap);
 }
 
 export async function getMyDayFollowUps(userId: string): Promise<MyDayFollowUpData> {

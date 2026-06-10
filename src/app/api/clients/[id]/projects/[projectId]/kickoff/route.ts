@@ -81,6 +81,8 @@ export async function POST(
     completedDate: doc.completedDate ?? null,
     deliveryDate: doc.deliveryDate ?? null,
     soldPrice: doc.soldPrice ?? null,
+    discountType: doc.discountType ?? null,
+    discountValue: doc.discountValue ?? null,
     serviceId: doc.serviceId ?? null,
     labelId: doc.labelId ?? null,
     kickedOffAt: doc.kickedOffAt ?? null,

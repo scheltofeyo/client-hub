@@ -1,22 +1,26 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Pencil, Trash2, Plus, ChevronDown, ChevronRight } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Trash2, Plus, ChevronDown, ChevronRight } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
 import SteppedModal from "@/components/ui/SteppedModal";
 import ServicePills from "@/components/ui/ServicePills";
 import RichTextEditor from "@/components/ui/RichTextEditor";
 import RichTextDisplay from "@/components/ui/RichTextDisplay";
+import { useRightPanel } from "@/components/layout/RightPanel";
+import TemplateEditor from "@/components/ui/editor-panel/TemplateEditor";
 import { inputClass, inputStyle } from "@/components/ui/form-styles";
-import type { ProjectTemplate, Service } from "@/types";
+import type { ProjectRole, ProjectTemplate, Service } from "@/types";
 
-/* ── Template settings form (shared between add + edit modals) ── */
+/* ── Template settings form (used by the add modal) ── */
 
 interface TemplateFormState {
   name: string;
   summary: string;
   defaultDescription: string;
   defaultSoldPrice: string;
+  defaultDiscountType: string;
+  defaultDiscountValue: string;
   defaultServiceId: string;
   defaultDeliveryDays: string;
 }
@@ -71,9 +75,7 @@ function TemplateSettingsFields({
       </div>
 
       <div>
-        <label className="typo-label">
-          Default project description
-        </label>
+        <label className="typo-label">Default project description</label>
         <RichTextEditor
           content={form.defaultDescription}
           onChange={(html) => set("defaultDescription", html)}
@@ -82,10 +84,7 @@ function TemplateSettingsFields({
       </div>
 
       <div className="!mt-9">
-        <p
-          className="typo-section-header mb-3"
-          style={{ color: "var(--text-muted)" }}
-        >
+        <p className="typo-section-header mb-3" style={{ color: "var(--text-muted)" }}>
           Defaults
         </p>
         <div className="grid grid-cols-2 gap-3">
@@ -121,6 +120,41 @@ function TemplateSettingsFields({
               style={inputStyle}
             />
           </div>
+          <div>
+            <label htmlFor="tpl-discount-type" className="typo-label">
+              Default discount type
+            </label>
+            <select
+              id="tpl-discount-type"
+              value={form.defaultDiscountType}
+              onChange={(e) => {
+                set("defaultDiscountType", e.target.value);
+                if (e.target.value === "") set("defaultDiscountValue", "");
+              }}
+              className={inputClass}
+              style={inputStyle}
+            >
+              <option value="">No discount</option>
+              <option value="percentage">Percentage</option>
+              <option value="amount">Amount</option>
+            </select>
+          </div>
+          <div>
+            <label htmlFor="tpl-discount-value" className="typo-label">
+              Default discount value{form.defaultDiscountType === "percentage" ? " (%)" : form.defaultDiscountType === "amount" ? " (€)" : ""}
+            </label>
+            <input
+              id="tpl-discount-value"
+              type="number"
+              min={0}
+              step={form.defaultDiscountType === "percentage" ? 1 : 100}
+              value={form.defaultDiscountValue}
+              disabled={!form.defaultDiscountType}
+              onChange={(e) => set("defaultDiscountValue", e.target.value)}
+              className={inputClass}
+              style={inputStyle}
+            />
+          </div>
         </div>
       </div>
     </div>
@@ -132,12 +166,16 @@ function TemplateSettingsFields({
 export default function AdminTemplatesTable({
   initialTemplates,
   services,
+  projectRoles,
 }: {
   initialTemplates: ProjectTemplate[];
   services: Service[];
+  projectRoles: ProjectRole[];
 }) {
   const [templates, setTemplates] = useState(initialTemplates);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const { openPanel } = useRightPanel();
 
   // Add modal state
   const [addOpen, setAddOpen] = useState(false);
@@ -146,11 +184,44 @@ export default function AdminTemplatesTable({
     summary: "",
     defaultDescription: "",
     defaultSoldPrice: "",
+    defaultDiscountType: "",
+    defaultDiscountValue: "",
     defaultServiceId: "",
     defaultDeliveryDays: "",
   });
   const [addSaving, setAddSaving] = useState(false);
   const [addError, setAddError] = useState("");
+
+  function mergeTemplate(id: string, patch: Partial<ProjectTemplate>) {
+    setTemplates((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)));
+  }
+
+  function openTemplate(tpl: ProjectTemplate) {
+    openPanel(
+      "Edit template",
+      <TemplateEditor
+        template={tpl}
+        services={services}
+        projectRoles={projectRoles}
+        onUpdate={(patch) => mergeTemplate(tpl.id, patch)}
+      />,
+      { padded: false }
+    );
+  }
+
+  // Deep-link support: /admin?tab=templates&template=<id> auto-opens the panel.
+  const autoOpenedRef = useRef(false);
+  useEffect(() => {
+    if (autoOpenedRef.current) return;
+    const id = searchParams.get("template");
+    if (!id) return;
+    const tpl = templates.find((t) => t.id === id);
+    if (tpl) {
+      autoOpenedRef.current = true;
+      openTemplate(tpl);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, templates]);
 
   function openAdd() {
     setAddForm({
@@ -158,6 +229,8 @@ export default function AdminTemplatesTable({
       summary: "",
       defaultDescription: "",
       defaultSoldPrice: "",
+      defaultDiscountType: "",
+      defaultDiscountValue: "",
       defaultServiceId: "",
       defaultDeliveryDays: "",
     });
@@ -181,6 +254,8 @@ export default function AdminTemplatesTable({
         summary: addForm.summary || undefined,
         defaultDescription: addForm.defaultDescription || undefined,
         defaultSoldPrice: addForm.defaultSoldPrice ? Number(addForm.defaultSoldPrice) : undefined,
+        defaultDiscountType: addForm.defaultDiscountType || undefined,
+        defaultDiscountValue: addForm.defaultDiscountValue ? Number(addForm.defaultDiscountValue) : undefined,
         defaultServiceId: addForm.defaultServiceId || undefined,
         defaultDeliveryDays: addForm.defaultDeliveryDays ? Number(addForm.defaultDeliveryDays) : undefined,
       }),
@@ -194,10 +269,11 @@ export default function AdminTemplatesTable({
       return;
     }
 
-    const created = await res.json();
+    const created: ProjectTemplate = await res.json();
+    setTemplates((prev) => [...prev, created]);
     setAddOpen(false);
-    // Navigate to template page so user can add tasks
-    router.push(`/admin/templates/${created.id}`);
+    // Land straight in the panel so the user can add budget, tasks and sessions.
+    openTemplate(created);
   }
 
   async function handleDelete(id: string, name: string) {
@@ -276,49 +352,43 @@ export default function AdminTemplatesTable({
                 {group.items.map((tpl) => (
                   <div
                     key={tpl.id}
-                    className="rounded-xl border p-4"
+                    className="flex items-stretch rounded-xl border project-card-hover"
                     style={{ borderColor: "var(--border)", background: "var(--bg-sidebar)" }}
                   >
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
-                          {tpl.name}
+                    <button
+                      type="button"
+                      onClick={() => openTemplate(tpl)}
+                      className="flex-1 min-w-0 text-left p-4"
+                    >
+                      <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
+                        {tpl.name}
+                      </p>
+                      {tpl.summary && (
+                        <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
+                          {tpl.summary}
                         </p>
-                        {tpl.summary && (
-                          <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
-                            {tpl.summary}
-                          </p>
-                        )}
-                        {tpl.defaultDescription && (
-                          <RichTextDisplay
-                            html={tpl.defaultDescription}
-                            className="text-xs mt-1.5 line-clamp-2"
-                            style={{ color: "var(--text-muted)" }}
-                          />
-                        )}
-                        {tpl.defaultSoldPrice != null && (
-                          <p className="text-xs mt-1.5" style={{ color: "var(--text-muted)" }}>
-                            Default price: €{tpl.defaultSoldPrice.toLocaleString()}
-                          </p>
-                        )}
-                      </div>
-                      <div className="flex gap-1 shrink-0">
-                        <button
-                          onClick={() => router.push(`/admin/templates/${tpl.id}`)}
-                          className="p-1.5 rounded-md btn-icon"
-                          title="Edit template"
-                        >
-                          <Pencil size={13} />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(tpl.id, tpl.name)}
-                          className="p-1.5 rounded-md btn-icon text-[var(--danger)] hover:bg-[var(--danger-light)]"
-                          title="Delete template"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
-                    </div>
+                      )}
+                      {tpl.defaultDescription && (
+                        <RichTextDisplay
+                          html={tpl.defaultDescription}
+                          className="text-xs mt-1.5 line-clamp-2"
+                          style={{ color: "var(--text-muted)" }}
+                        />
+                      )}
+                      {tpl.defaultSoldPrice != null && (
+                        <p className="text-xs mt-1.5" style={{ color: "var(--text-muted)" }}>
+                          Default price: €{tpl.defaultSoldPrice.toLocaleString()}
+                        </p>
+                      )}
+                    </button>
+                    <button
+                      onClick={() => handleDelete(tpl.id, tpl.name)}
+                      className="flex items-center px-3 shrink-0 btn-icon text-[var(--danger)] hover:bg-[var(--danger-light)] rounded-r-xl"
+                      title="Delete template"
+                      aria-label={`Delete ${tpl.name}`}
+                    >
+                      <Trash2 size={14} />
+                    </button>
                   </div>
                 ))}
               </div>
@@ -347,24 +417,24 @@ export default function AdminTemplatesTable({
         open={addOpen}
         onClose={() => setAddOpen(false)}
         title="New Template"
+        footerLeft={
+          <button
+            type="button"
+            onClick={() => setAddOpen(false)}
+            className="px-4 py-2 rounded-lg text-sm font-medium btn-ghost"
+          >
+            Cancel
+          </button>
+        }
         footer={
-          <>
-            <button
-              type="button"
-              onClick={() => setAddOpen(false)}
-              className="px-4 py-2 rounded-lg text-sm font-medium btn-ghost"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={handleAdd}
-              disabled={addSaving || !addForm.name.trim() || !addForm.defaultServiceId}
-              className="px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50 btn-primary"
-            >
-              {addSaving ? "Creating…" : "Create Template"}
-            </button>
-          </>
+          <button
+            type="button"
+            onClick={handleAdd}
+            disabled={addSaving || !addForm.name.trim() || !addForm.defaultServiceId}
+            className="px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50 btn-primary"
+          >
+            {addSaving ? "Creating…" : "Create Template"}
+          </button>
         }
       >
         <TemplateSettingsFields

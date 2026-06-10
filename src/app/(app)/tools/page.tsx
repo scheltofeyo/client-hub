@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSession } from "next-auth/react";
-import { CalendarDays, ListOrdered, Dices, Mail, ClipboardList } from "lucide-react";
+import { CalendarDays, ListOrdered, Dices, Mail, ClipboardList, Spline } from "lucide-react";
 import PageHeader from "@/components/layout/PageHeader";
 
 const categories = [
@@ -48,6 +48,18 @@ const categories = [
         description: "Randomly select participants using a spinning wheel or slot machine.",
         icon: Dices,
         requires: "tools.spinTheWheel.access",
+      },
+    ],
+  },
+  {
+    label: "Design",
+    tools: [
+      {
+        href: "/tools/line-lab",
+        label: "Line Lab",
+        description: "Tune the interactive brand-line animation used on the public proposal hero.",
+        icon: Spline,
+        requires: "tools.lineLab.access",
       },
     ],
   },

@@ -20,5 +20,13 @@ export async function generateMetadata({
 }
 
 export default function ProposalLayout({ children }: { children: React.ReactNode }) {
-  return children;
+  return (
+    <>
+      {/* The proposal is a client-facing document, presented light-only. Strip
+          the .dark class (set by the root theme-init script for visitors whose
+          system / localStorage prefers dark) before paint to avoid a flash. */}
+      <script dangerouslySetInnerHTML={{ __html: `document.documentElement.classList.remove('dark');` }} />
+      {children}
+    </>
+  );
 }

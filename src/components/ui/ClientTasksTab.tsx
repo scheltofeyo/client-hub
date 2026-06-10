@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, ChevronDown, ChevronRight, AlertTriangle } from "lucide-react";
 import { useRightPanel } from "@/components/layout/RightPanel";
+import { isLiveProject } from "@/lib/utils";
 import type { Task, Project } from "@/types";
 import {
   TaskRow,
@@ -405,6 +406,7 @@ export default function ClientTasksTab({
   canEditOwnTask = true,
   canDeleteAnyTask = true,
   canDeleteOwnTask = true,
+  onTasksChange,
 }: {
   clientId: string;
   projects: Pick<Project, "id" | "title" | "status" | "kickedOffAt">[];
@@ -416,6 +418,7 @@ export default function ClientTasksTab({
   canEditOwnTask?: boolean;
   canDeleteAnyTask?: boolean;
   canDeleteOwnTask?: boolean;
+  onTasksChange?: (generalTasks: Task[], projectTasks: Record<string, Task[]>) => void;
 }) {
   const taskCanEdit = (task: Task) => canEditAnyTask || (canEditOwnTask && task.createdById === currentUserId);
   const taskCanDelete = (task: Task) => canDeleteAnyTask || (canDeleteOwnTask && task.createdById === currentUserId);
@@ -426,6 +429,16 @@ export default function ClientTasksTab({
   const [showCompleted, setShowCompleted] = useState(false);
   const [showAll, setShowAll] = useState(false);
   const toggleInFlightRef = useRef<Set<string>>(new Set());
+
+  // Keep the parent's module-level tab cache in sync with local mutations, so
+  // completing/creating/deleting a task survives a tab switch (this component
+  // unmounts on tab change and re-seeds from that cache). Ref-guarded to avoid
+  // re-firing on callback identity changes.
+  const onTasksChangeRef = useRef(onTasksChange);
+  onTasksChangeRef.current = onTasksChange;
+  useEffect(() => {
+    onTasksChangeRef.current?.(generalTasks, projectTaskMap);
+  }, [generalTasks, projectTaskMap]);
 
   useEffect(() => {
     fetch("/api/users/assignable")
@@ -585,9 +598,9 @@ export default function ClientTasksTab({
   }
 
   // Projects with at least one open task assigned to me (or all projects when showAll)
-  // Upcoming (not-yet-kicked-off) projects are excluded from the board
+  // Draft/upcoming (not-yet-kicked-off) projects are excluded from the board
   const projectsWithMyTasks = projects
-    .filter((p) => !!p.kickedOffAt)
+    .filter(isLiveProject)
     .filter((p) => {
       const projectTasks = projectTaskMap[p.id] ?? [];
       const relevant = showAll ? projectTasks : myProjectTasks(projectTasks);

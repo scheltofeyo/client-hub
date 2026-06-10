@@ -10,6 +10,7 @@ import { ProjectRoleModel } from "@/lib/models/ProjectRole";
 import { getOrganizationSettings } from "@/lib/models/OrganizationSettings";
 import { getOrSeedProposalTerms } from "@/lib/models/ProposalTermsSection";
 import { DEFAULT_VALIDITY_DAYS } from "@/lib/proposal-copy";
+import { discountAmountFor } from "@/lib/pricing";
 
 function addDaysIso(dateIso: string, days: number): string {
   const d = new Date(dateIso + "T00:00:00");
@@ -60,7 +61,7 @@ export async function GET(
   if (!plan) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const client = await ClientModel.findById(plan.clientId, {
-    _id: 1, company: 1, primaryColor: 1,
+    _id: 1, company: 1, primaryColor: 1, culturalDna: 1,
     addressStreet: 1, addressPostalCode: 1, addressCity: 1, addressCountry: 1,
     contacts: 1,
   }).lean();
@@ -182,6 +183,9 @@ export async function GET(
         participantCount: Array.isArray(s.participants) ? s.participants.length : 0,
       }));
 
+    const gross = p.soldPrice ?? 0;
+    const projectDiscount = discountAmountFor(gross, p.discountType, p.discountValue);
+
     return {
       id: p._id.toString(),
       title: p.title,
@@ -189,7 +193,11 @@ export async function GET(
       scheduledStartDate: start,
       scheduledEndDate: end,
       durationDays,
-      soldPrice: p.soldPrice ?? 0,
+      soldPrice: gross,
+      discountType: p.discountType ?? null,
+      discountValue: p.discountValue ?? null,
+      discountAmount: projectDiscount,
+      netPrice: gross - projectDiscount,
       // Sections — only the visible ones, no breakdowns
       sections: {
         why: !hidden.has("why") && p.why ? p.why : null,
@@ -242,14 +250,10 @@ export async function GET(
     })
     .sort((a, b) => b.projectCount - a.projectCount);
 
-  // Compute totals (server-side so client sees the source of truth)
+  // Compute totals (server-side so client sees the source of truth).
+  // Discount is per project; the totals line aggregates them.
   const subtotal = sanitizedProjects.reduce((s, p) => s + (p.soldPrice ?? 0), 0);
-  let discountAmount = 0;
-  if (plan.discountType === "percentage" && plan.discountValue) {
-    discountAmount = subtotal * (Number(plan.discountValue) / 100);
-  } else if (plan.discountType === "amount" && plan.discountValue) {
-    discountAmount = Number(plan.discountValue);
-  }
+  const discountAmount = sanitizedProjects.reduce((s, p) => s + p.discountAmount, 0);
   const net = Math.max(0, subtotal - discountAmount);
   const vatAmount = plan.vatRate ? net * (Number(plan.vatRate) / 100) : 0;
   const total = net + vatAmount;
@@ -323,8 +327,6 @@ export async function GET(
       presentedAt: plan.presentedAt ?? null,
       acceptedAt: plan.acceptedAt ?? null,
       acceptedByClient: plan.acceptedByClient ?? null,
-      discountType: plan.discountType ?? null,
-      discountValue: plan.discountValue ?? null,
       vatRate: plan.vatRate ?? null,
       language,
       validUntilDate: resolvedValidUntil,
@@ -344,6 +346,9 @@ export async function GET(
     client: {
       company: client.company as string,
       primaryColor: (client.primaryColor as string | undefined) ?? null,
+      cultureColors: Array.isArray(client.culturalDna)
+        ? client.culturalDna.map((v) => v.color).filter(Boolean)
+        : [],
       contactName: primaryContact
         ? [primaryContact.firstName, primaryContact.lastName].filter(Boolean).join(" ")
         : null,

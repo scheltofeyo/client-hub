@@ -23,6 +23,8 @@ export default function NewTemplateEditor({ services }: { services: Service[] })
     summary: "",
     defaultDescription: "",
     defaultSoldPrice: "",
+    defaultDiscountType: "",
+    defaultDiscountValue: "",
     defaultServiceId: "",
   });
   const [saving, setSaving] = useState(false);
@@ -50,6 +52,8 @@ export default function NewTemplateEditor({ services }: { services: Service[] })
         summary: form.summary || undefined,
         defaultDescription: form.defaultDescription || undefined,
         defaultSoldPrice: form.defaultSoldPrice ? Number(form.defaultSoldPrice) : undefined,
+        defaultDiscountType: form.defaultDiscountType || undefined,
+        defaultDiscountValue: form.defaultDiscountValue ? Number(form.defaultDiscountValue) : undefined,
         defaultServiceId: form.defaultServiceId || undefined,
       }),
     });
@@ -172,6 +176,39 @@ export default function NewTemplateEditor({ services }: { services: Service[] })
               className={inputClass}
               style={inputStyle}
             />
+            <div className="grid grid-cols-2 gap-3 mt-4">
+              <div>
+                <label className="typo-label">Default discount type</label>
+                <select
+                  value={form.defaultDiscountType}
+                  onChange={(e) => {
+                    set("defaultDiscountType", e.target.value);
+                    if (e.target.value === "") set("defaultDiscountValue", "");
+                  }}
+                  className={inputClass}
+                  style={inputStyle}
+                >
+                  <option value="">No discount</option>
+                  <option value="percentage">Percentage</option>
+                  <option value="amount">Amount</option>
+                </select>
+              </div>
+              <div>
+                <label className="typo-label">
+                  Default discount value{form.defaultDiscountType === "percentage" ? " (%)" : form.defaultDiscountType === "amount" ? " (€)" : ""}
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  step={form.defaultDiscountType === "percentage" ? 1 : 100}
+                  value={form.defaultDiscountValue}
+                  disabled={!form.defaultDiscountType}
+                  onChange={(e) => set("defaultDiscountValue", e.target.value)}
+                  className={inputClass}
+                  style={inputStyle}
+                />
+              </div>
+            </div>
           </div>
         </form>
       </div>

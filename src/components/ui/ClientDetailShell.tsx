@@ -303,6 +303,14 @@ export default function ClientDetailShell({
               canEditAnyTask={permissions.includes("tasks.editAny")}
               canDeleteOwnTask={permissions.includes("tasks.deleteOwn")}
               canDeleteAnyTask={permissions.includes("tasks.deleteAny")}
+              onTasksChange={(generalTasks, projectTasks) =>
+                setTasksData((prev) => {
+                  const base = prev ?? rTasks!;
+                  const next = { ...base, generalTasks, projectTasks };
+                  dataCache.set(`${clientId}:Tasks`, next);
+                  return next;
+                })
+              }
             />
           )
         )}

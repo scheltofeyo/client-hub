@@ -7,6 +7,7 @@ import { TemplateTaskModel } from "@/lib/models/TemplateTask";
 import { ServiceModel } from "@/lib/models/Service";
 import { ProjectRoleModel } from "@/lib/models/ProjectRole";
 import { calculateRolebasedPrice, type IRoleAllocationLine } from "@/lib/models/Project";
+import { netPriceFor } from "@/lib/pricing";
 
 export async function GET() {
   const session = await auth();
@@ -49,21 +50,27 @@ export async function GET() {
 
   function effectivePriceFor(doc: typeof docs[number]): number | undefined {
     const mode = doc.defaultPricingMode ?? "rolebased";
-    if (mode === "manual") return doc.defaultSoldPrice;
-    const lines: IRoleAllocationLine[] = (doc.defaultRoleAllocation ?? []).map((l) => {
-      const role = roleById.get(String(l.roleId ?? ""));
-      return {
-        roleId: String(l.roleId ?? ""),
-        roleName: String(role?.name ?? l.roleName ?? ""),
-        days: Number(l.days ?? 0),
-        dayRate: Number(role?.dayRate ?? l.dayRate ?? 0),
-        marginMultiplier: Number(role?.marginMultiplier ?? l.marginMultiplier ?? 1),
-        isExternal: !!(role?.isExternal ?? l.isExternal),
-        externalCostRate: role?.externalCostRate ?? l.externalCostRate,
-      };
-    });
-    const price = calculateRolebasedPrice(lines);
-    return price > 0 ? price : undefined;
+    let gross: number | undefined;
+    if (mode === "manual") {
+      gross = doc.defaultSoldPrice;
+    } else {
+      const lines: IRoleAllocationLine[] = (doc.defaultRoleAllocation ?? []).map((l) => {
+        const role = roleById.get(String(l.roleId ?? ""));
+        return {
+          roleId: String(l.roleId ?? ""),
+          roleName: String(role?.name ?? l.roleName ?? ""),
+          days: Number(l.days ?? 0),
+          dayRate: Number(role?.dayRate ?? l.dayRate ?? 0),
+          marginMultiplier: Number(role?.marginMultiplier ?? l.marginMultiplier ?? 1),
+          isExternal: !!(role?.isExternal ?? l.isExternal),
+          externalCostRate: role?.externalCostRate ?? l.externalCostRate,
+        };
+      });
+      const price = calculateRolebasedPrice(lines);
+      gross = price > 0 ? price : undefined;
+    }
+    if (gross == null) return undefined;
+    return netPriceFor(gross, doc.defaultDiscountType, doc.defaultDiscountValue);
   }
 
   return NextResponse.json(
@@ -78,6 +85,8 @@ export async function GET() {
       defaultActivities: doc.defaultActivities,
       defaultDeliverables: doc.defaultDeliverables,
       defaultSoldPrice: doc.defaultSoldPrice,
+      defaultDiscountType: doc.defaultDiscountType ?? null,
+      defaultDiscountValue: doc.defaultDiscountValue ?? null,
       defaultServiceId: doc.defaultServiceId,
       defaultServiceName: doc.defaultServiceId ? serviceNameMap[doc.defaultServiceId] ?? null : null,
       defaultDeliveryDays: doc.defaultDeliveryDays,
@@ -105,6 +114,8 @@ export async function POST(req: NextRequest) {
     defaultActivities,
     defaultDeliverables,
     defaultSoldPrice,
+    defaultDiscountType,
+    defaultDiscountValue,
     defaultServiceId,
     defaultDeliveryDays,
   } = body;
@@ -123,6 +134,9 @@ export async function POST(req: NextRequest) {
     defaultActivities: defaultActivities?.trim() || undefined,
     defaultDeliverables: defaultDeliverables?.trim() || undefined,
     defaultSoldPrice: defaultSoldPrice ? Number(defaultSoldPrice) : undefined,
+    defaultDiscountType:
+      defaultDiscountType === "percentage" || defaultDiscountType === "amount" ? defaultDiscountType : undefined,
+    defaultDiscountValue: defaultDiscountValue ? Number(defaultDiscountValue) : undefined,
     defaultServiceId: defaultServiceId || undefined,
     defaultDeliveryDays: defaultDeliveryDays ? Number(defaultDeliveryDays) : undefined,
   });
@@ -138,6 +152,8 @@ export async function POST(req: NextRequest) {
     defaultActivities: doc.defaultActivities,
     defaultDeliverables: doc.defaultDeliverables,
     defaultSoldPrice: doc.defaultSoldPrice,
+    defaultDiscountType: doc.defaultDiscountType ?? null,
+    defaultDiscountValue: doc.defaultDiscountValue ?? null,
     defaultServiceId: doc.defaultServiceId,
     defaultDeliveryDays: doc.defaultDeliveryDays,
     createdAt: doc.createdAt?.toISOString().split("T")[0],
