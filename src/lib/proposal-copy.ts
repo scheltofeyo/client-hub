@@ -38,6 +38,7 @@ type Copy = {
   activitiesLabel: string;
   deliverablesLabel: string;
   sessionsLabel: string;
+  sessionsIntro: string;
   teamLabel: string;
   whenLabel: string;
   durationLabel: string;
@@ -48,15 +49,32 @@ type Copy = {
   participantPlural: string;
   tbdLabel: string;
 
+  // Planning overview / timeline
+  timelineStart: string;
+  timelineEnd: string;
+  timelineSessions: (count: number) => string;
+  timelineMore: (count: number) => string;
+  timelineClickHint: string;
+
+  // Project progressive disclosure
+  fullApproach: string;
+  hideApproach: string;
+  resultsLabel: string;
+  selectProjectHint: string;
+  allProjects: string;
+
   // Investment
   investmentEyebrow: string;
   whatItCosts: string;
   subtotal: string;
   discount: string;
+  originalPrice: string;
   net: string;
   vat: string;
   total: string;
   totalInclVat: string;
+  totalExclVat: string;
+  vatOnTop: (vatAmount: string, rate: number, totalInclVat: string) => string;
 
   // Voorbehoud & Tarieven
   ratesEyebrow: string;
@@ -153,6 +171,7 @@ const NL: Copy = {
   activitiesLabel: "Activiteiten",
   deliverablesLabel: "Resultaten",
   sessionsLabel: "Sessies",
+  sessionsIntro: "De geplande werkmomenten waarop we samen met jullie team aan de slag gaan.",
   teamLabel: "Team",
   whenLabel: "Wanneer",
   durationLabel: "Duur",
@@ -163,14 +182,29 @@ const NL: Copy = {
   participantPlural: "deelnemers",
   tbdLabel: "NTB",
 
+  timelineStart: "Start",
+  timelineEnd: "Einde",
+  timelineSessions: (n) => `Sessies (${n})`,
+  timelineMore: (n) => `+ ${n} meer`,
+  timelineClickHint: "Klik voor meer info",
+
+  fullApproach: "Toon volledige aanpak",
+  hideApproach: "Verberg aanpak",
+  resultsLabel: "Resultaten",
+  selectProjectHint: "Kies een project om de details te bekijken",
+  allProjects: "Alle",
+
   investmentEyebrow: "Investering",
   whatItCosts: "Wat het kost",
   subtotal: "Subtotaal",
   discount: "Korting",
+  originalPrice: "Oorspronkelijke prijs",
   net: "Netto",
   vat: "BTW",
   total: "Totaal",
   totalInclVat: "Totaal incl. BTW",
+  totalExclVat: "Totaal (excl. btw)",
+  vatOnTop: (vat, rate, incl) => `+ ${vat} btw (${rate}%) · ${incl} incl. btw`,
 
   ratesEyebrow: "Voorbehoud & tarieven",
   ratesTitle: "Overige afspraken",
@@ -263,6 +297,7 @@ const EN: Copy = {
   activitiesLabel: "Activities",
   deliverablesLabel: "Deliverables",
   sessionsLabel: "Sessions",
+  sessionsIntro: "The scheduled working sessions where we get hands-on with your team.",
   teamLabel: "Team",
   whenLabel: "When",
   durationLabel: "Duration",
@@ -273,14 +308,29 @@ const EN: Copy = {
   participantPlural: "participants",
   tbdLabel: "TBD",
 
+  timelineStart: "Start",
+  timelineEnd: "End",
+  timelineSessions: (n) => `Sessions (${n})`,
+  timelineMore: (n) => `+ ${n} more`,
+  timelineClickHint: "Click for details",
+
+  fullApproach: "Show full approach",
+  hideApproach: "Hide approach",
+  resultsLabel: "Outcomes",
+  selectProjectHint: "Select a project to view its details",
+  allProjects: "All",
+
   investmentEyebrow: "Investment",
   whatItCosts: "What it costs",
   subtotal: "Subtotal",
   discount: "Discount",
+  originalPrice: "Original price",
   net: "Net",
   vat: "VAT",
   total: "Total",
   totalInclVat: "Total incl. VAT",
+  totalExclVat: "Total (excl. VAT)",
+  vatOnTop: (vat, rate, incl) => `+ ${vat} VAT (${rate}%) · ${incl} incl. VAT`,
 
   ratesEyebrow: "Terms & rates",
   ratesTitle: "Other agreements",

@@ -6,6 +6,7 @@ import { ProjectPlanModel } from "@/lib/models/ProjectPlan";
 import { ProjectModel, calculateRolebasedPrice } from "@/lib/models/Project";
 import { hasPermission, hasPermissionOrIsLead } from "@/lib/auth-helpers";
 import { ensureUniqueShareCode } from "@/lib/share-codes";
+import { netPriceFor } from "@/lib/pricing";
 
 function serializePlan(input: unknown) {
   const d = input as Record<string, unknown> & { _id: { toString(): string }; createdAt?: Date; updatedAt?: Date };
@@ -15,8 +16,6 @@ function serializePlan(input: unknown) {
     title: d.title,
     summary: d.summary ?? null,
     status: d.status,
-    discountType: d.discountType ?? null,
-    discountValue: d.discountValue ?? null,
     vatRate: d.vatRate ?? null,
     createdBy: d.createdBy,
     acceptedBy: d.acceptedBy ?? null,
@@ -46,7 +45,10 @@ export async function GET(
     ProjectPlanModel.find({ clientId: id }).sort({ createdAt: -1 }).lean(),
     // Include all projects that belong to a plan (draft + promoted) so the list
     // also shows accurate counts/subtotals for finalized plans.
-    ProjectModel.find({ clientId: id, planId: { $exists: true, $ne: null } }, { planId: 1, soldPrice: 1 }).lean(),
+    ProjectModel.find(
+      { clientId: id, planId: { $exists: true, $ne: null } },
+      { planId: 1, soldPrice: 1, discountType: 1, discountValue: 1 }
+    ).lean(),
   ]);
 
   // Lazy backfill: ensure every plan has a shareCode.
@@ -66,7 +68,7 @@ export async function GET(
     if (!pid) continue;
     const entry = summaryByPlan.get(pid) ?? { draftCount: 0, subtotal: 0 };
     entry.draftCount += 1;
-    entry.subtotal += Number(p.soldPrice ?? 0);
+    entry.subtotal += netPriceFor(Number(p.soldPrice ?? 0), p.discountType, p.discountValue);
     summaryByPlan.set(pid, entry);
   }
 
@@ -101,7 +103,7 @@ export async function POST(
   }
 
   const body = await req.json();
-  const { title, summary, discountType, discountValue, vatRate } = body;
+  const { title, summary, vatRate } = body;
   if (!title?.trim()) {
     return NextResponse.json({ error: "Title is required" }, { status: 400 });
   }
@@ -121,8 +123,6 @@ export async function POST(
     title: title.trim(),
     summary: summary || undefined,
     status: "draft",
-    discountType: discountType === "percentage" || discountType === "amount" ? discountType : undefined,
-    discountValue: discountValue != null ? Number(discountValue) : undefined,
     vatRate: vatRate != null ? Number(vatRate) : undefined,
     shareCode,
     createdBy: createdByActor,

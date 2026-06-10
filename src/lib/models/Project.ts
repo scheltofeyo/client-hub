@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document, Model } from "mongoose";
+import type { DiscountType } from "@/lib/pricing";
 
 export type ProjectStatus = "draft" | "not_started" | "in_progress" | "completed";
 export type PricingMode = "manual" | "rolebased";
@@ -30,6 +31,8 @@ export interface IProject extends Document {
   completedDate?: string;
   deliveryDate?: string;
   soldPrice?: number;
+  discountType?: DiscountType;
+  discountValue?: number;
   pricingMode: PricingMode;
   roleAllocation?: IRoleAllocationLine[];
   templateId?: string;
@@ -89,6 +92,8 @@ const ProjectSchema = new Schema<IProject>(
     completedDate: { type: String, trim: true, index: true },
     deliveryDate: { type: String, trim: true, index: true },
     soldPrice: { type: Number },
+    discountType: { type: String, enum: ["percentage", "amount"] },
+    discountValue: { type: Number },
     pricingMode: {
       type: String,
       enum: ["manual", "rolebased"],
@@ -117,6 +122,8 @@ const ProjectSchema = new Schema<IProject>(
 );
 
 ProjectSchema.index({ "members.userId": 1 });
+// Active projects per client (client pages, nav, My Day count): equality on clientId+status, sort on createdAt
+ProjectSchema.index({ clientId: 1, status: 1, createdAt: -1 });
 
 if (mongoose.models.Project) {
   mongoose.deleteModel("Project");

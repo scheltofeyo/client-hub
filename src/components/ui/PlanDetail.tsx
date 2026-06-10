@@ -1,49 +1,46 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Trash2, ChevronDown, ChevronRight, Check, X, Send, Eye, EyeOff, Pencil, ExternalLink, MoreHorizontal, Link as LinkIcon, GripVertical, Download, Loader2 } from "lucide-react";
+import { Plus, Trash2, Check, X, Send, ExternalLink, MoreHorizontal, Link as LinkIcon, Download, Loader2 } from "lucide-react";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
 import { useRightPanel } from "@/components/layout/RightPanel";
 import { usePermission } from "@/hooks/usePermission";
 import RichTextEditor from "@/components/ui/RichTextEditor";
 import PlanTimeline from "@/components/ui/PlanTimeline";
 import UserAvatar from "@/components/ui/UserAvatar";
 import PageHeader from "@/components/layout/PageHeader";
-import { SessionForm } from "@/components/ui/SessionsTab";
-import { TaskForm, TaskRow, InlineTaskInput } from "@/components/ui/task-row";
 import { AddProjectModal } from "@/components/ui/AddProjectButton";
 import { fmtDate } from "@/lib/utils";
-import type { ProjectRole, RoleAllocationLine, Session, Task, TaskAssignee } from "@/types";
+import type { ProjectRole, RoleAllocationLine, Session, TaskAssignee } from "@/types";
+import { formatEuro } from "@/components/ui/editor-panel/money";
+import {
+  calculateProjectSubtotal,
+  calculateProjectDiscount,
+  calculateProjectPayout,
+  type DraftProject,
+  type DraftTask,
+} from "@/components/ui/editor-panel/draft-types";
+import DraftProjectCard from "@/components/ui/editor-panel/DraftProjectCard";
+import DraftProjectEditor from "@/components/ui/editor-panel/DraftProjectEditor";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-interface DraftProject {
-  id: string;
-  clientId: string;
-  planId: string;
-  title: string;
-  description: string | null;
-  why: string | null;
-  how: string | null;
-  what: string | null;
-  activities: string | null;
-  deliverables: string | null;
-  hiddenSections: string[];
-  status: "draft" | "not_started" | "in_progress" | "completed";
-  soldPrice: number | null;
-  pricingMode: "manual" | "rolebased";
-  roleAllocation: RoleAllocationLine[];
-  serviceId: string | null;
-  serviceName: string | null;
-  templateId: string | null;
-  scheduledStartDate: string | null;
-  scheduledEndDate: string | null;
-  members: TaskAssignee[];
-  createdAt?: string | null;
-}
 
-const SECTION_KEYS = ["why", "what", "how", "activities", "deliverables"] as const;
-type SectionKey = (typeof SECTION_KEYS)[number];
 
 interface PlanData {
   id: string;
@@ -51,8 +48,6 @@ interface PlanData {
   title: string;
   summary: string | null;
   status: "draft" | "ready" | "accepted" | "finalized";
-  discountType: "percentage" | "amount" | null;
-  discountValue: number | null;
   vatRate: number | null;
   shareCode: string | null;
   proposerStatement: string | null;
@@ -80,21 +75,6 @@ interface AcceptanceEvent {
   by: { userId?: string; name: string; email?: string; image?: string };
 }
 
-interface DraftTask {
-  id: string;
-  clientId: string | null;
-  projectId: string | null;
-  parentTaskId: string | null;
-  sessionId: string | null;
-  title: string;
-  description: string | null;
-  assignees: TaskAssignee[];
-  completionDate: string | null;
-  completedAt: string | null;
-  order: number;
-  createdById: string;
-  createdByName: string;
-}
 
 interface ApiResponse {
   plan: PlanData;
@@ -103,23 +83,6 @@ interface ApiResponse {
   sessionsByProject: Record<string, Session[]>;
 }
 
-function draftTaskToTask(t: DraftTask): Task {
-  return {
-    id: t.id,
-    clientId: t.clientId ?? undefined,
-    projectId: t.projectId ?? undefined,
-    parentTaskId: t.parentTaskId ?? undefined,
-    sessionId: t.sessionId ?? undefined,
-    title: t.title,
-    description: t.description ?? undefined,
-    assignees: t.assignees,
-    completionDate: t.completionDate ?? undefined,
-    completedAt: t.completedAt ?? undefined,
-    order: t.order,
-    createdById: t.createdById,
-    createdByName: t.createdByName,
-  };
-}
 
 // ── Utility ───────────────────────────────────────────────────────────────────
 
@@ -130,30 +93,6 @@ const STATUS_BADGE: Record<PlanData["status"], { label: string; bg: string; colo
   finalized: { label: "Finalized", bg: "var(--primary-light)", color: "var(--primary)" },
 };
 
-function formatEuro(n: number) {
-  return new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n);
-}
-
-function calculateLineTotal(line: RoleAllocationLine) {
-  return (line.days || 0) * (line.dayRate || 0) * (line.marginMultiplier || 1);
-}
-
-function calculateLinePayout(line: RoleAllocationLine) {
-  if (!line.isExternal || line.externalCostRate == null) return 0;
-  return (line.days || 0) * line.externalCostRate;
-}
-
-function calculateProjectSubtotal(p: DraftProject): number {
-  if (p.pricingMode === "rolebased" && p.roleAllocation) {
-    return p.roleAllocation.reduce((sum, l) => sum + calculateLineTotal(l), 0);
-  }
-  return p.soldPrice ?? 0;
-}
-
-function calculateProjectPayout(p: DraftProject): number {
-  if (p.pricingMode !== "rolebased" || !p.roleAllocation) return 0;
-  return p.roleAllocation.reduce((sum, l) => sum + calculateLinePayout(l), 0);
-}
 
 const inputClass =
   "w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--primary)]/40";
@@ -163,1131 +102,6 @@ const inputStyle = {
   color: "var(--text-primary)",
 };
 
-// ── Role allocation editor ────────────────────────────────────────────────────
-
-function RoleAllocationEditor({
-  pricingMode,
-  allocation,
-  projectRoles,
-  assignableUsers,
-  readonly,
-  onChange,
-}: {
-  pricingMode: "manual" | "rolebased";
-  allocation: RoleAllocationLine[];
-  projectRoles: ProjectRole[];
-  assignableUsers: { id: string; name: string; image: string | null }[];
-  readonly: boolean;
-  onChange: (allocation: RoleAllocationLine[], pricingMode: "manual" | "rolebased") => void;
-}) {
-  function setMode(nextMode: "manual" | "rolebased") {
-    onChange(allocation, nextMode);
-  }
-
-  function addLine() {
-    if (projectRoles.length === 0) return;
-    const role = projectRoles[0];
-    const next: RoleAllocationLine = {
-      roleId: role.id,
-      roleName: role.name,
-      days: 0,
-      dayRate: role.dayRate,
-      marginMultiplier: role.marginMultiplier,
-      isExternal: role.isExternal,
-      externalCostRate: role.isExternal ? role.externalCostRate : undefined,
-    };
-    onChange([...allocation, next], pricingMode);
-  }
-
-  function updateLine(i: number, patch: Partial<RoleAllocationLine>) {
-    const next = allocation.map((l, idx) => (idx === i ? { ...l, ...patch } : l));
-    onChange(next, pricingMode);
-  }
-
-  function changeRole(i: number, roleId: string) {
-    const role = projectRoles.find((r) => r.id === roleId);
-    if (!role) return;
-    updateLine(i, {
-      roleId,
-      roleName: role.name,
-      dayRate: role.dayRate,
-      marginMultiplier: role.marginMultiplier,
-      isExternal: role.isExternal,
-      externalCostRate: role.isExternal ? role.externalCostRate : undefined,
-    });
-  }
-
-  function removeLine(i: number) {
-    onChange(allocation.filter((_, idx) => idx !== i), pricingMode);
-  }
-
-  function assignUser(i: number, userId: string) {
-    if (!userId) {
-      updateLine(i, { assignedUser: undefined });
-      return;
-    }
-    const u = assignableUsers.find((x) => x.id === userId);
-    if (!u) return;
-    updateLine(i, { assignedUser: { userId: u.id, name: u.name, image: u.image ?? undefined } });
-  }
-
-  const mode = pricingMode;
-  const lines = allocation;
-  const total = lines.reduce((s, l) => s + calculateLineTotal(l), 0);
-
-  return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div
-            className="inline-flex rounded-md border p-0.5"
-            style={{ borderColor: "var(--border)", background: "var(--bg-elevated)" }}
-          >
-            {(["rolebased", "manual"] as const).map((m) => (
-              <button
-                key={m}
-                disabled={readonly}
-                onClick={() => setMode(m)}
-                className="px-2 py-1 text-xs font-medium rounded-sm transition-colors"
-                style={{
-                  background: mode === m ? "var(--bg-surface)" : "transparent",
-                  color: mode === m ? "var(--text-primary)" : "var(--text-muted)",
-                }}
-              >
-                {m === "manual" ? "Fixed" : "Role-based"}
-              </button>
-            ))}
-          </div>
-        </div>
-        {mode === "rolebased" && (
-          <span className="text-sm tabular-nums font-medium" style={{ color: "var(--text-primary)" }}>
-            {formatEuro(total)}
-          </span>
-        )}
-      </div>
-
-      {mode === "rolebased" && (
-        <div className="rounded-lg border overflow-hidden" style={{ borderColor: "var(--border)" }}>
-          <div
-            className="grid items-center px-3 py-2 typo-section-header"
-            style={{
-              gridTemplateColumns: "1fr 70px 1fr 110px 32px",
-              gap: 8,
-              borderBottom: "1px solid var(--border)",
-              background: "var(--bg-elevated)",
-              color: "var(--text-muted)",
-            }}
-          >
-            <span>Role</span>
-            <span>Days</span>
-            <span>Assigned</span>
-            <span className="text-right">Total</span>
-            <span />
-          </div>
-          {lines.map((line, i) => (
-            <div
-              key={i}
-              className="grid items-center px-3 py-2 text-sm"
-              style={{
-                gridTemplateColumns: "1fr 70px 1fr 110px 32px",
-                gap: 8,
-                borderBottom: i < lines.length - 1 ? "1px solid var(--border)" : undefined,
-              }}
-            >
-              <select
-                value={line.roleId}
-                disabled={readonly}
-                onChange={(e) => changeRole(i, e.target.value)}
-                className={inputClass}
-                style={inputStyle}
-              >
-                {projectRoles.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.name}{r.isExternal ? " (ext)" : ""}
-                  </option>
-                ))}
-                {projectRoles.findIndex((r) => r.id === line.roleId) === -1 && (
-                  <option value={line.roleId}>{line.roleName} (removed)</option>
-                )}
-              </select>
-              <input
-                type="number"
-                min={0}
-                step={0.5}
-                value={line.days}
-                disabled={readonly}
-                onChange={(e) => updateLine(i, { days: Number(e.target.value) })}
-                className={inputClass}
-                style={{ ...inputStyle, textAlign: "right" }}
-              />
-              <select
-                value={line.assignedUser?.userId ?? ""}
-                disabled={readonly}
-                onChange={(e) => assignUser(i, e.target.value)}
-                className={inputClass}
-                style={inputStyle}
-              >
-                <option value="">— unassigned —</option>
-                {assignableUsers.map((u) => (
-                  <option key={u.id} value={u.id}>{u.name}</option>
-                ))}
-              </select>
-              <span className="text-right tabular-nums" style={{ color: "var(--text-primary)" }}>
-                {formatEuro(calculateLineTotal(line))}
-              </span>
-              <button
-                onClick={() => removeLine(i)}
-                disabled={readonly}
-                className="p-1.5 rounded-md btn-icon text-[var(--danger)] hover:bg-[var(--danger-light)] disabled:opacity-30"
-                title="Remove line"
-              >
-                <Trash2 size={13} />
-              </button>
-            </div>
-          ))}
-          {lines.length === 0 && (
-            <div className="px-3 py-6 text-center text-sm" style={{ color: "var(--text-muted)" }}>
-              No role lines yet.
-            </div>
-          )}
-        </div>
-      )}
-
-      {mode === "rolebased" && !readonly && (
-        <button
-          onClick={addLine}
-          disabled={projectRoles.length === 0}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium btn-tertiary disabled:opacity-50"
-        >
-          <Plus size={12} />
-          Add role line
-        </button>
-      )}
-      {projectRoles.length === 0 && mode === "rolebased" && (
-        <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-          No project roles defined yet — set them up in admin → Labels and Types → Project Roles.
-        </p>
-      )}
-    </div>
-  );
-}
-
-// ── Draft tasks list ──────────────────────────────────────────────────────────
-// Renders a draft project's tasks using the shared TaskRow primitive so behavior
-// matches the regular project Tasks tab (drag-to-reorder, subtasks, inline add).
-
-function DraftTasksList({
-  clientId,
-  projectId,
-  tasks: serverTasks,
-  users,
-  readonly,
-  canCreateTask,
-  canEditAnyTask,
-  canDeleteAnyTask,
-  onTasksChanged,
-}: {
-  clientId: string;
-  projectId: string;
-  tasks: DraftTask[];
-  users: { id: string; name: string; image: string | null }[];
-  readonly: boolean;
-  canCreateTask: boolean;
-  canEditAnyTask: boolean;
-  canDeleteAnyTask: boolean;
-  onTasksChanged: () => void | Promise<void>;
-}) {
-  const [tasks, setTasks] = useState<Task[]>(() => serverTasks.map(draftTaskToTask));
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
-  const toggleInFlightRef = useRef<Set<string>>(new Set());
-  const [showInlineAdd, setShowInlineAdd] = useState(false);
-  const [inlineSubtaskFor, setInlineSubtaskFor] = useState<string | null>(null);
-  const [draggingId, setDraggingId] = useState<string | null>(null);
-  const [dragOverId, setDragOverId] = useState<string | null>(null);
-  const { openPanel, closePanel } = useRightPanel();
-
-  useEffect(() => {
-    const incoming = serverTasks.map(draftTaskToTask);
-    setTasks((prev) => {
-      const prevById = new Map(prev.map((t) => [t.id, t]));
-      const serverIds = new Set(incoming.map((t) => t.id));
-      const merged: Task[] = incoming.map((serverTask) => {
-        if (toggleInFlightRef.current.has(serverTask.id)) {
-          return prevById.get(serverTask.id) ?? serverTask;
-        }
-        return serverTask;
-      });
-      for (const local of prev) {
-        if (!serverIds.has(local.id)) merged.push(local);
-      }
-      return merged;
-    });
-  }, [serverTasks]);
-
-  const userImages = useMemo(
-    () => Object.fromEntries(users.filter((u) => u.image).map((u) => [u.id, u.image!])),
-    [users]
-  );
-
-  const topLevel = tasks.filter((t) => !t.parentTaskId);
-  const subtasksOf = useCallback(
-    (id: string) => tasks.filter((t) => t.parentTaskId === id),
-    [tasks]
-  );
-
-  const isFullyCompleted = useCallback(
-    (task: Task) => {
-      if (!task.completedAt) return false;
-      const subs = subtasksOf(task.id);
-      return subs.every((s) => !!s.completedAt);
-    },
-    [subtasksOf]
-  );
-
-  const openTopLevel = topLevel
-    .filter((t) => !isFullyCompleted(t))
-    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-  const completedTopLevel = topLevel
-    .filter((t) => isFullyCompleted(t))
-    .sort((a, b) => (b.completedAt ?? "").localeCompare(a.completedAt ?? ""));
-
-  function toggleExpand(id: string) {
-    setExpandedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }
-
-  function handleSaved(saved: Task) {
-    setTasks((prev) => {
-      const idx = prev.findIndex((t) => t.id === saved.id);
-      if (idx >= 0) {
-        const next = [...prev];
-        next[idx] = saved;
-        return next;
-      }
-      return [...prev, saved];
-    });
-    if (saved.parentTaskId) {
-      setExpandedIds((prev) => new Set([...prev, saved.parentTaskId!]));
-    }
-    onTasksChanged();
-  }
-
-  function openEditTask(task: Task) {
-    const parentTask = task.parentTaskId ? tasks.find((t) => t.id === task.parentTaskId) : undefined;
-    openPanel(
-      "Edit Task",
-      <TaskForm
-        projectId={projectId}
-        clientId={clientId}
-        task={task}
-        parentTaskTitle={parentTask?.title}
-        isSubtask={!!task.parentTaskId}
-        parentAssignees={parentTask?.assignees}
-        users={users}
-        onSaved={handleSaved}
-        onClose={closePanel}
-      />
-    );
-  }
-
-  function handleAddSubtask(parentTaskId: string) {
-    setInlineSubtaskFor(parentTaskId);
-    setExpandedIds((prev) => new Set([...prev, parentTaskId]));
-  }
-
-  async function handleInlineAddTask(title: string) {
-    const res = await fetch(`/api/clients/${clientId}/projects/${projectId}/tasks`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title }),
-    });
-    if (res.ok) {
-      const saved = await res.json();
-      handleSaved(saved);
-    }
-  }
-
-  async function handleInlineSubtaskSave(parentTaskId: string, title: string) {
-    const res = await fetch(`/api/clients/${clientId}/projects/${projectId}/tasks`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title, parentTaskId }),
-    });
-    if (res.ok) {
-      const saved = await res.json();
-      handleSaved(saved);
-    }
-  }
-
-  async function handleToggleComplete(task: Task) {
-    if (toggleInFlightRef.current.has(task.id)) return;
-    const completed = !task.completedAt;
-    const affected = task.parentTaskId ? [task] : [task, ...subtasksOf(task.id)];
-    for (const a of affected) toggleInFlightRef.current.add(a.id);
-
-    const now = new Date().toISOString();
-    setTasks((prev) =>
-      prev.map((t) => {
-        if (!affected.some((a) => a.id === t.id)) return t;
-        return { ...t, completedAt: completed ? now : undefined, completedById: undefined, completedByName: undefined };
-      })
-    );
-
-    try {
-      const results = await Promise.all(
-        affected.map((t) =>
-          fetch(`/api/clients/${clientId}/projects/${projectId}/tasks/${t.id}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ completed }),
-          }).then((r) => (r.ok ? r.json() : null))
-        )
-      );
-      const saved = results.filter(Boolean) as Task[];
-      if (saved.length === affected.length) {
-        setTasks((prev) => prev.map((t) => saved.find((s) => s.id === t.id) ?? t));
-      } else {
-        setTasks((prev) => prev.map((t) => affected.find((a) => a.id === t.id) ?? t));
-      }
-    } finally {
-      for (const a of affected) toggleInFlightRef.current.delete(a.id);
-      onTasksChanged();
-    }
-  }
-
-  async function handleDelete(taskId: string, hasSubtasks: boolean) {
-    const msg = hasSubtasks
-      ? "Delete this task and all its subtasks? This cannot be undone."
-      : "Delete this task? This cannot be undone.";
-    if (!confirm(msg)) return;
-
-    setTasks((prev) => prev.filter((t) => t.id !== taskId && t.parentTaskId !== taskId));
-
-    await fetch(
-      `/api/clients/${clientId}/projects/${projectId}/tasks/${taskId}`,
-      { method: "DELETE" }
-    );
-    onTasksChanged();
-  }
-
-  async function reorderTopLevel(fromId: string, toId: string) {
-    const reordered = [...openTopLevel];
-    const fromIdx = reordered.findIndex((t) => t.id === fromId);
-    const toIdx = reordered.findIndex((t) => t.id === toId);
-    if (fromIdx === -1 || toIdx === -1) return;
-    const [moved] = reordered.splice(fromIdx, 1);
-    reordered.splice(toIdx, 0, moved);
-    const orderMap = Object.fromEntries(reordered.map((t, i) => [t.id, i]));
-    setTasks((prev) => prev.map((t) => (t.id in orderMap ? { ...t, order: orderMap[t.id] } : t)));
-    await fetch(`/api/clients/${clientId}/projects/${projectId}/tasks/reorder`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ids: reordered.map((t) => t.id) }),
-    });
-    onTasksChanged();
-  }
-
-  async function reorderSubtasks(fromId: string, toId: string, parentId: string) {
-    const siblings = tasks
-      .filter((t) => t.parentTaskId === parentId && !t.completedAt)
-      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-    const fromIdx = siblings.findIndex((t) => t.id === fromId);
-    const toIdx = siblings.findIndex((t) => t.id === toId);
-    if (fromIdx === -1 || toIdx === -1) return;
-    const reordered = [...siblings];
-    const [moved] = reordered.splice(fromIdx, 1);
-    reordered.splice(toIdx, 0, moved);
-    const orderMap = Object.fromEntries(reordered.map((t, i) => [t.id, i]));
-    setTasks((prev) => prev.map((t) => (t.id in orderMap ? { ...t, order: orderMap[t.id] } : t)));
-    await fetch(`/api/clients/${clientId}/projects/${projectId}/tasks/reorder`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ids: reordered.map((t) => t.id) }),
-    });
-    onTasksChanged();
-  }
-
-  async function moveSubtask(subtaskId: string, newParentId: string, insertBeforeId?: string) {
-    const subtask = tasks.find((t) => t.id === subtaskId);
-    const newParent = tasks.find((t) => t.id === newParentId);
-    if (!subtask || !newParent) return;
-
-    setTasks((prev) =>
-      prev.map((t) =>
-        t.id === subtaskId
-          ? { ...t, parentTaskId: newParentId, assignees: newParent.assignees }
-          : t
-      )
-    );
-    setExpandedIds((prev) => new Set([...prev, newParentId]));
-
-    const res = await fetch(`/api/clients/${clientId}/projects/${projectId}/tasks/${subtaskId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ parentTaskId: newParentId }),
-    });
-    if (!res.ok) {
-      setTasks((prev) => prev.map((t) => (t.id === subtaskId ? subtask : t)));
-      return;
-    }
-    const saved = await res.json();
-    setTasks((prev) => prev.map((t) => (t.id === subtaskId ? saved : t)));
-
-    if (insertBeforeId) {
-      await reorderSubtasks(subtaskId, insertBeforeId, newParentId);
-    }
-    onTasksChanged();
-  }
-
-  async function handleDrop(dropTargetId: string) {
-    const fromId = draggingId;
-    if (!fromId || fromId === dropTargetId) return;
-    setDraggingId(null);
-    setDragOverId(null);
-
-    const dragging = tasks.find((t) => t.id === fromId);
-    const target = tasks.find((t) => t.id === dropTargetId);
-    if (!dragging || !target) return;
-
-    const draggingHasChildren = subtasksOf(fromId).length > 0;
-
-    if (!dragging.parentTaskId && !target.parentTaskId) {
-      await reorderTopLevel(fromId, dropTargetId);
-    } else if (!draggingHasChildren && dragging.parentTaskId && !target.parentTaskId) {
-      await moveSubtask(fromId, dropTargetId);
-    } else if (!draggingHasChildren && dragging.parentTaskId && target.parentTaskId) {
-      if (dragging.parentTaskId === target.parentTaskId) {
-        await reorderSubtasks(fromId, dropTargetId, dragging.parentTaskId);
-      } else {
-        await moveSubtask(fromId, target.parentTaskId, dropTargetId);
-      }
-    }
-  }
-
-  const today = new Date().toISOString().slice(0, 10);
-
-  return (
-    <div>
-      {openTopLevel.length === 0 && !showInlineAdd && (
-        <p className="text-sm mb-3" style={{ color: "var(--text-muted)" }}>
-          No tasks yet.
-        </p>
-      )}
-
-      <div>
-        {openTopLevel.map((task, idx) => {
-          const fromIdx = draggingId ? openTopLevel.findIndex((t) => t.id === draggingId) : -1;
-          const isDragOverBottom = dragOverId === task.id && fromIdx !== -1 && fromIdx < idx;
-          return (
-            <TaskRow
-              key={task.id}
-              task={task}
-              subtasks={subtasksOf(task.id)}
-              isExpanded={expandedIds.has(task.id)}
-              onToggleExpand={() => toggleExpand(task.id)}
-              onToggleComplete={handleToggleComplete}
-              onEdit={openEditTask}
-              onAddSubtask={handleAddSubtask}
-              onDelete={handleDelete}
-              showInlineSubtask={inlineSubtaskFor === task.id}
-              onInlineSubtaskSave={(title) => handleInlineSubtaskSave(task.id, title)}
-              onInlineSubtaskCancel={() => setInlineSubtaskFor(null)}
-              userImages={userImages}
-              readOnly={readonly}
-              canEdit={!readonly && canEditAnyTask}
-              canDelete={!readonly && canDeleteAnyTask}
-              canComplete={false}
-              today={today}
-              isDraggable={!readonly && !task.completedAt}
-              draggingId={draggingId}
-              draggingHasChildren={!!draggingId && subtasksOf(draggingId).length > 0}
-              dragOverId={dragOverId}
-              isDragOverBottom={isDragOverBottom}
-              onDragStart={(id) => setDraggingId(id)}
-              onDragOver={(id) => setDragOverId(id)}
-              onDrop={handleDrop}
-              onDragEnd={() => { setDraggingId(null); setDragOverId(null); }}
-            />
-          );
-        })}
-      </div>
-
-      {!readonly && canCreateTask && (
-        <div className="mt-2">
-          {showInlineAdd ? (
-            <InlineTaskInput
-              placeholder="Type a task title…"
-              onSave={handleInlineAddTask}
-              onCancel={() => setShowInlineAdd(false)}
-            />
-          ) : (
-            <button
-              type="button"
-              onClick={() => setShowInlineAdd(true)}
-              className="flex items-center gap-1.5 text-sm py-2 px-2 rounded-lg btn-tertiary"
-            >
-              <Plus size={13} />
-              New task
-            </button>
-          )}
-        </div>
-      )}
-
-      {completedTopLevel.length > 0 && (
-        <>
-          <p className="typo-section-header mt-6 mb-3" style={{ color: "var(--text-muted)" }}>
-            Completed tasks
-          </p>
-          <div>
-            {completedTopLevel.map((task) => (
-              <TaskRow
-                key={task.id}
-                task={task}
-                subtasks={subtasksOf(task.id)}
-                isExpanded={expandedIds.has(task.id)}
-                onToggleExpand={() => toggleExpand(task.id)}
-                onToggleComplete={handleToggleComplete}
-                onEdit={openEditTask}
-                onAddSubtask={handleAddSubtask}
-                onDelete={handleDelete}
-                showInlineSubtask={false}
-                onInlineSubtaskSave={async () => {}}
-                onInlineSubtaskCancel={() => {}}
-                userImages={userImages}
-                readOnly
-                canEdit={!readonly && canEditAnyTask}
-                canDelete={!readonly && canDeleteAnyTask}
-                canComplete={false}
-                today={today}
-              />
-            ))}
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
-// ── Draft card ────────────────────────────────────────────────────────────────
-
-function DraftCard({
-  project,
-  clientId,
-  planAccepted,
-  projectRoles,
-  assignableUsers,
-  canEdit,
-  onUpdate,
-  onRemove,
-  onSessionsChanged,
-  onTasksChanged,
-  tasks,
-  sessions,
-  isDraggable,
-  isDragOver,
-  isDragOverBottom,
-  onDragStart,
-  onDragOver,
-  onDrop,
-  onDragEnd,
-}: {
-  project: DraftProject;
-  clientId: string;
-  planAccepted: boolean;
-  projectRoles: ProjectRole[];
-  assignableUsers: { id: string; name: string; image: string | null }[];
-  canEdit: boolean;
-  onUpdate: (next: Partial<DraftProject>) => void;
-  onRemove: () => void;
-  onSessionsChanged: () => void | Promise<void>;
-  onTasksChanged: () => void | Promise<void>;
-  tasks: DraftTask[];
-  sessions: Session[];
-  isDraggable?: boolean;
-  isDragOver?: boolean;
-  isDragOverBottom?: boolean;
-  onDragStart?: (projectId: string) => void;
-  onDragOver?: (projectId: string) => void;
-  onDrop?: (projectId: string) => void;
-  onDragEnd?: () => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [pending, setPending] = useState<Partial<DraftProject>>({});
-  const [editorKey, setEditorKey] = useState(0);
-  const [saving, setSaving] = useState(false);
-  const [tab, setTab] = useState<"about" | "budget" | "sessions" | "tasks">("about");
-  const readonly = planAccepted || !canEdit;
-  const { openPanel, closePanel } = useRightPanel();
-  const canCreateSession = usePermission("sessions.create");
-  const canEditSession = usePermission("sessions.edit");
-  const canDeleteSession = usePermission("sessions.delete");
-  const canCreateTask = usePermission("tasks.create");
-  const canEditAnyTask = usePermission("tasks.editAny");
-  const canDeleteAnyTask = usePermission("tasks.deleteAny");
-
-  function openSessionPanel(session?: Session) {
-    openPanel(
-      session ? "Edit session" : "New session",
-      <SessionForm
-        clientId={clientId}
-        projectId={project.id}
-        session={session}
-        onSaved={onSessionsChanged}
-        onClose={closePanel}
-      />
-    );
-  }
-
-  async function deleteSession(s: Session) {
-    if (!confirm(`Delete "${s.title}"? This cannot be undone.`)) return;
-    const res = await fetch(
-      `/api/clients/${clientId}/projects/${project.id}/sessions/${s.id}`,
-      { method: "DELETE" }
-    );
-    if (res.ok) await onSessionsChanged();
-  }
-
-  const display: DraftProject = useMemo(() => ({ ...project, ...pending }), [project, pending]);
-  const dirty = Object.keys(pending).length > 0;
-
-  function setField<K extends keyof DraftProject>(field: K, value: DraftProject[K]) {
-    setPending((prev) => ({ ...prev, [field]: value }));
-  }
-
-  function toggleSection(key: SectionKey) {
-    const current = display.hiddenSections ?? [];
-    const next = current.includes(key)
-      ? current.filter((k) => k !== key)
-      : [...current, key];
-    setField("hiddenSections", next);
-  }
-
-  function discard() {
-    setPending({});
-    setEditorKey((k) => k + 1);
-  }
-
-  async function save() {
-    if (!dirty || saving) return;
-    setSaving(true);
-    try {
-      const res = await fetch(`/api/clients/${clientId}/projects/${project.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(pending),
-      });
-      if (res.ok) {
-        const updated = await res.json();
-        onUpdate({
-          title: updated.title,
-          description: updated.description ?? null,
-          why: updated.why ?? null,
-          how: updated.how ?? null,
-          what: updated.what ?? null,
-          activities: updated.activities ?? null,
-          deliverables: updated.deliverables ?? null,
-          hiddenSections: updated.hiddenSections ?? [],
-          soldPrice: updated.soldPrice ?? null,
-          pricingMode: updated.pricingMode ?? "manual",
-          roleAllocation: updated.roleAllocation ?? [],
-          scheduledStartDate: updated.scheduledStartDate ?? null,
-          scheduledEndDate: updated.scheduledEndDate ?? null,
-        });
-        setPending({});
-        setEditorKey((k) => k + 1);
-      }
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  function attemptToggle() {
-    if (open && dirty) {
-      if (!confirm("You have unsaved changes in this draft. Discard them and collapse?")) return;
-      discard();
-    }
-    setOpen(!open);
-  }
-
-  async function handleRemove() {
-    if (!confirm(`Remove "${display.title}" from this plan? Its tasks and sessions will be deleted.`)) return;
-    const res = await fetch(`/api/clients/${clientId}/projects/${project.id}`, { method: "DELETE" });
-    if (res.ok) onRemove();
-  }
-
-  const subtotal = calculateProjectSubtotal(display);
-  const payout = calculateProjectPayout(display);
-  const topLevelTasks = tasks.filter((t) => !t.parentTaskId);
-  const hiddenSet = new Set(display.hiddenSections ?? []);
-
-  const dragFromHandle = useRef(false);
-  const handleHeaderDragStart = useCallback((e: React.DragEvent) => {
-    if (!dragFromHandle.current) {
-      e.preventDefault();
-      return;
-    }
-    e.stopPropagation();
-    e.dataTransfer.effectAllowed = "move";
-    onDragStart?.(project.id);
-  }, [project.id, onDragStart]);
-
-  const dragBorderStyle =
-    isDragOver && isDraggable
-      ? isDragOverBottom
-        ? { borderBottom: "2px solid var(--primary)" }
-        : { borderTop: "2px solid var(--primary)" }
-      : undefined;
-
-  const TABS: Array<{ key: typeof tab; label: string; count?: number }> = [
-    { key: "about", label: "About" },
-    { key: "budget", label: "Budget" },
-    { key: "sessions", label: "Sessions", count: sessions.length },
-    { key: "tasks", label: "Tasks", count: topLevelTasks.length },
-  ];
-
-  return (
-    <div className="rounded-xl border" style={{ borderColor: "var(--border)", background: "var(--bg-surface)" }}>
-      <div
-        className={`sticky top-0 z-20 group ${open ? "border-b rounded-t-xl" : "rounded-xl"}`}
-        style={{
-          position: "sticky",
-          top: 0,
-          borderColor: "var(--border)",
-          background: "var(--bg-surface)",
-          ...dragBorderStyle,
-        }}
-        draggable={isDraggable}
-        onMouseDown={() => { dragFromHandle.current = false; }}
-        onDragStart={isDraggable ? handleHeaderDragStart : undefined}
-        onDragOver={isDraggable && onDragOver ? (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          onDragOver(project.id);
-        } : undefined}
-        onDrop={isDraggable && onDrop ? (e) => { e.preventDefault(); e.stopPropagation(); onDrop(project.id); } : undefined}
-        onDragEnd={isDraggable && onDragEnd ? (e) => { e.stopPropagation(); dragFromHandle.current = false; onDragEnd(); } : undefined}
-      >
-        <div className="flex items-center gap-2 px-4 py-3">
-          {isDraggable && (
-            <div
-              className="flex-shrink-0 w-4 flex items-center justify-center opacity-0 group-hover:opacity-40 cursor-grab active:cursor-grabbing"
-              style={{ color: "var(--text-muted)" }}
-              onMouseDown={(e) => { e.stopPropagation(); dragFromHandle.current = true; }}
-              onClick={(e) => e.stopPropagation()}
-              title="Drag to reorder"
-            >
-              <GripVertical size={14} />
-            </div>
-          )}
-          <button
-            type="button"
-            onClick={attemptToggle}
-            className="flex items-center gap-2 flex-1 min-w-0 text-left p-1 -m-1 rounded-md hover:bg-[var(--bg-hover)]"
-          >
-            <span className="shrink-0" style={{ color: "var(--text-muted)" }}>
-              {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-            </span>
-            <span
-              className="block text-base font-semibold truncate"
-              style={{ color: "var(--text-primary)" }}
-            >
-              {display.title || "Untitled project"}
-            </span>
-          </button>
-          <div className="flex flex-col items-end shrink-0">
-            <span className="text-sm tabular-nums font-medium" style={{ color: "var(--text-primary)" }}>
-              {formatEuro(subtotal)}
-            </span>
-            {payout > 0 && (
-              <span
-                className="text-xs tabular-nums"
-                style={{ color: "var(--text-muted)" }}
-                title="Pay-out to externals · Actual revenue (internal only)"
-              >
-                − {formatEuro(payout)} ext · {formatEuro(subtotal - payout)} net
-              </span>
-            )}
-          </div>
-          {open && !readonly && dirty && (
-            <>
-              <button
-                onClick={discard}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs btn-ghost shrink-0"
-                title="Discard changes"
-              >
-                <X size={12} />
-                Discard
-              </button>
-              <button
-                onClick={save}
-                disabled={saving}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs btn-primary shrink-0 disabled:opacity-50"
-              >
-                <Check size={12} />
-                {saving ? "Saving…" : "Save"}
-              </button>
-            </>
-          )}
-          {!readonly && (
-            <button
-              onClick={handleRemove}
-              className="p-1.5 rounded-md btn-icon text-[var(--danger)] hover:bg-[var(--danger-light)]"
-              title="Remove from plan"
-            >
-              <Trash2 size={13} />
-            </button>
-          )}
-        </div>
-        {open && (
-          <div className="flex gap-1 px-3 pb-0">
-            {TABS.map((t) => {
-              const active = tab === t.key;
-              return (
-                <button
-                  key={t.key}
-                  type="button"
-                  onClick={() => setTab(t.key)}
-                  className="px-3 py-2 text-xs font-medium border-b-2 transition-colors"
-                  style={{
-                    color: active ? "var(--primary)" : "var(--text-muted)",
-                    borderColor: active ? "var(--primary)" : "transparent",
-                  }}
-                >
-                  {t.label}
-                  {typeof t.count === "number" && t.count > 0 && (
-                    <span
-                      className="ml-1.5 inline-flex items-center justify-center text-[10px] rounded-full px-1.5"
-                      style={{
-                        background: active ? "var(--brand-light, var(--primary-light))" : "var(--bg-neutral)",
-                        color: active ? "var(--primary)" : "var(--text-muted)",
-                      }}
-                    >
-                      {t.count}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {open && (
-        <div className="px-4 py-4 space-y-5">
-          {tab === "about" && (
-            <>
-              <div>
-                <label className="typo-label">Project name</label>
-                <input
-                  type="text"
-                  value={display.title}
-                  disabled={readonly}
-                  onChange={(e) => setField("title", e.target.value)}
-                  placeholder="Project name"
-                  className={inputClass}
-                  style={inputStyle}
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="typo-label">Scheduled start</label>
-                  <input
-                    type="date"
-                    value={display.scheduledStartDate ?? ""}
-                    disabled={readonly}
-                    onChange={(e) => setField("scheduledStartDate", e.target.value || null)}
-                    className={inputClass}
-                    style={inputStyle}
-                  />
-                </div>
-                <div>
-                  <label className="typo-label">Scheduled end</label>
-                  <input
-                    type="date"
-                    value={display.scheduledEndDate ?? ""}
-                    disabled={readonly}
-                    onChange={(e) => setField("scheduledEndDate", e.target.value || null)}
-                    className={inputClass}
-                    style={inputStyle}
-                  />
-                </div>
-              </div>
-              {SECTION_KEYS.map((field) => {
-                const hidden = hiddenSet.has(field);
-                return (
-                  <div key={field}>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="typo-label capitalize mb-0">{field}</label>
-                      {!readonly && (
-                        <button
-                          onClick={() => toggleSection(field)}
-                          className="flex items-center gap-1 text-xs btn-tertiary"
-                          title={hidden ? "Show this section in the overview" : "Hide this section from the overview"}
-                        >
-                          {hidden ? <EyeOff size={12} /> : <Eye size={12} />}
-                          {hidden ? "Hidden" : "Visible"}
-                        </button>
-                      )}
-                    </div>
-                    {hidden ? (
-                      <div
-                        className="rounded-button border px-3 py-2 text-xs italic"
-                        style={{ borderColor: "var(--border)", background: "var(--bg-elevated)", color: "var(--text-muted)" }}
-                      >
-                        Hidden from overview &mdash; content preserved. Click &ldquo;Hidden&rdquo; above to re-enable.
-                      </div>
-                    ) : (
-                      <RichTextEditor
-                        key={`${field}-${editorKey}`}
-                        content={display[field] ?? ""}
-                        onChange={(html) => setField(field, html)}
-                        placeholder={`Describe the ${field}…`}
-                      />
-                    )}
-                  </div>
-                );
-              })}
-            </>
-          )}
-
-          {tab === "budget" && (
-            <>
-              <RoleAllocationEditor
-                pricingMode={display.pricingMode}
-                allocation={display.roleAllocation}
-                projectRoles={projectRoles}
-                assignableUsers={assignableUsers}
-                readonly={readonly}
-                onChange={(allocation, pricingMode) => {
-                  setPending((prev) => ({ ...prev, roleAllocation: allocation, pricingMode }));
-                }}
-              />
-              {display.pricingMode === "manual" && (
-                <div>
-                  <label className="typo-label">Sold price (EUR)</label>
-                  <input
-                    type="number"
-                    min={0}
-                    step={100}
-                    value={display.soldPrice ?? ""}
-                    disabled={readonly}
-                    onChange={(e) => setField("soldPrice", e.target.value === "" ? null : Number(e.target.value))}
-                    className={inputClass}
-                    style={inputStyle}
-                  />
-                </div>
-              )}
-            </>
-          )}
-
-          {tab === "sessions" && (
-            <div>
-              {sessions.length > 0 ? (
-                <ul className="text-sm space-y-1 mb-3">
-                  {sessions.map((s) => {
-                    const editable = !readonly && canEditSession;
-                    const deletable = !readonly && canDeleteSession;
-                    return (
-                      <li
-                        key={s.id}
-                        className="flex items-center gap-2 group"
-                        style={{ color: "var(--text-primary)" }}
-                      >
-                        {editable ? (
-                          <button
-                            type="button"
-                            onClick={() => openSessionPanel(s)}
-                            className="flex-1 text-left truncate hover:underline"
-                          >
-                            {s.title}
-                            {s.date && (
-                              <span className="ml-2 text-xs" style={{ color: "var(--text-muted)" }}>
-                                · {fmtDate(s.date)}
-                              </span>
-                            )}
-                          </button>
-                        ) : (
-                          <span className="flex-1 truncate">
-                            {s.title}
-                            {s.date && (
-                              <span className="ml-2 text-xs" style={{ color: "var(--text-muted)" }}>
-                                · {fmtDate(s.date)}
-                              </span>
-                            )}
-                          </span>
-                        )}
-                        {editable && (
-                          <button
-                            type="button"
-                            onClick={() => openSessionPanel(s)}
-                            className="p-1 rounded-md btn-icon opacity-0 group-hover:opacity-100"
-                            title="Edit session"
-                          >
-                            <Pencil size={12} />
-                          </button>
-                        )}
-                        {deletable && (
-                          <button
-                            type="button"
-                            onClick={() => deleteSession(s)}
-                            className="p-1 rounded-md btn-icon text-[var(--danger)] opacity-0 group-hover:opacity-100"
-                            title="Delete session"
-                          >
-                            <Trash2 size={12} />
-                          </button>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
-              ) : (
-                <p className="text-sm mb-3" style={{ color: "var(--text-muted)" }}>
-                  No sessions yet.
-                </p>
-              )}
-              {!readonly && canCreateSession && (
-                <button
-                  type="button"
-                  onClick={() => openSessionPanel()}
-                  className="flex items-center gap-1.5 text-xs btn-tertiary"
-                >
-                  <Plus size={12} />
-                  New session
-                </button>
-              )}
-            </div>
-          )}
-
-          {tab === "tasks" && (
-            <div>
-              <p
-                className="text-xs mb-3 px-2.5 py-1.5 rounded-md inline-block"
-                style={{ background: "var(--bg-neutral)", color: "var(--text-muted)" }}
-              >
-                Tasks are never shared with the client — they&apos;re for your team only.
-              </p>
-              <DraftTasksList
-                clientId={clientId}
-                projectId={project.id}
-                tasks={tasks}
-                users={assignableUsers}
-                readonly={readonly}
-                canCreateTask={canCreateTask}
-                canEditAnyTask={canEditAnyTask}
-                canDeleteAnyTask={canDeleteAnyTask}
-                onTasksChanged={onTasksChanged}
-              />
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
 
 // ── Main component ───────────────────────────────────────────────────────────
 
@@ -1308,6 +122,12 @@ export default function PlanDetail({
   const canEdit = usePermission("projectPlans.edit");
   const canAccept = usePermission("projectPlans.accept");
   const canFinalize = usePermission("projectPlans.finalize");
+  const { openPanel } = useRightPanel();
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
 
   const [data, setData] = useState<ApiResponse | null>(null);
   const [assignableUsers, setAssignableUsers] = useState<{ id: string; name: string; image: string | null }[]>([]);
@@ -1315,8 +135,6 @@ export default function PlanDetail({
   const [activeTab, setActiveTab] = useState<"projects" | "content" | "settings">("projects");
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
   const saveResetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [draggingProjectId, setDraggingProjectId] = useState<string | null>(null);
-  const [dragOverProjectId, setDragOverProjectId] = useState<string | null>(null);
   const [showFinalizeModal, setShowFinalizeModal] = useState(false);
   const [addModalOpen, setAddModalOpen] = useState(false);
 
@@ -1345,11 +163,10 @@ export default function PlanDetail({
     [projects]
   );
 
-  const discountAmount = useMemo(() => {
-    if (!plan?.discountType || plan.discountValue == null) return 0;
-    if (plan.discountType === "percentage") return subtotal * (plan.discountValue / 100);
-    return plan.discountValue;
-  }, [plan, subtotal]);
+  const discountAmount = useMemo(
+    () => projects.reduce((sum, p) => sum + calculateProjectDiscount(p), 0),
+    [projects]
+  );
 
   const subtotalAfterDiscount = Math.max(0, subtotal - discountAmount);
   const vatAmount = useMemo(
@@ -1376,34 +193,33 @@ export default function PlanDetail({
     router.refresh();
   }
 
-  async function handleProjectDrop(dropTargetId: string) {
-    const fromId = draggingProjectId;
-    setDraggingProjectId(null);
-    setDragOverProjectId(null);
-    if (!fromId || fromId === dropTargetId) return;
-    if (!data) return;
+  function handleProjectDragEnd(e: DragEndEvent) {
+    const { active, over } = e;
+    if (!over || active.id === over.id || !data) return;
     const current = data.projects;
-    const fromIdx = current.findIndex((p) => p.id === fromId);
-    const toIdx = current.findIndex((p) => p.id === dropTargetId);
+    const fromIdx = current.findIndex((p) => p.id === active.id);
+    const toIdx = current.findIndex((p) => p.id === over.id);
     if (fromIdx === -1 || toIdx === -1) return;
 
-    const next = [...current];
-    const [moved] = next.splice(fromIdx, 1);
-    next.splice(toIdx, 0, moved);
+    const next = arrayMove(current, fromIdx, toIdx);
     const prevProjects = current;
     setData((d) => (d ? { ...d, projects: next } : d));
 
-    const res = await fetch(
-      `/api/clients/${clientId}/plans/${planId}/projects/reorder`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids: next.map((p) => p.id) }),
-      }
-    );
-    if (!res.ok) {
-      setData((d) => (d ? { ...d, projects: prevProjects } : d));
-    }
+    fetch(`/api/clients/${clientId}/plans/${planId}/projects/reorder`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids: next.map((p) => p.id) }),
+    })
+      .then((res) => {
+        if (!res.ok) setData((d) => (d ? { ...d, projects: prevProjects } : d));
+      })
+      .catch(() => setData((d) => (d ? { ...d, projects: prevProjects } : d)));
+  }
+
+  async function removeProjectWithConfirm(project: DraftProject) {
+    if (!confirm(`Remove "${project.title}" from this plan? Its tasks and sessions will be deleted.`)) return;
+    const res = await fetch(`/api/clients/${clientId}/projects/${project.id}`, { method: "DELETE" });
+    if (res.ok) removeProject(project.id);
   }
 
   async function refreshSessions(projectId: string) {
@@ -1600,7 +416,7 @@ export default function PlanDetail({
   ];
 
   const tertiaryNav = (
-    <div className="flex gap-0 border-b shrink-0 -mx-7 px-7 mt-2" style={{ borderColor: "var(--border)" }}>
+    <div role="tablist" aria-label="Plan sections" className="flex gap-0 border-b shrink-0 -mx-7 px-7 mt-2" style={{ borderColor: "var(--border)" }}>
       {([
         { value: "projects", label: "Projects" },
         { value: "content", label: "About" },
@@ -1610,6 +426,8 @@ export default function PlanDetail({
         return (
           <button
             key={value}
+            role="tab"
+            aria-selected={active}
             onClick={() => setActiveTab(value)}
             className="px-1 py-3 mr-5 text-sm font-medium border-b-2 transition-colors"
             style={{
@@ -1629,7 +447,23 @@ export default function PlanDetail({
       <div className="flex flex-col h-full overflow-hidden">
         <PageHeader breadcrumbs={breadcrumbs} title="Loading…" tertiaryNav={tertiaryNav} />
         <div className="flex-1 overflow-y-auto">
-          <p className="text-sm p-7" style={{ color: "var(--text-muted)" }}>Loading plan…</p>
+          <div className="p-7 flex gap-6 items-start">
+            <div className="flex-1 min-w-0 space-y-3" aria-hidden>
+              {[0, 1, 2].map((i) => (
+                <div
+                  key={i}
+                  className="h-[68px] rounded-xl border animate-pulse"
+                  style={{ borderColor: "var(--border)", background: "var(--bg-neutral)" }}
+                />
+              ))}
+            </div>
+            <div
+              className="w-1/3 flex-none h-48 rounded-xl border animate-pulse"
+              style={{ borderColor: "var(--border)", background: "var(--bg-neutral)" }}
+              aria-hidden
+            />
+          </div>
+          <span className="sr-only">Loading plan…</span>
         </div>
       </div>
     );
@@ -1714,8 +548,8 @@ export default function PlanDetail({
             borderColor: "var(--border)",
           }}
         >
-          <div className="flex items-center gap-4">
-            <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-4 flex-wrap">
+            <div className="flex-1 min-w-[200px]">
               <div className="typo-card-title" style={{ color: "var(--success)" }}>
                 Plan accepted
               </div>
@@ -1725,7 +559,7 @@ export default function PlanDetail({
                   : `Accepted on ${fmtDate(plan.acceptedAt)}.`}
               </p>
             </div>
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-2 shrink-0 flex-wrap">
               {canAccept && (
                 <button
                   type="button"
@@ -1787,42 +621,43 @@ export default function PlanDetail({
                   </p>
                 </div>
               ) : (
-                <div className="space-y-4">
-                  {projects.map((p, idx) => {
-                    const fromIdx = draggingProjectId
-                      ? projects.findIndex((x) => x.id === draggingProjectId)
-                      : -1;
-                    const isDragOverBottom =
-                      dragOverProjectId === p.id && fromIdx !== -1 && fromIdx < idx;
-                    return (
-                      <DraftCard
-                        key={p.id}
-                        project={p}
-                        clientId={clientId}
-                        planAccepted={planAccepted}
-                        projectRoles={projectRoles}
-                        assignableUsers={assignableUsers}
-                        canEdit={canEdit}
-                        onUpdate={(patch) => updateProject(p.id, patch)}
-                        onRemove={() => removeProject(p.id)}
-                        onSessionsChanged={() => refreshSessions(p.id)}
-                        onTasksChanged={() => refreshTasks(p.id)}
-                        tasks={data!.tasksByProject[p.id] ?? []}
-                        sessions={data!.sessionsByProject[p.id] ?? []}
-                        isDraggable={canEdit && !planAccepted && projects.length > 1}
-                        isDragOver={dragOverProjectId === p.id && draggingProjectId !== p.id}
-                        isDragOverBottom={isDragOverBottom}
-                        onDragStart={(id) => setDraggingProjectId(id)}
-                        onDragOver={(id) => setDragOverProjectId(id)}
-                        onDrop={handleProjectDrop}
-                        onDragEnd={() => {
-                          setDraggingProjectId(null);
-                          setDragOverProjectId(null);
-                        }}
-                      />
-                    );
-                  })}
-                </div>
+                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleProjectDragEnd}>
+                  <SortableContext items={projects.map((p) => p.id)} strategy={verticalListSortingStrategy}>
+                    <div className="space-y-3">
+                      {projects.map((p) => (
+                        <DraftProjectCard
+                          key={p.id}
+                          project={p}
+                          taskCount={(data!.tasksByProject[p.id] ?? []).filter((t) => !t.parentTaskId).length}
+                          sessionCount={(data!.sessionsByProject[p.id] ?? []).length}
+                          readonly={planAccepted || !canEdit}
+                          canRemove={canEdit && !planAccepted}
+                          sortDisabled={!canEdit || planAccepted || projects.length < 2}
+                          onOpen={() =>
+                            openPanel(
+                              "Edit project",
+                              <DraftProjectEditor
+                                project={p}
+                                clientId={clientId}
+                                planAccepted={planAccepted}
+                                canEdit={canEdit}
+                                projectRoles={projectRoles}
+                                assignableUsers={assignableUsers}
+                                tasks={data!.tasksByProject[p.id] ?? []}
+                                sessions={data!.sessionsByProject[p.id] ?? []}
+                                onUpdate={(patch) => updateProject(p.id, patch)}
+                                onSessionsChanged={() => refreshSessions(p.id)}
+                                onTasksChanged={() => refreshTasks(p.id)}
+                              />,
+                              { padded: false }
+                            )
+                          }
+                          onRemove={() => removeProjectWithConfirm(p)}
+                        />
+                      ))}
+                    </div>
+                  </SortableContext>
+                </DndContext>
               )}
             </>
           )}
@@ -2032,43 +867,9 @@ export default function PlanDetail({
               <section>
                 <h3 className="typo-section-title mb-1" style={{ color: "var(--text-primary)" }}>Pricing terms</h3>
                 <p className="text-sm mb-3" style={{ color: "var(--text-muted)" }}>
-                  Plan-wide discount and VAT. The Budget card on the right recomputes totals as you change these.
+                  Plan-wide VAT. Discounts are set per project in each project&apos;s Budget tab.
                 </p>
                 <div className="grid grid-cols-3 gap-3">
-                  <div>
-                    <label className="typo-label">Discount type</label>
-                    <select
-                      value={plan.discountType ?? ""}
-                      disabled={planAccepted || !canEdit}
-                      onChange={(e) => patchPlan({ discountType: e.target.value || null })}
-                      className={inputClass}
-                      style={inputStyle}
-                    >
-                      <option value="">No discount</option>
-                      <option value="percentage">Percentage</option>
-                      <option value="amount">Amount</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="typo-label">
-                      Discount value{plan.discountType === "percentage" ? " (%)" : plan.discountType === "amount" ? " (EUR)" : ""}
-                    </label>
-                    <input
-                      type="number"
-                      min={0}
-                      step={plan.discountType === "percentage" ? 1 : 100}
-                      value={plan.discountValue ?? ""}
-                      disabled={planAccepted || !canEdit || !plan.discountType}
-                      onChange={(e) =>
-                        patchPlanDebounced(
-                          { discountValue: e.target.value === "" ? null : Number(e.target.value) },
-                          "discountValue"
-                        )
-                      }
-                      className={inputClass}
-                      style={inputStyle}
-                    />
-                  </div>
                   <div>
                     <label className="typo-label">VAT rate (%)</label>
                     <input
@@ -2113,15 +914,13 @@ export default function PlanDetail({
               <span style={{ color: "var(--text-muted)" }}>Subtotal</span>
               <span className="tabular-nums" style={{ color: "var(--text-primary)" }}>{formatEuro(subtotal)}</span>
             </div>
-            {plan.discountType && discountAmount > 0 && (
+            {discountAmount > 0 && (
               <div className="flex justify-between">
-                <span style={{ color: "var(--text-muted)" }}>
-                  Discount {plan.discountType === "percentage" ? `(${plan.discountValue}%)` : ""}
-                </span>
+                <span style={{ color: "var(--text-muted)" }}>Discount</span>
                 <span className="tabular-nums" style={{ color: "var(--text-primary)" }}>− {formatEuro(discountAmount)}</span>
               </div>
             )}
-            {plan.discountType && discountAmount > 0 && (
+            {discountAmount > 0 && (
               <div className="flex justify-between">
                 <span style={{ color: "var(--text-muted)" }}>Net</span>
                 <span className="tabular-nums" style={{ color: "var(--text-primary)" }}>{formatEuro(subtotalAfterDiscount)}</span>

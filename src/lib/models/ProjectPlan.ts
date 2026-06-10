@@ -1,7 +1,6 @@
 import mongoose, { Schema, Document, Model } from "mongoose";
 
 export type ProjectPlanStatus = "draft" | "ready" | "accepted" | "finalized";
-export type PlanDiscountType = "percentage" | "amount";
 
 export type AcceptanceEventType = "created" | "sent" | "accepted" | "revoked" | "finalized";
 export type AcceptanceEventSource = "client" | "internal";
@@ -20,8 +19,6 @@ export interface IProjectPlan extends Document {
   title: string;
   summary?: string;
   status: ProjectPlanStatus;
-  discountType?: PlanDiscountType;
-  discountValue?: number;
   vatRate?: number;
   shareCode: string;
   proposerStatement?: string;
@@ -76,8 +73,6 @@ const ProjectPlanSchema = new Schema<IProjectPlan>(
       default: "draft",
       index: true,
     },
-    discountType: { type: String, enum: ["percentage", "amount"] },
-    discountValue: { type: Number },
     vatRate: { type: Number },
     shareCode: { type: String, required: true, unique: true, index: true },
     proposerStatement: { type: String, trim: true },

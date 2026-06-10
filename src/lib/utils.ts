@@ -186,3 +186,13 @@ export function timeAgoLabel(days: number): string {
   const years = Math.floor(days / 365);
   return `${years} year${years === 1 ? "" : "s"} ago`;
 }
+
+/**
+ * A project whose tasks belong in task lists & stats: finalized (non-draft) and
+ * kicked off. Single source of truth shared by the per-client Tasks board, its
+ * stats, and the My Day task views, so draft proposals and not-yet-kicked-off
+ * projects are hidden everywhere consistently.
+ */
+export function isLiveProject(project: { status?: string; kickedOffAt?: string | null }): boolean {
+  return project.status !== "draft" && !!project.kickedOffAt;
+}

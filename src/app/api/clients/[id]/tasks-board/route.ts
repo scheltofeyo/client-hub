@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { connectDB } from "@/lib/mongodb";
 import { TaskModel } from "@/lib/models/Task";
 import { ProjectModel } from "@/lib/models/Project";
+import { isLiveProject } from "@/lib/utils";
 
 export async function GET(
   _req: NextRequest,
@@ -45,11 +46,17 @@ export async function GET(
     createdAt: doc.createdAt?.toISOString(),
   });
 
+  // Only count/show tasks of "live" projects (non-draft + kicked off) so the
+  // board and its stats match what's displayed — draft proposals, not-yet-kicked-off
+  // projects, and orphaned tasks (project deleted) are excluded.
+  const liveProjectIds = new Set(projects.filter(isLiveProject).map((p) => p._id.toString()));
+
   const generalTasks: ReturnType<typeof serializeTask>[] = [];
   const projectTasks: Record<string, ReturnType<typeof serializeTask>[]> = {};
   for (const doc of tasks) {
     const serialized = serializeTask(doc);
     if (doc.projectId) {
+      if (!liveProjectIds.has(doc.projectId)) continue; // draft / not-kicked-off / orphaned
       (projectTasks[doc.projectId] ??= []).push(serialized);
     } else {
       generalTasks.push(serialized);

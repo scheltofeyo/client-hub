@@ -909,10 +909,128 @@ select:not(.appearance-none):not([multiple]):not([size]) {
   }
 }
 
+/* ── SteppedModal step transitions ───────────────────────────────── */
+
+@keyframes modal-step-in-fwd {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes modal-step-in-back {
+  from {
+    opacity: 0;
+    transform: translateX(-16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.modal-step-fwd {
+  animation: modal-step-in-fwd 200ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.modal-step-back {
+  animation: modal-step-in-back 200ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modal-step-fwd,
+  .modal-step-back {
+    animation: none;
+  }
+}
+
+/* ── Right-panel slide-in (stacked secondary panels) ─────────────────────── */
+
+@keyframes panel-slide-in {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+.panel-enter {
+  animation: panel-slide-in 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel-enter {
+    animation: none;
+  }
+  .rp-primary {
+    transition: none !important;
+  }
+}
+
 /* Tiptap stores blank lines as <p></p>. Without content, browsers collapse
    empty paragraphs to zero height, so the author-intended spacing disappears.
    Fill them with a non-breaking space at render time so the line-height
    produces a visible blank line. Applied to survey-rendered rich text. */
 .survey-richtext p:empty::before {
   content: "\00a0";
+}
+
+/* ── Public proposal page — light-only, dimensional, motion-led ──────────────
+   Scoped to .proposal-surface so none of this leaks into the dense app UI. */
+
+.proposal-surface {
+  /* AA-compliant muted ink. The global --text-muted (#8b88ad) is ~3:1 on white
+     and fails WCAG AA for the small uppercase labels + lead copy the proposal
+     leans on. This blue-violet ink hits ~5:1 while still reading as secondary. */
+  --proposal-muted: #6b6890;
+}
+/* Default muted labels/lead → the AA ink. Inline brand-colored labels (set via
+   style={{ color: brandColor }}) still win on specificity, as intended. */
+.proposal-surface .typo-proposal-eyebrow,
+.proposal-surface .typo-proposal-inline-label,
+.proposal-surface .typo-proposal-lead {
+  color: var(--proposal-muted);
+}
+
+/* Scroll-driven reveal. Visible by default (SSR / no-JS safe); JS adds
+   .reveal-armed on mount to set the hidden state, then .is-visible on
+   intersect. --reveal-i drives a small stagger. */
+.proposal-reveal { opacity: 1; transform: none; }
+.proposal-reveal.reveal-armed { opacity: 0; transform: translateY(16px); }
+.proposal-reveal.reveal-armed.is-visible {
+  opacity: 1;
+  transform: none;
+  transition: opacity 600ms cubic-bezier(0.22, 1, 0.36, 1),
+              transform 600ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition-delay: calc(var(--reveal-i, 0) * 80ms);
+}
+
+/* Timeline bar grow-in — clip-path reveal (no text distortion), left to right. */
+.proposal-bar { clip-path: inset(0 0 0 0); transition: opacity 200ms ease; }
+.proposal-bar.reveal-armed { clip-path: inset(0 101% 0 0); }
+.proposal-bar.reveal-armed.is-visible {
+  clip-path: inset(0 0 0 0);
+  transition: clip-path 700ms cubic-bezier(0.22, 1, 0.36, 1) calc(var(--reveal-i, 0) * 70ms),
+              opacity 200ms ease;
+}
+
+/* Accordion (project body, legal terms) — animate height via grid rows. */
+.proposal-collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 360ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.proposal-collapse.is-open { grid-template-rows: 1fr; }
+.proposal-collapse > .proposal-collapse-inner { overflow: hidden; min-height: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .proposal-reveal.reveal-armed,
+  .proposal-bar.reveal-armed {
+    opacity: 1 !important;
+    transform: none !important;
+    clip-path: none !important;
+    transition: none !important;
+  }
+  .proposal-collapse { transition: none; }
 }

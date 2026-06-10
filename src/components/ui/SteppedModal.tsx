@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback, type ReactNode } from "react";
+import { Fragment, useEffect, useRef, useState, useCallback, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { X } from "lucide-react";
+import { Check, X } from "lucide-react";
 
 interface SteppedModalProps {
   /** Controls visibility */
@@ -15,13 +15,17 @@ interface SteppedModalProps {
   steps?: string[];
   /** 0-indexed current step */
   currentStep?: number;
+  /** When provided, completed steps in the indicator become clickable */
+  onStepClick?: (index: number) => void;
   /** Scrollable middle content */
   children: ReactNode;
-  /** Fixed footer content (action buttons) */
+  /** Fixed footer content (primary action buttons, right-aligned) */
   footer: ReactNode;
+  /** Optional left-aligned footer slot (Cancel/Back buttons) */
+  footerLeft?: ReactNode;
   /** Max width class override, defaults to "max-w-2xl" */
   maxWidth?: string;
-  /** Hide the "Step X of Y — Label" line between header and body */
+  /** Hide step labels; show compact dots in the footer instead (carousel-style flows) */
   hideStepLabel?: boolean;
 }
 
@@ -31,14 +35,25 @@ export default function SteppedModal({
   title,
   steps,
   currentStep = 0,
+  onStepClick,
   children,
   footer,
+  footerLeft,
   maxWidth = "max-w-2xl",
   hideStepLabel = false,
 }: SteppedModalProps) {
   const [visible, setVisible] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
+
+  // Direction of the last step change, for the enter animation
+  const [prevStep, setPrevStep] = useState(currentStep);
+  const [direction, setDirection] = useState<"fwd" | "back">("fwd");
+  if (prevStep !== currentStep) {
+    setDirection(currentStep > prevStep ? "fwd" : "back");
+    setPrevStep(currentStep);
+  }
 
   // Animate in/out
   useEffect(() => {
@@ -97,6 +112,7 @@ export default function SteppedModal({
   // Auto-focus first input on open / step change
   useEffect(() => {
     if (!open || !modalRef.current) return;
+    if (bodyRef.current) bodyRef.current.scrollTop = 0;
     const timer = setTimeout(() => {
       const input = modalRef.current?.querySelector<HTMLElement>(
         "input:not([type=hidden]), textarea, select"
@@ -168,23 +184,89 @@ export default function SteppedModal({
             </button>
           </div>
 
-          {/* Step label */}
-          {!hideStepLabel && steps && steps.length > 1 && steps[currentStep] && (
-            <div
-              className="shrink-0 px-6 pt-4 pb-0"
+          {/* Labeled step indicator */}
+          {!hideStepLabel && steps && steps.length > 1 && (
+            <nav
+              aria-label="Progress"
+              className="shrink-0 flex items-center gap-2 px-6 pt-4"
             >
-              <p
-                className="text-xs font-medium uppercase tracking-wide"
-                style={{ color: "var(--text-muted)" }}
-              >
-                Step {currentStep + 1} of {steps.length} — {steps[currentStep]}
-              </p>
-            </div>
+              {steps.map((label, i) => {
+                const done = i < currentStep;
+                const current = i === currentStep;
+                const clickable = done && !!onStepClick;
+                const inner = (
+                  <>
+                    <span
+                      className="flex items-center justify-center w-6 h-6 rounded-full text-xs font-semibold shrink-0 transition-colors"
+                      style={
+                        done
+                          ? {
+                              background: "var(--primary-light)",
+                              color: "var(--primary)",
+                            }
+                          : current
+                            ? { background: "var(--primary)", color: "#fff" }
+                            : {
+                                boxShadow: "inset 0 0 0 1px var(--border)",
+                                color: "var(--text-muted)",
+                              }
+                      }
+                    >
+                      {done ? <Check size={13} strokeWidth={3} /> : i + 1}
+                    </span>
+                    <span
+                      className="text-sm font-medium"
+                      style={{
+                        color: current || done ? "var(--text-primary)" : "var(--text-muted)",
+                      }}
+                    >
+                      {label}
+                    </span>
+                  </>
+                );
+                return (
+                  <Fragment key={label}>
+                    {clickable ? (
+                      <button
+                        type="button"
+                        onClick={() => onStepClick(i)}
+                        aria-label={`Go back to step ${i + 1}: ${label}`}
+                        className="flex items-center gap-2 rounded-lg -mx-1.5 px-1.5 py-1 cursor-pointer transition-colors hover:bg-[var(--bg-hover)]"
+                      >
+                        {inner}
+                      </button>
+                    ) : (
+                      <div
+                        className="flex items-center gap-2"
+                        aria-current={current ? "step" : undefined}
+                      >
+                        {inner}
+                      </div>
+                    )}
+                    {i < steps.length - 1 && (
+                      <div
+                        className="h-px w-6 shrink-0 transition-colors"
+                        style={{ background: done ? "var(--primary)" : "var(--border)" }}
+                      />
+                    )}
+                  </Fragment>
+                );
+              })}
+            </nav>
           )}
 
           {/* Scrollable body */}
-          <div className="flex-1 overflow-y-auto px-6 py-5 min-h-0">
-            {children}
+          <div ref={bodyRef} className="flex-1 overflow-y-auto px-6 py-5 min-h-0">
+            {steps && steps.length > 1 ? (
+              <div
+                key={currentStep}
+                className={direction === "fwd" ? "modal-step-fwd" : "modal-step-back"}
+              >
+                {children}
+              </div>
+            ) : (
+              children
+            )}
           </div>
 
           {/* Fixed footer */}
@@ -192,7 +274,7 @@ export default function SteppedModal({
             className="shrink-0 flex items-center justify-between gap-4 px-6 py-4 border-t"
             style={{ borderColor: "var(--border)" }}
           >
-            {steps && steps.length > 1 ? (
+            {hideStepLabel && steps && steps.length > 1 ? (
               <div className="flex items-center gap-1.5">
                 {steps.map((label, i) => (
                   <div key={label} className="flex items-center gap-1.5">
@@ -200,11 +282,7 @@ export default function SteppedModal({
                       className="w-2 h-2 rounded-full transition-colors"
                       style={{
                         background:
-                          i === currentStep
-                            ? "var(--primary)"
-                            : i < currentStep
-                              ? "var(--primary)"
-                              : "var(--border)",
+                          i <= currentStep ? "var(--primary)" : "var(--border)",
                         opacity: i <= currentStep ? 1 : 0.5,
                       }}
                       title={label}
@@ -224,7 +302,7 @@ export default function SteppedModal({
                 ))}
               </div>
             ) : (
-              <div />
+              <div className="flex items-center gap-2">{footerLeft}</div>
             )}
             <div className="flex items-center gap-2">{footer}</div>
           </div>

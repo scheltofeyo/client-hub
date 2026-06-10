@@ -42,7 +42,7 @@ export default function AdminShell({ currentUserId, initialTab, initialEmployeeI
   // ── Tab data state ──
   type EmployeesData = { employees: unknown[] };
   type RolesData = { roles: unknown[] };
-  type TemplatesData = { templates: unknown[]; services: unknown[] };
+  type TemplatesData = { templates: unknown[]; services: unknown[]; projectRoles: unknown[] };
 
   const [employeesData, setEmployeesData] = useState<EmployeesData | null>(null);
   const [rolesData, setRolesData] = useState<RolesData | null>(null);
@@ -140,11 +140,12 @@ export default function AdminShell({ currentUserId, initialTab, initialEmployeeI
             break;
           }
           case "templates": {
-            const [templates, services] = await Promise.all([
+            const [templates, services, projectRoles] = await Promise.all([
               fetch("/api/project-templates").then((r) => r.json()),
               fetch("/api/services").then((r) => r.json()),
+              fetch("/api/project-roles").then((r) => r.json()),
             ]);
-            const result = { templates, services };
+            const result = { templates, services, projectRoles };
             dataCache.set(cacheKey, result);
             setTemplatesData(result);
             break;
@@ -280,6 +281,7 @@ export default function AdminShell({ currentUserId, initialTab, initialEmployeeI
           <AdminTemplatesTable
             initialTemplates={resolvedTemplates.templates as never[]}
             services={resolvedTemplates.services as never[]}
+            projectRoles={resolvedTemplates.projectRoles as never[]}
           />
         )
       )}

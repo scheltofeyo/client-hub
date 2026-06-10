@@ -23,6 +23,10 @@ const tabItems = [
 
 const validTabs: string[] = tabItems.filter((t) => !t.tab.startsWith("divider")).map((t) => t.tab);
 
+function initials(company: string): string {
+  return company.split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("");
+}
+
 export default function ClientPanelNav({
   client,
   projects = [],
@@ -113,8 +117,14 @@ export default function ClientPanelNav({
       style={{ borderColor: "var(--border)" }}
     >
       {/* Company name header */}
-      <div className="px-4 pt-5 pb-3 shrink-0">
-        <span className="font-semibold text-sm" style={{ color: "var(--text-primary)" }}>
+      <div className="px-4 pt-5 pb-3 shrink-0 flex items-center gap-2.5 min-w-0">
+        <span
+          className="inline-flex items-center justify-center rounded-md shrink-0 text-[10px] font-bold"
+          style={{ width: 22, height: 22, background: "var(--primary)", color: "#ffffff" }}
+        >
+          {initials(client.company)}
+        </span>
+        <span className="font-semibold text-sm truncate" style={{ color: "var(--text-primary)" }}>
           {client.company}
         </span>
       </div>

@@ -44,6 +44,8 @@ const LogSchema = new Schema<ILog>(
 );
 
 LogSchema.index({ followUp: 1, followedUpAt: 1 });
+// My Day open follow-ups per user: equality on creator+followUp+followedUpAt, sort on deadline
+LogSchema.index({ createdById: 1, followUp: 1, followedUpAt: 1, followUpDeadline: 1 });
 
 if (mongoose.models.Log) {
   mongoose.deleteModel("Log");

@@ -27,6 +27,8 @@ export async function PATCH(
     defaultActivities,
     defaultDeliverables,
     defaultSoldPrice,
+    defaultDiscountType,
+    defaultDiscountValue,
     defaultServiceId,
     defaultDeliveryDays,
     defaultPricingMode,
@@ -51,6 +53,14 @@ export async function PATCH(
   if (defaultActivities !== undefined) update.defaultActivities = defaultActivities?.trim() || null;
   if (defaultDeliverables !== undefined) update.defaultDeliverables = defaultDeliverables?.trim() || null;
   if (defaultSoldPrice !== undefined) update.defaultSoldPrice = defaultSoldPrice ? Number(defaultSoldPrice) : null;
+  if (defaultDiscountType !== undefined) {
+    update.defaultDiscountType =
+      defaultDiscountType === "percentage" || defaultDiscountType === "amount" ? defaultDiscountType : null;
+  }
+  if (defaultDiscountValue !== undefined) {
+    update.defaultDiscountValue =
+      defaultDiscountValue == null || defaultDiscountValue === "" ? null : Number(defaultDiscountValue);
+  }
   if (defaultServiceId !== undefined) update.defaultServiceId = defaultServiceId || null;
   if (defaultDeliveryDays !== undefined) update.defaultDeliveryDays = defaultDeliveryDays ? Number(defaultDeliveryDays) : null;
   if (defaultPricingMode !== undefined) {
@@ -91,6 +101,8 @@ export async function PATCH(
     defaultActivities: doc.defaultActivities,
     defaultDeliverables: doc.defaultDeliverables,
     defaultSoldPrice: doc.defaultSoldPrice,
+    defaultDiscountType: doc.defaultDiscountType ?? null,
+    defaultDiscountValue: doc.defaultDiscountValue ?? null,
     defaultServiceId: doc.defaultServiceId,
     defaultDeliveryDays: doc.defaultDeliveryDays,
     defaultPricingMode: doc.defaultPricingMode ?? "rolebased",

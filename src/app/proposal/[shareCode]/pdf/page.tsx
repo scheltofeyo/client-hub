@@ -10,6 +10,7 @@ import { ProjectRoleModel } from "@/lib/models/ProjectRole";
 import { getOrganizationSettings } from "@/lib/models/OrganizationSettings";
 import { getOrSeedProposalTerms } from "@/lib/models/ProposalTermsSection";
 import { copyFor, DEFAULT_VALIDITY_DAYS, type ProposalCopy } from "@/lib/proposal-copy";
+import { discountAmountFor } from "@/lib/pricing";
 import DownloadPdfButton from "./DownloadPdfButton";
 import SummLogo from "@/components/ui/SummLogo";
 
@@ -27,7 +28,12 @@ interface ProposalProject {
   scheduledStartDate: string | null;
   scheduledEndDate: string | null;
   durationDays: number | null;
+  /** Gross price; discount fields derive the client-facing net. */
   soldPrice: number;
+  discountType: "percentage" | "amount" | null;
+  discountValue: number | null;
+  discountAmount: number;
+  netPrice: number;
   sections: {
     why: string | null;
     how: string | null;
@@ -72,8 +78,6 @@ interface ProposalData {
     presentedAt: string | null;
     acceptedAt: string | null;
     acceptedByClient: { name: string; email: string } | null;
-    discountType: "percentage" | "amount" | null;
-    discountValue: number | null;
     vatRate: number | null;
     validUntilDate: string | null;
     proposalNumber: string | null;
@@ -221,6 +225,9 @@ async function loadProposal(shareCode: string): Promise<ProposalData | null> {
         location: (s.location as string | undefined) ?? null,
       }));
 
+    const gross = p.soldPrice ?? 0;
+    const projectDiscount = discountAmountFor(gross, p.discountType, p.discountValue);
+
     return {
       id: p._id.toString(),
       title: p.title,
@@ -228,7 +235,11 @@ async function loadProposal(shareCode: string): Promise<ProposalData | null> {
       scheduledStartDate: start,
       scheduledEndDate: end,
       durationDays,
-      soldPrice: p.soldPrice ?? 0,
+      soldPrice: gross,
+      discountType: p.discountType ?? null,
+      discountValue: p.discountValue ?? null,
+      discountAmount: projectDiscount,
+      netPrice: gross - projectDiscount,
       sections: {
         why: !hidden.has("why") && p.why ? p.why : null,
         how: !hidden.has("how") && p.how ? p.how : null,
@@ -260,14 +271,9 @@ async function loadProposal(shareCode: string): Promise<ProposalData | null> {
   }
   const team = Array.from(teamMap.values());
 
-  // Totals
+  // Totals — discount is per project; the totals line aggregates them.
   const subtotal = sanitizedProjects.reduce((s, p) => s + (p.soldPrice ?? 0), 0);
-  let discountAmount = 0;
-  if (plan.discountType === "percentage" && plan.discountValue) {
-    discountAmount = subtotal * (Number(plan.discountValue) / 100);
-  } else if (plan.discountType === "amount" && plan.discountValue) {
-    discountAmount = Number(plan.discountValue);
-  }
+  const discountAmount = sanitizedProjects.reduce((s, p) => s + p.discountAmount, 0);
   const net = Math.max(0, subtotal - discountAmount);
   const vatAmount = plan.vatRate ? net * (Number(plan.vatRate) / 100) : 0;
   const total = net + vatAmount;
@@ -317,8 +323,6 @@ async function loadProposal(shareCode: string): Promise<ProposalData | null> {
       presentedAt: plan.presentedAt ?? null,
       acceptedAt: plan.acceptedAt ?? null,
       acceptedByClient: plan.acceptedByClient ?? null,
-      discountType: plan.discountType ?? null,
-      discountValue: plan.discountValue ?? null,
       vatRate: plan.vatRate ?? null,
       validUntilDate: resolvedValidUntil,
       proposalNumber: plan.proposalNumber ?? null,
@@ -760,7 +764,14 @@ function ProjectArticle({
         {project.durationDays != null && (
           <span>{project.durationDays} {project.durationDays === 1 ? t.dayLabel : t.daysLabel}</span>
         )}
-        {project.soldPrice > 0 && <span>{formatEuro(project.soldPrice)}</span>}
+        {project.soldPrice > 0 &&
+          (project.discountAmount > 0 ? (
+            <span>
+              <s style={{ opacity: 0.6 }}>{formatEuro(project.soldPrice)}</s> {formatEuro(project.netPrice)}
+            </span>
+          ) : (
+            <span>{formatEuro(project.soldPrice)}</span>
+          ))}
       </p>
       {(["why", "how", "what", "activities", "deliverables"] as const).map((k) => {
         const v = project.sections[k];
@@ -834,16 +845,32 @@ function InvestmentPage({
         <tbody>
           {projects.map((p) => (
             <tr key={p.id}>
-              <td>{p.title}</td>
-              <td className="amount">{formatEuro(p.soldPrice)}</td>
+              <td>
+                {p.title}
+                {p.discountAmount > 0 && (
+                  <span style={{ opacity: 0.6 }}>
+                    {" "}— {t.discount}
+                    {p.discountType === "percentage" ? ` (${p.discountValue}%)` : ""}
+                  </span>
+                )}
+              </td>
+              <td className="amount">
+                {p.discountAmount > 0 ? (
+                  <>
+                    <s style={{ opacity: 0.6 }}>{formatEuro(p.soldPrice)}</s> {formatEuro(p.netPrice)}
+                  </>
+                ) : (
+                  formatEuro(p.soldPrice)
+                )}
+              </td>
             </tr>
           ))}
-          {(plan.discountType || plan.vatRate) && (
+          {(totals.discountAmount > 0 || plan.vatRate) && (
             <>
               <tr><td>{t.subtotal}</td><td className="amount">{formatEuro(totals.subtotal)}</td></tr>
-              {plan.discountType && totals.discountAmount > 0 && (
+              {totals.discountAmount > 0 && (
                 <tr>
-                  <td>{t.discount}{plan.discountType === "percentage" ? ` (${plan.discountValue}%)` : ""}</td>
+                  <td>{t.discount}</td>
                   <td className="amount">− {formatEuro(totals.discountAmount)}</td>
                 </tr>
               )}

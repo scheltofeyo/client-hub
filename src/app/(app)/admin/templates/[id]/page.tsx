@@ -1,15 +1,10 @@
 import { auth } from "@/auth";
-import { redirect, notFound } from "next/navigation";
+import { redirect } from "next/navigation";
 import { hasPermission } from "@/lib/auth-helpers";
-import {
-  getProjectTemplateById,
-  getTemplateTasksByTemplateId,
-  getTemplateSessionsByTemplateId,
-  getServices,
-  getProjectRoles,
-} from "@/lib/data";
-import EditTemplateEditor from "./EditTemplateEditor";
 
+// The template editor now lives in the right-side panel on the admin templates
+// list. This route is kept as a deep link: it redirects into the list with the
+// panel auto-opened for the requested template.
 export default async function EditTemplatePage({
   params,
 }: {
@@ -19,25 +14,5 @@ export default async function EditTemplatePage({
   if (!hasPermission(session, "admin.access")) redirect("/dashboard");
 
   const { id } = await params;
-  const [template, tasks, sessions, services, projectRoles] = await Promise.all([
-    getProjectTemplateById(id),
-    getTemplateTasksByTemplateId(id),
-    getTemplateSessionsByTemplateId(id),
-    getServices(),
-    getProjectRoles(),
-  ]);
-
-  if (!template) notFound();
-
-  return (
-    <div className="flex-1 overflow-y-auto flex flex-col">
-      <EditTemplateEditor
-        template={template}
-        initialTasks={tasks}
-        initialSessions={sessions}
-        services={services}
-        projectRoles={projectRoles}
-      />
-    </div>
-  );
+  redirect(`/admin?tab=templates&template=${id}`);
 }

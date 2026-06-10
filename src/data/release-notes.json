@@ -1,5 +1,75 @@
 [
   {
+    "date": "2026-06-10",
+    "title": "Plannen, project-templates én projecten bewerk je nu in één zijpaneel",
+    "details": [
+      "De projecten in een plan staan als overzichtelijke kaarten; klik een kaart om 'm te openen in een zijpaneel met tabs (About, Budget, Sessions, Tasks)",
+      "De 'Bewerk'-knop op het projectoverzicht opent nu datzelfde zijpaneel (tabs About en Budget) in plaats van het oude pop-upvenster — inclusief voorstel-inhoud, zichtbaarheid per sectie en een 'danger zone' om te resetten of te verwijderen",
+      "De admin-editor voor project-templates gebruikt hetzelfde zijpaneel; templates open je vanuit de lijst zonder weg te navigeren",
+      "Wijzigingen sla je bewust op met een Save/Discard-knop onderin; sluit je met onbewaarde wijzigingen, dan vragen we het eerst",
+      "Slepen om de volgorde van projecten te wijzigen heeft nu een zichtbare greep en werkt soepeler"
+    ]
+  },
+  {
+    "date": "2026-06-10",
+    "title": "Projecten nemen nu het hele voorstel mee — van plan tot kick-off",
+    "details": [
+      "De Overview-tab van een project toont nu Why, What, How, Activities en Deliverables uit het plan (inclusief markering voor secties die voor de klant verborgen zijn), met een zijbalk met status, data, teamleden en een link terug naar het voorstel",
+      "Een nieuw project vanuit een template neemt voortaan ook die voorstel-inhoud én het budget (prijs en rolverdeling) over — naast de taken en sessies die al meekwamen",
+      "De laatste stap van 'Nieuw project' is nu een eindcontrole met bewerkbare blokken, in dezelfde stijl als de kick-off; wat de template meebrengt zie je in een blok 'Vanuit template'",
+      "De kick-off zelf is een snelle final check: eerst de planning (start- en opleverdatum, prijs, label), daarna een compacte eindcontrole waarin titel, service en omschrijving al klaarstaan en de prijs uit het projectplan is voorgevuld"
+    ]
+  },
+  {
+    "date": "2026-06-10",
+    "title": "Korting stel je nu per project in",
+    "details": [
+      "Korting (percentage of bedrag) stel je voortaan in per project in de plan-editor, in plaats van één korting op het hele voorstel",
+      "Op het publieke voorstel en de PDF zie je per project de oorspronkelijke prijs doorgestreept met de korting ernaast, plus één totale kortingsregel in de investeringstabel",
+      "Projecttemplates kunnen een standaardkorting meegeven aan nieuwe projecten",
+      "Omzetcijfers in Finance rekenen nu met de nettoprijs (verkoopprijs minus korting)",
+      "Bestaande voorstellen met een globale korting zijn omgezet naar kortingen per project; het totaalbedrag voor de klant blijft gelijk"
+    ]
+  },
+  {
+    "date": "2026-06-10",
+    "title": "Nieuw: Finance-sectie met historisch omzet-overzicht",
+    "details": [
+      "Nieuwe Finance-sectie in de hoofdnavigatie (alleen zichtbaar met de juiste permissie) met een Omzet-dashboard over alle klanten heen",
+      "Gerealiseerde omzet, marge en gemiddelde omzet per klant in één oogopslag, met de omzet geboekt op de opleverdatum van een project",
+      "Schakel tussen groeperen op service of label (New/Next business) en tussen jaar- en kwartaalweergave",
+      "Grafieken voor omzet per periode, verdeling per servicetype en label, top-klanten, gemiddelde omzet per service en de prijsontwikkeling per service over de jaren",
+      "Lopende projecten en pipeline (concept-voorstellen) staan apart, zodat je ziet wat geboekt is en wat er nog aankomt"
+    ]
+  },
+  {
+    "date": "2026-06-10",
+    "title": "Taken afvinken in de klant-takenlijst blijft nu bewaard",
+    "details": [
+      "Een afgevinkte taak op het Tasks-tabblad van een klant kwam terug na het wisselen van tabblad — dit is opgelost (de wijziging werd wel opgeslagen, maar het tabblad toonde verouderde data)",
+      "De statistiek bovenaan telt nu alleen zichtbare taken: taken van concept-voorstellen en nog niet gekickte projecten tellen niet meer mee"
+    ]
+  },
+  {
+    "date": "2026-06-10",
+    "title": "My Day toont alleen taken van gekickte projecten",
+    "details": [
+      "Taken van projecten die nog niet zijn gekickofft (incl. sessietaken van een voorstel) verschijnen niet meer in My Day; ze komen pas in beeld zodra het project wordt gekickofft — net als op het Tasks-bord per klant",
+      "Bij het verwijderen van een project worden nu ook de bijbehorende taken en sessies opgeruimd, zodat er geen losse 'General'-taken blijven hangen"
+    ]
+  },
+  {
+    "date": "2026-06-09",
+    "title": "Vernieuwde voorstelpagina voor klanten",
+    "details": [
+      "Nieuwe, levendige hero: SUMM's merk-wave in de kleur van de klant, breeduit over het scherm",
+      "Projecten in een overzicht-met-detail: links een index met tijdlijn, rechts het project — eerst de kern (waarom + resultaten + sessies + team), met 'Toon volledige aanpak' voor de diepte",
+      "Het totaalbedrag telt op en akkoord geven wordt gevierd met een korte confetti-animatie",
+      "Betere leesbaarheid (hoger contrast) en altijd in lichte modus — geen donkere weergave meer bij klanten",
+      "Tijdlijn volledig tweetalig en op mobiel een overzichtelijke lijst i.p.v. smalle balkjes"
+    ]
+  },
+  {
     "date": "2026-06-02",
     "title": "Vernieuwd visueel systeem: kleuren, typografie en interactie",
     "details": [

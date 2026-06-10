@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import SteppedModal from "@/components/ui/SteppedModal";
 import ServicePills from "@/components/ui/ServicePills";
 import RichTextEditor from "@/components/ui/RichTextEditor";
+import RichTextDisplay from "@/components/ui/RichTextDisplay";
+import { SummaryRow, SummarySection } from "@/components/ui/summary-blocks";
 import UserAvatar from "@/components/ui/UserAvatar";
 import Toggle from "@/components/ui/Toggle";
 import { inputClass, inputStyle } from "@/components/ui/form-styles";
@@ -16,6 +18,28 @@ type AssignableUser = { id: string; name: string; image: string | null };
 function formatEuro(n: number) {
   return new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n);
 }
+
+/** Tiptap emits "<p></p>" for an empty document */
+function isEmptyHtml(html: string) {
+  return !html.replace(/<[^>]*>/g, "").trim();
+}
+
+const dayFmt = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" });
+function fmtDay(s: string) {
+  const d = new Date(s + "T00:00:00");
+  return isNaN(d.getTime()) ? s : dayFmt.format(d);
+}
+
+const NO_EDITS = {
+  title: false,
+  service: false,
+  description: false,
+  members: false,
+  timeline: false,
+  completed: false,
+  price: false,
+  label: false,
+};
 
 /**
  * Standalone modal for creating a project.
@@ -49,6 +73,7 @@ export function AddProjectModal({
   const [selectedTemplate, setSelectedTemplate] = useState<ProjectTemplate | null>(null);
   const [selectedMembers, setSelectedMembers] = useState<TaskAssignee[]>([]);
   const [addAsCompleted, setAddAsCompleted] = useState(false);
+  const [editing, setEditing] = useState(NO_EDITS);
   // Service-first picker: which service's templates are shown on step 1.
   // `null` = haven't picked yet; "__ungrouped__" = pick from templates without a service.
   const UNGROUPED_KEY = "__ungrouped__";
@@ -77,6 +102,7 @@ export function AddProjectModal({
       setSelectedTemplate(null);
       setSelectedMembers([]);
       setAddAsCompleted(false);
+      setEditing(NO_EDITS);
       setPickerServiceId(null);
       setForm({
         title: "",
@@ -119,6 +145,7 @@ export function AddProjectModal({
   function selectTemplate(tpl: ProjectTemplate | null) {
     setSelectedTemplate(tpl);
     setAddAsCompleted(false);
+    setEditing(NO_EDITS);
 
     if (isPlanDraftMode) {
       submitDraft(tpl);
@@ -283,6 +310,39 @@ export function AddProjectModal({
     return services.find((s) => s.id === pickerServiceId)?.name ?? null;
   }, [pickerServiceId, services]);
 
+  // ── Step 2 (review) derived values ──
+  const titleInvalid = !form.title.trim();
+  const serviceInvalid = !form.serviceId;
+  const completedInvalid = addAsCompleted && !form.completedDate.trim();
+  const serviceName = services.find((s) => s.id === form.serviceId)?.name ?? "—";
+  const labelName = form.labelId
+    ? (labels.find((l) => l.id === form.labelId)?.name ?? "—")
+    : "No label";
+  const templateContentRows = selectedTemplate
+    ? [
+        { key: "why", label: "Why", html: selectedTemplate.defaultWhy },
+        { key: "what", label: "What", html: selectedTemplate.defaultWhat },
+        { key: "how", label: "How", html: selectedTemplate.defaultHow },
+        { key: "activities", label: "Activities", html: selectedTemplate.defaultActivities },
+        { key: "deliverables", label: "Deliverables", html: selectedTemplate.defaultDeliverables },
+      ].filter(
+        (r): r is { key: string; label: string; html: string } =>
+          !!r.html && !isEmptyHtml(r.html)
+      )
+    : [];
+  const inheritedPrice =
+    !addAsCompleted &&
+    selectedTemplate?.effectivePrice != null &&
+    selectedTemplate.effectivePrice > 0
+      ? selectedTemplate.effectivePrice
+      : null;
+  const scheduledLabel =
+    form.scheduledStartDate || form.scheduledEndDate
+      ? `${form.scheduledStartDate ? fmtDay(form.scheduledStartDate) : "Not set"} → ${
+          form.scheduledEndDate ? fmtDay(form.scheduledEndDate) : "Not set"
+        }`
+      : "Not scheduled";
+
   return (
     <SteppedModal
       open={open}
@@ -290,7 +350,20 @@ export function AddProjectModal({
       title={isPlanDraftMode ? "Add draft project" : "New Project"}
       steps={stepLabels}
       currentStep={step}
-      footer={
+      onStepClick={(i) => {
+        if (i === 0) {
+          setPickerServiceId(null);
+          setStep(0);
+          return;
+        }
+        // Step 1 needs a picked service; fall back to the picker otherwise
+        if (i === 1 && !pickerServiceId) {
+          setStep(0);
+          return;
+        }
+        setStep(i);
+      }}
+      footerLeft={
         step === 0 ? (
           <button
             type="button"
@@ -299,47 +372,49 @@ export function AddProjectModal({
           >
             Cancel
           </button>
-          ) : step === 1 ? (
-            <button
-              type="button"
-              onClick={() => {
-                setPickerServiceId(null);
-                setStep(0);
-              }}
-              className="px-4 py-2 rounded-lg text-sm font-medium btn-ghost"
-            >
-              Back
-            </button>
-          ) : (
-            <>
-              <button
-                type="button"
-                onClick={() => setStep(pickerServiceId ? 1 : 0)}
-                className="px-4 py-2 rounded-lg text-sm font-medium btn-ghost"
-              >
-                Back
-              </button>
-              <button
-                type="button"
-                onClick={handleSubmit}
-                disabled={
-                  submitting ||
-                  !form.title.trim() ||
-                  !form.serviceId ||
-                  (addAsCompleted && !form.completedDate.trim())
-                }
-                className="px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50 btn-primary"
-              >
-                {submitting
-                  ? "Creating…"
-                  : addAsCompleted
-                  ? "Create completed project"
-                  : "Create Project"}
-              </button>
-            </>
-          )
-        }
-      >
+        ) : step === 1 ? (
+          <button
+            type="button"
+            onClick={() => {
+              setPickerServiceId(null);
+              setStep(0);
+            }}
+            className="px-4 py-2 rounded-lg text-sm font-medium btn-ghost"
+          >
+            Back
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setStep(pickerServiceId ? 1 : 0)}
+            className="px-4 py-2 rounded-lg text-sm font-medium btn-ghost"
+          >
+            Back
+          </button>
+        )
+      }
+      footer={
+        step === 2 ? (
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={
+              submitting ||
+              !form.title.trim() ||
+              !form.serviceId ||
+              (addAsCompleted && !form.completedDate.trim())
+            }
+            className="px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50 btn-primary"
+          >
+            {submitting
+              ? "Creating…"
+              : addAsCompleted
+              ? "Create completed project"
+              : "Create Project"}
+          </button>
+        ) : null
+      }
+    >
         {step === 0 ? (
           /* ── Step 0: Service picker ── */
           <div className="space-y-3">
@@ -479,7 +554,7 @@ export function AddProjectModal({
             </div>
           </div>
         ) : (
-          /* ── Step 2: Project details ── */
+          /* ── Step 2: Review ── */
           <div className="space-y-5">
             {selectedTemplate && (
               <div
@@ -503,71 +578,6 @@ export function AddProjectModal({
               </div>
             )}
 
-            <div>
-              <label htmlFor="ap-title" className="typo-label">
-                Title <span className="text-[var(--danger)]">*</span>
-              </label>
-              <input
-                id="ap-title"
-                type="text"
-                value={form.title}
-                onChange={(e) => set("title", e.target.value)}
-                placeholder="e.g. Website Redesign"
-                className={inputClass}
-                style={inputStyle}
-              />
-            </div>
-
-            <ServicePills
-              services={services}
-              selectedId={form.serviceId}
-              onChange={(id) => set("serviceId", id)}
-              label="Connect to a service"
-              required
-            />
-
-            <div>
-              <label className="typo-label">
-                Description
-              </label>
-              <RichTextEditor
-                content={form.description}
-                onChange={(html) => set("description", html)}
-                placeholder="Describe the project scope…"
-              />
-            </div>
-
-            <div>
-              <label className="typo-label">Project members</label>
-              <div className="flex flex-wrap gap-1.5">
-                {users.map((u) => {
-                  const isActive = selectedMembers.some((m) => m.userId === u.id);
-                  return (
-                    <button
-                      key={u.id}
-                      type="button"
-                      onClick={() => toggleMember(u)}
-                      className="flex items-center gap-1.5 pl-1 pr-2 py-0.5 rounded-full text-xs font-medium border transition-colors"
-                      style={{
-                        borderColor: isActive ? "var(--primary)" : "var(--border)",
-                        color: isActive ? "var(--primary)" : "var(--text-muted)",
-                        background: isActive ? "var(--primary-light)" : "transparent",
-                      }}
-                    >
-                      <UserAvatar name={u.name} image={u.image} size={18} />
-                      {u.name.split(" ")[0]}
-                      {isActive && <span style={{ color: "var(--primary)" }}>×</span>}
-                    </button>
-                  );
-                })}
-              </div>
-              <p className="text-xs mt-1.5" style={{ color: "var(--text-muted)" }}>
-                {selectedTemplate
-                  ? "These members will be assigned to every task created from this template."
-                  : "Members are saved on the project. Tasks you add later are not auto-assigned."}
-              </p>
-            </div>
-
             <div
               className="flex items-center gap-3 px-3 py-2 rounded-lg"
               style={{ background: "var(--primary-light)" }}
@@ -586,111 +596,276 @@ export function AddProjectModal({
               </div>
             </div>
 
-            {addAsCompleted ? (
-              <div>
-                <p
-                  className="typo-section-header mb-3"
-                  style={{ color: "var(--text-muted)" }}
-                >
-                  Completed details
-                </p>
-                <div className="space-y-3">
+            <SummarySection title="Project details">
+              <SummaryRow
+                label="Title"
+                value={form.title}
+                warning={titleInvalid ? "Title is required" : undefined}
+                editing={editing.title || titleInvalid}
+                onEdit={() => setEditing((e) => ({ ...e, title: true }))}
+                onDone={() => setEditing((e) => ({ ...e, title: false }))}
+                editor={
                   <div>
-                    <label htmlFor="ap-completed" className="typo-label">
-                      Completed date <span className="text-[var(--danger)]">*</span>
+                    <label htmlFor="ap-title" className="typo-label">
+                      Title <span className="text-[var(--danger)]">*</span>
                     </label>
                     <input
-                      id="ap-completed"
-                      type="date"
-                      value={form.completedDate}
-                      onChange={(e) => set("completedDate", e.target.value)}
+                      id="ap-title"
+                      type="text"
+                      value={form.title}
+                      onChange={(e) => set("title", e.target.value)}
+                      placeholder="e.g. Website Redesign"
                       className={inputClass}
                       style={inputStyle}
                     />
-                    <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
-                      Used as kick-off, delivery and completion date.
+                  </div>
+                }
+              />
+              <SummaryRow
+                label="Service"
+                value={serviceName}
+                warning={serviceInvalid ? "Select a service" : undefined}
+                editing={editing.service || serviceInvalid}
+                onEdit={() => setEditing((e) => ({ ...e, service: true }))}
+                onDone={() => setEditing((e) => ({ ...e, service: false }))}
+                editor={
+                  <ServicePills
+                    services={services}
+                    selectedId={form.serviceId}
+                    onChange={(id) => set("serviceId", id)}
+                    label="Connect to a service"
+                    required
+                  />
+                }
+              />
+              <SummaryRow
+                label="Description"
+                value={
+                  isEmptyHtml(form.description) ? (
+                    <span style={{ color: "var(--text-muted)" }}>No description</span>
+                  ) : (
+                    <RichTextDisplay html={form.description} className="line-clamp-4 text-sm" />
+                  )
+                }
+                editing={editing.description}
+                onEdit={() => setEditing((e) => ({ ...e, description: true }))}
+                onDone={() => setEditing((e) => ({ ...e, description: false }))}
+                editor={
+                  <div>
+                    <label className="typo-label">Description</label>
+                    <RichTextEditor
+                      content={form.description}
+                      onChange={(html) => set("description", html)}
+                      placeholder="Describe the project scope…"
+                    />
+                  </div>
+                }
+              />
+              <SummaryRow
+                label="Members"
+                value={
+                  selectedMembers.length > 0 ? (
+                    <div className="flex flex-wrap items-center gap-1">
+                      {selectedMembers.map((m) => (
+                        <UserAvatar key={m.userId} name={m.name} image={m.image ?? null} size={22} />
+                      ))}
+                    </div>
+                  ) : (
+                    <span style={{ color: "var(--text-muted)" }}>No members</span>
+                  )
+                }
+                editing={editing.members}
+                onEdit={() => setEditing((e) => ({ ...e, members: true }))}
+                onDone={() => setEditing((e) => ({ ...e, members: false }))}
+                editor={
+                  <div>
+                    <label className="typo-label">Project members</label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {users.map((u) => {
+                        const isActive = selectedMembers.some((m) => m.userId === u.id);
+                        return (
+                          <button
+                            key={u.id}
+                            type="button"
+                            onClick={() => toggleMember(u)}
+                            className="flex items-center gap-1.5 pl-1 pr-2 py-0.5 rounded-full text-xs font-medium border transition-colors"
+                            style={{
+                              borderColor: isActive ? "var(--primary)" : "var(--border)",
+                              color: isActive ? "var(--primary)" : "var(--text-muted)",
+                              background: isActive ? "var(--primary-light)" : "transparent",
+                            }}
+                          >
+                            <UserAvatar name={u.name} image={u.image} size={18} />
+                            {u.name.split(" ")[0]}
+                            {isActive && <span style={{ color: "var(--primary)" }}>×</span>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p className="text-xs mt-1.5" style={{ color: "var(--text-muted)" }}>
+                      {selectedTemplate
+                        ? "These members will be assigned to every task created from this template."
+                        : "Members are saved on the project. Tasks you add later are not auto-assigned."}
                     </p>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label htmlFor="ap-price" className="typo-label">
-                        Sold price (€)
-                      </label>
-                      <input
-                        id="ap-price"
-                        type="number"
-                        min={0}
-                        step={1}
-                        value={form.soldPrice}
-                        onChange={(e) => set("soldPrice", e.target.value)}
-                        placeholder="e.g. 5000"
-                        className={inputClass}
-                        style={inputStyle}
-                      />
-                    </div>
-                    <div>
-                      <label htmlFor="ap-label" className="typo-label">
-                        Label
-                      </label>
-                      <select
-                        id="ap-label"
-                        value={form.labelId}
-                        onChange={(e) => set("labelId", e.target.value)}
-                        className={inputClass}
-                        style={inputStyle}
-                      >
-                        <option value="">— No label —</option>
-                        {labels.map((l) => (
-                          <option key={l.id} value={l.id}>
-                            {l.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div>
-                <p
-                  className="typo-section-header mb-3"
-                  style={{ color: "var(--text-muted)" }}
-                >
-                  Scheduled dates
-                </p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label htmlFor="ap-start" className="typo-label">
-                      Start date
-                    </label>
-                    <input
-                      id="ap-start"
-                      type="date"
-                      value={form.scheduledStartDate}
-                      onChange={(e) => set("scheduledStartDate", e.target.value)}
-                      className={inputClass}
-                      style={inputStyle}
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="ap-end" className="typo-label">
-                      End date
-                    </label>
-                    <input
-                      id="ap-end"
-                      type="date"
-                      value={form.scheduledEndDate}
-                      onChange={(e) => set("scheduledEndDate", e.target.value)}
-                      className={inputClass}
-                      style={inputStyle}
-                    />
-                  </div>
-                </div>
-                <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
-                  Shown on the timeline. End date pre-fills delivery date at kick-off.
-                </p>
-              </div>
+                }
+              />
+            </SummarySection>
+
+            {templateContentRows.length > 0 && (
+              <SummarySection title="From template">
+                {templateContentRows.map((row) => (
+                  <SummaryRow
+                    key={row.key}
+                    label={row.label}
+                    value={<RichTextDisplay html={row.html} className="line-clamp-3 text-sm" />}
+                    caption={
+                      row.key === templateContentRows[templateContentRows.length - 1].key
+                        ? "From template · edit later in the project"
+                        : undefined
+                    }
+                  />
+                ))}
+              </SummarySection>
             )}
+
+            <SummarySection title="Schedule & budget">
+              {addAsCompleted ? (
+                <>
+                  <SummaryRow
+                    label="Completed"
+                    value={form.completedDate ? fmtDay(form.completedDate) : "—"}
+                    warning={completedInvalid ? "Completed date is required" : undefined}
+                    editing={editing.completed || completedInvalid}
+                    onEdit={() => setEditing((e) => ({ ...e, completed: true }))}
+                    onDone={() => setEditing((e) => ({ ...e, completed: false }))}
+                    editor={
+                      <div>
+                        <label htmlFor="ap-completed" className="typo-label">
+                          Completed date <span className="text-[var(--danger)]">*</span>
+                        </label>
+                        <input
+                          id="ap-completed"
+                          type="date"
+                          value={form.completedDate}
+                          onChange={(e) => set("completedDate", e.target.value)}
+                          className={inputClass}
+                          style={inputStyle}
+                        />
+                        <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+                          Used as kick-off, delivery and completion date.
+                        </p>
+                      </div>
+                    }
+                  />
+                  <SummaryRow
+                    label="Sold price"
+                    value={form.soldPrice ? formatEuro(Number(form.soldPrice)) : "—"}
+                    editing={editing.price}
+                    onEdit={() => setEditing((e) => ({ ...e, price: true }))}
+                    onDone={() => setEditing((e) => ({ ...e, price: false }))}
+                    editor={
+                      <div>
+                        <label htmlFor="ap-price" className="typo-label">
+                          Sold price (€)
+                        </label>
+                        <input
+                          id="ap-price"
+                          type="number"
+                          min={0}
+                          step={1}
+                          value={form.soldPrice}
+                          onChange={(e) => set("soldPrice", e.target.value)}
+                          placeholder="e.g. 5000"
+                          className={inputClass}
+                          style={inputStyle}
+                        />
+                      </div>
+                    }
+                  />
+                  <SummaryRow
+                    label="Label"
+                    value={labelName}
+                    editing={editing.label}
+                    onEdit={() => setEditing((e) => ({ ...e, label: true }))}
+                    onDone={() => setEditing((e) => ({ ...e, label: false }))}
+                    editor={
+                      <div>
+                        <label htmlFor="ap-label" className="typo-label">
+                          Label
+                        </label>
+                        <select
+                          id="ap-label"
+                          value={form.labelId}
+                          onChange={(e) => set("labelId", e.target.value)}
+                          className={inputClass}
+                          style={inputStyle}
+                        >
+                          <option value="">— No label —</option>
+                          {labels.map((l) => (
+                            <option key={l.id} value={l.id}>
+                              {l.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    }
+                  />
+                </>
+              ) : (
+                <>
+                  <SummaryRow
+                    label="Timeline"
+                    value={scheduledLabel}
+                    editing={editing.timeline}
+                    onEdit={() => setEditing((e) => ({ ...e, timeline: true }))}
+                    onDone={() => setEditing((e) => ({ ...e, timeline: false }))}
+                    editor={
+                      <div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label htmlFor="ap-start" className="typo-label">
+                              Start date
+                            </label>
+                            <input
+                              id="ap-start"
+                              type="date"
+                              value={form.scheduledStartDate}
+                              onChange={(e) => set("scheduledStartDate", e.target.value)}
+                              className={inputClass}
+                              style={inputStyle}
+                            />
+                          </div>
+                          <div>
+                            <label htmlFor="ap-end" className="typo-label">
+                              End date
+                            </label>
+                            <input
+                              id="ap-end"
+                              type="date"
+                              value={form.scheduledEndDate}
+                              onChange={(e) => set("scheduledEndDate", e.target.value)}
+                              className={inputClass}
+                              style={inputStyle}
+                            />
+                          </div>
+                        </div>
+                        <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+                          Shown on the timeline. End date pre-fills delivery date at kick-off.
+                        </p>
+                      </div>
+                    }
+                  />
+                  {inheritedPrice != null && (
+                    <SummaryRow
+                      label="Price"
+                      value={formatEuro(inheritedPrice)}
+                      caption="From template · finalised at kick-off"
+                    />
+                  )}
+                </>
+              )}
+            </SummarySection>
 
             {error && <p className="text-xs text-[var(--danger)]">{error}</p>}
           </div>

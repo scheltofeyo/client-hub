@@ -31,6 +31,8 @@ function serializeProject(input: unknown, serviceMap?: Map<string, string>) {
     hiddenSections: doc.hiddenSections ?? [],
     status: doc.status,
     soldPrice: doc.soldPrice ?? null,
+    discountType: doc.discountType ?? null,
+    discountValue: doc.discountValue ?? null,
     pricingMode: doc.pricingMode ?? "manual",
     roleAllocation: doc.roleAllocation ?? [],
     serviceId,
@@ -120,8 +122,6 @@ function serializePlan(input: unknown) {
     title: doc.title,
     summary: doc.summary ?? null,
     status: doc.status,
-    discountType: doc.discountType ?? null,
-    discountValue: doc.discountValue ?? null,
     vatRate: doc.vatRate ?? null,
     shareCode: doc.shareCode ?? null,
     proposerStatement: doc.proposerStatement ?? null,
@@ -253,10 +253,6 @@ export async function PATCH(
       ? body.proposerStatement.trim() || null
       : null;
   }
-  if (body.discountType !== undefined) {
-    update.discountType = body.discountType === "percentage" || body.discountType === "amount" ? body.discountType : null;
-  }
-  if (body.discountValue !== undefined) update.discountValue = body.discountValue == null || body.discountValue === "" ? null : Number(body.discountValue);
   if (body.vatRate !== undefined) update.vatRate = body.vatRate == null || body.vatRate === "" ? null : Number(body.vatRate);
 
   if (body.language !== undefined) {

@@ -82,6 +82,9 @@ export const ALL_PERMISSIONS = [
   // Dashboard
   "dashboard.viewOverview",
 
+  // Finance — company-wide revenue reporting
+  "finance.access",
+
   // Admin panel access
   "admin.access",
 
@@ -105,6 +108,7 @@ export const ALL_PERMISSIONS = [
   "tools.surveys.viewOthers",
   "tools.surveys.editAny",
   "tools.surveys.deleteAny",
+  "tools.lineLab.access",
   "admin.surveys.manageTemplates",
 ] as const;
 
@@ -162,6 +166,7 @@ export const PERMISSION_DEPENDENCIES: Partial<Record<Permission, Permission>> = 
   "tools.surveys.viewOthers": "tools.surveys.access",
   "tools.surveys.editAny": "tools.surveys.viewOthers",
   "tools.surveys.deleteAny": "tools.surveys.viewOthers",
+  "tools.lineLab.access": "tools.access",
   "admin.surveys.manageTemplates": "admin.access",
 };
 
@@ -323,6 +328,13 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
     ],
   },
   {
+    label: "Finance",
+    description: "Company-wide revenue reporting — realized revenue, margin, and pricing trends across all clients. Sensitive; grant deliberately.",
+    permissions: [
+      { key: "finance.access", label: "Access the finance section" },
+    ],
+  },
+  {
     label: "Tools",
     description: "Workshop tools, holiday planner, and facilitation features.",
     permissions: [
@@ -342,6 +354,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       { key: "tools.surveys.viewOthers", label: "View survey sessions from others", requires: "tools.surveys.access" },
       { key: "tools.surveys.editAny", label: "Edit anyone's survey sessions", requires: "tools.surveys.viewOthers" },
       { key: "tools.surveys.deleteAny", label: "Delete anyone's survey sessions", requires: "tools.surveys.viewOthers" },
+      { key: "tools.lineLab.access", label: "Access the Line Lab", requires: "tools.access" },
     ],
   },
 ];

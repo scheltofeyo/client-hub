@@ -4,6 +4,7 @@ import { connectDB } from "@/lib/mongodb";
 import { ClientModel } from "@/lib/models/Client";
 import { ProjectModel, calculateRolebasedPrice, type IRoleAllocationLine } from "@/lib/models/Project";
 import { TaskModel } from "@/lib/models/Task";
+import { SessionModel } from "@/lib/models/Session";
 import { UserModel } from "@/lib/models/User";
 import { recordActivity } from "@/lib/activity";
 import type { TaskAssignee } from "@/types";
@@ -56,6 +57,8 @@ function serializeProject(doc: Record<string, unknown> & { _id: { toString(): st
     completedDate: doc.completedDate ?? null,
     deliveryDate: doc.deliveryDate ?? null,
     soldPrice: doc.soldPrice ?? null,
+    discountType: doc.discountType ?? null,
+    discountValue: doc.discountValue ?? null,
     pricingMode: doc.pricingMode ?? "manual",
     roleAllocation: doc.roleAllocation ?? [],
     serviceId: doc.serviceId ?? null,
@@ -91,6 +94,8 @@ export async function PATCH(
     status,
     completedDate,
     soldPrice,
+    discountType,
+    discountValue,
     serviceId,
     labelId,
     deliveryDate,
@@ -189,6 +194,15 @@ export async function PATCH(
     update.soldPrice = soldPrice === null || soldPrice === "" ? null : Number(soldPrice);
   }
 
+  if (discountType !== undefined) {
+    update.discountType =
+      discountType === "percentage" || discountType === "amount" ? discountType : null;
+  }
+  if (discountValue !== undefined) {
+    update.discountValue =
+      discountValue === null || discountValue === "" ? null : Number(discountValue);
+  }
+
   if (members !== undefined) {
     let resolved: TaskAssignee[] = [];
     if (Array.isArray(members) && members.length > 0) {
@@ -265,7 +279,7 @@ export async function PATCH(
     });
   } else if (!isDraft) {
     // Track meaningful field changes (skip when status change or reset is the primary action)
-    const trackFields = ["title", "description", "soldPrice", "serviceId", "labelId", "deliveryDate", "scheduledStartDate", "scheduledEndDate", "members"] as const;
+    const trackFields = ["title", "description", "soldPrice", "discountType", "discountValue", "serviceId", "labelId", "deliveryDate", "scheduledStartDate", "scheduledEndDate", "members"] as const;
     const updatedFields = trackFields.filter((f) => body[f] !== undefined);
     if (updatedFields.length > 0) {
       await recordActivity({
@@ -294,6 +308,13 @@ export async function DELETE(
   await connectDB();
   const doc = await ProjectModel.findByIdAndDelete(projectId).lean();
   if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  // Cascade-delete the project's tasks (incl. subtasks, which carry the same
+  // projectId) and sessions so they don't linger as orphaned "General" tasks.
+  await Promise.all([
+    TaskModel.deleteMany({ projectId }),
+    SessionModel.deleteMany({ projectId }),
+  ]);
 
   await recordActivity({
     clientId: id,

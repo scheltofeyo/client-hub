@@ -1,13 +1,33 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Rocket } from "lucide-react";
 import { useRouter } from "next/navigation";
 import SteppedModal from "@/components/ui/SteppedModal";
 import ServicePills from "@/components/ui/ServicePills";
 import RichTextEditor from "@/components/ui/RichTextEditor";
+import RichTextDisplay from "@/components/ui/RichTextDisplay";
+import { SummaryRow, SummarySection } from "@/components/ui/summary-blocks";
 import { inputClass, inputStyle } from "@/components/ui/form-styles";
+import { formatEuro } from "@/lib/proposal-format";
+import { discountAmountFor, netPriceFor } from "@/lib/pricing";
 import type { Project, ProjectLabel, Service } from "@/types";
+
+/** Tiptap emits "<p></p>" for an empty document */
+function isEmptyHtml(html: string) {
+  return !html.replace(/<[^>]*>/g, "").trim();
+}
+
+const dayFmt = new Intl.DateTimeFormat("en-GB", {
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+});
+
+function fmtDay(s: string) {
+  const d = new Date(s + "T00:00:00");
+  return isNaN(d.getTime()) ? s : dayFmt.format(d);
+}
 
 export default function KickOffProjectButton({
   project,
@@ -29,8 +49,10 @@ export default function KickOffProjectButton({
     soldPrice: "",
     labelId: "",
   });
+  const [editing, setEditing] = useState({ title: false, service: false, description: false });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const staleRef = useRef(false);
   const router = useRouter();
 
   // Fetch services + labels when modal opens
@@ -50,6 +72,10 @@ export default function KickOffProjectButton({
 
   function handleClose() {
     setOpen(false);
+    if (staleRef.current) {
+      staleRef.current = false;
+      router.refresh();
+    }
   }
 
   function set(field: string, value: string) {
@@ -62,6 +88,8 @@ export default function KickOffProjectButton({
     setLoading(true);
     setError("");
 
+    // Only send fields that differ from the project — an absent key keeps the
+    // existing value, "" actively clears it (route maps "" to null).
     const res = await fetch(
       `/api/clients/${clientId}/projects/${project.id}/kickoff`,
       {
@@ -71,9 +99,14 @@ export default function KickOffProjectButton({
           deliveryDate: form.deliveryDate,
           title: form.title !== project.title ? form.title : undefined,
           description: form.description !== (project.description ?? "") ? form.description : undefined,
-          serviceId: form.serviceId !== project.serviceId ? form.serviceId : undefined,
-          soldPrice: form.soldPrice ? Number(form.soldPrice) : undefined,
-          labelId: form.labelId || undefined,
+          serviceId: form.serviceId !== (project.serviceId ?? "") ? form.serviceId : undefined,
+          soldPrice:
+            form.soldPrice !== (project.soldPrice != null ? String(project.soldPrice) : "")
+              ? form.soldPrice
+                ? Number(form.soldPrice)
+                : null
+              : undefined,
+          labelId: form.labelId !== (project.labelId ?? "") ? form.labelId : undefined,
           kickedOffAt: form.startDate || undefined,
         }),
       }
@@ -84,6 +117,7 @@ export default function KickOffProjectButton({
     if (!res.ok) {
       const data = await res.json();
       setError(data.error ?? "Something went wrong");
+      if (res.status === 409) staleRef.current = true;
       return;
     }
 
@@ -97,74 +131,70 @@ export default function KickOffProjectButton({
     router.refresh();
   }
 
-  const stepLabels = ["Review details", "Dates", "Financials"];
+  const stepLabels = ["Plan", "Final check"];
 
-  const canAdvanceFromStep0 = form.title.trim() && form.serviceId;
-  const canAdvanceFromStep1 = form.deliveryDate.trim();
+  const titleInvalid = !form.title.trim();
+  const serviceInvalid = !form.serviceId;
+  const canAdvanceFromStep0 = !!form.deliveryDate.trim();
+  const canKickOff = canAdvanceFromStep0 && !titleInvalid && !serviceInvalid;
+
+  const serviceName =
+    services.find((s) => s.id === form.serviceId)?.name ?? project.service ?? "—";
+  // Discount is set in the plan editor, not at kickoff — derive the live net
+  // from whatever gross price is currently in the form.
+  const formGross = form.soldPrice ? Number(form.soldPrice) : 0;
+  const formDiscount = discountAmountFor(formGross, project.discountType, project.discountValue);
+  const formNet = netPriceFor(formGross, project.discountType, project.discountValue);
+  const labelName = form.labelId
+    ? labels.find((l) => l.id === form.labelId)?.name ?? project.label ?? "—"
+    : "No label";
+
+  function footerLeft() {
+    if (step === 0) {
+      return (
+        <button
+          type="button"
+          onClick={handleClose}
+          className="px-4 py-2 rounded-lg text-sm font-medium btn-ghost"
+        >
+          Cancel
+        </button>
+      );
+    }
+    return (
+      <button
+        type="button"
+        onClick={() => setStep(0)}
+        className="px-4 py-2 rounded-lg text-sm font-medium btn-ghost"
+      >
+        Back
+      </button>
+    );
+  }
 
   function footer() {
     if (step === 0) {
       return (
-        <>
-          <button
-            type="button"
-            onClick={handleClose}
-            className="px-4 py-2 rounded-lg text-sm font-medium btn-ghost"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={() => setStep(1)}
-            disabled={!canAdvanceFromStep0}
-            className="px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50 btn-primary"
-          >
-            Next
-          </button>
-        </>
-      );
-    }
-    if (step === 1) {
-      return (
-        <>
-          <button
-            type="button"
-            onClick={() => setStep(0)}
-            className="px-4 py-2 rounded-lg text-sm font-medium btn-ghost"
-          >
-            Back
-          </button>
-          <button
-            type="button"
-            onClick={() => setStep(2)}
-            disabled={!canAdvanceFromStep1}
-            className="px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50 btn-primary"
-          >
-            Next
-          </button>
-        </>
-      );
-    }
-    // step === 2
-    return (
-      <>
         <button
           type="button"
           onClick={() => setStep(1)}
-          className="px-4 py-2 rounded-lg text-sm font-medium btn-ghost"
+          disabled={!canAdvanceFromStep0}
+          className="px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50 btn-primary"
         >
-          Back
+          Next
         </button>
-        <button
-          type="button"
-          onClick={handleSubmit}
-          disabled={loading || !canAdvanceFromStep1}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50 btn-primary"
-        >
-          <Rocket size={13} />
-          {loading ? "Kicking off…" : "Kick Off Project"}
-        </button>
-      </>
+      );
+    }
+    return (
+      <button
+        type="button"
+        onClick={handleSubmit}
+        disabled={loading || !canKickOff}
+        className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50 btn-primary"
+      >
+        <Rocket size={13} />
+        {loading ? "Kicking off…" : "Kick Off Project"}
+      </button>
     );
   }
 
@@ -174,6 +204,7 @@ export default function KickOffProjectButton({
         onClick={() => {
           setStep(0);
           setError("");
+          setEditing({ title: false, service: false, description: false });
 
           // Pre-fill from template defaults
           let deliveryDate = "";
@@ -203,14 +234,19 @@ export default function KickOffProjectButton({
             deliveryDate = project.scheduledEndDate;
           }
 
+          // Fall back to the project's own price (e.g. set in a project plan)
+          if (!soldPrice && project.soldPrice != null) {
+            soldPrice = String(project.soldPrice);
+          }
+
           setForm({
             title: project.title,
             description: project.description ?? "",
             serviceId: project.serviceId ?? "",
             deliveryDate,
-            startDate: "",
+            startDate: project.scheduledStartDate ?? "",
             soldPrice,
-            labelId: "",
+            labelId: project.labelId ?? "",
           });
           setOpen(true);
         }}
@@ -226,106 +262,54 @@ export default function KickOffProjectButton({
         title="Kick Off Project"
         steps={stepLabels}
         currentStep={step}
+        onStepClick={(i) => setStep(i)}
+        footerLeft={footerLeft()}
         footer={footer()}
       >
-        {/* ── Step 1: Review project details ── */}
+        {/* ── Step 1: Plan ── */}
         {step === 0 && (
           <div className="space-y-5">
-            {/* Info banner */}
-            <div
-              className="flex items-start gap-2 px-3 py-2.5 rounded-lg text-sm"
-              style={{
-                background: "var(--primary-light)",
-                color: "var(--primary)",
-              }}
-            >
-              <Rocket size={13} className="mt-0.5 shrink-0" />
-              <span>
-                Review and adjust the project details before kicking off.
-              </span>
-            </div>
-
             <div>
-              <label htmlFor="ko-title" className="typo-label">
-                Title <span className="text-[var(--danger)]">*</span>
-              </label>
-              <input
-                id="ko-title"
-                type="text"
-                value={form.title}
-                onChange={(e) => set("title", e.target.value)}
-                className={inputClass}
-                style={inputStyle}
-              />
-            </div>
-
-            <ServicePills
-              services={services}
-              selectedId={form.serviceId}
-              onChange={(id) => set("serviceId", id)}
-              label="Service"
-              required
-            />
-
-            <div>
-              <label className="typo-label">
-                Description
-              </label>
-              <RichTextEditor
-                content={form.description}
-                onChange={(html) => set("description", html)}
-                placeholder="Describe the project scope…"
-              />
-            </div>
-          </div>
-        )}
-
-        {/* ── Step 2: Dates ── */}
-        {step === 1 && (
-          <div className="space-y-5">
-            <div>
-              <label htmlFor="ko-delivery" className="typo-label">
-                Delivery date <span className="text-[var(--danger)]">*</span>
-              </label>
-              <input
-                id="ko-delivery"
-                type="date"
-                value={form.deliveryDate}
-                onChange={(e) => set("deliveryDate", e.target.value)}
-                className={inputClass}
-                style={inputStyle}
-              />
-              <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
-                Automatically creates an event for this delivery.
+              <p className="typo-caption">Kicking off</p>
+              <p className="typo-modal-title" style={{ color: "var(--text-primary)" }}>
+                {project.title}
               </p>
             </div>
 
-            <div>
-              <label htmlFor="ko-start" className="typo-label">
-                Start date override
-              </label>
-              <input
-                id="ko-start"
-                type="date"
-                value={form.startDate}
-                onChange={(e) => set("startDate", e.target.value)}
-                className={inputClass}
-                style={inputStyle}
-              />
-              <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
-                Leave empty to use today. Set a past or future date to override
-                when the project starts on the timeline.
-              </p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label htmlFor="ko-start" className="typo-label">
+                  Start date
+                </label>
+                <input
+                  id="ko-start"
+                  type="date"
+                  value={form.startDate}
+                  onChange={(e) => set("startDate", e.target.value)}
+                  className={inputClass}
+                  style={inputStyle}
+                />
+                <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+                  Leave empty to start today.
+                </p>
+              </div>
+              <div>
+                <label htmlFor="ko-delivery" className="typo-label">
+                  Delivery date <span className="text-[var(--danger)]">*</span>
+                </label>
+                <input
+                  id="ko-delivery"
+                  type="date"
+                  value={form.deliveryDate}
+                  onChange={(e) => set("deliveryDate", e.target.value)}
+                  className={inputClass}
+                  style={inputStyle}
+                />
+                <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+                  Automatically creates an event for this delivery.
+                </p>
+              </div>
             </div>
-          </div>
-        )}
-
-        {/* ── Step 3: Financials ── */}
-        {step === 2 && (
-          <div className="space-y-5">
-            <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-              Financial details are optional — you can always add them later.
-            </p>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -343,6 +327,16 @@ export default function KickOffProjectButton({
                   className={inputClass}
                   style={inputStyle}
                 />
+                {project.soldPrice != null && (
+                  <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+                    Agreed in project plan: {formatEuro(project.soldPrice)}
+                  </p>
+                )}
+                {formDiscount > 0 && (
+                  <p className="text-xs mt-1 tabular-nums" style={{ color: "var(--text-muted)" }}>
+                    Discount{project.discountType === "percentage" ? ` (${project.discountValue}%)` : ""}: − {formatEuro(formDiscount)} · Net: {formatEuro(formNet)}
+                  </p>
+                )}
               </div>
               <div>
                 <label htmlFor="ko-label" className="typo-label">
@@ -364,6 +358,104 @@ export default function KickOffProjectButton({
                 </select>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* ── Step 2: Final check ── */}
+        {step === 1 && (
+          <div className="space-y-5">
+            <SummarySection title="Project details">
+              <SummaryRow
+                label="Title"
+                value={form.title}
+                warning={titleInvalid ? "Title is required" : undefined}
+                editing={editing.title || titleInvalid}
+                onEdit={() => setEditing((e) => ({ ...e, title: true }))}
+                onDone={() => setEditing((e) => ({ ...e, title: false }))}
+                editor={
+                  <div>
+                    <label htmlFor="ko-title" className="typo-label">
+                      Title <span className="text-[var(--danger)]">*</span>
+                    </label>
+                    <input
+                      id="ko-title"
+                      type="text"
+                      value={form.title}
+                      onChange={(e) => set("title", e.target.value)}
+                      className={inputClass}
+                      style={inputStyle}
+                    />
+                  </div>
+                }
+              />
+              <SummaryRow
+                label="Service"
+                value={serviceName}
+                warning={serviceInvalid ? "Select a service" : undefined}
+                editing={editing.service || serviceInvalid}
+                onEdit={() => setEditing((e) => ({ ...e, service: true }))}
+                onDone={() => setEditing((e) => ({ ...e, service: false }))}
+                editor={
+                  <ServicePills
+                    services={services}
+                    selectedId={form.serviceId}
+                    onChange={(id) => set("serviceId", id)}
+                    label="Service"
+                    required
+                  />
+                }
+              />
+              <SummaryRow
+                label="Description"
+                value={
+                  isEmptyHtml(form.description) ? (
+                    <span style={{ color: "var(--text-muted)" }}>No description</span>
+                  ) : (
+                    <RichTextDisplay html={form.description} className="line-clamp-4 text-sm" />
+                  )
+                }
+                editing={editing.description}
+                onEdit={() => setEditing((e) => ({ ...e, description: true }))}
+                onDone={() => setEditing((e) => ({ ...e, description: false }))}
+                editor={
+                  <div>
+                    <label className="typo-label">Description</label>
+                    <RichTextEditor
+                      content={form.description}
+                      onChange={(html) => set("description", html)}
+                      placeholder="Describe the project scope…"
+                    />
+                  </div>
+                }
+              />
+            </SummarySection>
+
+            <SummarySection title="Plan">
+              <SummaryRow
+                label="Timeline"
+                value={`${form.startDate ? fmtDay(form.startDate) : "Today"} → ${fmtDay(form.deliveryDate)}`}
+                onEdit={() => setStep(0)}
+              />
+              <SummaryRow
+                label="Price"
+                value={
+                  form.soldPrice
+                    ? formDiscount > 0
+                      ? (
+                          <>
+                            <span className="line-through mr-1.5" style={{ color: "var(--text-muted)" }}>
+                              {formatEuro(formGross)}
+                            </span>
+                            {formatEuro(formNet)}
+                          </>
+                        )
+                      : formatEuro(formGross)
+                    : "—"
+                }
+                onEdit={() => setStep(0)}
+              />
+              <SummaryRow label="Label" value={labelName} onEdit={() => setStep(0)} />
+            </SummarySection>
 
             {error && <p className="text-xs text-[var(--danger)]">{error}</p>}
           </div>
