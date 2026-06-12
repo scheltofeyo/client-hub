@@ -643,6 +643,16 @@ export async function getProjectTemplates(): Promise<ProjectTemplate[]> {
     defaultDiscountValue: doc.defaultDiscountValue,
     defaultServiceId: doc.defaultServiceId,
     defaultDeliveryDays: doc.defaultDeliveryDays,
+    defaultPricingMode: doc.defaultPricingMode ?? "rolebased",
+    defaultRoleAllocation: (doc.defaultRoleAllocation ?? []).map((l) => ({
+      roleId: l.roleId,
+      roleName: l.roleName,
+      days: l.days ?? 0,
+      dayRate: l.dayRate ?? 0,
+      marginMultiplier: l.marginMultiplier ?? 1,
+      isExternal: !!l.isExternal,
+      externalCostRate: l.externalCostRate,
+    })),
     createdAt: doc.createdAt?.toISOString().split("T")[0],
   }));
 }
