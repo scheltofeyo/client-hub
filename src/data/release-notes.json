@@ -1,5 +1,23 @@
 [
   {
+    "date": "2026-06-12",
+    "title": "Sessies herorden je nu met slepen en neerzetten",
+    "details": [
+      "In de project-template editor sleep je sessies in de gewenste volgorde",
+      "In projectplannen (proposals) bepaal je zo de volgorde waarin sessies bij de klant verschijnen",
+      "Op de Sessions-tab van een project kun je de Drafts (sessies zonder datum) handmatig ordenen; geplande en afgeronde sessies blijven op datum gesorteerd"
+    ]
+  },
+  {
+    "date": "2026-06-12",
+    "title": "Rol-gebaseerde prijsopbouw blijft nu zichtbaar bij het bewerken van een project-template",
+    "details": [
+      "De Budget-tab van een template toonde lege rolregels en €0, ook al was de prijsopbouw wel opgeslagen — die kwam wel mee in nieuwe projecten en plannen",
+      "Templates met handmatige prijs werden bovendien verkeerd als 'rol-gebaseerd' getoond",
+      "Opnieuw opslaan vanuit dat lege scherm kon de opgeslagen rolregels wissen; dat kan nu niet meer"
+    ]
+  },
+  {
     "date": "2026-06-10",
     "title": "Plannen, project-templates én projecten bewerk je nu in één zijpaneel",
     "details": [

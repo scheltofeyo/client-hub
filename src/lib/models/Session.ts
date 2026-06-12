@@ -9,6 +9,7 @@ export interface ISession extends Document {
   remoteLink?: string;
   participants: { email: string; name?: string }[];
   info?: string;
+  order: number;
   templateSessionId?: string;
   createdById: string;
   createdByName: string;
@@ -34,6 +35,7 @@ const SessionSchema = new Schema<ISession>(
       default: [],
     },
     info: { type: String, trim: true },
+    order: { type: Number, default: 0 },
     templateSessionId: { type: String },
     createdById: { type: String, required: true },
     createdByName: { type: String, required: true },

@@ -338,6 +338,7 @@ export interface Session {
   remoteLink?: string;
   participants: SessionParticipant[];
   info?: string;
+  order?: number;
   templateSessionId?: string;
   createdById: string;
   createdByName: string;

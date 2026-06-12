@@ -133,6 +133,18 @@ export default function DraftProjectEditor({
     await onSessionsChanged();
   }, [clientId, project.id, onSessionsChanged]);
 
+  async function reorderSessions(ids: string[]) {
+    setSessions((prev) => {
+      const byId = new Map(prev.map((s) => [s.id, s]));
+      return ids.map((id) => byId.get(id)).filter((s): s is Session => !!s);
+    });
+    await fetch(`/api/clients/${clientId}/projects/${project.id}/sessions/reorder`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids }),
+    });
+  }
+
   function openSessionForm(session?: SessionListItem) {
     const full = session ? sessions.find((s) => s.id === session.id) : undefined;
     openSecondaryPanel(
@@ -344,13 +356,16 @@ export default function DraftProjectEditor({
       {tab === "sessions" && (
         <PanelSection title="Sessions" description="Workshops or meetings planned with the client for this project.">
           <SessionsListEditor
-            sessions={sessions.map((s) => ({ id: s.id, title: s.title, date: s.date }))}
+            sessions={[...sessions]
+              .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+              .map((s) => ({ id: s.id, title: s.title, date: s.date }))}
             readonly={readonly}
             canCreate={canCreateSession}
             canEdit={canEditSession}
             canDelete={canDeleteSession}
             onOpenForm={openSessionForm}
             onDelete={deleteSession}
+            onReorder={reorderSessions}
           />
         </PanelSection>
       )}

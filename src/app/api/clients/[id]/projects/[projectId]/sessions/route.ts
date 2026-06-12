@@ -34,6 +34,7 @@ function serialize(doc: {
   remoteLink?: string | null;
   participants?: SessionParticipant[];
   info?: string | null;
+  order?: number | null;
   templateSessionId?: string | null;
   createdById: string;
   createdByName: string;
@@ -49,6 +50,7 @@ function serialize(doc: {
     remoteLink: doc.remoteLink ?? null,
     participants: doc.participants ?? [],
     info: doc.info ?? null,
+    order: doc.order ?? 0,
     templateSessionId: doc.templateSessionId ?? null,
     createdById: doc.createdById,
     createdByName: doc.createdByName,
@@ -65,7 +67,7 @@ export async function GET(
 
   const { projectId } = await params;
   await connectDB();
-  const docs = await SessionModel.find({ projectId }).sort({ date: 1, createdAt: 1 }).lean();
+  const docs = await SessionModel.find({ projectId }).sort({ order: 1, date: 1, createdAt: 1 }).lean();
   return NextResponse.json(docs.map(serialize));
 }
 
@@ -90,6 +92,9 @@ export async function POST(
 
   const project = await ProjectModel.findById(projectId, { status: 1 }).lean();
 
+  const last = await SessionModel.findOne({ projectId }).sort({ order: -1 }).lean();
+  const order = last ? (last.order ?? 0) + 1 : 0;
+
   const doc = await SessionModel.create({
     clientId: id,
     projectId,
@@ -99,6 +104,7 @@ export async function POST(
     remoteLink: remoteLink?.trim() || undefined,
     participants: normalizeParticipants(participants),
     info: info?.trim() || undefined,
+    order,
     createdById: session.user.id,
     createdByName: session.user.name ?? "Unknown",
   });

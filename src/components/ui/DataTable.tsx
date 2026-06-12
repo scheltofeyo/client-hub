@@ -1,7 +1,24 @@
 "use client";
 
 import React from "react";
-import { ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
+import { ChevronUp, ChevronDown, ChevronsUpDown, GripVertical } from "lucide-react";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -30,7 +47,14 @@ export interface DataTableProps<T> {
   onRowClick?: (row: T) => void;
   filterBar?: React.ReactNode;
   emptyMessage?: string;
+  /**
+   * When provided, rows become drag-and-drop sortable (a grip handle appears in a
+   * leading column on hover). The callback receives the reordered row keys.
+   */
+  onReorder?: (ids: string[]) => void;
 }
+
+const GRIP_COL_WIDTH = 36;
 
 // ── SortHeader ─────────────────────────────────────────────────────────────
 
@@ -84,6 +108,76 @@ function SortHeader({
   );
 }
 
+// ── Row cells ──────────────────────────────────────────────────────────────
+
+function RowCells<T>({ columns, row }: { columns: ColumnDef<T>[]; row: T }) {
+  return (
+    <>
+      {columns.map((col) => (
+        <td
+          key={col.key}
+          className="px-4 py-3"
+          style={col.sticky ? {
+            position: "sticky",
+            left: 0,
+            zIndex: 1,
+            background: "var(--bg-surface)",
+            boxShadow: "2px 0 4px -1px rgba(0,0,0,0.06)",
+          } : undefined}
+        >
+          {col.render(row)}
+        </td>
+      ))}
+    </>
+  );
+}
+
+// ── SortableRow ──────────────────────────────────────────────────────────────
+
+function SortableRow<T>({
+  id,
+  columns,
+  row,
+  onRowClick,
+}: {
+  id: string;
+  columns: ColumnDef<T>[];
+  row: T;
+  onRowClick?: (row: T) => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+
+  return (
+    <tr
+      ref={setNodeRef}
+      className="group transition-colors"
+      style={{
+        borderTop: "1px solid var(--border)",
+        cursor: onRowClick ? "pointer" : undefined,
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.5 : 1,
+        position: isDragging ? "relative" : undefined,
+        zIndex: isDragging ? 10 : undefined,
+      }}
+      onClick={onRowClick ? () => onRowClick(row) : undefined}
+    >
+      <td className="pl-3 pr-1 py-3 align-middle" style={{ width: GRIP_COL_WIDTH }}>
+        <span
+          className="flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing"
+          style={{ color: "var(--text-muted)" }}
+          onClick={(e) => e.stopPropagation()}
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical size={14} />
+        </span>
+      </td>
+      <RowCells columns={columns} row={row} />
+    </tr>
+  );
+}
+
 // ── DataTable ──────────────────────────────────────────────────────────────
 
 export default function DataTable<T>({
@@ -95,8 +189,26 @@ export default function DataTable<T>({
   onRowClick,
   filterBar,
   emptyMessage,
+  onReorder,
 }: DataTableProps<T>) {
-  const totalMinWidth = columns.reduce((sum, col) => sum + col.minWidth, 0);
+  const sortable = !!onReorder && rows.length > 1;
+  const totalMinWidth =
+    columns.reduce((sum, col) => sum + col.minWidth, 0) + (onReorder ? GRIP_COL_WIDTH : 0);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const ids = rows.map(getRowKey);
+    const oldIndex = ids.indexOf(active.id as string);
+    const newIndex = ids.indexOf(over.id as string);
+    if (oldIndex === -1 || newIndex === -1) return;
+    onReorder?.(arrayMove(ids, oldIndex, newIndex));
+  }
 
   return (
     <div>
@@ -108,6 +220,11 @@ export default function DataTable<T>({
         Without this, overflow-x-auto has nothing to scroll against because
         its own width expands to match the table content.
       */}
+      <DndWrapper
+        enabled={sortable}
+        sensors={sensors}
+        onDragEnd={handleDragEnd}
+      >
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)" }}>
         <div
           className="rounded-xl border overflow-x-auto"
@@ -122,6 +239,12 @@ export default function DataTable<T>({
               style={{ background: "var(--bg-elevated)", borderBottom: "1px solid var(--border)" }}
             >
               <tr>
+                {onReorder && (
+                  <th
+                    aria-hidden
+                    style={{ width: GRIP_COL_WIDTH, background: "var(--bg-elevated)" }}
+                  />
+                )}
                 {columns.map((col) =>
                   col.sortable ? (
                     <SortHeader
@@ -157,38 +280,39 @@ export default function DataTable<T>({
             </thead>
 
             <tbody>
-              {rows.map((row) => (
-                <tr
-                  key={getRowKey(row)}
-                  className="group transition-colors"
-                  style={{
-                    borderTop: "1px solid var(--border)",
-                    cursor: onRowClick ? "pointer" : undefined,
-                  }}
-                  onClick={onRowClick ? () => onRowClick(row) : undefined}
-                >
-                  {columns.map((col) => (
-                    <td
-                      key={col.key}
-                      className="px-4 py-3"
-                      style={col.sticky ? {
-                        position: "sticky",
-                        left: 0,
-                        zIndex: 1,
-                        background: "var(--bg-surface)",
-                        boxShadow: "2px 0 4px -1px rgba(0,0,0,0.06)",
-                      } : undefined}
-                    >
-                      {col.render(row)}
-                    </td>
+              {sortable ? (
+                <SortableContext items={rows.map(getRowKey)} strategy={verticalListSortingStrategy}>
+                  {rows.map((row) => (
+                    <SortableRow
+                      key={getRowKey(row)}
+                      id={getRowKey(row)}
+                      columns={columns}
+                      row={row}
+                      onRowClick={onRowClick}
+                    />
                   ))}
-                </tr>
-              ))}
+                </SortableContext>
+              ) : (
+                rows.map((row) => (
+                  <tr
+                    key={getRowKey(row)}
+                    className="group transition-colors"
+                    style={{
+                      borderTop: "1px solid var(--border)",
+                      cursor: onRowClick ? "pointer" : undefined,
+                    }}
+                    onClick={onRowClick ? () => onRowClick(row) : undefined}
+                  >
+                    {onReorder && <td style={{ width: GRIP_COL_WIDTH }} />}
+                    <RowCells columns={columns} row={row} />
+                  </tr>
+                ))
+              )}
 
               {rows.length === 0 && (
                 <tr>
                   <td
-                    colSpan={columns.length}
+                    colSpan={columns.length + (onReorder ? 1 : 0)}
                     className="px-4 py-12 text-center text-sm"
                     style={{ color: "var(--text-muted)" }}
                   >
@@ -200,6 +324,26 @@ export default function DataTable<T>({
           </table>
         </div>
       </div>
+      </DndWrapper>
     </div>
+  );
+}
+
+function DndWrapper({
+  enabled,
+  sensors,
+  onDragEnd,
+  children,
+}: {
+  enabled: boolean;
+  sensors: ReturnType<typeof useSensors>;
+  onDragEnd: (event: DragEndEvent) => void;
+  children: React.ReactNode;
+}) {
+  if (!enabled) return <>{children}</>;
+  return (
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+      {children}
+    </DndContext>
   );
 }

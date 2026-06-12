@@ -41,7 +41,7 @@ export default function SessionsTab({
 
   const drafts = sessions
     .filter((s) => !s.date)
-    .sort((a, b) => a.title.localeCompare(b.title));
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || a.title.localeCompare(b.title));
   const upcoming = sessions
     .filter((s) => s.date && s.date >= today)
     .sort((a, b) => a.date!.localeCompare(b.date!));
@@ -81,6 +81,20 @@ export default function SessionsTab({
         onClose={closePanel}
       />
     );
+  }
+
+  async function reorderDrafts(ids: string[]) {
+    setSessions((prev) =>
+      prev.map((s) => {
+        const idx = ids.indexOf(s.id);
+        return idx === -1 ? s : { ...s, order: idx };
+      })
+    );
+    await fetch(`/api/clients/${clientId}/projects/${projectId}/sessions/reorder`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids }),
+    });
   }
 
   async function handleDelete(session: Session) {
@@ -222,6 +236,7 @@ export default function SessionsTab({
               hint="No date set yet — schedule these to add them to the timeline."
               sessions={drafts}
               columns={columns}
+              onReorder={canEdit ? reorderDrafts : undefined}
             />
           )}
           {upcoming.length > 0 && (
@@ -241,11 +256,13 @@ function SessionsSection({
   hint,
   sessions,
   columns,
+  onReorder,
 }: {
   label: string;
   hint?: string;
   sessions: Session[];
   columns: ColumnDef<Session>[];
+  onReorder?: (ids: string[]) => void;
 }) {
   return (
     <section className="flex flex-col gap-2">
@@ -267,6 +284,7 @@ function SessionsSection({
         onSort={() => {
           /* sessions are pre-sorted; no UI sorting */
         }}
+        onReorder={onReorder}
       />
     </section>
   );
