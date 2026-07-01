@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { getClientById, getProjectById, getServices, getProjectLabels, getPlanSummaryById } from "@/lib/data";
-import { auth } from "@/auth";
+import { getSession } from "@/auth";
 import { hasPermission, hasPermissionOrIsLead } from "@/lib/auth-helpers";
 import { notFound } from "next/navigation";
 import { EyeOff } from "lucide-react";
@@ -32,7 +32,7 @@ export default async function ProjectOverviewPage({
     getProjectById(projectId),
     getServices(),
     getProjectLabels(),
-    auth(),
+    getSession(),
   ]);
   if (!project) notFound();
 

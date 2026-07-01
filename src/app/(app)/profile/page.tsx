@@ -1,11 +1,11 @@
-import { auth } from "@/auth";
+import { getSession } from "@/auth";
 import { redirect, notFound } from "next/navigation";
 import { connectDB } from "@/lib/mongodb";
 import { UserModel } from "@/lib/models/User";
 import EmployeeDetailEditor from "@/app/(app)/admin/employees/[id]/EmployeeDetailEditor";
 
 export default async function ProfilePage() {
-  const session = await auth();
+  const session = await getSession();
   if (!session) redirect("/login");
 
   await connectDB();

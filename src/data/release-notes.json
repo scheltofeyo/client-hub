@@ -1,5 +1,13 @@
 [
   {
+    "date": "2026-07-01",
+    "title": "Sneller opstarten bij het eerste bezoek van de dag",
+    "details": [
+      "De eerste pagina van de dag kon tot een minuut op een leeg scherm blijven hangen; die wachttijd is grotendeels verholpen",
+      "De inlogpagina laadt nu direct, ook als de app nog moet opstarten"
+    ]
+  },
+  {
     "date": "2026-06-12",
     "title": "Sessies herorden je nu met slepen en neerzetten",
     "details": [

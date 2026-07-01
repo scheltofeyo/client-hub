@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { auth } from "@/auth";
+import { getSession } from "@/auth";
 import { redirect } from "next/navigation";
 import { hasPermission } from "@/lib/auth-helpers";
 import { connectDB } from "@/lib/mongodb";
@@ -48,7 +48,7 @@ export default async function LabelsAndTypesPage({
 }: {
   searchParams: Promise<{ tab?: string }>;
 }) {
-  const session = await auth();
+  const session = await getSession();
   if (!hasPermission(session, "admin.access")) redirect("/dashboard");
 
   const perms = session?.user?.permissions ?? [];

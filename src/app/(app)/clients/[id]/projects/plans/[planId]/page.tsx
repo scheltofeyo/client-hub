@@ -1,4 +1,4 @@
-import { auth } from "@/auth";
+import { getSession } from "@/auth";
 import { redirect, notFound } from "next/navigation";
 import { hasPermission } from "@/lib/auth-helpers";
 import { connectDB } from "@/lib/mongodb";
@@ -14,7 +14,7 @@ export default async function PlanDetailPage({
 }: {
   params: Promise<{ id: string; planId: string }>;
 }) {
-  const session = await auth();
+  const session = await getSession();
   if (!session) redirect("/api/auth/signin");
   if (!hasPermission(session, "projectPlans.view")) redirect("/dashboard");
 

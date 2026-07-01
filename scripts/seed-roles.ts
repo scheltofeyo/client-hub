@@ -110,6 +110,20 @@ async function main() {
   // Ensure lead settings singleton exists
   await getLeadSettings();
 
+  // Sync indexes for every model at deploy time. The app connects with
+  // autoIndex disabled in production (see src/lib/mongodb.ts), so this is
+  // where new/changed schema indexes actually get built.
+  const { readdirSync } = await import("fs");
+  const modelsDir = resolve(__dirname, "..", "src", "lib", "models");
+  for (const file of readdirSync(modelsDir)) {
+    if (!file.endsWith(".ts")) continue;
+    await import(resolve(modelsDir, file));
+  }
+  for (const name of mongoose.modelNames()) {
+    await mongoose.model(name).syncIndexes();
+  }
+  console.log(`Synced indexes for ${mongoose.modelNames().length} models`);
+
   console.log("Seed complete");
   await mongoose.disconnect();
 }

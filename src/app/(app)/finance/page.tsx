@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { auth } from "@/auth";
+import { getSession } from "@/auth";
 import { hasPermission } from "@/lib/auth-helpers";
 import { getRevenueAnalytics } from "@/lib/data";
 import PageHeader from "@/components/layout/PageHeader";
@@ -8,7 +8,7 @@ import RevenueDashboard from "@/components/finance/RevenueDashboard";
 export const dynamic = "force-dynamic";
 
 export default async function FinancePage() {
-  const session = await auth();
+  const session = await getSession();
   if (!session || !hasPermission(session, "finance.access")) redirect("/dashboard");
 
   const data = await getRevenueAnalytics();

@@ -1,4 +1,4 @@
-import { auth } from "@/auth";
+import { getSession } from "@/auth";
 import { redirect, notFound } from "next/navigation";
 import { hasPermission } from "@/lib/auth-helpers";
 import { connectDB } from "@/lib/mongodb";
@@ -14,7 +14,7 @@ export default async function EditSurveyTemplatePage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const session = await auth();
+  const session = await getSession();
   if (!hasPermission(session, "admin.surveys.manageTemplates")) redirect("/dashboard");
 
   const { id } = await params;

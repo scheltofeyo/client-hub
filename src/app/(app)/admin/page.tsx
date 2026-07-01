@@ -1,4 +1,4 @@
-import { auth } from "@/auth";
+import { getSession } from "@/auth";
 import { redirect } from "next/navigation";
 import { hasPermission } from "@/lib/auth-helpers";
 import type { Permission } from "@/lib/permissions";
@@ -29,7 +29,7 @@ export default async function AdminPage({
 }: {
   searchParams: Promise<{ tab?: string; employee?: string }>;
 }) {
-  const session = await auth();
+  const session = await getSession();
   if (!session || !hasPermission(session, "admin.access")) redirect("/dashboard");
 
   const { tab, employee } = await searchParams;

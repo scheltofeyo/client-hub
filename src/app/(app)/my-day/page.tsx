@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
-import { auth } from "@/auth";
+import { getSession } from "@/auth";
 import {
   getMyDayTasks,
   getMyLeadClientTasks,
@@ -179,7 +179,7 @@ function UserInfoSkeleton() {
 }
 
 export default async function MyDayPage() {
-  const session = await auth();
+  const session = await getSession();
   if (!session?.user?.id) redirect("/api/auth/signin");
 
   const userId = session.user.id;

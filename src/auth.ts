@@ -1,4 +1,5 @@
 import NextAuth from "next-auth";
+import { cache } from "react";
 import { authConfig } from "./auth.config";
 import { connectDB } from "@/lib/mongodb";
 import { UserModel } from "@/lib/models/User";
@@ -6,6 +7,44 @@ import { RoleModel } from "@/lib/models/Role";
 import { TaskModel } from "@/lib/models/Task";
 import { ProjectModel } from "@/lib/models/Project";
 import { getLeadSettings } from "@/lib/models/LeadSettings";
+import { withRetry } from "@/lib/db-retry";
+
+/**
+ * DB work for the periodic token re-check, kept off the render-blocking path:
+ * transient errors retry once (withRetry) and the whole thing is raced against
+ * a hard timeout so a cold Atlas connection can never stall first byte for
+ * more than REFRESH_TIMEOUT_MS.
+ */
+const REFRESH_TIMEOUT_MS = 3000;
+
+async function fetchTokenClaims(userId: string) {
+  return withRetry(async () => {
+    await connectDB();
+    const dbUser = await UserModel.findById(userId, { status: 1, role: 1, seenWhatsNewIds: 1 }).lean();
+    if (!dbUser || dbUser.status === "inactive") return null;
+    const [role, leadPerms] = await Promise.all([
+      RoleModel.findOne({ slug: dbUser.role }).lean(),
+      getLeadSettings(),
+    ]);
+    return { dbUser, role, leadPerms };
+  });
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("Token refresh timed out")), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      }
+    );
+  });
+}
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   ...authConfig,
@@ -93,6 +132,22 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
      *     leadSettings to pick up any permission changes (admin editing a
      *     Role's permissions, leadSettings flips, status flips).
      *
+     * The boundary re-check is stale-while-revalidate: it retries once on
+     * transient errors and is raced against REFRESH_TIMEOUT_MS. On timeout or
+     * failure we keep the existing token claims and leave `statusCheckedAt`
+     * un-bumped so the next request retries. This means the first request of
+     * the day never blocks first byte on a cold Atlas connection for more
+     * than ~3s. Security-wise: under normal DB availability, deactivated
+     * users still lose access within ≤15 min + one request; during a DB
+     * outage stale claims persist, but every data-bearing page and API route
+     * also needs the DB and fails, so the practical exposure is nil.
+     *
+     * RSC nuance: a token mutated during a server-component render cannot be
+     * persisted back into the cookie (cookies can't be set mid-render), so
+     * `statusCheckedAt` only durably advances when the JWT callback runs in a
+     * route-handler context — in practice the /api/auth/session fetch from
+     * SessionProvider after hydration. That call is off the paint path.
+     *
      * Permission / role changes take effect on the next refresh after the
      * 15-minute boundary (worst case ~15 min latency). This is documented in
      * CLAUDE.md and acceptable for our team size.
@@ -147,26 +202,28 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         const now = Date.now();
         const lastCheck = (token.statusCheckedAt as number) ?? 0;
         if (now - lastCheck > 15 * 60 * 1000) {
-          await connectDB();
-          const dbUser = await UserModel.findById(token.userId, { status: 1, role: 1, seenWhatsNewIds: 1 }).lean();
-          if (!dbUser || dbUser.status === "inactive") {
-            token.userId = "";
-            token.permissions = [];
-            token.leadPermissions = [];
-          } else {
-            // Always refetch role + leadSettings so that admin-side changes to
-            // a role's permissions (or to leadSettings) propagate within the
-            // 15-min window even when the user's role slug is unchanged.
-            const [role, leadPerms] = await Promise.all([
-              RoleModel.findOne({ slug: dbUser.role }).lean(),
-              getLeadSettings(),
-            ]);
-            token.role = dbUser.role;
-            token.permissions = role?.permissions ?? [];
-            token.leadPermissions = leadPerms;
-            token.seenWhatsNewIds = dbUser.seenWhatsNewIds ?? [];
+          try {
+            const claims = await withTimeout(fetchTokenClaims(token.userId as string), REFRESH_TIMEOUT_MS);
+            if (!claims) {
+              token.userId = "";
+              token.permissions = [];
+              token.leadPermissions = [];
+            } else {
+              // Always refetch role + leadSettings so that admin-side changes to
+              // a role's permissions (or to leadSettings) propagate within the
+              // 15-min window even when the user's role slug is unchanged.
+              token.role = claims.dbUser.role;
+              token.permissions = claims.role?.permissions ?? [];
+              token.leadPermissions = claims.leadPerms;
+              token.seenWhatsNewIds = claims.dbUser.seenWhatsNewIds ?? [];
+            }
+            token.statusCheckedAt = now;
+          } catch {
+            // DB cold, slow, or down: keep the existing token claims and do NOT
+            // bump statusCheckedAt, so the next request retries against what is
+            // by then a warm connection. See the doc comment above for why this
+            // stale-while-revalidate fallback is acceptable.
           }
-          token.statusCheckedAt = now;
         }
       }
       return token;
@@ -183,3 +240,13 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     },
   },
 });
+
+/**
+ * Request-scoped `auth()` for server components. A layout and its page render
+ * in the same pass and each need the session; calling `auth()` twice runs the
+ * jwt callback twice — on the 15-min re-check boundary that means two
+ * serialized DB round-trip chains before first byte. React cache() collapses
+ * them into one per request. Route handlers and server actions can keep
+ * calling `auth()` directly (they run once per request anyway).
+ */
+export const getSession = cache(() => auth());

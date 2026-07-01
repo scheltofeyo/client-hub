@@ -8,7 +8,7 @@ import {
   getFirstUpcomingEventByAllClients,
   getProjectsByAllClients,
 } from "@/lib/data";
-import { auth } from "@/auth";
+import { getSession } from "@/auth";
 import { connectDB } from "@/lib/mongodb";
 import { hasPermission } from "@/lib/auth-helpers";
 import ClientsPageClient from "./ClientsPageClient";
@@ -23,7 +23,7 @@ export default async function ClientsPage({
 }) {
   const [resolvedParams, session] = await Promise.all([
     searchParams,
-    auth(),
+    getSession(),
     connectDB(),
   ]);
 

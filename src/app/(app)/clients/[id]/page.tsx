@@ -1,5 +1,5 @@
 import { getClientById } from "@/lib/data";
-import { auth } from "@/auth";
+import { getSession } from "@/auth";
 import { hasPermission } from "@/lib/auth-helpers";
 import { connectDB } from "@/lib/mongodb";
 import { UserModel } from "@/lib/models/User";
@@ -23,7 +23,7 @@ export default async function ClientDetailPage({
 
   const [client, session] = await Promise.all([
     getClientById(id),
-    auth(),
+    getSession(),
   ]);
 
   if (!client) notFound();

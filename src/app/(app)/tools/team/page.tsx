@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { auth } from "@/auth";
+import { getSession } from "@/auth";
 import { redirect } from "next/navigation";
 import { hasPermission } from "@/lib/auth-helpers";
 import { connectDB } from "@/lib/mongodb";
@@ -21,7 +21,7 @@ export default async function TeamToolPage({
 }) {
   const [resolvedParams, session] = await Promise.all([
     searchParams,
-    auth(),
+    getSession(),
     connectDB(),
   ]);
 

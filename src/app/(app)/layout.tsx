@@ -3,15 +3,17 @@ import PanelNav from "@/components/layout/PanelNav";
 import SessionProviderWrapper from "@/components/layout/SessionProviderWrapper";
 import { RightPanelProvider } from "@/components/layout/RightPanel";
 import WhatsNewLauncher from "@/components/ui/WhatsNewLauncher";
-import { auth } from "@/auth";
+import { getSession } from "@/auth";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  // `auth()` here decodes the JWT to seed SessionProviderWrapper for client
-  // components. With the role-version shortcut in src/auth.ts the warm path
-  // is a pure in-memory JWT decode (no DB), so this does not block navigation
-  // in practice. The layout stays dynamic because per-user permissions in the
-  // session payload make caching the rendered output across users incorrect.
-  const session = await auth();
+  // `getSession()` decodes the JWT to seed SessionProviderWrapper for client
+  // components. It is `auth()` wrapped in React cache(), so the page rendered
+  // below this layout shares the same call instead of re-running the jwt
+  // callback. The warm path is a pure in-memory JWT decode (no DB); on the
+  // 15-min re-check boundary the DB work is time-boxed (see src/auth.ts).
+  // The layout stays dynamic because per-user permissions in the session
+  // payload make caching the rendered output across users incorrect.
+  const session = await getSession();
   return (
     <SessionProviderWrapper session={session}>
       <div className="flex h-screen overflow-hidden">

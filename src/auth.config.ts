@@ -41,7 +41,13 @@ export const authConfig: NextAuthConfig = {
   callbacks: {
     authorized({ auth, request }) {
       const { pathname } = request.nextUrl;
-      if (pathname.startsWith("/api/auth") || pathname === "/login" || pathname.startsWith("/api/internal/") || pathname.startsWith("/api/public/") || pathname.startsWith("/ranking/") || pathname.startsWith("/proposal/") || pathname.startsWith("/s/") || pathname.startsWith("/archetype-as-is-survey/")) return true;
+      // Signed-in users get bounced away from /login here at the edge (a free
+      // JWT decode) so the login page itself can stay fully static — it no
+      // longer calls auth() and is served straight from the CDN.
+      if (pathname === "/login") {
+        return auth ? Response.redirect(new URL("/dashboard", request.nextUrl)) : true;
+      }
+      if (pathname.startsWith("/api/auth") || pathname.startsWith("/api/internal/") || pathname.startsWith("/api/public/") || pathname.startsWith("/ranking/") || pathname.startsWith("/proposal/") || pathname.startsWith("/s/") || pathname.startsWith("/archetype-as-is-survey/")) return true;
       return !!auth;
     },
     async session({ session, token }) {

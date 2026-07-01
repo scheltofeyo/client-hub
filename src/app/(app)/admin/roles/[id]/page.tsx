@@ -1,4 +1,4 @@
-import { auth } from "@/auth";
+import { getSession } from "@/auth";
 import { redirect, notFound } from "next/navigation";
 import { connectDB } from "@/lib/mongodb";
 import { RoleModel } from "@/lib/models/Role";
@@ -10,7 +10,7 @@ export default async function RoleDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const session = await auth();
+  const session = await getSession();
   if (!hasPermission(session, "roles.manage")) redirect("/dashboard");
 
   const { id } = await params;

@@ -1,4 +1,4 @@
-import { auth } from "@/auth";
+import { getSession } from "@/auth";
 import { redirect } from "next/navigation";
 import { hasPermission } from "@/lib/auth-helpers";
 import { connectDB } from "@/lib/mongodb";
@@ -9,7 +9,7 @@ import { getArchetypes } from "@/lib/data";
 import AdminSurveyTemplatesTable from "./AdminSurveyTemplatesTable";
 
 export default async function AdminSurveyTemplatesPage() {
-  const session = await auth();
+  const session = await getSession();
   if (!hasPermission(session, "admin.surveys.manageTemplates")) redirect("/dashboard");
 
   await connectDB();

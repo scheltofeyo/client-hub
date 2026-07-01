@@ -1,11 +1,11 @@
-import { auth } from "@/auth";
+import { getSession } from "@/auth";
 import { redirect } from "next/navigation";
 import { hasPermission } from "@/lib/auth-helpers";
 import { getServices } from "@/lib/data";
 import NewTemplateEditor from "./NewTemplateEditor";
 
 export default async function NewTemplatePage() {
-  const session = await auth();
+  const session = await getSession();
   if (!hasPermission(session, "admin.access")) redirect("/dashboard");
 
   const services = await getServices();

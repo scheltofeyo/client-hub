@@ -1,4 +1,4 @@
-import { auth } from "@/auth";
+import { getSession } from "@/auth";
 import { redirect } from "next/navigation";
 import { hasPermission } from "@/lib/auth-helpers";
 
@@ -10,7 +10,7 @@ export default async function EditTemplatePage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const session = await auth();
+  const session = await getSession();
   if (!hasPermission(session, "admin.access")) redirect("/dashboard");
 
   const { id } = await params;

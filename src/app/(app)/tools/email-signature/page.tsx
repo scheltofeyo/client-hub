@@ -1,4 +1,4 @@
-import { auth } from "@/auth";
+import { getSession } from "@/auth";
 import { redirect } from "next/navigation";
 import { connectDB } from "@/lib/mongodb";
 import { UserModel } from "@/lib/models/User";
@@ -22,7 +22,7 @@ async function loadSignatureUser(id: string): Promise<SignatureUser | null> {
 }
 
 export default async function EmailSignaturePage() {
-  const session = await auth();
+  const session = await getSession();
   if (!session || !hasPermission(session, "tools.emailSignature.access")) {
     redirect("/tools");
   }

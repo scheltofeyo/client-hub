@@ -1,6 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Keep the headless-Chromium stack out of the compiled server chunks — it
+  // is only needed by the proposal-PDF route (which also imports it lazily)
+  // and bundling it inflates every cold start of the shared SSR function.
+  serverExternalPackages: ["@sparticuz/chromium", "playwright-core"],
   images: {
     remotePatterns: [
       {

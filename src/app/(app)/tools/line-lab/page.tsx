@@ -1,4 +1,4 @@
-import { auth } from "@/auth";
+import { getSession } from "@/auth";
 import { redirect } from "next/navigation";
 import { hasPermission } from "@/lib/auth-helpers";
 import PageHeader from "@/components/layout/PageHeader";
@@ -7,7 +7,7 @@ import LineLab from "@/components/proposal/LineLab";
 export const dynamic = "force-dynamic";
 
 export default async function LineLabPage() {
-  const session = await auth();
+  const session = await getSession();
   if (!session || !hasPermission(session, "tools.lineLab.access")) {
     redirect("/tools");
   }

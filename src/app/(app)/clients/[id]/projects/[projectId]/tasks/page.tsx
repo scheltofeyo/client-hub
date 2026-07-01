@@ -1,5 +1,5 @@
 import { getTasksByProjectId, getProjectById } from "@/lib/data";
-import { auth } from "@/auth";
+import { getSession } from "@/auth";
 import TasksTab from "@/components/ui/TasksTab";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +13,7 @@ export default async function ProjectTasksPage({
   const [tasks, project, session] = await Promise.all([
     getTasksByProjectId(projectId),
     getProjectById(projectId),
-    auth(),
+    getSession(),
   ]);
 
   return (

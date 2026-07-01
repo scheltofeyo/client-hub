@@ -3,16 +3,21 @@ import { connectDB } from "@/lib/mongodb";
 import { ClientModel } from "@/lib/models/Client";
 import { ProjectPlanModel } from "@/lib/models/ProjectPlan";
 import { slugify } from "@/lib/utils";
-import { chromium as playwright } from "playwright-core";
-import chromium from "@sparticuz/chromium";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 90;
 
+// playwright-core and @sparticuz/chromium are imported lazily inside the
+// handler (and are in serverExternalPackages) so the Chromium stack never
+// evaluates — let alone loads — on any invocation but an actual PDF download.
+
 async function resolveChromiumExecutable(): Promise<string | undefined> {
   if (process.env.CHROMIUM_EXECUTABLE_PATH) return process.env.CHROMIUM_EXECUTABLE_PATH;
-  if (process.env.NODE_ENV === "production") return await chromium.executablePath();
+  if (process.env.NODE_ENV === "production") {
+    const { default: chromium } = await import("@sparticuz/chromium");
+    return await chromium.executablePath();
+  }
   const fs = await import("node:fs/promises");
   for (const p of [
     "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
@@ -63,8 +68,10 @@ export async function GET(
   let pdfBuffer: Buffer;
   try {
     const isProduction = process.env.NODE_ENV === "production";
+    const { chromium: playwright } = await import("playwright-core");
+    const args = isProduction ? (await import("@sparticuz/chromium")).default.args : ["--no-sandbox"];
     const browser = await playwright.launch({
-      args: isProduction ? chromium.args : ["--no-sandbox"],
+      args,
       executablePath,
       headless: true,
     });
