@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { motion, useReducedMotion } from "motion/react";
 import { Sunrise, Sun, Moon } from "lucide-react";
 
 function getTimeOfDay(): { greeting: string; Icon: typeof Sun } {
@@ -25,6 +26,7 @@ export default function MyDayDashboardV2({
   tasksSlot,
   userInfoSlot,
 }: Props) {
+  const reduceMotion = useReducedMotion();
   const { greeting, Icon } = getTimeOfDay();
   const today = new Date().toLocaleDateString("en-US", {
     weekday: "long",
@@ -36,8 +38,15 @@ export default function MyDayDashboardV2({
   return (
     <div className="flex-1 overflow-y-auto" style={{ background: "var(--bg-tinted)" }}>
       <div className="mx-auto w-full max-w-[1400px] px-6 py-8 sm:px-8">
-        {/* Greeting — the personal moment */}
-        <div className="mb-8" suppressHydrationWarning>
+        {/* Greeting — the personal moment. Leads the landing reveal (delay 0);
+            the section slots follow via their <Reveal index> stagger. */}
+        <motion.div
+          className="mb-8"
+          suppressHydrationWarning
+          initial={reduceMotion ? false : { opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+        >
           <h1
             className="typo-page-title inline-flex items-center gap-2.5"
             style={{ color: "var(--text-primary)" }}
@@ -49,7 +58,7 @@ export default function MyDayDashboardV2({
           <p className="typo-caption mt-1" style={{ color: "var(--text-muted)" }} suppressHydrationWarning>
             {today}
           </p>
-        </div>
+        </motion.div>
 
         {/* Action-first: tasks, then near-term events, then the gantt as context */}
         <div className="flex flex-col gap-8 lg:flex-row lg:items-start">

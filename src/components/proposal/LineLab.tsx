@@ -5,7 +5,7 @@ import InteractiveLineField, {
   DEFAULT_LINE_COLORS,
   DEFAULT_LINE_PARAMS,
   type LineFieldParams,
-} from "@/components/proposal/InteractiveLineField";
+} from "@/components/ui/InteractiveLineField";
 
 /**
  * Line-animation lab — tuning ground for the proposal-hero "lens" line.

@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import InteractiveLineField, {
   DEFAULT_LINE_COLORS,
   DEFAULT_LINE_PARAMS,
-} from "./InteractiveLineField";
+} from "@/components/ui/InteractiveLineField";
 
 /**
  * ProposalHeroLine — full-width interactive line that closes off the proposal

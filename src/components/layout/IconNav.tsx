@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
+import SummMark from "@/components/ui/SummMark";
 import {
   LayoutDashboard,
   Building2,
@@ -46,12 +47,7 @@ export default function IconNav() {
     >
       {/* Logo */}
       <div className="w-[45px] h-[44px] flex items-center justify-center mb-5 shrink-0">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-          <rect x="3" y="3" width="7" height="7" rx="1.5" fill="var(--primary)" />
-          <rect x="14" y="3" width="7" height="7" rx="1.5" fill="var(--primary)" opacity="0.5" />
-          <rect x="3" y="14" width="7" height="7" rx="1.5" fill="var(--primary)" opacity="0.5" />
-          <rect x="14" y="14" width="7" height="7" rx="1.5" fill="var(--primary)" />
-        </svg>
+        <SummMark />
       </div>
 
       {/* Top nav */}

@@ -45,15 +45,10 @@ export const authConfig: NextAuthConfig = {
       // JWT decode) so the login page itself can stay fully static — it no
       // longer calls auth() and is served straight from the CDN.
       if (pathname === "/login") {
-        return auth ? Response.redirect(new URL("/dashboard", request.nextUrl)) : true;
+        return auth ? Response.redirect(new URL("/my-day", request.nextUrl)) : true;
       }
       if (pathname.startsWith("/api/auth") || pathname.startsWith("/api/internal/") || pathname.startsWith("/api/public/") || pathname.startsWith("/ranking/") || pathname.startsWith("/proposal/") || pathname.startsWith("/s/") || pathname.startsWith("/archetype-as-is-survey/")) return true;
       return !!auth;
-    },
-    async session({ session, token }) {
-      if (token.userId) session.user.id = token.userId as string;
-      if (token.role) session.user.role = token.role as string;
-      return session;
     },
   },
 };

@@ -968,6 +968,26 @@ select:not(.appearance-none):not([multiple]):not([size]) {
   }
 }
 
+/* ── SUMM mark tile shimmer (BrandLoader / WelcomeOverlay) ───────────────── */
+
+/* Each tile dips from its resting opacity (set via --summ-tile-base on the
+   rect: 1 for the diagonal pair, 0.5 for the anti-diagonal) — opacity only,
+   no transforms, so the mark shimmers rather than bounces. */
+@keyframes summ-tile-pulse {
+  0%, 100% { opacity: var(--summ-tile-base, 1); }
+  50%      { opacity: 0.35; }
+}
+
+.summ-tile {
+  animation: summ-tile-pulse 1.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .summ-tile {
+    animation: none;
+  }
+}
+
 /* Tiptap stores blank lines as <p></p>. Without content, browsers collapse
    empty paragraphs to zero height, so the author-intended spacing disappears.
    Fill them with a non-breaking space at render time so the line-height

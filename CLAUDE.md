@@ -75,7 +75,6 @@ src/
     utils.ts                    # Shared helpers: fmtDate, daysAgo, timeAgoLabel
     permissions.ts              # Permission registry — all permission strings + groups
     auth-helpers.ts             # hasPermission, hasLeadPermission, requirePermission, contextual checks
-    seed-roles.ts               # Ensures system roles exist on first login
     models/                     # Mongoose models (see Data Models below)
   hooks/
     usePermission.ts            # Client-side permission hooks

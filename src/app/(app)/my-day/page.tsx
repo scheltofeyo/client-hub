@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { getSession } from "@/auth";
+import Reveal from "@/components/ui/Reveal";
 import {
   getMyDayTasks,
   getMyLeadClientTasks,
@@ -187,27 +188,40 @@ export default async function MyDayPage() {
   const firstName = fullName.split(" ")[0] || fullName;
   const todayISO = new Date().toISOString().slice(0, 10);
 
+  // Each section is wrapped in <Reveal> INSIDE its Suspense boundary: the
+  // async component suspends within Reveal's children, so the fade+rise fires
+  // exactly when that section's skeleton swaps to content — per section, as
+  // each one streams in. Indexes stagger same-flush arrivals into a cascade
+  // (greeting leads at 0, right rail parallels the tasks column).
   return (
     <MyDayDashboardV2
       firstName={firstName}
       ganttSlot={
         <Suspense fallback={<GanttSkeleton />}>
-          <GanttSection userId={userId} />
+          <Reveal index={3}>
+            <GanttSection userId={userId} />
+          </Reveal>
         </Suspense>
       }
       eventsSlot={
         <Suspense fallback={<UpcomingEventsSkeleton />}>
-          <UpcomingEventsSection userId={userId} todayISO={todayISO} />
+          <Reveal index={2}>
+            <UpcomingEventsSection userId={userId} todayISO={todayISO} />
+          </Reveal>
         </Suspense>
       }
       tasksSlot={
         <Suspense fallback={<TasksSkeleton />}>
-          <TasksSection userId={userId} todayISO={todayISO} />
+          <Reveal index={1}>
+            <TasksSection userId={userId} todayISO={todayISO} />
+          </Reveal>
         </Suspense>
       }
       userInfoSlot={
         <Suspense fallback={<UserInfoSkeleton />}>
-          <UserInfoSection userId={userId} />
+          <Reveal index={1}>
+            <UserInfoSection userId={userId} />
+          </Reveal>
         </Suspense>
       }
     />
