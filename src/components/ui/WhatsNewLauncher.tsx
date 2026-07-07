@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
-import releaseNotes from "@/data/release-notes.json";
 import type { ReleaseNote } from "@/types";
 import WhatsNewPopup from "./WhatsNewPopup";
 import WhatsNewModal from "./WhatsNewModal";
@@ -17,7 +16,23 @@ export default function WhatsNewLauncher() {
   // the session.update() round-trip resolves.
   const [suppressedIds, setSuppressedIds] = useState<string[]>([]);
 
-  const notes = releaseNotes as ReleaseNote[];
+  // This component mounts in the (app) layout on every route, and the release
+  // notes JSON is ~57KB raw — a static import would bundle it into every
+  // page's first-load JS. The dynamic import() splits it into its own async
+  // chunk fetched after hydration; the 1.5s popup delay masks the load.
+  const [notes, setNotes] = useState<ReleaseNote[]>([]);
+  useEffect(() => {
+    let alive = true;
+    import("@/data/release-notes.json").then(
+      (m) => {
+        if (alive) setNotes(m.default as ReleaseNote[]);
+      },
+      () => {}
+    );
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const target = useMemo(() => {
     if (!session?.user?.id) return null;

@@ -2,22 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { requirePermission } from "@/lib/auth-helpers";
 import { connectDB } from "@/lib/mongodb";
-import { LeaveTypeModel, DEFAULT_LEAVE_TYPES } from "@/lib/models/LeaveType";
+import { LeaveTypeModel } from "@/lib/models/LeaveType";
 
 export async function GET() {
   await connectDB();
 
-  // Upsert any missing defaults (preserves existing customised entries)
-  await Promise.all(
-    DEFAULT_LEAVE_TYPES.map((lt, i) =>
-      LeaveTypeModel.updateOne(
-        { slug: lt.slug },
-        { $setOnInsert: { ...lt, rank: i } },
-        { upsert: true }
-      )
-    )
-  );
-
+  // Defaults are seeded at deploy time (scripts/seed-roles.ts) — plain read.
   const docs = await LeaveTypeModel.find().sort({ rank: 1, createdAt: 1 }).lean();
 
   return NextResponse.json(

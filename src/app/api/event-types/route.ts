@@ -2,22 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { requirePermission } from "@/lib/auth-helpers";
 import { connectDB } from "@/lib/mongodb";
-import { EventTypeModel, DEFAULT_EVENT_TYPES } from "@/lib/models/EventType";
+import { EventTypeModel } from "@/lib/models/EventType";
 
 export async function GET() {
   await connectDB();
 
-  // Upsert any missing defaults (preserves existing customised entries)
-  await Promise.all(
-    DEFAULT_EVENT_TYPES.map((et, i) =>
-      EventTypeModel.updateOne(
-        { slug: et.slug },
-        { $setOnInsert: { ...et, rank: i } },
-        { upsert: true }
-      )
-    )
-  );
-
+  // Defaults are seeded at deploy time (scripts/seed-roles.ts) — plain read.
   const docs = await EventTypeModel.find().sort({ rank: 1, createdAt: 1 }).lean();
 
   return NextResponse.json(

@@ -43,6 +43,9 @@ const SessionSchema = new Schema<ISession>(
   { timestamps: true }
 );
 
+// Client-detail timeline: equality on clientId, range/sort on date.
+SessionSchema.index({ clientId: 1, date: 1 });
+
 if (mongoose.models.Session) {
   mongoose.deleteModel("Session");
 }

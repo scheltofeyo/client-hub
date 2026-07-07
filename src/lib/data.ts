@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import { cache } from "react";
 import { connectDB } from "./mongodb";
 import { withRetry } from "./db-retry";
+import { ttlCached } from "./ttl-cache";
 import { ClientModel } from "./models/Client";
 import { UserModel } from "./models/User";
 import { ProjectModel, calculateExternalCost } from "./models/Project";
@@ -73,17 +74,24 @@ function mapClient(doc: ReturnType<typeof Object.assign>, archetypeMap?: Map<str
   };
 }
 
-// These are cached per request render tree via React.cache(), so multiple callers
-// (e.g. layout + page, or getClientById + getArchetypes) share a single DB query.
-const fetchArchetypeDocs = cache(async () => {
-  await connectDB();
-  return ArchetypeModel.find().sort({ rank: 1, createdAt: 1 }).lean();
-});
+// Reference-data fetchers: React.cache() dedupes within one request render
+// tree (layout + page share a single call); ttlCached() additionally reuses
+// the result across requests on a warm instance for 60s — these collections
+// are admin-edited near-static lists, so the staleness window is acceptable.
+// The docs are shared across requests: treat them as immutable.
+const fetchArchetypeDocs = cache(
+  ttlCached("archetypes", async () => {
+    await connectDB();
+    return ArchetypeModel.find().sort({ rank: 1, createdAt: 1 }).lean();
+  })
+);
 
-const fetchServiceDocs = cache(async () => {
-  await connectDB();
-  return ServiceModel.find().sort({ rank: 1, createdAt: 1 }).lean();
-});
+const fetchServiceDocs = cache(
+  ttlCached("services", async () => {
+    await connectDB();
+    return ServiceModel.find().sort({ rank: 1, createdAt: 1 }).lean();
+  })
+);
 
 async function buildArchetypeMap(): Promise<Map<string, string>> {
   const docs = await fetchArchetypeDocs();
@@ -99,25 +107,29 @@ async function buildServiceMap(): Promise<Map<string, string>> {
   return map;
 }
 
-const fetchClientStatusDocs = cache(async () => {
-  await connectDB();
-  let docs = await ClientStatusOptionModel.find().sort({ rank: 1, createdAt: 1 }).lean();
-  if (docs.length === 0) {
-    await Promise.all(DEFAULT_CLIENT_STATUSES.map((s, i) => ClientStatusOptionModel.create({ ...s, rank: i })));
-    docs = await ClientStatusOptionModel.find().sort({ rank: 1, createdAt: 1 }).lean();
-  }
-  return docs;
-});
+const fetchClientStatusDocs = cache(
+  ttlCached("client-statuses", async () => {
+    await connectDB();
+    let docs = await ClientStatusOptionModel.find().sort({ rank: 1, createdAt: 1 }).lean();
+    if (docs.length === 0) {
+      await Promise.all(DEFAULT_CLIENT_STATUSES.map((s, i) => ClientStatusOptionModel.create({ ...s, rank: i })));
+      docs = await ClientStatusOptionModel.find().sort({ rank: 1, createdAt: 1 }).lean();
+    }
+    return docs;
+  })
+);
 
-const fetchClientPlatformDocs = cache(async () => {
-  await connectDB();
-  let docs = await ClientPlatformOptionModel.find().sort({ rank: 1, createdAt: 1 }).lean();
-  if (docs.length === 0) {
-    await Promise.all(DEFAULT_CLIENT_PLATFORMS.map((p, i) => ClientPlatformOptionModel.create({ ...p, rank: i })));
-    docs = await ClientPlatformOptionModel.find().sort({ rank: 1, createdAt: 1 }).lean();
-  }
-  return docs;
-});
+const fetchClientPlatformDocs = cache(
+  ttlCached("client-platforms", async () => {
+    await connectDB();
+    let docs = await ClientPlatformOptionModel.find().sort({ rank: 1, createdAt: 1 }).lean();
+    if (docs.length === 0) {
+      await Promise.all(DEFAULT_CLIENT_PLATFORMS.map((p, i) => ClientPlatformOptionModel.create({ ...p, rank: i })));
+      docs = await ClientPlatformOptionModel.find().sort({ rank: 1, createdAt: 1 }).lean();
+    }
+    return docs;
+  })
+);
 
 async function buildPlatformLabelMap(): Promise<Map<string, string>> {
   const docs = await fetchClientPlatformDocs();
@@ -385,16 +397,18 @@ export async function getProjectRoles(): Promise<ProjectRole[]> {
   }));
 }
 
-const fetchProjectLabelDocs = cache(async () => {
-  await connectDB();
-  const DEFAULT_LABELS = ["New Business", "Platform", "Next Business"];
-  let docs = await ProjectLabelModel.find().sort({ rank: 1, createdAt: 1 }).lean();
-  if (docs.length === 0) {
-    await Promise.all(DEFAULT_LABELS.map((name, i) => ProjectLabelModel.create({ name, rank: i })));
-    docs = await ProjectLabelModel.find().sort({ rank: 1, createdAt: 1 }).lean();
-  }
-  return docs;
-});
+const fetchProjectLabelDocs = cache(
+  ttlCached("project-labels", async () => {
+    await connectDB();
+    const DEFAULT_LABELS = ["New Business", "Platform", "Next Business"];
+    let docs = await ProjectLabelModel.find().sort({ rank: 1, createdAt: 1 }).lean();
+    if (docs.length === 0) {
+      await Promise.all(DEFAULT_LABELS.map((name, i) => ProjectLabelModel.create({ name, rank: i })));
+      docs = await ProjectLabelModel.find().sort({ rank: 1, createdAt: 1 }).lean();
+    }
+    return docs;
+  })
+);
 
 export async function getProjectLabels(): Promise<ProjectLabel[]> {
   const docs = await fetchProjectLabelDocs();
@@ -413,10 +427,12 @@ async function buildProjectLabelMap(): Promise<Map<string, string>> {
   return map;
 }
 
-const fetchLogSignalDocs = cache(async () => {
-  await connectDB();
-  return LogSignalModel.find().sort({ rank: 1, createdAt: 1 }).lean();
-});
+const fetchLogSignalDocs = cache(
+  ttlCached("log-signals", async () => {
+    await connectDB();
+    return LogSignalModel.find().sort({ rank: 1, createdAt: 1 }).lean();
+  })
+);
 
 export async function getLogSignals(): Promise<LogSignal[]> {
   const docs = await fetchLogSignalDocs();
@@ -1306,21 +1322,26 @@ export async function getTasksByProjectIds(projectIds: string[]): Promise<Map<st
   return map;
 }
 
+// Read-only in steady state: defaults are seeded at deploy time by
+// scripts/seed-roles.ts; the empty-guard only fires on a fresh dev DB.
+const fetchEventTypeDocs = cache(
+  ttlCached("event-types", async () => {
+    await connectDB();
+    let docs = await EventTypeModel.find().sort({ rank: 1, createdAt: 1 }).lean();
+    if (docs.length === 0) {
+      await Promise.all(
+        DEFAULT_EVENT_TYPES.map((et, i) =>
+          EventTypeModel.updateOne({ slug: et.slug }, { $setOnInsert: { ...et, rank: i } }, { upsert: true })
+        )
+      );
+      docs = await EventTypeModel.find().sort({ rank: 1, createdAt: 1 }).lean();
+    }
+    return docs;
+  })
+);
+
 export async function getEventTypes(): Promise<EventType[]> {
-  await connectDB();
-
-  // Upsert any missing defaults (preserves existing customised entries)
-  await Promise.all(
-    DEFAULT_EVENT_TYPES.map((et, i) =>
-      EventTypeModel.updateOne(
-        { slug: et.slug },
-        { $setOnInsert: { ...et, rank: i } },
-        { upsert: true }
-      )
-    )
-  );
-
-  const docs = await EventTypeModel.find().sort({ rank: 1, createdAt: 1 }).lean();
+  const docs = await fetchEventTypeDocs();
 
   return docs.map((d) => ({
     id: d._id.toString(),
@@ -1789,13 +1810,24 @@ export async function getMyActiveProjectsForGantt(
   userId: string
 ): Promise<{ clients: Client[]; projectsByClient: Record<string, Project[]> }> {
   await connectDB();
-  const allClients = await getClients();
-  const myClients = allClients.filter((c) =>
-    c.leads?.some((l) => l.userId === userId)
-  );
-  if (myClients.length === 0) {
+  // Query the user's lead clients directly (indexed on leads.userId) instead
+  // of loading the whole client collection and filtering in JS.
+  const [myClientDocs, imageMap, archetypeMap, platformLabelMap] = await Promise.all([
+    fetchLeadClientDocs(userId),
+    buildUserImageMap(),
+    buildArchetypeMap(),
+    buildPlatformLabelMap(),
+  ]);
+  if (myClientDocs.length === 0) {
     return { clients: [], projectsByClient: {} };
   }
+  const myClients = myClientDocs.map((doc) => {
+    const client = mapClient(doc, archetypeMap, platformLabelMap);
+    if (client.leads) {
+      client.leads = client.leads.map((l) => ({ ...l, image: imageMap.get(l.userId) }));
+    }
+    return client;
+  });
   const myClientIds = myClients.map((c) => c.id);
 
   const [docs, serviceMap, labelMap] = await Promise.all([
@@ -1822,6 +1854,16 @@ export async function getMyActiveProjectsForGantt(
 /* ─── My Day helpers ─────────────────────────────────────────────── */
 
 type ClientInfo = { name: string; primaryColor?: string };
+
+/**
+ * All clients where userId is a lead — full docs, shared per render. Several
+ * My Day sections need this exact query (tasks, upcoming events, user info,
+ * gantt); cache() collapses them to one indexed find per request.
+ */
+const fetchLeadClientDocs = cache(async (userId: string) => {
+  await connectDB();
+  return ClientModel.find({ "leads.userId": userId }).lean();
+});
 
 const fetchClientInfoMap = cache(async (): Promise<Map<string, ClientInfo>> => {
   await connectDB();
@@ -1864,10 +1906,7 @@ export async function getMyLeadClientUpcomingEvents(
   todayISO: string,
 ): Promise<(TimelineEvent & { clientId: string; clientName: string; clientPrimaryColor?: string })[]> {
   await connectDB();
-  const clientDocs = await ClientModel.find(
-    { "leads.userId": userId },
-    { _id: 1, company: 1, primaryColor: 1 }
-  ).lean();
+  const clientDocs = await fetchLeadClientDocs(userId);
   if (clientDocs.length === 0) return [];
 
   const clientInfo = new Map<string, { name: string; primaryColor?: string }>(
@@ -1958,10 +1997,7 @@ export async function getMyProjectsOverview(
   userId: string
 ): Promise<MyProjectOverview[]> {
   await connectDB();
-  const clientDocs = await ClientModel.find(
-    { "leads.userId": userId },
-    { _id: 1, company: 1, primaryColor: 1 }
-  ).lean();
+  const clientDocs = await fetchLeadClientDocs(userId);
   if (clientDocs.length === 0) return [];
 
   const clientIds = clientDocs.map((c) => c._id.toString());
@@ -2161,7 +2197,7 @@ export async function getMyLeadClientTasks(userId: string): Promise<MyDayTaskDat
 
   // 1+2. Clients the user leads and assigned tasks run in parallel
   const [leadClientDocs, assignedDocs] = await Promise.all([
-    ClientModel.find({ "leads.userId": userId }, { _id: 1, company: 1, primaryColor: 1 }).lean(),
+    fetchLeadClientDocs(userId),
     TaskModel.find(
       { "assignees.userId": userId, completedAt: null, parentTaskId: { $exists: false } },
       { clientId: 1 }
@@ -2279,28 +2315,29 @@ export async function getMyDayFollowUps(userId: string): Promise<MyDayFollowUpDa
   };
 }
 
-export async function getMyDayUserInfo(userId: string): Promise<MyDayUserInfo> {
+export async function getMyDayUserInfo(userId: string, roleSlug: string): Promise<MyDayUserInfo> {
   await connectDB();
-  const [user, clientDocs, openTaskCount, openFollowUpCount] = await Promise.all([
+  // roleSlug comes from the session token (≤15 min stale, display-only) so the
+  // role-name lookup can run in the first parallel batch instead of waiting on
+  // the user doc; only the project count genuinely depends on stage-1 results.
+  const [user, clientDocs, openTaskCount, openFollowUpCount, roleDoc] = await Promise.all([
     UserModel.findById(userId, { name: 1, image: 1, email: 1, role: 1 }).lean(),
-    ClientModel.find({ "leads.userId": userId }, { _id: 1 }).lean(),
+    fetchLeadClientDocs(userId),
     TaskModel.countDocuments({ "assignees.userId": userId, completedAt: null, parentTaskId: { $exists: false } }),
     LogModel.countDocuments({ createdById: userId, followUp: true, followedUpAt: null }),
+    roleSlug ? RoleModel.findOne({ slug: roleSlug }, { name: 1 }).lean() : Promise.resolve(null),
   ]);
 
   if (!user) {
     return { name: "", image: null, email: "", roleName: "", activeClientCount: 0, activeProjectCount: 0, openTaskCount: 0, openFollowUpCount: 0 };
   }
 
-  const roleSlug = (user.role as string) ?? "";
   const clientIds = clientDocs.map((c) => c._id.toString());
 
-  const [roleDoc, activeProjectCount] = await Promise.all([
-    roleSlug ? RoleModel.findOne({ slug: roleSlug }, { name: 1 }).lean() : Promise.resolve(null),
+  const activeProjectCount =
     clientIds.length > 0
-      ? ProjectModel.countDocuments({ clientId: { $in: clientIds }, status: { $nin: ["draft", "completed"] } })
-      : Promise.resolve(0),
-  ]);
+      ? await ProjectModel.countDocuments({ clientId: { $in: clientIds }, status: { $nin: ["draft", "completed"] } })
+      : 0;
 
   return {
     name: (user.name as string) ?? "",
@@ -2316,21 +2353,26 @@ export async function getMyDayUserInfo(userId: string): Promise<MyDayUserInfo> {
 
 // ── Team / Holiday Calendar ─────────────────────────────────────────
 
+// Read-only in steady state: defaults are seeded at deploy time by
+// scripts/seed-roles.ts; the empty-guard only fires on a fresh dev DB.
+const fetchLeaveTypeDocs = cache(
+  ttlCached("leave-types", async () => {
+    await connectDB();
+    let docs = await LeaveTypeModel.find().sort({ rank: 1, createdAt: 1 }).lean();
+    if (docs.length === 0) {
+      await Promise.all(
+        DEFAULT_LEAVE_TYPES.map((lt, i) =>
+          LeaveTypeModel.updateOne({ slug: lt.slug }, { $setOnInsert: { ...lt, rank: i } }, { upsert: true })
+        )
+      );
+      docs = await LeaveTypeModel.find().sort({ rank: 1, createdAt: 1 }).lean();
+    }
+    return docs;
+  })
+);
+
 export async function getLeaveTypes(): Promise<LeaveType[]> {
-  await connectDB();
-
-  // Upsert any missing defaults (preserves existing customised entries)
-  await Promise.all(
-    DEFAULT_LEAVE_TYPES.map((lt, i) =>
-      LeaveTypeModel.updateOne(
-        { slug: lt.slug },
-        { $setOnInsert: { ...lt, rank: i } },
-        { upsert: true }
-      )
-    )
-  );
-
-  const docs = await LeaveTypeModel.find().sort({ rank: 1, createdAt: 1 }).lean();
+  const docs = await fetchLeaveTypeDocs();
   return docs.map((d) => ({
     id: d._id.toString(),
     slug: d.slug,

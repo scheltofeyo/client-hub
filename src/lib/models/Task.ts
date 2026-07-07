@@ -54,6 +54,9 @@ TaskSchema.index({ "assignees.userId": 1 });
 TaskSchema.index({ parentTaskId: 1, order: 1 });
 // My Day per-user task queries: equality on assignee+completedAt, sort/range on completionDate
 TaskSchema.index({ "assignees.userId": 1, completedAt: 1, completionDate: 1 });
+// Dashboard week-calendar deadline scan across all clients: equality on
+// completedAt (null), range on completionDate.
+TaskSchema.index({ completedAt: 1, completionDate: 1 });
 
 if (mongoose.models.Task) {
   mongoose.deleteModel("Task");

@@ -110,6 +110,28 @@ async function main() {
   // Ensure lead settings singleton exists
   await getLeadSettings();
 
+  // Seed reference-data defaults at deploy time so the app's read paths never
+  // have to upsert them per request ($setOnInsert preserves customised entries).
+  const { EventTypeModel, DEFAULT_EVENT_TYPES } = await import("../src/lib/models/EventType");
+  const { LeaveTypeModel, DEFAULT_LEAVE_TYPES } = await import("../src/lib/models/LeaveType");
+  const { ClientStatusOptionModel, DEFAULT_CLIENT_STATUSES } = await import("../src/lib/models/ClientStatusOption");
+  const { ClientPlatformOptionModel, DEFAULT_CLIENT_PLATFORMS } = await import("../src/lib/models/ClientPlatformOption");
+  await Promise.all([
+    ...DEFAULT_EVENT_TYPES.map((et, i) =>
+      EventTypeModel.updateOne({ slug: et.slug }, { $setOnInsert: { ...et, rank: i } }, { upsert: true })
+    ),
+    ...DEFAULT_LEAVE_TYPES.map((lt, i) =>
+      LeaveTypeModel.updateOne({ slug: lt.slug }, { $setOnInsert: { ...lt, rank: i } }, { upsert: true })
+    ),
+    ...DEFAULT_CLIENT_STATUSES.map((s, i) =>
+      ClientStatusOptionModel.updateOne({ slug: s.slug }, { $setOnInsert: { ...s, rank: i } }, { upsert: true })
+    ),
+    ...DEFAULT_CLIENT_PLATFORMS.map((p, i) =>
+      ClientPlatformOptionModel.updateOne({ slug: p.slug }, { $setOnInsert: { ...p, rank: i } }, { upsert: true })
+    ),
+  ]);
+  console.log("Seeded reference-data defaults (event types, leave types, client statuses, platforms)");
+
   // Sync indexes for every model at deploy time. The app connects with
   // autoIndex disabled in production (see src/lib/mongodb.ts), so this is
   // where new/changed schema indexes actually get built.

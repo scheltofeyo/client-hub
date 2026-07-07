@@ -71,8 +71,8 @@ async function UpcomingEventsSection({ userId, todayISO }: { userId: string; tod
   );
 }
 
-async function UserInfoSection({ userId }: { userId: string }) {
-  const userInfo = await getMyDayUserInfo(userId);
+async function UserInfoSection({ userId, roleSlug }: { userId: string; roleSlug: string }) {
+  const userInfo = await getMyDayUserInfo(userId, roleSlug);
   return <UserInfoCard info={userInfo} />;
 }
 
@@ -220,7 +220,7 @@ export default async function MyDayPage() {
       userInfoSlot={
         <Suspense fallback={<UserInfoSkeleton />}>
           <Reveal index={1}>
-            <UserInfoSection userId={userId} />
+            <UserInfoSection userId={userId} roleSlug={session.user.role ?? ""} />
           </Reveal>
         </Suspense>
       }

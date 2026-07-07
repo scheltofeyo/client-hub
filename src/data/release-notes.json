@@ -1,5 +1,13 @@
 [
   {
+    "date": "2026-07-07",
+    "title": "Sneller navigeren door de app",
+    "details": [
+      "Pagina's reageren sneller doordat er per bezoek flink minder database-verkeer nodig is",
+      "De app wordt tijdens werkuren automatisch warm gehouden, zodat het eerste bezoek van de dag vlotter start"
+    ]
+  },
+  {
     "date": "2026-07-02",
     "title": "Een vrolijkere start van je dag",
     "details": [
