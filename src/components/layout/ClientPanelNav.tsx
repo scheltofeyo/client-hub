@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import React, { useEffect, useState } from "react";
 import { Settings, Briefcase, Sheet, BookOpen, Activity, ChevronRight, ChevronDown, LayoutDashboard, CalendarDays, CheckSquare, Dna } from "lucide-react";
 import type { Client, Project, Sheet as SheetType } from "@/types";
+import { clientColor } from "@/lib/styles";
 
 const tabItems = [
   { tab: "dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -100,6 +101,7 @@ export default function ClientPanelNav({
   const activeSheetId = sheetDetailMatch?.[1] ?? null;
 
   const isOnClientRoot = pathname === `/clients/${client.id}`;
+  const avatarColor = clientColor(client);
 
   function handleTabClick(e: React.MouseEvent, tab: string) {
     // Only intercept when on client root — on sub-routes (e.g. /clients/[id]/projects/[pid]),
@@ -120,7 +122,7 @@ export default function ClientPanelNav({
       <div className="px-4 pt-5 pb-3 shrink-0 flex items-center gap-2.5 min-w-0">
         <span
           className="inline-flex items-center justify-center rounded-md shrink-0 text-[10px] font-bold"
-          style={{ width: 22, height: 22, background: "var(--primary)", color: "#ffffff" }}
+          style={{ width: 22, height: 22, background: avatarColor.bg, color: avatarColor.fg }}
         >
           {initials(client.company)}
         </span>
