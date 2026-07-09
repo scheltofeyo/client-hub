@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { requirePermission } from "@/lib/auth-helpers";
 import { connectDB } from "@/lib/mongodb";
 import { ClientStatusOptionModel, DEFAULT_CLIENT_STATUSES } from "@/lib/models/ClientStatusOption";
+import { invalidateTtl, TTL_KEYS } from "@/lib/ttl-cache";
 
 export async function GET() {
   await connectDB();
@@ -45,6 +46,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const doc = await ClientStatusOptionModel.create({ slug, label: label.trim(), rank, checkInDays: parsedDays });
+    invalidateTtl(TTL_KEYS.clientStatuses);
     return NextResponse.json(
       { id: doc._id.toString(), slug: doc.slug, label: doc.label, rank: doc.rank, checkInDays: doc.checkInDays ?? null },
       { status: 201 }

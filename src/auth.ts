@@ -138,9 +138,15 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
      * un-bumped so the next request retries. This means the first request of
      * the day never blocks first byte on a cold Atlas connection for more
      * than ~3s. Security-wise: under normal DB availability, deactivated
-     * users still lose access within ≤15 min + one request; during a DB
-     * outage stale claims persist, but every data-bearing page and API route
-     * also needs the DB and fails, so the practical exposure is nil.
+     * users still lose access within ≤15 min + one request. The deliberate
+     * tradeoff is a DEGRADED-but-up DB: while Atlas consistently answers
+     * slower than REFRESH_TIMEOUT_MS (but within the 5s serverSelectionTimeout,
+     * so data routes still work), every re-check times out and a deactivated
+     * user / revoked role keeps its stale claims for the duration of the
+     * degradation — each request retries, and the first sub-timeout response
+     * propagates the revocation. During a full DB outage exposure is nil,
+     * since every data-bearing page and API route fails anyway. Accepted
+     * (availability over instant revocation) for our team size.
      *
      * RSC nuance: a token mutated during a server-component render cannot be
      * persisted back into the cookie (cookies can't be set mid-render), so
@@ -196,6 +202,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           ]);
           token.permissions = role?.permissions ?? [];
           token.leadPermissions = leadPerms;
+          // Claims are fresh as of right now — without this the very first
+          // RSC render after login crosses the (lastCheck = 0) boundary and
+          // immediately re-pays the DB re-check it just performed.
+          token.statusCheckedAt = Date.now();
         }
       } else if (token.userId) {
         // Periodic re-check: refresh permissions and invalidate if archived

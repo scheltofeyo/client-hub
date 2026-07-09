@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server";
+import { createHash } from "node:crypto";
+import { NextRequest, NextResponse } from "next/server";
 import mongoose from "mongoose";
 import { connectDB } from "@/lib/mongodb";
 
@@ -10,11 +11,23 @@ export const dynamic = "force-dynamic";
  * pages, one request here boots the function instance AND establishes the
  * Mongoose pool, so the next real user request skips both cold costs.
  *
- * Deliberately unauthenticated (/api/internal/* bypasses the auth middleware
- * by design): it exposes no data and does nothing an anonymous request to any
- * page wouldn't already trigger, plus a DB ping.
+ * Like every /api/internal/ route it bypasses the auth middleware and is
+ * secured by a shared secret instead: the caller sends `x-warmup-key`, a
+ * digest both sides derive from AUTH_SECRET (same Netlify env), so no extra
+ * env var is needed and the raw secret never travels.
  */
-export async function GET() {
+// Twin derivation lives in netlify/functions/warmup.mts (that bundle can't
+// share this module; route files may only export route handlers anyway).
+function warmupKey(): string {
+  return createHash("sha256")
+    .update(`${process.env.AUTH_SECRET}:warmup`)
+    .digest("hex");
+}
+
+export async function GET(request: NextRequest) {
+  if (request.headers.get("x-warmup-key") !== warmupKey()) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   const startedAt = Date.now();
   await connectDB();
   await mongoose.connection.db?.admin().command({ ping: 1 });

@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { requirePermission } from "@/lib/auth-helpers";
 import { connectDB } from "@/lib/mongodb";
 import { ServiceModel } from "@/lib/models/Service";
+import { invalidateTtl, TTL_KEYS } from "@/lib/ttl-cache";
 
 export async function GET() {
   await connectDB();
@@ -28,6 +29,7 @@ export async function POST(req: NextRequest) {
   const last = await ServiceModel.findOne().sort({ rank: -1 }).lean();
   const rank = last ? (last.rank ?? 0) + 1 : 0;
   const doc = await ServiceModel.create({ name: name.trim(), rank, checkInDays: parsedDays });
+  invalidateTtl(TTL_KEYS.services);
   return NextResponse.json(
     { id: doc._id.toString(), name: doc.name, rank: doc.rank, checkInDays: doc.checkInDays ?? null },
     { status: 201 }

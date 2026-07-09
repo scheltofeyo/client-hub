@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { requirePermission } from "@/lib/auth-helpers";
 import { connectDB } from "@/lib/mongodb";
 import { LeaveTypeModel } from "@/lib/models/LeaveType";
+import { invalidateTtl, TTL_KEYS } from "@/lib/ttl-cache";
 
 export async function GET() {
   await connectDB();
@@ -61,6 +62,7 @@ export async function POST(req: NextRequest) {
     countsAgainstAllowance: countsAgainstAllowance ?? false,
   });
 
+  invalidateTtl(TTL_KEYS.leaveTypes);
   return NextResponse.json(
     {
       id: doc._id.toString(),

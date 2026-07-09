@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { requirePermission } from "@/lib/auth-helpers";
 import { connectDB } from "@/lib/mongodb";
 import { ArchetypeModel } from "@/lib/models/Archetype";
+import { invalidateTtl, TTL_KEYS } from "@/lib/ttl-cache";
 
 export async function PATCH(
   req: NextRequest,
@@ -34,6 +35,7 @@ export async function PATCH(
   const doc = await ArchetypeModel.findByIdAndUpdate(id, { $set: update }, { new: true }).lean();
   if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+  invalidateTtl(TTL_KEYS.archetypes);
   return NextResponse.json({
     id: doc._id.toString(),
     name: doc.name,
@@ -56,5 +58,6 @@ export async function DELETE(
   const doc = await ArchetypeModel.findByIdAndDelete(id).lean();
   if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+  invalidateTtl(TTL_KEYS.archetypes);
   return NextResponse.json({ success: true });
 }

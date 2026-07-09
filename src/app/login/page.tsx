@@ -13,12 +13,25 @@ export default function LoginPage() {
   async function signInAction(formData: FormData) {
     "use server";
     const raw = formData.get("callbackUrl");
-    // Only allow same-app relative paths — anything else falls back to My Day
-    // so the hidden input can't be abused as an open redirect. The fallback
-    // carries ?welcome=1 (a fresh login, not a mid-session re-auth), which
-    // triggers the WelcomeOverlay branded moment exactly once.
-    const callbackUrl =
-      typeof raw === "string" && raw.startsWith("/") && !raw.startsWith("//") ? raw : "/my-day?welcome=1";
+    // Auth.js middleware puts the ABSOLUTE request URL in callbackUrl when it
+    // bounces a logged-out deep link to /login, so absolute values must be
+    // honored too — but only their path+query+hash, re-rooted on our own
+    // origin. That keeps the hidden input useless as an open redirect
+    // (https://evil.com/x just becomes local /x) without needing an env-based
+    // origin comparison. Anything unparsable falls back to My Day. The
+    // WelcomeOverlay branded moment is triggered by the first My Day view of
+    // the browser session (see WelcomeOverlay.tsx), not by a login-only param.
+    let callbackUrl = "/my-day";
+    if (typeof raw === "string" && raw.startsWith("/") && !raw.startsWith("//")) {
+      callbackUrl = raw;
+    } else if (typeof raw === "string" && raw) {
+      try {
+        const url = new URL(raw);
+        callbackUrl = url.pathname + url.search + url.hash;
+      } catch {
+        // keep the /my-day fallback
+      }
+    }
     await signIn("google", { redirectTo: callbackUrl });
   }
 

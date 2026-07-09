@@ -1,11 +1,8 @@
-import { Suspense } from "react";
 import IconNav from "@/components/layout/IconNav";
 import PanelNav from "@/components/layout/PanelNav";
 import SessionProviderWrapper from "@/components/layout/SessionProviderWrapper";
 import { RightPanelProvider } from "@/components/layout/RightPanel";
 import WhatsNewLauncher from "@/components/ui/WhatsNewLauncher";
-import WelcomeOverlay from "@/components/ui/WelcomeOverlay";
-import SessionStatusPing from "@/components/layout/SessionStatusPing";
 import { getSession } from "@/auth";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -41,12 +38,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </div>
       </div>
       <WhatsNewLauncher />
-      <SessionStatusPing />
-      {/* Post-login branded moment — useSearchParams requires the Suspense
-          wrapper; renders null on every navigation without ?welcome=1 */}
-      <Suspense fallback={null}>
-        <WelcomeOverlay />
-      </Suspense>
     </SessionProviderWrapper>
   );
 }

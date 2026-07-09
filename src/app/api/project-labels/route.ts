@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { requirePermission } from "@/lib/auth-helpers";
 import { connectDB } from "@/lib/mongodb";
 import { ProjectLabelModel } from "@/lib/models/ProjectLabel";
+import { invalidateTtl, TTL_KEYS } from "@/lib/ttl-cache";
 
 const DEFAULT_LABELS = ["New Business", "Platform", "Next Business"];
 
@@ -34,6 +35,7 @@ export async function POST(req: NextRequest) {
   const last = await ProjectLabelModel.findOne().sort({ rank: -1 }).lean();
   const rank = last ? (last.rank ?? 0) + 1 : 0;
   const doc = await ProjectLabelModel.create({ name: name.trim(), rank });
+  invalidateTtl(TTL_KEYS.projectLabels);
   return NextResponse.json(
     { id: doc._id.toString(), name: doc.name, rank: doc.rank },
     { status: 201 }

@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { requirePermission } from "@/lib/auth-helpers";
 import { connectDB } from "@/lib/mongodb";
 import { ClientPlatformOptionModel } from "@/lib/models/ClientPlatformOption";
+import { invalidateTtl, TTL_KEYS } from "@/lib/ttl-cache";
 
 export async function PATCH(
   req: NextRequest,
@@ -26,6 +27,7 @@ export async function PATCH(
       { new: true }
     ).lean();
     if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    invalidateTtl(TTL_KEYS.clientPlatforms);
     return NextResponse.json({ id: doc._id.toString(), slug: doc.slug, label: doc.label, rank: doc.rank });
   } catch {
     return NextResponse.json({ error: "Label already exists" }, { status: 409 });
@@ -44,5 +46,6 @@ export async function DELETE(
   await connectDB();
   const doc = await ClientPlatformOptionModel.findByIdAndDelete(id).lean();
   if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  invalidateTtl(TTL_KEYS.clientPlatforms);
   return NextResponse.json({ success: true });
 }

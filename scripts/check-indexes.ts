@@ -137,7 +137,10 @@ async function main() {
       .collection(c.coll)
       .find(c.filter)
       .sort(c.sort)
-      .explain("executionStats")) as Record<string, any>;
+      .explain("executionStats")) as {
+      queryPlanner?: { winningPlan?: Plan };
+      executionStats?: Record<string, unknown>;
+    };
     const a = analyzePlan(exp.queryPlanner?.winningPlan);
     const es = exp.executionStats ?? {};
     const verdict = a.fullScan ? "COLLSCAN ❌" : a.usesIndex ? `IXSCAN ✅ (${a.indexName})` : "??";

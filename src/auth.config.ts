@@ -39,13 +39,28 @@ export const authConfig: NextAuthConfig = {
     },
   },
   callbacks: {
+    // Edge-only session mapping: expose the custom userId claim so `authorized`
+    // can tell a live session from a revoked one. The jwt callback in
+    // src/auth.ts zeroes token.userId when a user is deactivated, but the
+    // cookie itself stays decodable — without this check the /login redirect
+    // below would bounce deactivated users back into the app forever
+    // (/my-day → /api/auth/signin → /login → /my-day). The full app uses the
+    // richer callbacks in src/auth.ts, which replace (not spread) these.
+    session({ session, token }) {
+      session.user.id = (token.userId as string) ?? "";
+      return session;
+    },
     authorized({ auth, request }) {
       const { pathname } = request.nextUrl;
       // Signed-in users get bounced away from /login here at the edge (a free
       // JWT decode) so the login page itself can stay fully static — it no
-      // longer calls auth() and is served straight from the CDN.
+      // longer calls auth() and is served straight from the CDN. Only sessions
+      // with a live userId bounce; a decodable-but-revoked cookie (deactivated
+      // user) falls through to the login page so they can see the error state.
       if (pathname === "/login") {
-        return auth ? Response.redirect(new URL("/my-day", request.nextUrl)) : true;
+        return auth?.user?.id
+          ? Response.redirect(new URL("/my-day", request.nextUrl))
+          : true;
       }
       if (pathname.startsWith("/api/auth") || pathname.startsWith("/api/internal/") || pathname.startsWith("/api/public/") || pathname.startsWith("/ranking/") || pathname.startsWith("/proposal/") || pathname.startsWith("/s/") || pathname.startsWith("/archetype-as-is-survey/")) return true;
       return !!auth;

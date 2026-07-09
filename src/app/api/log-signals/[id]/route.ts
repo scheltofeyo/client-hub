@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { requirePermission } from "@/lib/auth-helpers";
 import { connectDB } from "@/lib/mongodb";
 import { LogSignalModel } from "@/lib/models/LogSignal";
+import { invalidateTtl, TTL_KEYS } from "@/lib/ttl-cache";
 
 export async function PATCH(
   req: NextRequest,
@@ -26,6 +27,7 @@ export async function PATCH(
   ).lean();
   if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+  invalidateTtl(TTL_KEYS.logSignals);
   return NextResponse.json({ id: doc._id.toString(), name: doc.name, rank: doc.rank ?? 0 });
 }
 
@@ -40,5 +42,6 @@ export async function DELETE(
   const { id } = await params;
   await connectDB();
   await LogSignalModel.findByIdAndDelete(id);
+  invalidateTtl(TTL_KEYS.logSignals);
   return new NextResponse(null, { status: 204 });
 }

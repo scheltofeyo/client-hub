@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { requirePermission } from "@/lib/auth-helpers";
 import { connectDB } from "@/lib/mongodb";
 import { ClientPlatformOptionModel } from "@/lib/models/ClientPlatformOption";
+import { invalidateTtl, TTL_KEYS } from "@/lib/ttl-cache";
 
 export async function POST(req: NextRequest) {
   const session = await auth();
@@ -20,6 +21,7 @@ export async function POST(req: NextRequest) {
       ClientPlatformOptionModel.findByIdAndUpdate(id, { $set: { rank: index } })
     )
   );
+  invalidateTtl(TTL_KEYS.clientPlatforms);
 
   return NextResponse.json({ success: true });
 }

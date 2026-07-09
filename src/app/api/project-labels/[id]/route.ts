@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { requirePermission } from "@/lib/auth-helpers";
 import { connectDB } from "@/lib/mongodb";
 import { ProjectLabelModel } from "@/lib/models/ProjectLabel";
+import { invalidateTtl, TTL_KEYS } from "@/lib/ttl-cache";
 
 export async function PATCH(
   req: NextRequest,
@@ -26,6 +27,7 @@ export async function PATCH(
   ).lean();
   if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+  invalidateTtl(TTL_KEYS.projectLabels);
   return NextResponse.json({ id: doc._id.toString(), name: doc.name, rank: doc.rank });
 }
 
@@ -42,5 +44,6 @@ export async function DELETE(
   const doc = await ProjectLabelModel.findByIdAndDelete(id).lean();
   if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+  invalidateTtl(TTL_KEYS.projectLabels);
   return NextResponse.json({ success: true });
 }

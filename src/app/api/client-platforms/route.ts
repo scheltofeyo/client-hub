@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { requirePermission } from "@/lib/auth-helpers";
 import { connectDB } from "@/lib/mongodb";
 import { ClientPlatformOptionModel, DEFAULT_CLIENT_PLATFORMS } from "@/lib/models/ClientPlatformOption";
+import { invalidateTtl, TTL_KEYS } from "@/lib/ttl-cache";
 
 export async function GET() {
   await connectDB();
@@ -43,6 +44,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const doc = await ClientPlatformOptionModel.create({ slug, label: label.trim(), rank });
+    invalidateTtl(TTL_KEYS.clientPlatforms);
     return NextResponse.json(
       { id: doc._id.toString(), slug: doc.slug, label: doc.label, rank: doc.rank },
       { status: 201 }

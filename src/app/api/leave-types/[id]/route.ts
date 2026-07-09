@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { requirePermission } from "@/lib/auth-helpers";
 import { connectDB } from "@/lib/mongodb";
 import { LeaveTypeModel, DEFAULT_LEAVE_TYPES } from "@/lib/models/LeaveType";
+import { invalidateTtl, TTL_KEYS } from "@/lib/ttl-cache";
 
 const SYSTEM_SLUGS = new Set(DEFAULT_LEAVE_TYPES.map((lt) => lt.slug));
 
@@ -31,6 +32,7 @@ export async function PATCH(
 
   if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+  invalidateTtl(TTL_KEYS.leaveTypes);
   return NextResponse.json({
     id: doc._id.toString(),
     slug: doc.slug,
@@ -60,5 +62,6 @@ export async function DELETE(
   }
 
   await LeaveTypeModel.findByIdAndDelete(id);
+  invalidateTtl(TTL_KEYS.leaveTypes);
   return NextResponse.json({ success: true });
 }

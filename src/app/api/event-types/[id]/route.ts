@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { requirePermission } from "@/lib/auth-helpers";
 import { connectDB } from "@/lib/mongodb";
 import { EventTypeModel, SYSTEM_EVENT_TYPE_SLUGS } from "@/lib/models/EventType";
+import { invalidateTtl, TTL_KEYS } from "@/lib/ttl-cache";
 
 export async function PATCH(
   req: NextRequest,
@@ -34,6 +35,7 @@ export async function PATCH(
 
   if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+  invalidateTtl(TTL_KEYS.eventTypes);
   return NextResponse.json({
     id: doc._id.toString(),
     slug: doc.slug,
@@ -60,6 +62,7 @@ export async function DELETE(
     return NextResponse.json({ error: "System event types cannot be deleted" }, { status: 403 });
   }
   await EventTypeModel.findByIdAndDelete(id);
+  invalidateTtl(TTL_KEYS.eventTypes);
 
   return NextResponse.json({ success: true });
 }

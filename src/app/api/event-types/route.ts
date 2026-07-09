@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { requirePermission } from "@/lib/auth-helpers";
 import { connectDB } from "@/lib/mongodb";
 import { EventTypeModel } from "@/lib/models/EventType";
+import { invalidateTtl, TTL_KEYS } from "@/lib/ttl-cache";
 
 export async function GET() {
   await connectDB();
@@ -59,6 +60,7 @@ export async function POST(req: NextRequest) {
     rank,
   });
 
+  invalidateTtl(TTL_KEYS.eventTypes);
   return NextResponse.json(
     {
       id: doc._id.toString(),

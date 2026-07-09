@@ -47,7 +47,6 @@ next-env.d.ts
 /.claude/plans/
 
 # Claude Code skills + designer-skills plugin commands (local-only, not part of the codebase)
-/.claude/skills/
 /.claude/commands/design-ops/
 /.claude/commands/design-research/
 /.claude/commands/design-systems/

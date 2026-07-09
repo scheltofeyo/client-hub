@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 import { cache } from "react";
 import { connectDB } from "./mongodb";
 import { withRetry } from "./db-retry";
-import { ttlCached } from "./ttl-cache";
+import { ttlCached, TTL_KEYS } from "./ttl-cache";
 import { ClientModel } from "./models/Client";
 import { UserModel } from "./models/User";
 import { ProjectModel, calculateExternalCost } from "./models/Project";
@@ -77,21 +77,34 @@ function mapClient(doc: ReturnType<typeof Object.assign>, archetypeMap?: Map<str
 // Reference-data fetchers: React.cache() dedupes within one request render
 // tree (layout + page share a single call); ttlCached() additionally reuses
 // the result across requests on a warm instance for 60s — these collections
-// are admin-edited near-static lists, so the staleness window is acceptable.
-// The docs are shared across requests: treat them as immutable.
-const fetchArchetypeDocs = cache(
-  ttlCached("archetypes", async () => {
-    await connectDB();
-    return ArchetypeModel.find().sort({ rank: 1, createdAt: 1 }).lean();
-  })
-);
+// are admin-edited near-static lists, so the staleness window is acceptable
+// (and the mutation routes evict via invalidateTtl on the instance that
+// processed the edit). The docs are shared across requests: treat them as
+// immutable. `seedDefaults` only fires on an empty collection (fresh dev DB —
+// production is seeded at deploy time by scripts/seed-roles.ts) and must use
+// $setOnInsert upserts so it can never clobber concurrent writes.
+function refDataFetcher<TDoc>(
+  key: string,
+  model: mongoose.Model<TDoc>,
+  seedDefaults?: () => Promise<unknown>
+) {
+  const fetchAll = () => model.find().sort({ rank: 1, createdAt: 1 }).lean();
+  return cache(
+    ttlCached(key, async () => {
+      await connectDB();
+      let docs = await fetchAll();
+      if (docs.length === 0 && seedDefaults) {
+        await seedDefaults();
+        docs = await fetchAll();
+      }
+      return docs;
+    })
+  );
+}
 
-const fetchServiceDocs = cache(
-  ttlCached("services", async () => {
-    await connectDB();
-    return ServiceModel.find().sort({ rank: 1, createdAt: 1 }).lean();
-  })
-);
+const fetchArchetypeDocs = refDataFetcher(TTL_KEYS.archetypes, ArchetypeModel);
+
+const fetchServiceDocs = refDataFetcher(TTL_KEYS.services, ServiceModel);
 
 async function buildArchetypeMap(): Promise<Map<string, string>> {
   const docs = await fetchArchetypeDocs();
@@ -107,28 +120,20 @@ async function buildServiceMap(): Promise<Map<string, string>> {
   return map;
 }
 
-const fetchClientStatusDocs = cache(
-  ttlCached("client-statuses", async () => {
-    await connectDB();
-    let docs = await ClientStatusOptionModel.find().sort({ rank: 1, createdAt: 1 }).lean();
-    if (docs.length === 0) {
-      await Promise.all(DEFAULT_CLIENT_STATUSES.map((s, i) => ClientStatusOptionModel.create({ ...s, rank: i })));
-      docs = await ClientStatusOptionModel.find().sort({ rank: 1, createdAt: 1 }).lean();
-    }
-    return docs;
-  })
+const fetchClientStatusDocs = refDataFetcher(TTL_KEYS.clientStatuses, ClientStatusOptionModel, () =>
+  Promise.all(
+    DEFAULT_CLIENT_STATUSES.map((s, i) =>
+      ClientStatusOptionModel.updateOne({ slug: s.slug }, { $setOnInsert: { ...s, rank: i } }, { upsert: true })
+    )
+  )
 );
 
-const fetchClientPlatformDocs = cache(
-  ttlCached("client-platforms", async () => {
-    await connectDB();
-    let docs = await ClientPlatformOptionModel.find().sort({ rank: 1, createdAt: 1 }).lean();
-    if (docs.length === 0) {
-      await Promise.all(DEFAULT_CLIENT_PLATFORMS.map((p, i) => ClientPlatformOptionModel.create({ ...p, rank: i })));
-      docs = await ClientPlatformOptionModel.find().sort({ rank: 1, createdAt: 1 }).lean();
-    }
-    return docs;
-  })
+const fetchClientPlatformDocs = refDataFetcher(TTL_KEYS.clientPlatforms, ClientPlatformOptionModel, () =>
+  Promise.all(
+    DEFAULT_CLIENT_PLATFORMS.map((p, i) =>
+      ClientPlatformOptionModel.updateOne({ slug: p.slug }, { $setOnInsert: { ...p, rank: i } }, { upsert: true })
+    )
+  )
 );
 
 async function buildPlatformLabelMap(): Promise<Map<string, string>> {
@@ -397,17 +402,14 @@ export async function getProjectRoles(): Promise<ProjectRole[]> {
   }));
 }
 
-const fetchProjectLabelDocs = cache(
-  ttlCached("project-labels", async () => {
-    await connectDB();
-    const DEFAULT_LABELS = ["New Business", "Platform", "Next Business"];
-    let docs = await ProjectLabelModel.find().sort({ rank: 1, createdAt: 1 }).lean();
-    if (docs.length === 0) {
-      await Promise.all(DEFAULT_LABELS.map((name, i) => ProjectLabelModel.create({ name, rank: i })));
-      docs = await ProjectLabelModel.find().sort({ rank: 1, createdAt: 1 }).lean();
-    }
-    return docs;
-  })
+const DEFAULT_PROJECT_LABELS = ["New Business", "Platform", "Next Business"];
+
+const fetchProjectLabelDocs = refDataFetcher(TTL_KEYS.projectLabels, ProjectLabelModel, () =>
+  Promise.all(
+    DEFAULT_PROJECT_LABELS.map((name, i) =>
+      ProjectLabelModel.updateOne({ name }, { $setOnInsert: { name, rank: i } }, { upsert: true })
+    )
+  )
 );
 
 export async function getProjectLabels(): Promise<ProjectLabel[]> {
@@ -427,12 +429,7 @@ async function buildProjectLabelMap(): Promise<Map<string, string>> {
   return map;
 }
 
-const fetchLogSignalDocs = cache(
-  ttlCached("log-signals", async () => {
-    await connectDB();
-    return LogSignalModel.find().sort({ rank: 1, createdAt: 1 }).lean();
-  })
-);
+const fetchLogSignalDocs = refDataFetcher(TTL_KEYS.logSignals, LogSignalModel);
 
 export async function getLogSignals(): Promise<LogSignal[]> {
   const docs = await fetchLogSignalDocs();
@@ -1322,22 +1319,12 @@ export async function getTasksByProjectIds(projectIds: string[]): Promise<Map<st
   return map;
 }
 
-// Read-only in steady state: defaults are seeded at deploy time by
-// scripts/seed-roles.ts; the empty-guard only fires on a fresh dev DB.
-const fetchEventTypeDocs = cache(
-  ttlCached("event-types", async () => {
-    await connectDB();
-    let docs = await EventTypeModel.find().sort({ rank: 1, createdAt: 1 }).lean();
-    if (docs.length === 0) {
-      await Promise.all(
-        DEFAULT_EVENT_TYPES.map((et, i) =>
-          EventTypeModel.updateOne({ slug: et.slug }, { $setOnInsert: { ...et, rank: i } }, { upsert: true })
-        )
-      );
-      docs = await EventTypeModel.find().sort({ rank: 1, createdAt: 1 }).lean();
-    }
-    return docs;
-  })
+const fetchEventTypeDocs = refDataFetcher(TTL_KEYS.eventTypes, EventTypeModel, () =>
+  Promise.all(
+    DEFAULT_EVENT_TYPES.map((et, i) =>
+      EventTypeModel.updateOne({ slug: et.slug }, { $setOnInsert: { ...et, rank: i } }, { upsert: true })
+    )
+  )
 );
 
 export async function getEventTypes(): Promise<EventType[]> {
@@ -2353,22 +2340,12 @@ export async function getMyDayUserInfo(userId: string, roleSlug: string): Promis
 
 // ── Team / Holiday Calendar ─────────────────────────────────────────
 
-// Read-only in steady state: defaults are seeded at deploy time by
-// scripts/seed-roles.ts; the empty-guard only fires on a fresh dev DB.
-const fetchLeaveTypeDocs = cache(
-  ttlCached("leave-types", async () => {
-    await connectDB();
-    let docs = await LeaveTypeModel.find().sort({ rank: 1, createdAt: 1 }).lean();
-    if (docs.length === 0) {
-      await Promise.all(
-        DEFAULT_LEAVE_TYPES.map((lt, i) =>
-          LeaveTypeModel.updateOne({ slug: lt.slug }, { $setOnInsert: { ...lt, rank: i } }, { upsert: true })
-        )
-      );
-      docs = await LeaveTypeModel.find().sort({ rank: 1, createdAt: 1 }).lean();
-    }
-    return docs;
-  })
+const fetchLeaveTypeDocs = refDataFetcher(TTL_KEYS.leaveTypes, LeaveTypeModel, () =>
+  Promise.all(
+    DEFAULT_LEAVE_TYPES.map((lt, i) =>
+      LeaveTypeModel.updateOne({ slug: lt.slug }, { $setOnInsert: { ...lt, rank: i } }, { upsert: true })
+    )
+  )
 );
 
 export async function getLeaveTypes(): Promise<LeaveType[]> {

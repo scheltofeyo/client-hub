@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { requirePermission } from "@/lib/auth-helpers";
 import { connectDB } from "@/lib/mongodb";
 import { ArchetypeModel } from "@/lib/models/Archetype";
+import { invalidateTtl, TTL_KEYS } from "@/lib/ttl-cache";
 
 const DEFAULT_COLOR = "#7C3AED";
 
@@ -39,6 +40,7 @@ export async function POST(req: NextRequest) {
     color: typeof color === "string" && color.trim() ? color.trim() : DEFAULT_COLOR,
     description: typeof description === "string" && description.trim() ? description.trim() : undefined,
   });
+  invalidateTtl(TTL_KEYS.archetypes);
   return NextResponse.json(
     {
       id: doc._id.toString(),

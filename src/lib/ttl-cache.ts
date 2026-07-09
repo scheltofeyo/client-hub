@@ -11,6 +11,22 @@
  * requests). Rejected promises are evicted immediately, never cached.
  */
 
+/**
+ * Cache keys for the TTL-cached reference collections. Single source of truth
+ * shared by the fetchers in src/lib/data.ts and the mutation routes that must
+ * evict after a write (invalidateTtl) so key and eviction can't drift apart.
+ */
+export const TTL_KEYS = {
+  archetypes: "archetypes",
+  services: "services",
+  clientStatuses: "client-statuses",
+  clientPlatforms: "client-platforms",
+  projectLabels: "project-labels",
+  logSignals: "log-signals",
+  eventTypes: "event-types",
+  leaveTypes: "leave-types",
+} as const;
+
 type Entry = { value: Promise<unknown>; expiresAt: number };
 
 const store = new Map<string, Entry>();

@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { requirePermission } from "@/lib/auth-helpers";
 import { connectDB } from "@/lib/mongodb";
 import { ServiceModel } from "@/lib/models/Service";
+import { invalidateTtl, TTL_KEYS } from "@/lib/ttl-cache";
 
 export async function PATCH(
   req: NextRequest,
@@ -29,6 +30,7 @@ export async function PATCH(
     ).lean();
     if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+    invalidateTtl(TTL_KEYS.services);
     return NextResponse.json({ id: doc._id.toString(), name: doc.name, rank: doc.rank ?? 0, checkInDays: doc.checkInDays ?? null });
   } catch {
     return NextResponse.json({ error: "Name already exists" }, { status: 409 });
@@ -48,5 +50,6 @@ export async function DELETE(
   const doc = await ServiceModel.findByIdAndDelete(id).lean();
   if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+  invalidateTtl(TTL_KEYS.services);
   return NextResponse.json({ success: true });
 }

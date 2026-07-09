@@ -11,6 +11,7 @@ import {
   getEventTypes,
 } from "@/lib/data";
 import MyDayDashboardV2 from "@/components/my-day/MyDayDashboardV2";
+import WelcomeOverlay from "@/components/ui/WelcomeOverlay";
 import ClientsTimeline from "@/components/ui/ClientsTimeline";
 import MyDayTasksSection from "@/components/my-day/MyDayTasksSection";
 import MyDayUpcomingEventsSection from "@/components/my-day/MyDayUpcomingEventsSection";
@@ -194,8 +195,13 @@ export default async function MyDayPage() {
   // each one streams in. Indexes stagger same-flush arrivals into a cascade
   // (greeting leads at 0, right rail parallels the tasks column).
   return (
-    <MyDayDashboardV2
-      firstName={firstName}
+    <>
+      {/* Rendered outside the Suspense sections so it lands in the first SSR
+          flush and is the very first painted frame — covering the streaming
+          skeletons. Once-per-session guard + fade-out live in the component. */}
+      <WelcomeOverlay />
+      <MyDayDashboardV2
+        firstName={firstName}
       ganttSlot={
         <Suspense fallback={<GanttSkeleton />}>
           <Reveal index={3}>
@@ -224,6 +230,7 @@ export default async function MyDayPage() {
           </Reveal>
         </Suspense>
       }
-    />
+      />
+    </>
   );
 }

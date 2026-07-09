@@ -132,19 +132,31 @@ async function main() {
   ]);
   console.log("Seeded reference-data defaults (event types, leave types, client statuses, platforms)");
 
-  // Sync indexes for every model at deploy time. The app connects with
+  // Build indexes for every model at deploy time. The app connects with
   // autoIndex disabled in production (see src/lib/mongodb.ts), so this is
-  // where new/changed schema indexes actually get built.
+  // where new/changed schema indexes actually get built. createIndexes (not
+  // syncIndexes) on purpose: syncIndexes DROPS any index that exists in the
+  // database but not in a schema — including hotfix/perf indexes created
+  // directly in Atlas — so removing a schema index now requires manual
+  // cleanup in Atlas. Failures are logged but never fail the deploy: a
+  // missing index degrades performance, a blocked deploy blocks everything.
   const { readdirSync } = await import("fs");
   const modelsDir = resolve(__dirname, "..", "src", "lib", "models");
-  for (const file of readdirSync(modelsDir)) {
-    if (!file.endsWith(".ts")) continue;
-    await import(resolve(modelsDir, file));
-  }
-  for (const name of mongoose.modelNames()) {
-    await mongoose.model(name).syncIndexes();
-  }
-  console.log(`Synced indexes for ${mongoose.modelNames().length} models`);
+  await Promise.all(
+    readdirSync(modelsDir)
+      .filter((file) => file.endsWith(".ts"))
+      .map((file) => import(resolve(modelsDir, file)))
+  );
+  await Promise.all(
+    mongoose.modelNames().map(async (name) => {
+      try {
+        await mongoose.model(name).createIndexes();
+      } catch (err) {
+        console.error(`Index build failed for model ${name}:`, err);
+      }
+    })
+  );
+  console.log(`Ensured indexes for ${mongoose.modelNames().length} models`);
 
   console.log("Seed complete");
   await mongoose.disconnect();

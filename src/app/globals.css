@@ -968,6 +968,14 @@ select:not(.appearance-none):not([multiple]):not([size]) {
   }
 }
 
+/* Pre-paint guard for the My Day welcome overlay: the welcomeInitScript in the
+   root layout sets data-welcome-hide on <html> for an already-welcomed reload,
+   hiding the server-rendered overlay before it can flash. WelcomeOverlay clears
+   the attribute and unmounts itself on mount. */
+html[data-welcome-hide] .welcome-overlay {
+  display: none !important;
+}
+
 /* ── SUMM mark tile shimmer (BrandLoader / WelcomeOverlay) ───────────────── */
 
 /* Each tile dips from its resting opacity (set via --summ-tile-base on the
