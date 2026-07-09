@@ -24,6 +24,9 @@ const warmup = async () => {
 
 export default warmup;
 
-// UTC cron: every 10 min, 05:00–16:59 UTC on weekdays — roughly 07:00–18:59
-// CEST / 06:00–17:59 CET working hours. Adjust to taste.
-export const config = { schedule: "*/10 5-16 * * 1-5" };
+// UTC cron: every 5 min, 04:00–20:59 UTC on weekdays — roughly 06:00–22:59
+// CEST / 05:00–21:59 CET, comfortably covering early-start and late-finish
+// working hours. Every 5 min (was 10) halves the worst-case idle window a real
+// request can fall into after the pooled instance has scaled down. Netlify
+// scheduled functions run only on the published production deploy.
+export const config = { schedule: "*/5 4-20 * * 1-5" };

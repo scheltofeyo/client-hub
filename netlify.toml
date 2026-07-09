@@ -4,3 +4,9 @@
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
+
+# Local plugin: pings the keep-warm endpoint right after a production deploy
+# goes live, so the first real user doesn't pay the cold function + cold Atlas
+# dial. Steady-state warmth is handled by netlify/functions/warmup.mts.
+[[plugins]]
+  package = "/plugins/warmup-on-deploy"

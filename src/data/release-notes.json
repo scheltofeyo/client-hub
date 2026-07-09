@@ -1,5 +1,14 @@
 [
   {
+    "date": "2026-07-09",
+    "title": "Foutscherm na inloggen verholpen",
+    "details": [
+      "Na een nieuwe versie kon de inlogpagina soms een verouderde, gecachte versie tonen waardoor je 'Er ging iets mis' te zien kreeg — dit herstelt nu automatisch",
+      "De app laadt zichzelf eenmalig opnieuw wanneer hij verouderde onderdelen tegenkomt, in plaats van een foutscherm te tonen",
+      "Het eerste bezoek vlak na een nieuwe versie start sneller doordat de app direct na uitrol warm wordt gehouden"
+    ]
+  },
+  {
     "date": "2026-07-08",
     "title": "Welkomstmoment bij elk nieuw bezoek",
     "details": [

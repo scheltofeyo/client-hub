@@ -3,12 +3,18 @@ import { signIn } from "@/auth";
 import LoginForm from "./LoginForm";
 import SummMark from "@/components/ui/SummMark";
 
-// This page is intentionally static: it reads no session and no searchParams
-// on the server, so it prerenders at build time and is served from the CDN —
-// no serverless function on the cold morning path. Signed-in users never see
-// it: the middleware (`authorized` in src/auth.config.ts) redirects them to
-// /my-day at the edge. The error banner and callbackUrl are handled
-// client-side in <LoginForm>.
+// Rendered per-request instead of prerendered-and-CDN-cached. As a static page
+// this was the auth flow's cached entry point, and its HTML embeds the build's
+// content-hashed chunk URLs — so after a deploy a returning browser (or a
+// not-yet-purged CDN node) would serve the previous build's /login, whose
+// chunks the new build had replaced → ChunkLoadError → the root error screen.
+// `force-dynamic` keeps the login HTML pinned to the current build. The render
+// is trivial (no session, no DB, no searchParams on the server), so the cost is
+// a bare function invocation. Signed-in users never reach it: the middleware
+// (`authorized` in src/auth.config.ts) redirects them to /my-day at the edge.
+// The error banner and callbackUrl are handled client-side in <LoginForm>.
+export const dynamic = "force-dynamic";
+
 export default function LoginPage() {
   async function signInAction(formData: FormData) {
     "use server";

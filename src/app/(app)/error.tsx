@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
+import { attemptStaleChunkRecovery } from "@/lib/client-error-recovery";
 
 export default function AppError({
   error,
@@ -11,6 +12,9 @@ export default function AppError({
   reset: () => void;
 }) {
   useEffect(() => {
+    // A post-deploy stale-chunk failure auto-reloads once to pick up the
+    // current build rather than showing the error card.
+    if (attemptStaleChunkRecovery(error)) return;
     // Log to console so Netlify Functions logs capture it. The digest is the
     // server-side correlation id for matching this client display to the
     // function-side stack.

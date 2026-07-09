@@ -1,11 +1,16 @@
 "use client";
 
 import { useEffect } from "react";
+import { attemptStaleChunkRecovery } from "@/lib/client-error-recovery";
 
 /**
  * Last-resort boundary that catches errors thrown above the (app) layout
  * (root layout, themes script, etc). Next 15 requires this file to render
  * its own <html> and <body> because the root layout itself may have failed.
+ *
+ * A post-deploy stale-chunk failure lands here too (a cached document asking
+ * for JS chunks the new build replaced). We auto-reload once to fetch the
+ * current build instead of stranding the user on the error card.
  */
 export default function GlobalError({
   error,
@@ -15,6 +20,7 @@ export default function GlobalError({
   reset: () => void;
 }) {
   useEffect(() => {
+    if (attemptStaleChunkRecovery(error)) return;
     console.error("Global error boundary:", error.digest, error);
   }, [error]);
 
