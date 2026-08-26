@@ -4,7 +4,7 @@
     "title": "Werk vanuit de Claude-app rechtstreeks in de hub",
     "details": [
       "Voeg SUMM Hub toe als connector in de Claude-app en log in met je gewone Google-account — er valt niets te installeren en je hoeft geen token over te tikken",
-      "Je kunt klanten en prospects opzoeken, de verkoopborden lezen en een kaart naar een andere fase verplaatsen, logboekregels schrijven en taken aanmaken, aanpassen en afvinken",
+      "Je kunt klanten en prospects opzoeken en aanmaken, de verkoopborden lezen, een prospect op een bord zetten en een kaart naar een andere fase verplaatsen, logboekregels schrijven en taken aanmaken, aanpassen en afvinken",
       "Taken werken precies als in de hub: ze hangen aan een klant en mogen onder een project of een bestaande taak vallen, subtaken gaan mee bij het afvinken, een logboeknotitie wordt als opgevolgd gemarkeerd en de projectstatus wordt bijgewerkt",
       "Je ziet vooraf wat de app namens jou mag en je kunt niets weggeven wat je zelf niet hebt; mist een koppeling een recht, dan krijg je een duidelijke melding en wordt er niets gewijzigd",
       "Onder Profiel > Integrations staat welke apps gekoppeld zijn en wanneer ze voor het laatst iets deden — verbreken werkt onmiddellijk. Daar maak je ook een persoonlijk API-token aan voor je eigen Claude Code of een geplande taak, eventueel beperkt tot precies de nodige rechten en met een vervaldatum",
