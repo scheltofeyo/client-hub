@@ -6,7 +6,13 @@ import { permissionLabel } from "@/lib/permissions";
 import { connectDB } from "@/lib/mongodb";
 import { OAuthClientModel } from "@/lib/models/OAuthClient";
 import { hubOrigin, mcpResource, resourceMatches, signConsent } from "@/lib/oauth";
-import { BASELINE_ACCESS_LABEL, MCP_SCOPES, parseScopeParam } from "@/lib/mcp/scopes";
+import {
+  BASELINE_ACCESS_LABEL,
+  MCP_SCOPES,
+  isLeadOnlyScope,
+  mayDelegateScope,
+  parseScopeParam,
+} from "@/lib/mcp/scopes";
 import SummMark from "@/components/ui/SummMark";
 import UserAvatar from "@/components/ui/UserAvatar";
 
@@ -200,8 +206,15 @@ export default async function AuthorizePage({
   // silently dropped, so the mismatch is visible instead of mysterious.
   const requested = parseScopeParam(one(params, "scope"));
   const asked = requested.length > 0 ? requested : MCP_SCOPES;
-  const granted = asked.filter((scope) => hasPermission(session, scope));
+  const granted = asked.filter((scope) => mayDelegateScope(session, scope));
   const withheld = asked.filter((scope) => !granted.includes(scope));
+
+  // Split for rendering only — the signed blob carries the union, and the
+  // decide route re-derives this split itself rather than trusting it. A
+  // lead-only right reaches just the clients this person leads, which has to be
+  // said before it is approved, not discovered afterwards.
+  const leadOnly = granted.filter((scope) => isLeadOnlyScope(session, scope));
+  const full = granted.filter((scope) => !leadOnly.includes(scope));
 
   const consent = signConsent({
     userId: session.user.id,
@@ -270,7 +283,7 @@ export default async function AuthorizePage({
             {BASELINE_ACCESS_LABEL}
           </span>
         </li>
-        {granted.map((scope) => (
+        {full.map((scope) => (
           <li key={scope} className="flex items-start gap-2">
             <Check size={15} className="mt-0.5 shrink-0" style={{ color: "var(--success)" }} />
             <span className="typo-body-sm" style={{ color: "var(--text-primary)" }}>
@@ -279,6 +292,28 @@ export default async function AuthorizePage({
           </li>
         ))}
       </ul>
+
+      {leadOnly.length > 0 && (
+        <>
+          <p className="typo-section-header mb-2" style={{ color: "var(--text-muted)" }}>
+            Alleen op klanten waar jij lead van bent
+          </p>
+          <ul className="space-y-1.5 mb-2">
+            {leadOnly.map((scope) => (
+              <li key={scope} className="flex items-start gap-2">
+                <Check size={15} className="mt-0.5 shrink-0" style={{ color: "var(--success)" }} />
+                <span className="typo-body-sm" style={{ color: "var(--text-primary)" }}>
+                  {permissionLabel(scope)}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="typo-caption mb-2">
+            Je rol heeft deze rechten niet in het algemeen — de app krijgt ze alleen op de
+            klanten waar jij als lead aan gekoppeld staat.
+          </p>
+        </>
+      )}
 
       {withheld.length > 0 && (
         <p className="typo-caption mb-2">

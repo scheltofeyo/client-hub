@@ -300,6 +300,29 @@ function intersect(granted: string[], scopes: string[]): string[] {
 }
 
 /**
+ * What a grant's scopes actually amount to for one person.
+ *
+ * The two sets come from different sources on purpose, and that is what makes
+ * delegating a lead-eligible scope safe: `permissions` can only ever contain
+ * what the *role* holds, so a scope delegated on the strength of leading a
+ * client lands in `leadPermissions` alone and confers nothing globally.
+ *
+ * Exported because the Integrations page has to answer "what can this
+ * connection reach" without minting a token — and answering it with a second
+ * copy of this arithmetic is how the page ends up disagreeing with the server.
+ */
+export function grantPermissions(
+  rolePermissions: string[],
+  leadPermissions: string[],
+  scopes: string[]
+): { permissions: string[]; leadPermissions: string[] } {
+  return {
+    permissions: tokenGrantable(intersect(rolePermissions, scopes)),
+    leadPermissions: tokenGrantable(intersect(leadPermissions, scopes)),
+  };
+}
+
+/**
  * Turn an OAuth access token into the same Session shape every route already
  * expects — the counterpart of sessionFromApiToken for the OAuth path.
  *
@@ -353,8 +376,7 @@ export async function sessionFromOAuthToken(raw: string): Promise<Session | null
       email: user.email ?? null,
       image: user.image ?? null,
       role: user.role ?? "member",
-      permissions: tokenGrantable(intersect(role?.permissions ?? [], grant.scopes)),
-      leadPermissions: tokenGrantable(intersect(leadPerms ?? [], grant.scopes)),
+      ...grantPermissions(role?.permissions ?? [], leadPerms ?? [], grant.scopes),
       seenWhatsNewIds: [],
     },
     expires: grant.accessTokenExpiresAt,
@@ -397,6 +419,15 @@ export async function isScopeGap(raw: string, permission: string): Promise<boole
 
   const user = await UserModel.findById(grant.userId, { role: 1 }).lean();
   if (!user) return false;
-  const role = await RoleModel.findOne({ slug: user.role }, { permissions: 1 }).lean();
-  return (role?.permissions ?? []).includes(permission);
+  const [role, leadPerms] = await Promise.all([
+    RoleModel.findOne({ slug: user.role }, { permissions: 1 }).lean(),
+    getLeadSettings(),
+  ]);
+
+  // Lead permissions count here too, now that they can be delegated: without
+  // this a lead who simply has not re-consented would be told their role never
+  // had the permission — wrong, and a dead end instead of a step-up.
+  return (
+    (role?.permissions ?? []).includes(permission) || (leadPerms ?? []).includes(permission)
+  );
 }

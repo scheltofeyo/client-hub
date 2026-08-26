@@ -18,6 +18,12 @@ interface GrantRecord {
   id: string;
   clientName: string;
   scopes: string[];
+  /** Of `scopes`, the ones this person holds only as a lead. */
+  leadScopes: string[];
+  /** Rights they could delegate today that this connection does not carry. */
+  missing: string[];
+  /** Tool names this connection can reach, as the MCP server itself decides. */
+  tools: string[];
   lastUsedAt?: string;
   revokedAt?: string;
   createdAt?: string;
@@ -114,13 +120,12 @@ export default function ConnectedAppsSection() {
                       Verbroken
                     </span>
                   )}
-                  {grant.scopes.length > 0 && (
+                  {grant.tools.length > 0 && (
                     <span
                       className="typo-tag rounded-badge px-1.5 py-0.5"
                       style={{ background: "var(--primary-light)", color: "var(--primary)" }}
-                      title={grant.scopes.map(permissionLabel).join(", ")}
                     >
-                      {grant.scopes.length} recht{grant.scopes.length === 1 ? "" : "en"}
+                      {grant.tools.length} tool{grant.tools.length === 1 ? "" : "s"}
                     </span>
                   )}
                 </div>
@@ -130,6 +135,45 @@ export default function ConnectedAppsSection() {
                     ? ` · Laatst gebruikt ${fmtDate(grant.lastUsedAt)}`
                     : " · Nog niet gebruikt"}
                 </p>
+
+                {/*
+                  Spelled out rather than counted. This list used to be a number
+                  with the detail in a title tooltip, which meant nobody could
+                  answer "why does the app show fewer tools than I expect"
+                  without reading the source.
+                */}
+                {grant.scopes.length > 0 && (
+                  <p className="typo-caption mt-1.5" style={{ color: "var(--text-primary)" }}>
+                    <span style={{ color: "var(--text-muted)" }}>Rechten: </span>
+                    {grant.scopes
+                      .map((scope) =>
+                        grant.leadScopes.includes(scope)
+                          ? `${permissionLabel(scope)} (alleen eigen leads)`
+                          : permissionLabel(scope)
+                      )
+                      .join(", ")}
+                  </p>
+                )}
+
+                {grant.tools.length > 0 && (
+                  <p className="typo-caption mt-1">
+                    <span style={{ color: "var(--text-muted)" }}>Tools: </span>
+                    <span style={{ fontFamily: "var(--font-mono, monospace)" }}>
+                      {grant.tools.join(", ")}
+                    </span>
+                  </p>
+                )}
+
+                {!grant.revokedAt && grant.missing.length > 0 && (
+                  <p
+                    className="typo-caption mt-1.5 rounded-card px-2 py-1.5"
+                    style={{ background: "var(--warning-light)", color: "var(--warning)" }}
+                  >
+                    Deze koppeling is gemaakt voordat je deze rechten had:{" "}
+                    {grant.missing.map(permissionLabel).join(", ")}. Verbreek de koppeling en
+                    maak hem opnieuw om ze mee te geven.
+                  </p>
+                )}
               </div>
               {!grant.revokedAt && (
                 <button
