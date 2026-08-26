@@ -5,6 +5,7 @@ import { connectDB } from "@/lib/mongodb";
 import { TaskModel } from "@/lib/models/Task";
 import { ProjectModel } from "@/lib/models/Project";
 import { recordActivity } from "@/lib/activity";
+import { updateTask } from "@/lib/tasks";
 
 export async function PATCH(
   req: NextRequest,
@@ -13,155 +14,22 @@ export async function PATCH(
   const session = await auth();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { id: clientId, projectId, taskId } = await params;
+  const { taskId } = await params;
   const body = await req.json();
-  const { title, description, assignees, completionDate, completed, parentTaskId: newParentTaskId } = body;
 
-  if (title !== undefined && !title?.trim()) {
-    return NextResponse.json({ error: "Title cannot be empty" }, { status: 400 });
-  }
-
-  await connectDB();
-
-  const existing = await TaskModel.findById(taskId).lean();
-  if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
-
-  // Block completion toggle when parent project is a draft (in plan).
-  if (completed !== undefined) {
-    const parentStatus = (await ProjectModel.findById(projectId, { status: 1 }).lean())?.status;
-    if (parentStatus === "draft") {
-      return NextResponse.json({ error: "Tasks in draft project plans cannot be completed" }, { status: 400 });
-    }
-  }
-
-  const canEditAny = hasPermission(session, "tasks.editAny");
-  const canEditOwn = hasPermissionOrIsCreator(session, "tasks.editOwn", existing.createdById ?? "");
-  // Follow-up tasks (derived from a log) can be checked off by anyone, even if they
-  // didn't create the log and don't have tasks.editAny. This is restricted to the
-  // completion toggle alone — other field edits still require the normal permissions.
-  const isFollowUpCompletionToggle =
-    !!existing.logId &&
-    completed !== undefined &&
-    title === undefined &&
-    description === undefined &&
-    assignees === undefined &&
-    completionDate === undefined &&
-    newParentTaskId === undefined;
-  if (!canEditAny && !canEditOwn && !isFollowUpCompletionToggle) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
-
-  const update: Record<string, unknown> = {};
-  if (title !== undefined) update.title = title.trim();
-  if (description !== undefined) update.description = description?.trim() || null;
-  if (assignees !== undefined) update.assignees = assignees;
-  if (completionDate !== undefined) update.completionDate = completionDate || null;
-
-  // Moving to a new parent: inherit assignees + order at end of new parent's children
-  if (newParentTaskId !== undefined) {
-    update.parentTaskId = newParentTaskId || null;
-    if (newParentTaskId) {
-      const parent = await TaskModel.findById(newParentTaskId).lean();
-      update.assignees = parent?.assignees ?? [];
-      const lastSibling = await TaskModel.findOne({ parentTaskId: newParentTaskId }).sort({ order: -1 }).lean();
-      update.order = lastSibling ? (lastSibling.order ?? 0) + 1 : 0;
-    }
-  }
-
-  if (completed === true) {
-    update.completedAt = new Date().toISOString();
-    update.completedById = session.user.id;
-    update.completedByName = session.user.name ?? "Unknown";
-  } else if (completed === false) {
-    update.completedAt = null;
-    update.completedById = null;
-    update.completedByName = null;
-  }
-
-  const doc = await TaskModel.findByIdAndUpdate(taskId, { $set: update }, { new: true }).lean();
-  if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
-
-  // Cascade assignee changes to all child tasks
-  if (assignees !== undefined) {
-    await TaskModel.updateMany({ parentTaskId: taskId }, { $set: { assignees } });
-  }
-
-  // Recalculate project status when task completion changes (only for kicked-off, non-draft projects)
-  let parentIsDraft = false;
-  if (completed === true || completed === false) {
-    const project = await ProjectModel.findById(doc.projectId).lean();
-    parentIsDraft = project?.status === "draft";
-    if (project?.kickedOffAt && !parentIsDraft) {
-      const allTasks = await TaskModel.find({ projectId: doc.projectId }).lean();
-      const completedCount = allTasks.filter((t) => !!t.completedAt).length;
-      const total = allTasks.length;
-      const allDone = total > 0 && completedCount === total;
-      const projectStatus = allDone ? "completed" : "in_progress";
-      const projectUpdate: Record<string, unknown> = { status: projectStatus };
-      if (allDone) {
-        // All tasks just completed — set completedDate to today if not already set
-        if (!project.completedDate) {
-          projectUpdate.completedDate = new Date().toISOString().split("T")[0];
-        }
-      } else {
-        // Project no longer completed — clear completedDate
-        projectUpdate.completedDate = null;
-      }
-      await ProjectModel.findByIdAndUpdate(doc.projectId, { $set: projectUpdate });
-    }
-  }
-
-  // If we didn't already check parent status above (no completion toggle), check it now.
-  if (completed === undefined) {
-    const project = await ProjectModel.findById(projectId, { status: 1 }).lean();
-    parentIsDraft = project?.status === "draft";
-  }
-
-  if (!parentIsDraft) {
-    if (completed === true) {
-      await recordActivity({
-        clientId,
-        actorId: session.user.id,
-        actorName: session.user.name ?? "Unknown",
-        type: "task.completed",
-        metadata: { projectId, title: doc.title },
-      });
-    } else {
-      // Track meaningful field changes (skip when completion is the primary action)
-      const trackFields = ["title", "description", "assignees", "completionDate"] as const;
-      const updatedFields = trackFields.filter((f) => body[f] !== undefined);
-      if (updatedFields.length > 0) {
-        await recordActivity({
-          clientId,
-          actorId: session.user.id,
-          actorName: session.user.name ?? "Unknown",
-          type: "task.updated",
-          metadata: { projectId, title: doc.title, fields: updatedFields },
-        });
-      }
-    }
-  }
-
-  return NextResponse.json({
-    id: doc._id.toString(),
-    projectId: doc.projectId,
-    parentTaskId: doc.parentTaskId ?? undefined,
-    title: doc.title,
-    description: doc.description ?? undefined,
-    assignees: (doc.assignees ?? []).map((a) => ({
-      userId: a.userId,
-      name: a.name,
-      image: a.image ?? undefined,
-    })),
-    completionDate: doc.completionDate ?? undefined,
-    completedAt: doc.completedAt ?? undefined,
-    completedById: doc.completedById ?? undefined,
-    completedByName: doc.completedByName ?? undefined,
-    createdById: doc.createdById,
-    createdByName: doc.createdByName,
-    createdVia: doc.createdVia ?? undefined,
-    createdAt: doc.createdAt?.toISOString(),
+  const updated = await updateTask(session, taskId, {
+    title: body.title,
+    description: body.description,
+    assignees: body.assignees,
+    completionDate: body.completionDate,
+    completed: body.completed,
+    parentTaskId: body.parentTaskId,
   });
+  if (!updated.ok) {
+    return NextResponse.json({ error: updated.error }, { status: updated.status });
+  }
+
+  return NextResponse.json(updated.task);
 }
 
 export async function DELETE(

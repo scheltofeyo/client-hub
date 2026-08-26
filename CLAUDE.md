@@ -279,7 +279,9 @@ The Events tab renders a unified `TimelineEvent[]` that merges four sources: `lo
 
 **Errors.** A problem the model can act on (bad id, unknown column, missing permission) returns a tool result with `isError: true` and a readable sentence. JSON-RPC errors are reserved for protocol faults. Never let an exception's stack reach the client.
 
-**Shared writes.** Tool handlers must go through `createLogEntry()` (`src/lib/logs.ts`) and `moveSalesCard()` (`src/lib/sales.ts`) — the same helpers the REST routes call. That keeps behaviour identical across surfaces and keeps the "via" attribution working, since `creatorFields()` and `recordActivity()` read the token off the request themselves.
+**Shared writes.** Tool handlers must go through `createLogEntry()` (`src/lib/logs.ts`), `moveSalesCard()` (`src/lib/sales.ts`) and `createTask()` / `updateTask()` (`src/lib/tasks.ts`) — the same helpers the REST routes call. That keeps behaviour identical across surfaces and keeps the "via" attribution working, since `creatorFields()` and `recordActivity()` read the token off the request themselves.
+
+`src/lib/tasks.ts` additionally owns `recalcProjectStatus()` and `canEditTask()`. The latter is exported because the follow-up exemption (anyone may tick off a log-derived follow-up, but only the completion toggle) is the rule most likely to be reimplemented slightly differently on a new surface — and a slightly different version of it is a hole. A caller writing several tasks at once must check them all with it *before* writing any, so a refusal cannot leave a partial write.
 
 **No CORS headers, deliberately.** The spec's `Origin` rule targets cookie-authenticated localhost servers; this one takes a bearer token a web page cannot mint, and withholding CORS stops a page reading the response cross-origin. Do not add `Access-Control-Allow-Origin`.
 

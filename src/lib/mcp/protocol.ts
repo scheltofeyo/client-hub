@@ -23,10 +23,10 @@ export const SERVER_INFO_META_KEY = "io.modelcontextprotocol/serverInfo";
 export const SERVER_INFO = { name: "summ-hub", version: "1.0.0" };
 
 export const SERVER_INSTRUCTIONS =
-  "SUMM Hub: clients, the sales funnel and the client logbook. Resolve a client with " +
-  "find_clients and a board with get_sales_board before writing, and pass the ids they " +
-  "return. Every call acts as the person who owns the API token and is limited to their " +
-  "permissions, so the tools you can see are the ones you are allowed to use.";
+  "SUMM Hub: clients, the sales funnel, the client logbook and client tasks. Resolve a client " +
+  "with find_clients, a board with get_sales_board and a task with list_tasks before writing, " +
+  "and pass the ids they return. Every call acts as the person who owns the API token and is " +
+  "limited to their permissions, so the tools you can see are the ones you are allowed to use.";
 
 // ── JSON-RPC ─────────────────────────────────────────────────────────
 

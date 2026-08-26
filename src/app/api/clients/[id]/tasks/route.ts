@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { creatorFields } from "@/lib/actor";
 import { hasPermission } from "@/lib/auth-helpers";
 import { connectDB } from "@/lib/mongodb";
 import { TaskModel } from "@/lib/models/Task";
-import { recordActivity } from "@/lib/activity";
+import { createTask } from "@/lib/tasks";
 
 export async function GET(
   _req: NextRequest,
@@ -58,60 +57,20 @@ export async function POST(
 
   const { id: clientId } = await params;
   const body = await req.json();
-  const { title, description, assignees, completionDate, parentTaskId } = body;
 
-  if (!title?.trim()) {
-    return NextResponse.json({ error: "Title is required" }, { status: 400 });
+  // Fields are listed rather than spread: this route is client-scoped, and a
+  // `projectId` riding in on the body would silently make it a project task.
+  const created = await createTask(session, {
+    clientId,
+    title: body.title,
+    description: body.description,
+    assignees: body.assignees,
+    completionDate: body.completionDate,
+    parentTaskId: body.parentTaskId,
+  });
+  if (!created.ok) {
+    return NextResponse.json({ error: created.error }, { status: created.status });
   }
 
-  await connectDB();
-
-  // Inherit assignees from parent task; auto-increment order for top-level tasks
-  let taskAssignees = assignees ?? [];
-  let taskOrder = 0;
-  if (parentTaskId) {
-    const parent = await TaskModel.findById(parentTaskId).lean();
-    taskAssignees = parent?.assignees ?? [];
-  } else {
-    const last = await TaskModel.findOne({ clientId, projectId: { $exists: false }, parentTaskId: null }).sort({ order: -1 }).lean();
-    taskOrder = last ? (last.order ?? 0) + 1 : 0;
-  }
-
-  const doc = await TaskModel.create({
-    clientId,
-    parentTaskId: parentTaskId || undefined,
-    title: title.trim(),
-    description: description?.trim() || undefined,
-    assignees: taskAssignees,
-    completionDate: completionDate || undefined,
-    order: taskOrder,
-    ...(await creatorFields(session!)),
-  });
-
-  await recordActivity({
-    clientId,
-    actorId: session.user.id,
-    actorName: session.user.name ?? "Unknown",
-    type: "task.created",
-    metadata: { title: doc.title },
-  });
-
-  return NextResponse.json(
-    {
-      id: doc._id.toString(),
-      clientId: doc.clientId,
-      parentTaskId: doc.parentTaskId ?? undefined,
-      title: doc.title,
-      description: doc.description ?? undefined,
-      assignees: doc.assignees ?? [],
-      completionDate: doc.completionDate ?? undefined,
-      completedAt: doc.completedAt ?? undefined,
-      order: doc.order ?? 0,
-      createdById: doc.createdById,
-      createdByName: doc.createdByName,
-      createdVia: doc.createdVia ?? undefined,
-      createdAt: doc.createdAt?.toISOString(),
-    },
-    { status: 201 }
-  );
+  return NextResponse.json(created.task, { status: 201 });
 }
