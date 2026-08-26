@@ -204,6 +204,7 @@ RESTful nesting under `src/app/api/`:
 /api/ranking-sessions               GET, POST
 /api/ranking-sessions/[id]          PATCH, DELETE
 /api/ranking-sessions/[id]/submissions  GET, POST
+/api/mcp                            POST — remote MCP server (see below)
 ```
 
 All routes call `auth()` and return 401/403 as appropriate. Permission checks use `requirePermission(session, "permission.key")` or `hasPermission(session, "permission.key")` from `src/lib/auth-helpers.ts`. Contextual checks (lead-based, creator-based) combine with permissions via `hasPermissionOrIsLead()` / `hasPermissionOrIsCreator()`.
@@ -219,6 +220,8 @@ The session carries two permission sets: `permissions` (global) and `leadPermiss
 Users must be invited (via admin) before they can log in. `POST /api/users` creates a User with `status: "invited"`. On first Google OAuth login, the user auto-activates if their email matches an invited record. Admin can set display name/image overrides, employment details, and role. The profile page (`/profile`) lets users edit their own personal details using the same `EmployeeDetailEditor` component.
 
 **Exception:** `/api/internal/` routes are excluded from the auth middleware (`auth.config.ts`) and are secured by shared secret instead. Do not add `auth()` calls to these routes. The `/ranking/[shareCode]` page is also public (outside the `(app)` group) — participants access it without logging in.
+
+`/api/mcp` is also excluded from the middleware gate, but for the opposite reason: it authenticates itself and must be able to answer `401` rather than be redirected to `/login`, which a non-browser caller cannot follow.
 
 ```
 /api/internal/folder-callback   POST — called by GAS after Drive folder creation
@@ -249,6 +252,34 @@ The GAS web app must be deployed with **Execute as: Me**, **Who has access: Anyo
 
 ### Events timeline
 The Events tab renders a unified `TimelineEvent[]` that merges four sources: `log_followup` (from Log records with followUp=true), `task` (tasks with a completionDate), `project` (project milestones), and `custom` (ClientEvent records). The API assembles these server-side; `EventsTab.tsx` only renders the merged list. Custom events support recurrence (`none | weekly | biweekly | monthly | quarterly | yearly`) with optional `repetitions` cap.
+
+
+### Remote MCP server
+
+`POST /api/mcp` exposes the hub to Claude clients over the Model Context Protocol. Stateless request/response only: one JSON-RPC 2.0 object in, one out. No SSE stream (`GET` returns 405), no `Mcp-Session-Id`, no dependencies — a tool-only server has nothing to push, and a long-lived stream sits badly with Netlify's function limits.
+
+- **Transport** — `src/app/api/mcp/route.ts`. Hand-rolled JSON-RPC dispatch.
+- **Tools** — `src/lib/mcp/tools.ts`. One registry of `{ name, description, inputSchema, permission?, handler }`.
+- **Protocol constants and helpers** — `src/lib/mcp/protocol.ts`.
+
+**Dual-era.** MCP revision `2026-07-28` replaced the `initialize` handshake with per-request `_meta` plus a mandatory `server/discover`, and clients are still split across both styles, so the server answers both and reads the era off each request. Two things are required on the modern revision and rejected by clients if missing: `resultType: "complete"` on `tools/list` and `tools/call`, and caching hints (`ttlMs`, `cacheScope`) on cacheable results. `tools/list` must stay `cacheScope: "private"` — it is filtered per caller, and `"public"` would let a shared cache serve one token's tool list to another.
+
+**Auth and permissions.** Authentication is the personal API token (`Authorization: Bearer shub_…`); `auth()` already resolves it into a real `Session`, so no MCP-specific auth exists. Each tool declares the permission its underlying action already requires, `tools/list` shows only the tools the caller may use, and `tools/call` re-checks before doing any work so a refusal can never leave a partial write. The endpoint itself needs no permission — it grants nothing a token holder doesn't already have over REST.
+
+**Errors.** A problem the model can act on (bad id, unknown column, missing permission) returns a tool result with `isError: true` and a readable sentence. JSON-RPC errors are reserved for protocol faults. Never let an exception's stack reach the client.
+
+**Shared writes.** Tool handlers must go through `createLogEntry()` (`src/lib/logs.ts`) and `moveSalesCard()` (`src/lib/sales.ts`) — the same helpers the REST routes call. That keeps behaviour identical across surfaces and keeps the "via" attribution working, since `creatorFields()` and `recordActivity()` read the token off the request themselves.
+
+**No CORS headers, deliberately.** The spec's `Origin` rule targets cookie-authenticated localhost servers; this one takes a bearer token a web page cannot mint, and withholding CORS stops a page reading the response cross-origin. Do not add `Access-Control-Allow-Origin`.
+
+**Connecting a Claude client** — nothing to install:
+
+```bash
+claude mcp add --transport http summ-hub https://<APP_URL>/api/mcp \
+  --header "Authorization: Bearer shub_..."
+```
+
+Generate the token under the API tokens section of the employee/profile page. For an unattended scheduled task, narrow the token to just the permissions it needs — a token scoped to `logs.create` sees only the logbook tools.
 
 ## Theming
 

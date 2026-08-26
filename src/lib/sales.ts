@@ -1,10 +1,16 @@
 /**
- * Shared serializers for the sales funnel, used by both src/lib/data.ts (server
- * render) and the /api/sales routes so the two can never drift apart.
+ * Shared sales-funnel logic — serializers and card moves — used by
+ * src/lib/data.ts (server render), the /api/sales routes and the MCP tools, so
+ * the surfaces can never drift apart.
  */
+import type { Session } from "next-auth";
 import type { ISalesBoard } from "./models/SalesBoard";
 import type { ISalesCard } from "./models/SalesCard";
 import type { SalesBoard, SalesCard } from "@/types";
+import { connectDB } from "./mongodb";
+import { SalesBoardModel } from "./models/SalesBoard";
+import { SalesCardModel } from "./models/SalesCard";
+import { recordActivity } from "./activity";
 
 /** The lean() shape of a doc — same fields, no Document methods. */
 type Lean<T> = Omit<T, keyof import("mongoose").Document> & {
@@ -67,4 +73,97 @@ export function serializeSalesCard(
     clientWebsite: joined?.clientWebsite,
     contact: joined?.contact,
   };
+}
+
+// ── Card moves ───────────────────────────────────────────────────────
+
+export type MoveSalesCardResult = { ok: true; from?: string; to: string } | { ok: false; error: string };
+
+/**
+ * Move a card to another column (or reorder it inside one).
+ *
+ * Two callers with deliberately different contracts. The board UI knows the
+ * exact final order of the destination column after a drag, so it passes
+ * `orderedIds` and this function just applies it. A model has no such list —
+ * it knows "put Acme in Onderhandeling" — so it passes nothing and the
+ * ordering is derived here.
+ *
+ * `toColumn` accepts a column id or its title for the same reason: a model
+ * reasoning about the funnel has the stage name, not a UUID.
+ */
+export async function moveSalesCard(
+  session: Session,
+  boardId: string,
+  cardId: string,
+  toColumn: string,
+  opts: { orderedIds?: string[]; position?: number } = {}
+): Promise<MoveSalesCardResult> {
+  await connectDB();
+
+  const [board, card] = await Promise.all([
+    SalesBoardModel.findById(boardId).lean(),
+    SalesCardModel.findOne({ _id: cardId, boardId }).lean(),
+  ]);
+  if (!board) return { ok: false, error: `No board found with id ${boardId}.` };
+  if (!card) return { ok: false, error: `No card found with id ${cardId} on board "${board.name}".` };
+
+  const columns = board.columns ?? [];
+  const target =
+    columns.find((c) => c.id === toColumn) ??
+    columns.find((c) => c.title.toLowerCase() === toColumn.trim().toLowerCase());
+  if (!target) {
+    const available = columns.map((c) => c.title).join(", ");
+    return {
+      ok: false,
+      error: `"${toColumn}" is not a column on board "${board.name}". Available columns: ${available}.`,
+    };
+  }
+
+  let orderedIds = opts.orderedIds;
+  if (!orderedIds) {
+    // Derive the destination order: the column's open cards as they stand,
+    // minus this card (a same-column move is a reorder), with it reinserted.
+    const existing = await SalesCardModel.find(
+      { boardId, columnId: target.id, outcome: { $exists: false } },
+      { _id: 1 }
+    )
+      .sort({ order: 1, createdAt: 1 })
+      .lean();
+
+    const ids = existing.map((c) => c._id.toString()).filter((id) => id !== cardId);
+    const at =
+      typeof opts.position === "number" && opts.position >= 0
+        ? Math.min(Math.floor(opts.position), ids.length)
+        : ids.length;
+    ids.splice(at, 0, cardId);
+    orderedIds = ids;
+  }
+
+  // Scoping every write to boardId stops ids from another board being hijacked.
+  await Promise.all(
+    orderedIds.map((id, index) =>
+      SalesCardModel.findOneAndUpdate(
+        { _id: id, boardId },
+        { $set: { columnId: target.id, order: index } }
+      )
+    )
+  );
+
+  const fromColumn = columns.find((c) => c.id === card.columnId);
+  if (card.columnId !== target.id) {
+    await recordActivity({
+      clientId: card.clientId,
+      actorId: session.user.id,
+      actorName: session.user.name ?? "Unknown",
+      type: "sales.card_moved",
+      metadata: {
+        boardId,
+        boardName: board.name,
+        from: fromColumn?.title,
+        to: target.title,
+      },
+    });
+  }
+
+  return { ok: true, from: fromColumn?.title, to: target.title };
 }

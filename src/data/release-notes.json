@@ -1,6 +1,17 @@
 [
   {
     "date": "2026-08-26",
+    "title": "Werk vanuit je eigen Claude rechtstreeks in de hub",
+    "details": [
+      "Koppel je Claude aan de hub met één adres en je persoonlijke API-token — er valt niets te installeren",
+      "Je kunt klanten en prospects opzoeken, de verkoopborden lezen, een kaart naar een andere fase verplaatsen en een logboekregel schrijven",
+      "Je ziet alleen de handelingen waar je zelf recht op hebt; mist een token een recht, dan krijg je een duidelijke melding en wordt er niets gewijzigd",
+      "Een geplande taak kan hetzelfde adres gebruiken met een token dat tot precies het nodige beperkt is",
+      "Wat er via deze weg binnenkomt, staat op jouw naam in het logboek en het activiteitenoverzicht, met de aantekening dat het via een koppeling ging"
+    ]
+  },
+  {
+    "date": "2026-08-26",
     "title": "Koppel je eigen tools aan de hub met een API-token",
     "details": [
       "Onder Profiel > Integrations maak je een persoonlijk token aan waarmee gereedschap buiten de browser (bijvoorbeeld je eigen Claude of een geplande taak) namens jou in de hub kan werken",

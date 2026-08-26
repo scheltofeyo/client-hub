@@ -1,14 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { requirePermission } from "@/lib/auth-helpers";
-import { connectDB } from "@/lib/mongodb";
-import { SalesBoardModel } from "@/lib/models/SalesBoard";
-import { SalesCardModel } from "@/lib/models/SalesCard";
-import { recordActivity } from "@/lib/activity";
+import { moveSalesCard } from "@/lib/sales";
 
 /**
  * One endpoint for both reordering inside a column and moving between columns.
- * `orderedIds` is the full, final id list of the destination column.
+ * `orderedIds` is the full, final id list of the destination column — the board
+ * UI knows it after a drag, so it is passed straight through to moveSalesCard.
  */
 export async function POST(
   req: NextRequest,
@@ -28,43 +26,12 @@ export async function POST(
     return NextResponse.json({ error: "orderedIds must be an array" }, { status: 400 });
   }
 
-  await connectDB();
-  const [board, card] = await Promise.all([
-    SalesBoardModel.findById(boardId).lean(),
-    SalesCardModel.findOne({ _id: cardId, boardId }).lean(),
-  ]);
-  if (!board) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  if (!card) return NextResponse.json({ error: "Not found" }, { status: 404 });
-
-  const targetColumn = (board.columns ?? []).find((c) => c.id === toColumnId);
-  if (!targetColumn) {
-    return NextResponse.json({ error: "Column not found on this board" }, { status: 400 });
-  }
-
-  // Scoping every write to boardId stops ids from another board being hijacked.
-  await Promise.all(
-    orderedIds.map((id: string, index: number) =>
-      SalesCardModel.findOneAndUpdate(
-        { _id: id, boardId },
-        { $set: { columnId: toColumnId, order: index } }
-      )
-    )
-  );
-
-  if (card.columnId !== toColumnId) {
-    const fromColumn = (board.columns ?? []).find((c) => c.id === card.columnId);
-    await recordActivity({
-      clientId: card.clientId,
-      actorId: session!.user.id,
-      actorName: session!.user.name ?? "Unknown",
-      type: "sales.card_moved",
-      metadata: {
-        boardId,
-        boardName: board.name,
-        from: fromColumn?.title,
-        to: targetColumn.title,
-      },
-    });
+  const result = await moveSalesCard(session!, boardId, cardId, toColumnId, { orderedIds });
+  if (!result.ok) {
+    // A missing board, card or column was a 404/400 before the extraction; the
+    // helper reports them all as a message, and the UI only ever sends ids it
+    // just rendered, so a single 400 is enough here.
+    return NextResponse.json({ error: result.error }, { status: 400 });
   }
 
   return NextResponse.json({ success: true });

@@ -63,6 +63,11 @@ export const authConfig: NextAuthConfig = {
           : true;
       }
       if (pathname.startsWith("/api/auth") || pathname.startsWith("/api/internal/") || pathname.startsWith("/api/public/") || pathname.startsWith("/ranking/") || pathname.startsWith("/proposal/") || pathname.startsWith("/s/") || pathname.startsWith("/archetype-as-is-survey/")) return true;
+      // The MCP endpoint answers for itself. Without this an MCP client that
+      // sends no token (or a malformed one) would be 302'd to /login, which is
+      // an unreadable response for a non-browser caller; the route returns a
+      // clean 401 with WWW-Authenticate instead. It re-checks auth() itself.
+      if (pathname.startsWith("/api/mcp")) return true;
       // Bearer-authenticated API calls carry no session cookie, so the check
       // below would bounce them to /login before the route ever runs. Let them
       // past this edge gate — src/auth.ts validates the token against the DB
