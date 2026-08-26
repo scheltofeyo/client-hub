@@ -63,6 +63,27 @@ export const authConfig: NextAuthConfig = {
           : true;
       }
       if (pathname.startsWith("/api/auth") || pathname.startsWith("/api/internal/") || pathname.startsWith("/api/public/") || pathname.startsWith("/ranking/") || pathname.startsWith("/proposal/") || pathname.startsWith("/s/") || pathname.startsWith("/archetype-as-is-survey/")) return true;
+      // The MCP endpoint answers for itself. Without this an MCP client that
+      // sends no token (or a malformed one) would be 302'd to /login, which is
+      // an unreadable response for a non-browser caller; the route returns a
+      // clean 401 with WWW-Authenticate instead. It re-checks auth() itself.
+      if (pathname.startsWith("/api/mcp")) return true;
+      // OAuth discovery and the token/registration/revocation endpoints are
+      // reached by a non-browser client before any session exists — that is the
+      // point of them. They authenticate per the OAuth spec (PKCE, client
+      // credentials, token hashes) and answer with OAuth error shapes, so a
+      // redirect to /login would be both wrong and unreadable. The consent page
+      // at /oauth/authorize is deliberately NOT listed: it is the one step that
+      // must happen in a signed-in browser, so it falls through to the gate
+      // below and comes back after login via callbackUrl.
+      if (pathname.startsWith("/.well-known/") || pathname.startsWith("/api/oauth/")) return true;
+      // Bearer-authenticated API calls carry no session cookie, so the check
+      // below would bounce them to /login before the route ever runs. Let them
+      // past this edge gate — src/auth.ts validates the token against the DB
+      // (which the edge runtime cannot reach) and the route still enforces
+      // permissions, so this is a coarse gate, not the authorization decision.
+      // Scoped to /api/ on purpose: a bearer header must not fetch app HTML.
+      if (pathname.startsWith("/api/") && request.headers.get("authorization")?.startsWith("Bearer ")) return true;
       return !!auth;
     },
   },

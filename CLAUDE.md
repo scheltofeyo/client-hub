@@ -150,6 +150,9 @@ All in `src/lib/models/`. Models delete and recompile on hot reload (dev pattern
 | `LeaveType` | name, rank — configurable leave categories (sick, personal, etc.) |
 | `TimeOff` | userId, leaveTypeId, date, hours — individual time-off entries |
 | `CompanyHoliday` | name, date — company-wide holidays shown on team calendar |
+| `OAuthClient` | clientId, clientName, redirectUris[], tokenEndpointAuthMethod — an app that may ask for consent, usually self-registered via DCR |
+| `OAuthGrant` | userId, clientId, clientName, scopes[], resource, accessTokenHash, refreshTokenHash, revokedAt — one row per live connection, rotated in place |
+| `OAuthAuthCode` | codeHash, userId, clientId, redirectUri, scopes[], codeChallenge, expiresAt (TTL), usedAt — single-use authorization code |
 | `RankingSession` | clientId, title, values[], culturalLevels[], status (`draft`\|`open`\|`closed`\|`archived`), shareCode — workshop value-ranking sessions |
 | `RankingSubmission` | sessionId, participantName, rankings[] — participant responses to ranking sessions |
 
@@ -204,6 +207,15 @@ RESTful nesting under `src/app/api/`:
 /api/ranking-sessions               GET, POST
 /api/ranking-sessions/[id]          PATCH, DELETE
 /api/ranking-sessions/[id]/submissions  GET, POST
+/api/mcp                            POST — remote MCP server (see below)
+/api/oauth/register                 POST — dynamic client registration (RFC 7591)
+/api/oauth/authorize                POST — consent decision → authorization code
+/api/oauth/token                    POST — authorization_code + refresh_token grants
+/api/oauth/revoke                   POST — token revocation (RFC 7009)
+/api/oauth/grants                   GET — your own connected apps
+/api/oauth/grants/[id]              DELETE — disconnect an app
+/.well-known/oauth-protected-resource      GET — RFC 9728 (rewritten to /api/oauth/)
+/.well-known/oauth-authorization-server    GET — RFC 8414 (rewritten to /api/oauth/)
 ```
 
 All routes call `auth()` and return 401/403 as appropriate. Permission checks use `requirePermission(session, "permission.key")` or `hasPermission(session, "permission.key")` from `src/lib/auth-helpers.ts`. Contextual checks (lead-based, creator-based) combine with permissions via `hasPermissionOrIsLead()` / `hasPermissionOrIsCreator()`.
@@ -219,6 +231,8 @@ The session carries two permission sets: `permissions` (global) and `leadPermiss
 Users must be invited (via admin) before they can log in. `POST /api/users` creates a User with `status: "invited"`. On first Google OAuth login, the user auto-activates if their email matches an invited record. Admin can set display name/image overrides, employment details, and role. The profile page (`/profile`) lets users edit their own personal details using the same `EmployeeDetailEditor` component.
 
 **Exception:** `/api/internal/` routes are excluded from the auth middleware (`auth.config.ts`) and are secured by shared secret instead. Do not add `auth()` calls to these routes. The `/ranking/[shareCode]` page is also public (outside the `(app)` group) — participants access it without logging in.
+
+`/api/mcp`, `/api/oauth/` and `/.well-known/` are also excluded from the middleware gate, but for the opposite reason: they authenticate themselves and must be able to answer `401` (or an OAuth error) rather than be redirected to `/login`, which a non-browser caller cannot follow. The `/oauth/authorize` consent *page* stays gated — it is the one step that requires a signed-in browser.
 
 ```
 /api/internal/folder-callback   POST — called by GAS after Drive folder creation
@@ -249,6 +263,65 @@ The GAS web app must be deployed with **Execute as: Me**, **Who has access: Anyo
 
 ### Events timeline
 The Events tab renders a unified `TimelineEvent[]` that merges four sources: `log_followup` (from Log records with followUp=true), `task` (tasks with a completionDate), `project` (project milestones), and `custom` (ClientEvent records). The API assembles these server-side; `EventsTab.tsx` only renders the merged list. Custom events support recurrence (`none | weekly | biweekly | monthly | quarterly | yearly`) with optional `repetitions` cap.
+
+
+### Remote MCP server
+
+`POST /api/mcp` exposes the hub to Claude clients over the Model Context Protocol. Stateless request/response only: one JSON-RPC 2.0 object in, one out. No SSE stream (`GET` returns 405), no `Mcp-Session-Id`, no dependencies — a tool-only server has nothing to push, and a long-lived stream sits badly with Netlify's function limits.
+
+- **Transport** — `src/app/api/mcp/route.ts`. Hand-rolled JSON-RPC dispatch.
+- **Tools** — `src/lib/mcp/tools.ts`. One registry of `{ name, description, inputSchema, permission?, handler }`.
+- **Protocol constants and helpers** — `src/lib/mcp/protocol.ts`.
+
+**Dual-era.** MCP revision `2026-07-28` replaced the `initialize` handshake with per-request `_meta` plus a mandatory `server/discover`, and clients are still split across both styles, so the server answers both and reads the era off each request. Two things are required on the modern revision and rejected by clients if missing: `resultType: "complete"` on `tools/list` and `tools/call`, and caching hints (`ttlMs`, `cacheScope`) on cacheable results. `tools/list` must stay `cacheScope: "private"` — it is filtered per caller, and `"public"` would let a shared cache serve one token's tool list to another.
+
+**Auth and permissions.** Two credentials reach the same code path, told apart by prefix: the personal API token (`Bearer shub_…`) and an OAuth access token (`Bearer shubo_…`, see below). `auth()` resolves either into a real `Session`, so no MCP-specific auth exists. Each tool declares the permission its underlying action already requires, `tools/list` shows only the tools the caller may use, and `tools/call` re-checks before doing any work so a refusal can never leave a partial write. The endpoint itself needs no permission — it grants nothing a credential holder doesn't already have over REST.
+
+**Errors.** A problem the model can act on (bad id, unknown column, missing permission) returns a tool result with `isError: true` and a readable sentence. JSON-RPC errors are reserved for protocol faults. Never let an exception's stack reach the client.
+
+**Shared writes.** Tool handlers must go through `createLogEntry()` (`src/lib/logs.ts`), `moveSalesCard()` (`src/lib/sales.ts`) and `createTask()` / `updateTask()` (`src/lib/tasks.ts`) — the same helpers the REST routes call. That keeps behaviour identical across surfaces and keeps the "via" attribution working, since `creatorFields()` and `recordActivity()` read the token off the request themselves.
+
+`src/lib/tasks.ts` additionally owns `recalcProjectStatus()` and `canEditTask()`. The latter is exported because the follow-up exemption (anyone may tick off a log-derived follow-up, but only the completion toggle) is the rule most likely to be reimplemented slightly differently on a new surface — and a slightly different version of it is a hole. A caller writing several tasks at once must check them all with it *before* writing any, so a refusal cannot leave a partial write.
+
+**No CORS headers, deliberately.** The spec's `Origin` rule targets cookie-authenticated localhost servers; this one takes a bearer token a web page cannot mint, and withholding CORS stops a page reading the response cross-origin. Do not add `Access-Control-Allow-Origin`.
+
+**Connecting a Claude client** — nothing to install:
+
+```bash
+claude mcp add --transport http summ-hub https://<APP_URL>/api/mcp \
+  --header "Authorization: Bearer shub_..."
+```
+
+Generate the token under the API tokens section of the employee/profile page. For an unattended scheduled task, narrow the token to just the permissions it needs — a token scoped to `logs.create` sees only the logbook tools.
+
+Omit the header and the same command runs the OAuth flow instead, which is what the Claude app's custom connectors do.
+
+### OAuth — the hub as its own authorization server
+
+The Claude app's custom connectors offer no field for a static bearer token, so
+the hub is also an OAuth 2.1 authorization server. The MCP spec allows the
+authorization server to sit beside the resource server, and hosting it here means
+the user step is the Google login the team already has — no extra service, no
+cost, no second identity source to reconcile with `User`.
+
+- **Core** — `src/lib/oauth.ts`: token minting, PKCE, consent signing, grants, and `sessionFromOAuthToken()`.
+- **Scopes** — `src/lib/mcp/scopes.ts`. Derived from `MCP_TOOLS`, so a new tool with a new permission widens the advertised scopes on its own.
+- **Endpoints** — `/oauth/authorize` (the consent page, a real signed-in browser step) plus `/api/oauth/{authorize,token,register,revoke,grants}`. The two `.well-known` discovery documents are handlers under `/api/oauth/` exposed at their spec-mandated paths by `rewrites` in `next.config.ts`.
+- **Models** — `OAuthClient`, `OAuthGrant` (one row per user+client connection, rotated in place), `OAuthAuthCode` (single-use, TTL-swept).
+
+**Scopes are hub permission strings.** `logs.create`, not `logs:write`. That makes the effective permission set the same `role ∩ scope ∩ tokenGrantable` chain the personal tokens already compute, and lets an `insufficient_scope` challenge name exactly what the tool's own refusal names. No mapping table to keep in sync.
+
+**Opaque tokens, never JWTs.** Access tokens are random and stored only as sha256 hashes. This is what satisfies the spec's hard rule that a server accept only tokens issued for itself — a token from another issuer is simply not in the collection, so there is no signature or audience claim to get subtly wrong. It also means revocation and archiving bite on the very next request, since every call re-reads the grant, the user and the role.
+
+**One scope difference from personal tokens.** An empty scope set on an API token means "inherit the owner's role"; on an OAuth grant it means empty. A personal token was created by its owner as a general-purpose credential, but a grant's scopes are what the user was shown and approved, so widening them would grant access nobody consented to.
+
+**Refusals.** Tool refusals stay JSON-RPC tool results (`isError: true`) — that is what preserves the no-partial-write guarantee. The one exception: an OAuth caller refused over a scope its owner *does* hold gets an HTTP 403 with `WWW-Authenticate: … error="insufficient_scope"`, so the client can run the spec's step-up flow. When the role never had the permission, re-consenting cannot help, so the readable tool result stands.
+
+**Consent hand-off is signed, not hidden.** The consent form posts one HMAC-signed blob rather than a set of hidden inputs, which stops both tampering and cross-site posting. The decide route still re-validates everything against the DB and the live session — the signature proves the values are the ones we rendered, not that they are still allowed.
+
+**`/api/oauth/` and `/.well-known/` are exempt from the middleware gate** (`auth.config.ts`) because a non-browser client reaches them before any session exists. `/oauth/authorize` is deliberately *not* exempt: it is the one step that must happen signed in, and the existing `callbackUrl` handling returns the user there after Google.
+
+Connections are listed and revoked under Profiel → Integrations, next to the API tokens. Both surfaces require a browser session, so a connector can never mint a token or cut off the thing that revokes it.
 
 ## Theming
 

@@ -5,6 +5,7 @@ import { Check, X, ChevronDown, MoreHorizontal, Pencil, Trash2, Search } from "l
 import { useRouter } from "next/navigation";
 import { useRightPanel } from "@/components/layout/RightPanel";
 import type { Contact, Log, LogSignal } from "@/types";
+import ViaToken from "@/components/ui/ViaToken";
 import { fmtDate, daysAgo, timeAgoLabel } from "@/lib/utils";
 
 const inputClass =
@@ -1115,6 +1116,12 @@ export default function LogbookTab({
                 {fmtDate(log.date)}
                 <span className="mx-1.5">·</span>
                 {log.createdByName}
+                {log.createdVia && (
+                  <>
+                    <span className="mx-1.5">·</span>
+                    <ViaToken via={log.createdVia} />
+                  </>
+                )}
               </p>
               {log.followUp && !log.followedUpAt && log.followUpDeadline && (
                 <p className="ml-auto text-xs font-medium whitespace-nowrap" style={{ color: isOverdue ? "var(--danger)" : "var(--primary)" }}>

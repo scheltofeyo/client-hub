@@ -3,8 +3,7 @@ import { auth } from "@/auth";
 import { hasPermission } from "@/lib/auth-helpers";
 import { connectDB } from "@/lib/mongodb";
 import { TaskModel } from "@/lib/models/Task";
-import { ProjectModel } from "@/lib/models/Project";
-import { recordActivity } from "@/lib/activity";
+import { createTask } from "@/lib/tasks";
 
 export async function GET(
   _req: NextRequest,
@@ -37,6 +36,7 @@ export async function GET(
       order: doc.order ?? 0,
       createdById: doc.createdById,
       createdByName: doc.createdByName,
+      createdVia: doc.createdVia ?? undefined,
       createdAt: doc.createdAt?.toISOString(),
     }))
   );
@@ -54,79 +54,19 @@ export async function POST(
 
   const { id: clientId, projectId } = await params;
   const body = await req.json();
-  const { title, description, assignees, completionDate, parentTaskId } = body;
 
-  if (!title?.trim()) {
-    return NextResponse.json({ error: "Title is required" }, { status: 400 });
-  }
-
-  await connectDB();
-
-  // Inherit assignees from parent task; auto-increment order for top-level tasks
-  let taskAssignees = assignees ?? [];
-  let taskOrder = 0;
-  if (parentTaskId) {
-    const parent = await TaskModel.findById(parentTaskId).lean();
-    taskAssignees = parent?.assignees ?? [];
-  } else {
-    const last = await TaskModel.findOne({ projectId, parentTaskId: null }).sort({ order: -1 }).lean();
-    taskOrder = last ? (last.order ?? 0) + 1 : 0;
-  }
-
-  const doc = await TaskModel.create({
+  const created = await createTask(session, {
     clientId,
     projectId,
-    parentTaskId: parentTaskId || undefined,
-    title: title.trim(),
-    description: description?.trim() || undefined,
-    assignees: taskAssignees,
-    completionDate: completionDate || undefined,
-    order: taskOrder,
-    createdById: session.user.id,
-    createdByName: session.user.name ?? "Unknown",
+    title: body.title,
+    description: body.description,
+    assignees: body.assignees,
+    completionDate: body.completionDate,
+    parentTaskId: body.parentTaskId,
   });
-
-  // Recalculate project status only for kicked-off projects. Before kickoff,
-  // status stays at "not_started" regardless of task changes. Draft projects (in plan) never recompute.
-  const project = await ProjectModel.findById(projectId).lean();
-  const isDraft = project?.status === "draft";
-  if (project?.kickedOffAt && !isDraft) {
-    const allTasks = await TaskModel.find({ projectId }).lean();
-    const completedCount = allTasks.filter((t) => !!t.completedAt).length;
-    const total = allTasks.length;
-    const allDone = total > 0 && completedCount === total;
-    const projectStatus = allDone ? "completed" : "in_progress";
-    // Adding a task always moves project out of completed — clear completedDate
-    const projectUpdate: Record<string, unknown> = { status: projectStatus };
-    if (!allDone) projectUpdate.completedDate = null;
-    await ProjectModel.findByIdAndUpdate(projectId, { $set: projectUpdate });
+  if (!created.ok) {
+    return NextResponse.json({ error: created.error }, { status: created.status });
   }
 
-  if (!isDraft) {
-    await recordActivity({
-      clientId,
-      actorId: session.user.id,
-      actorName: session.user.name ?? "Unknown",
-      type: "task.created",
-      metadata: { projectId, title: doc.title },
-    });
-  }
-
-  return NextResponse.json(
-    {
-      id: doc._id.toString(),
-      projectId: doc.projectId,
-      parentTaskId: doc.parentTaskId ?? undefined,
-      title: doc.title,
-      description: doc.description ?? undefined,
-      assignees: doc.assignees ?? [],
-      completionDate: doc.completionDate ?? undefined,
-      completedAt: doc.completedAt ?? undefined,
-      order: doc.order ?? 0,
-      createdById: doc.createdById,
-      createdByName: doc.createdByName,
-      createdAt: doc.createdAt?.toISOString(),
-    },
-    { status: 201 }
-  );
+  return NextResponse.json(created.task, { status: 201 });
 }

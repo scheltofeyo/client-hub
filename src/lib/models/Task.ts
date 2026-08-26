@@ -16,6 +16,8 @@ export interface ITask extends Document {
   order: number;
   createdById: string;
   createdByName: string;
+  /** Name of the API token this was written through; absent means by hand. */
+  createdVia?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -46,6 +48,7 @@ const TaskSchema = new Schema<ITask>(
     order: { type: Number, default: 0 },
     createdById: { type: String, required: true },
     createdByName: { type: String, required: true },
+    createdVia: { type: String },
   },
   { timestamps: true }
 );

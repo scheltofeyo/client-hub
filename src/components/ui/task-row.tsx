@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import type { Task, TaskAssignee } from "@/types";
 import UserAvatar from "@/components/ui/UserAvatar";
+import ViaToken from "@/components/ui/ViaToken";
 
 // ── Shared styles ──────────────────────────────────────────────────────────────
 
@@ -543,6 +544,7 @@ export function SubtaskRow({
               {task.createdAt && (
                 <span className="text-xs leading-none" style={{ color: "var(--text-muted)" }}>
                   Created on {fmtDate(task.createdAt)}
+                  {task.createdVia && <> · <ViaToken via={task.createdVia} /></>}
                 </span>
               )}
               <UserAvatar name={task.createdByName} image={userImages?.[task.createdById]} size={20} />
@@ -816,6 +818,7 @@ export function TaskRow({
                     {task.createdAt && (
                       <span className="text-xs" style={{ color: "var(--text-muted)" }}>
                         Created on {fmtDate(task.createdAt)}
+                        {task.createdVia && <> · <ViaToken via={task.createdVia} /></>}
                       </span>
                     )}
                     <UserAvatar name={task.createdByName} image={userImages?.[task.createdById]} size={20} />

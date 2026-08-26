@@ -17,6 +17,8 @@ export interface IClientEvent extends Document {
   notes?: string;
   createdById: string;
   createdByName: string;
+  /** Name of the API token this was written through; absent means by hand. */
+  createdVia?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -34,6 +36,7 @@ const ClientEventSchema = new Schema<IClientEvent>(
     notes:               { type: String, trim: true },
     createdById:         { type: String, required: true },
     createdByName:       { type: String, required: true },
+    createdVia:          { type: String },
   },
   { timestamps: true }
 );

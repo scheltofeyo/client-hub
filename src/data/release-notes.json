@@ -1,5 +1,48 @@
 [
   {
+    "date": "2026-08-26",
+    "title": "Werk vanuit de Claude-app rechtstreeks in de hub",
+    "details": [
+      "Voeg SUMM Hub toe als connector in de Claude-app en log in met je gewone Google-account — er valt niets te installeren en je hoeft geen token over te tikken",
+      "Je kunt klanten en prospects opzoeken, de verkoopborden lezen en een kaart naar een andere fase verplaatsen, logboekregels schrijven en taken aanmaken, aanpassen en afvinken",
+      "Taken werken precies als in de hub: ze hangen aan een klant en mogen onder een project of een bestaande taak vallen, subtaken gaan mee bij het afvinken, een logboeknotitie wordt als opgevolgd gemarkeerd en de projectstatus wordt bijgewerkt",
+      "Je ziet vooraf wat de app namens jou mag en je kunt niets weggeven wat je zelf niet hebt; mist een koppeling een recht, dan krijg je een duidelijke melding en wordt er niets gewijzigd",
+      "Onder Profiel > Integrations staat welke apps gekoppeld zijn en wanneer ze voor het laatst iets deden — verbreken werkt onmiddellijk. Daar maak je ook een persoonlijk API-token aan voor je eigen Claude Code of een geplande taak, eventueel beperkt tot precies de nodige rechten en met een vervaldatum",
+      "Wat er via een koppeling binnenkomt, staat op jouw naam in het logboek en het activiteitenoverzicht, met de aantekening via welke koppeling het ging"
+    ],
+    "whatsNew": {
+      "id": "claude-app-connector",
+      "title": "Koppel de hub aan de Claude-app",
+      "steps": [
+        {
+          "title": "Koppel de app",
+          "description": "Voeg SUMM Hub in de Claude-app toe als connector en log in met je gewone Google-account. Er valt niets te installeren en je hoeft geen token over te tikken."
+        },
+        {
+          "title": "Vraag wat je nodig hebt",
+          "description": "Zoek klanten en prospects op, lees je verkoopborden, verplaats een kaart naar een volgende fase, schrijf een logboekregel of maak en vink taken af — zonder de hub te openen."
+        },
+        {
+          "title": "Houd het in eigen hand",
+          "description": "Onder Profiel > Integrations zie je elke koppeling en wat die namens jou mag. Een koppeling kan nooit meer dan jouw eigen rol toestaat, en verbreken werkt onmiddellijk."
+        }
+      ]
+    }
+  },
+  {
+    "date": "2026-08-26",
+    "title": "Salesfunnel met kanban borden",
+    "details": [
+      "Nieuwe sectie Sales in de linkerbalk waarin je zelf kanban borden aanmaakt, met per bord instelbare kolommen en kleuren",
+      "Voeg prospects toe aan een bord en sleep ze tussen de fases; dezelfde prospect mag op meerdere borden staan, en per kolom zie je het aantal prospects en de opgetelde dealwaarde",
+      "Staat het bedrijf nog niet in de hub? Kies 'Nieuw bedrijf aanmaken' in 'Prospect toevoegen' — het bedrijf krijgt de status prospect en verschijnt meteen als kaart in de kolom waar je begon",
+      "Per kaart leg je eigenaars, contactpersoon, bron, dealwaarde, verwachte closing, labels en een notitie vast; via 'Bedrijfsgegevens bewerken' pas je in datzelfde zijpaneel de bedrijfsgegevens en de contactpersonen aan",
+      "Een prospect afronden kan op drie manieren: gewonnen maakt er een actieve klant van, verloren zet hem op inactief en verplaatst de kaart naar het archief, en 'Verwijder prospect' verwijdert de client compleet — zichtbaar voor wie klanten mag verwijderen",
+      "Verwijder je een klant elders in de hub, dan verdwijnen zijn kaarten ook van de verkoopborden",
+      "Alle acties op een kaart komen terug in het activiteitenoverzicht van de betreffende client"
+    ]
+  },
+  {
     "date": "2026-07-09",
     "title": "Foutscherm na inloggen verholpen",
     "details": [
@@ -1017,7 +1060,7 @@
     "details": [
       "Admin 'Users' section is now 'Employees' with invitation-only access",
       "Rich employee profiles: personal details, employment info, contract data, emergency contacts",
-      "Admins can invite employees by email \u2014 account auto-activates on first Google login",
+      "Admins can invite employees by email — account auto-activates on first Google login",
       "Admin-controlled display name and avatar overrides (Google values imported automatically)",
       "Dedicated employee detail page with full profile editor",
       "Role-based access: Admin and Member roles (replaces simple admin toggle)",

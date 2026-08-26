@@ -75,6 +75,7 @@ export async function PATCH(
     status: doc.status,
     createdById: doc.createdById.toString(),
     createdByName: doc.createdByName,
+    createdVia: doc.createdVia ?? undefined,
   });
 }
 

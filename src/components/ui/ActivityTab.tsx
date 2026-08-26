@@ -2,8 +2,9 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { NotebookPen, CheckSquare, FolderKanban, UserPlus, UserMinus, Building2, Trash2, CheckCheck, ChevronDown, ChevronRight, CalendarDays, Rocket, FileSpreadsheet } from "lucide-react";
+import { NotebookPen, CheckSquare, FolderKanban, UserPlus, UserMinus, Building2, Trash2, CheckCheck, ChevronDown, ChevronRight, CalendarDays, Rocket, FileSpreadsheet, Target, Award } from "lucide-react";
 import UserAvatar from "@/components/ui/UserAvatar";
+import ViaToken from "@/components/ui/ViaToken";
 
 export interface ActivityEvent {
   id: string;
@@ -195,6 +196,39 @@ function eventDescription(event: ActivityEvent): React.ReactNode {
       return title
         ? <><Bold>Event</Bold><Dim> deleted: </Dim><Italic>{title}</Italic></>
         : <><Bold>Event</Bold><Dim> deleted</Dim></>;
+    case "sales.card_added": {
+      const boardName = metadata.boardName as string | undefined;
+      return boardName
+        ? <><Dim>Added to </Dim><Bold>sales board</Bold><Dim>: </Dim><Italic>{boardName}</Italic></>
+        : <><Dim>Added to a </Dim><Bold>sales board</Bold></>;
+    }
+    case "sales.card_updated": {
+      const fields = metadata.fields as string[] | undefined;
+      return fields && fields.length > 0
+        ? <><Bold>Sales card</Bold><Dim> updated: </Dim><Italic>{fields.join(", ")}</Italic></>
+        : <><Bold>Sales card</Bold><Dim> updated</Dim></>;
+    }
+    case "sales.card_moved": {
+      const from = metadata.from as string | undefined;
+      const to = metadata.to as string | undefined;
+      return from && to
+        ? <><Dim>Moved from </Dim><Italic>{from}</Italic><Dim> to </Dim><Italic>{to}</Italic><Dim> in the sales funnel</Dim></>
+        : <Dim>Moved in the sales funnel</Dim>;
+    }
+    case "sales.card_won": {
+      const promoted = metadata.promoted as boolean | undefined;
+      return promoted
+        ? <><Bold>Deal won</Bold><Dim> — prospect promoted to client</Dim></>
+        : <><Bold>Deal won</Bold></>;
+    }
+    case "sales.card_lost":
+      return <><Bold>Deal lost</Bold></>;
+    case "sales.card_removed": {
+      const boardName = metadata.boardName as string | undefined;
+      return boardName
+        ? <><Dim>Removed from </Dim><Bold>sales board</Bold><Dim>: </Dim><Italic>{boardName}</Italic></>
+        : <><Dim>Removed from a </Dim><Bold>sales board</Bold></>;
+    }
     case "lead.archived": {
       const userName = metadata.userName as string | undefined;
       return userName
@@ -235,6 +269,12 @@ function typeSummaryLabel(type: string, count: number): React.ReactNode {
     case "event.created":             return <><Bold>{n} event{s}</Bold><Dim> added</Dim></>;
     case "event.updated":             return <><Bold>{n} event{s}</Bold><Dim> updated</Dim></>;
     case "event.deleted":             return <><Bold>{n} event{s}</Bold><Dim> deleted</Dim></>;
+    case "sales.card_added":          return <><Bold>{n} prospect{s}</Bold><Dim> added to a sales board</Dim></>;
+    case "sales.card_updated":        return <><Bold>{n}</Bold><Dim> sales card update{s}</Dim></>;
+    case "sales.card_moved":          return <><Bold>{n}</Bold><Dim> funnel stage change{s}</Dim></>;
+    case "sales.card_won":            return <><Bold>{n} deal{s}</Bold><Dim> won</Dim></>;
+    case "sales.card_lost":           return <><Bold>{n} deal{s}</Bold><Dim> lost</Dim></>;
+    case "sales.card_removed":        return <><Bold>{n} prospect{s}</Bold><Dim> removed from a sales board</Dim></>;
     case "lead.archived":             return <><Bold>{n}</Bold><Dim> lead{s} archived</Dim></>;
     default:                       return <><Bold>{n}</Bold><Dim> activit{n > 1 ? "ies" : "y"}</Dim></>;
   }
@@ -244,6 +284,9 @@ function eventIcon(type: string) {
   if (type === "log.deleted" || type === "task.deleted" || type === "project.deleted" || type === "sheet.deleted" || type === "event.deleted" || type === "plan.deleted") return <Trash2 size={14} />;
   if (type === "log.followedup") return <CheckCheck size={14} />;
   if (type === "project.kicked_off") return <Rocket size={14} />;
+  if (type === "sales.card_won") return <Award size={14} />;
+  if (type === "sales.card_removed") return <Trash2 size={14} />;
+  if (type.startsWith("sales.")) return <Target size={14} />;
   if (type.startsWith("log.")) return <NotebookPen size={14} />;
   if (type.startsWith("task.")) return <CheckSquare size={14} />;
   if (type.startsWith("project.")) return <FolderKanban size={14} />;
@@ -260,6 +303,9 @@ function eventIconStyle(type: string): { background: string; color: string } {
   if (type === "log.deleted" || type === "task.deleted" || type === "project.deleted" || type === "sheet.deleted" || type === "event.deleted" || type === "plan.deleted") {
     return { background: "var(--activity-delete-bg)", color: "var(--activity-delete-color)" };
   }
+  if (type === "sales.card_won") return { background: "var(--success-light)", color: "var(--success)" };
+  if (type === "sales.card_lost" || type === "sales.card_removed") return { background: "var(--activity-delete-bg)", color: "var(--activity-delete-color)" };
+  if (type.startsWith("sales.")) return { background: "var(--primary-light)", color: "var(--primary)" };
   if (type.startsWith("log.")) return { background: "var(--activity-log-bg)", color: "var(--activity-log-color)" };
   if (type.startsWith("task.")) return { background: "var(--activity-task-bg)", color: "var(--activity-task-color)" };
   if (type.startsWith("project.")) return { background: "var(--primary-light)", color: "var(--primary)" };
@@ -390,6 +436,9 @@ export function CollapsibleTypeGroup({ events, type, clientId }: { events: Activ
                   </p>
                   <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
                     {timeAgo(event.createdAt)}
+                    {event.metadata.via === "api" && (
+                      <> · <ViaToken via={(event.metadata.viaTokenName as string) ?? "API"} /></>
+                    )}
                   </p>
                 </div>
                 <div className="flex-shrink-0 flex items-center gap-1.5">

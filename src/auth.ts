@@ -1,4 +1,4 @@
-import NextAuth from "next-auth";
+import NextAuth, { type Session } from "next-auth";
 import { cache } from "react";
 import { authConfig } from "./auth.config";
 import { connectDB } from "@/lib/mongodb";
@@ -6,8 +6,10 @@ import { UserModel } from "@/lib/models/User";
 import { RoleModel } from "@/lib/models/Role";
 import { TaskModel } from "@/lib/models/Task";
 import { ProjectModel } from "@/lib/models/Project";
+import { SalesCardModel } from "@/lib/models/SalesCard";
 import { getLeadSettings } from "@/lib/models/LeadSettings";
 import { withRetry } from "@/lib/db-retry";
+import { bearerFromHeaders, sessionFromApiToken } from "@/lib/api-token";
 
 /**
  * DB work for the periodic token re-check, kept off the render-blocking path:
@@ -46,7 +48,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   });
 }
 
-export const { handlers, signIn, signOut, auth } = NextAuth({
+const nextAuth = NextAuth({
   ...authConfig,
   // Define callbacks fully here — do NOT spread authConfig.callbacks
   // (the `authorized` callback is edge-only and belongs in proxy.ts only)
@@ -112,6 +114,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         ProjectModel.updateMany(
           { "members.userId": userId },
           { $set: { "members.$[elem].image": user.image } },
+          { arrayFilters: [{ "elem.userId": userId }] }
+        ).catch(() => {});
+        SalesCardModel.updateMany(
+          { "owners.userId": userId },
+          { $set: { "owners.$[elem].image": user.image } },
           { arrayFilters: [{ "elem.userId": userId }] }
         ).catch(() => {});
       }
@@ -250,6 +257,28 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     },
   },
 });
+
+export const { handlers, signIn, signOut } = nextAuth;
+
+/** The stock cookie/JWT session resolver, wrapped by `auth()` below. */
+const cookieSession = nextAuth.auth;
+
+/**
+ * Session resolver for the whole app. Falls back to the normal cookie session,
+ * but first honours an `Authorization: Bearer` API token so that callers
+ * without a browser (a scheduled task, an MCP client) get a real Session with
+ * the token owner's permissions. Because every call site does a bare
+ * `await auth()`, wrapping here means no route handler has to change.
+ *
+ * An invalid bearer token deliberately does NOT fall through to the cookie: a
+ * revoked token sitting in someone's config must fail closed, not quietly keep
+ * working because a browser session happens to exist on the same request.
+ */
+export async function auth(): Promise<Session | null> {
+  const raw = await bearerFromHeaders();
+  if (!raw) return cookieSession();
+  return sessionFromApiToken(raw);
+}
 
 /**
  * Request-scoped `auth()` for server components. A layout and its page render

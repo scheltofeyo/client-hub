@@ -201,6 +201,7 @@ export async function GET(
           order: t.order ?? 0,
           createdById: t.createdById,
           createdByName: t.createdByName,
+          createdVia: t.createdVia ?? undefined,
         }));
       return acc;
     }, {}),
@@ -219,6 +220,7 @@ export async function GET(
           templateSessionId: s.templateSessionId ?? null,
           createdById: s.createdById,
           createdByName: s.createdByName,
+          createdVia: s.createdVia ?? undefined,
         }));
       return acc;
     }, {}),

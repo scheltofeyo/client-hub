@@ -17,6 +17,8 @@ export interface ILog extends Document {
   isSystemGenerated: boolean;
   createdById: string;
   createdByName: string;
+  /** Name of the API token this was written through; absent means by hand. */
+  createdVia?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -39,6 +41,7 @@ const LogSchema = new Schema<ILog>(
     isSystemGenerated: { type: Boolean, default: false },
     createdById: { type: String, required: true },
     createdByName: { type: String, required: true },
+    createdVia: { type: String },
   },
   { timestamps: true }
 );

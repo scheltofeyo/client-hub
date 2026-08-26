@@ -107,6 +107,7 @@ export async function PATCH(
     templateSessionId: doc.templateSessionId ?? null,
     createdById: doc.createdById,
     createdByName: doc.createdByName,
+    createdVia: doc.createdVia ?? undefined,
   });
 }
 

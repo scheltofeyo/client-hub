@@ -30,6 +30,7 @@ export default function EditorPanel<K extends string>({
   onDiscard,
   error,
   headerMeta,
+  saveLabel = "Save changes",
 }: {
   tabs: EditorTab<K>[];
   activeTab: K;
@@ -42,6 +43,8 @@ export default function EditorPanel<K extends string>({
   onDiscard: () => void;
   error?: string | null;
   headerMeta?: ReactNode;
+  /** Footer save-button label; a create-flow reads better as "Add …". */
+  saveLabel?: string;
 }) {
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -117,7 +120,7 @@ export default function EditorPanel<K extends string>({
             disabled={!dirty || saving}
             className="px-3 py-1.5 rounded-md text-sm btn-primary disabled:opacity-50"
           >
-            {saving ? "Saving…" : "Save changes"}
+            {saving ? "Saving…" : saveLabel}
           </button>
         </div>
       )}

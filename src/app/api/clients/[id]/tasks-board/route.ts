@@ -43,6 +43,7 @@ export async function GET(
     order: doc.order ?? 0,
     createdById: doc.createdById,
     createdByName: doc.createdByName,
+    createdVia: doc.createdVia ?? undefined,
     createdAt: doc.createdAt?.toISOString(),
   });
 

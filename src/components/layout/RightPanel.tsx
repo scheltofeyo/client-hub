@@ -39,11 +39,14 @@ interface RightPanelCtx {
   /** Pushes a panel on top of whatever is open. Stacks indefinitely, so a form
    *  opened here can itself open another sub-panel (e.g. session → participants). */
   openSecondaryPanel: (title: string, content: ReactNode, opts?: PanelOptions) => void;
-  /** Pops the topmost stacked panel. */
+  /** Pops the topmost stacked panel, bypassing its guard — for programmatic
+   *  closes after the stacked editor has saved. */
   closeSecondaryPanel: () => void;
   /** Register a guard consulted on user-initiated primary-panel close (X /
    *  backdrop / Esc). Return false to abort the close. Pass null to clear. */
   registerCloseGuard: (fn: (() => boolean) | null) => void;
+  /** Same, for the topmost stacked panel (Back / X / backdrop / Esc). */
+  registerSecondaryCloseGuard: (fn: (() => boolean) | null) => void;
   isOpen: boolean;
   isSecondaryOpen: boolean;
 }
@@ -62,32 +65,41 @@ export function RightPanelProvider({ children }: { children: ReactNode }) {
   const [panel, setPanel] = useState<PrimaryState>(emptyPrimary);
   const [stack, setStack] = useState<SecondaryEntry[]>([]);
   const closeGuardRef = useRef<null | (() => boolean)>(null);
+  const secondaryGuardRef = useRef<null | (() => boolean)>(null);
   const primaryRef = useRef<HTMLDivElement>(null);
   const stackIdRef = useRef(0);
 
   const openPanel = useCallback((title: string, content: ReactNode, opts?: PanelOptions) => {
     closeGuardRef.current = null;
+    secondaryGuardRef.current = null;
     setStack([]);
     setPanel((p) => ({ isOpen: true, title, content, openKey: p.openKey + 1, padded: opts?.padded ?? true }));
   }, []);
 
   const closePanel = useCallback(() => {
     closeGuardRef.current = null;
+    secondaryGuardRef.current = null;
     setStack([]);
     setPanel((p) => ({ ...p, isOpen: false }));
   }, []);
 
   const openSecondaryPanel = useCallback((title: string, content: ReactNode, opts?: PanelOptions) => {
     stackIdRef.current += 1;
+    secondaryGuardRef.current = null;
     setStack((s) => [...s, { id: stackIdRef.current, title, content, padded: opts?.padded ?? true }]);
   }, []);
 
   const closeSecondaryPanel = useCallback(() => {
+    secondaryGuardRef.current = null;
     setStack((s) => s.slice(0, -1));
   }, []);
 
   const registerCloseGuard = useCallback((fn: (() => boolean) | null) => {
     closeGuardRef.current = fn;
+  }, []);
+
+  const registerSecondaryCloseGuard = useCallback((fn: (() => boolean) | null) => {
+    secondaryGuardRef.current = fn;
   }, []);
 
   // User-initiated close of the primary panel — consult the guard first.
@@ -97,17 +109,24 @@ export function RightPanelProvider({ children }: { children: ReactNode }) {
     closePanel();
   }, [closePanel]);
 
+  // Same for the topmost stacked panel; only it can carry a guard.
+  const attemptCloseSecondary = useCallback(() => {
+    const guard = secondaryGuardRef.current;
+    if (guard && !guard()) return;
+    closeSecondaryPanel();
+  }, [closeSecondaryPanel]);
+
   // Esc closes the topmost open panel (a stacked one first), honouring the guard.
   useEffect(() => {
     if (!panel.isOpen) return;
     function onKeyDown(e: KeyboardEvent) {
       if (e.key !== "Escape") return;
-      if (stack.length > 0) closeSecondaryPanel();
+      if (stack.length > 0) attemptCloseSecondary();
       else attemptClosePrimary();
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [panel.isOpen, stack.length, closeSecondaryPanel, attemptClosePrimary]);
+  }, [panel.isOpen, stack.length, attemptCloseSecondary, attemptClosePrimary]);
 
   // Move focus into the panel when it opens so keyboard users land inside it.
   useEffect(() => {
@@ -125,6 +144,7 @@ export function RightPanelProvider({ children }: { children: ReactNode }) {
         openSecondaryPanel,
         closeSecondaryPanel,
         registerCloseGuard,
+        registerSecondaryCloseGuard,
         isOpen: panel.isOpen,
         isSecondaryOpen: stackOpen,
       }}
@@ -141,7 +161,7 @@ export function RightPanelProvider({ children }: { children: ReactNode }) {
           pointerEvents: panel.isOpen ? "auto" : "none",
         }}
         onClick={() => {
-          if (stackOpen) closeSecondaryPanel();
+          if (stackOpen) attemptCloseSecondary();
           else attemptClosePrimary();
         }}
       />
@@ -212,14 +232,22 @@ export function RightPanelProvider({ children }: { children: ReactNode }) {
               style={{ borderColor: "var(--border)" }}
             >
               <div className="flex items-center gap-2">
-                <button onClick={closeSecondaryPanel} className="p-1 rounded-md btn-icon" aria-label="Back">
+                <button
+                  onClick={isTop ? attemptCloseSecondary : closeSecondaryPanel}
+                  className="p-1 rounded-md btn-icon"
+                  aria-label="Back"
+                >
                   <ArrowLeft size={16} />
                 </button>
                 <h2 className="typo-card-title" style={{ color: "var(--text-primary)" }}>
                   {entry.title}
                 </h2>
               </div>
-              <button onClick={closeSecondaryPanel} className="p-1 rounded-md btn-icon" aria-label="Close">
+              <button
+                onClick={isTop ? attemptCloseSecondary : closeSecondaryPanel}
+                className="p-1 rounded-md btn-icon"
+                aria-label="Close"
+              >
                 <X size={16} />
               </button>
             </div>

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { creatorFields } from "@/lib/actor";
 import { connectDB } from "@/lib/mongodb";
 import { ClientModel } from "@/lib/models/Client";
 import { ProjectPlanModel } from "@/lib/models/ProjectPlan";
@@ -100,8 +101,7 @@ export async function POST(
       leads: client.leads ?? [],
       extraAssignees: [],
       completionFields: {},
-      createdById: session.user.id,
-      createdByName: session.user.name ?? "Unknown",
+      ...(await creatorFields(session!)),
     });
     await instantiateTemplateSessions({
       templateId,
@@ -109,8 +109,7 @@ export async function POST(
       projectId,
       planTaskAssignees: [],
       completionFields: {},
-      createdById: session.user.id,
-      createdByName: session.user.name ?? "Unknown",
+      ...(await creatorFields(session!)),
     });
   }
 
@@ -157,6 +156,7 @@ export async function POST(
         order: t.order ?? 0,
         createdById: t.createdById,
         createdByName: t.createdByName,
+        createdVia: t.createdVia ?? undefined,
       })),
       sessions: freshSessions.map((s) => ({
         id: s._id.toString(),
@@ -170,6 +170,7 @@ export async function POST(
         templateSessionId: s.templateSessionId ?? null,
         createdById: s.createdById,
         createdByName: s.createdByName,
+        createdVia: s.createdVia ?? undefined,
       })),
     },
     { status: 201 }
