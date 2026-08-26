@@ -2,8 +2,9 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { NotebookPen, CheckSquare, FolderKanban, UserPlus, UserMinus, Building2, Trash2, CheckCheck, ChevronDown, ChevronRight, CalendarDays, Rocket, FileSpreadsheet, Target, Award, Plug } from "lucide-react";
+import { NotebookPen, CheckSquare, FolderKanban, UserPlus, UserMinus, Building2, Trash2, CheckCheck, ChevronDown, ChevronRight, CalendarDays, Rocket, FileSpreadsheet, Target, Award } from "lucide-react";
 import UserAvatar from "@/components/ui/UserAvatar";
+import ViaToken from "@/components/ui/ViaToken";
 
 export interface ActivityEvent {
   id: string;
@@ -435,7 +436,9 @@ export function CollapsibleTypeGroup({ events, type, clientId }: { events: Activ
                   </p>
                   <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
                     {timeAgo(event.createdAt)}
-                    <ViaTokenBadge metadata={event.metadata} />
+                    {event.metadata.via === "api" && (
+                      <> · <ViaToken via={(event.metadata.viaTokenName as string) ?? "API"} /></>
+                    )}
                   </p>
                 </div>
                 <div className="flex-shrink-0 flex items-center gap-1.5">
@@ -450,21 +453,6 @@ export function CollapsibleTypeGroup({ events, type, clientId }: { events: Activ
         </div>
       )}
     </div>
-  );
-}
-
-function ViaTokenBadge({ metadata }: { metadata: Record<string, unknown> }) {
-  if (metadata.via !== "api") return null;
-  const tokenName = metadata.viaTokenName as string | undefined;
-  return (
-    <span
-      className="ml-1.5 inline-flex items-center gap-1 rounded-badge px-1.5 py-0.5 typo-tag align-middle"
-      style={{ background: "var(--bg-neutral)", color: "var(--text-muted)" }}
-      title={tokenName ? `Via API token "${tokenName}"` : "Via API token"}
-    >
-      <Plug size={9} />
-      {tokenName ?? "API"}
-    </span>
   );
 }
 

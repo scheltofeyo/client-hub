@@ -11,6 +11,8 @@ export interface ITimeOff extends Document {
   status: "confirmed";
   createdById: mongoose.Types.ObjectId;
   createdByName: string;
+  /** Name of the API token this was written through; absent means by hand. */
+  createdVia?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -27,6 +29,7 @@ const TimeOffSchema = new Schema<ITimeOff>(
     status:       { type: String, enum: ["confirmed"], default: "confirmed" },
     createdById:  { type: Schema.Types.ObjectId, ref: "User", required: true },
     createdByName: { type: String, required: true },
+    createdVia: { type: String },
   },
   { timestamps: true }
 );

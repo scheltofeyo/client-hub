@@ -14,6 +14,8 @@ export interface ISalesBoard extends Document {
   columns: ISalesBoardColumn[];
   createdById: string;
   createdByName: string;
+  /** Name of the API token this was written through; absent means by hand. */
+  createdVia?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -37,6 +39,7 @@ const SalesBoardSchema = new Schema<ISalesBoard>(
     columns: { type: [SalesBoardColumnSchema], default: [] },
     createdById: { type: String, required: true },
     createdByName: { type: String, required: true },
+    createdVia: { type: String },
   },
   { timestamps: true }
 );

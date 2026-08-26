@@ -21,6 +21,8 @@ export interface ISalesCard extends Document {
   outcomeByName?: string;
   createdById: string;
   createdByName: string;
+  /** Name of the API token this was written through; absent means by hand. */
+  createdVia?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -53,6 +55,7 @@ const SalesCardSchema = new Schema<ISalesCard>(
     outcomeByName: { type: String },
     createdById: { type: String, required: true },
     createdByName: { type: String, required: true },
+    createdVia: { type: String },
   },
   { timestamps: true }
 );

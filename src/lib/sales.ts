@@ -22,6 +22,7 @@ export function serializeSalesBoard(doc: Lean<ISalesBoard>): SalesBoard {
       .sort((a, b) => a.rank - b.rank),
     createdById: doc.createdById,
     createdByName: doc.createdByName,
+    createdVia: doc.createdVia ?? undefined,
     createdAt: doc.createdAt?.toISOString(),
   };
 }
@@ -59,6 +60,7 @@ export function serializeSalesCard(
     outcomeByName: doc.outcomeByName ?? undefined,
     createdById: doc.createdById,
     createdByName: doc.createdByName,
+    createdVia: doc.createdVia ?? undefined,
     createdAt: doc.createdAt?.toISOString(),
     company: joined?.company ?? "",
     clientPrimaryColor: joined?.clientPrimaryColor,

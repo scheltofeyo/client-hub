@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { creatorFields } from "@/lib/actor";
 import { hasPermission } from "@/lib/auth-helpers";
 import { connectDB } from "@/lib/mongodb";
 import { ClientEventModel } from "@/lib/models/ClientEvent";
@@ -79,8 +80,7 @@ export async function POST(
     recurrenceUnit: hasRecurrence ? recurrenceUnit : undefined,
     repetitions: resolvedRepetitions,
     notes: notes?.trim() || undefined,
-    createdById: session.user.id,
-    createdByName: session.user.name ?? "Unknown",
+    ...(await creatorFields(session!)),
   });
 
   await recordActivity({

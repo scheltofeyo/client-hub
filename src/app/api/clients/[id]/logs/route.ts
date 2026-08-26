@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { creatorFields } from "@/lib/actor";
 import { hasPermission } from "@/lib/auth-helpers";
 import { connectDB } from "@/lib/mongodb";
 import { LogModel } from "@/lib/models/Log";
@@ -35,6 +36,7 @@ export async function GET(
       isSystemGenerated: doc.isSystemGenerated ?? false,
       createdById: doc.createdById,
       createdByName: doc.createdByName,
+      createdVia: doc.createdVia ?? undefined,
       createdAt: doc.createdAt?.toISOString().split("T")[0],
     }))
   );
@@ -76,8 +78,7 @@ export async function POST(
     followUp: !!followUp,
     followUpAction: followUp && followUpAction ? followUpAction.trim() : undefined,
     followUpDeadline: followUp && followUpDeadline ? followUpDeadline : undefined,
-    createdById: session.user.id,
-    createdByName: session.user.name ?? "Unknown",
+    ...(await creatorFields(session!)),
   });
 
   // Create a derived follow-up task in General if this log has a follow-up.
@@ -89,8 +90,7 @@ export async function POST(
       logId: doc._id.toString(),
       title: doc.followUpAction,
       completionDate: doc.followUpDeadline || undefined,
-      createdById: session.user.id,
-      createdByName: session.user.name ?? "Unknown",
+      ...(await creatorFields(session!)),
     });
     await LogModel.findByIdAndUpdate(doc._id, { $set: { followUpTaskId: task._id.toString() } });
   }
@@ -117,6 +117,7 @@ export async function POST(
       followUpDeadline: doc.followUpDeadline ?? undefined,
       createdById: doc.createdById,
       createdByName: doc.createdByName,
+      createdVia: doc.createdVia ?? undefined,
       createdAt: doc.createdAt?.toISOString().split("T")[0],
     },
     { status: 201 }

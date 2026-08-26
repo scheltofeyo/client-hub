@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { creatorFields } from "@/lib/actor";
 import { requirePermission } from "@/lib/auth-helpers";
 import { connectDB } from "@/lib/mongodb";
 import { SalesBoardModel } from "@/lib/models/SalesBoard";
@@ -89,8 +90,7 @@ export async function POST(
     order: last ? (last.order ?? 0) + 1 : 0,
     owners: [],
     labels: [],
-    createdById: session!.user.id,
-    createdByName: session!.user.name ?? "Unknown",
+    ...(await creatorFields(session!)),
   });
 
   await recordActivity({

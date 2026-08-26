@@ -276,6 +276,8 @@ export interface Log {
   isSystemGenerated?: boolean;
   createdById: string;
   createdByName: string;
+  /** API token the record came in through; absent means written by hand. */
+  createdVia?: string;
   createdAt?: string;
 }
 
@@ -317,6 +319,8 @@ export interface Task {
   order?: number;
   createdById: string;
   createdByName: string;
+  /** API token the record came in through; absent means written by hand. */
+  createdVia?: string;
   createdAt?: string;
 }
 
@@ -342,6 +346,8 @@ export interface Session {
   templateSessionId?: string;
   createdById: string;
   createdByName: string;
+  /** API token the record came in through; absent means written by hand. */
+  createdVia?: string;
   createdAt?: string;
 }
 
@@ -455,6 +461,8 @@ export interface TimeOffEntry {
   status: string;
   createdById: string;
   createdByName: string;
+  /** API token the record came in through; absent means written by hand. */
+  createdVia?: string;
   createdAt?: string;
 }
 
@@ -507,6 +515,8 @@ export interface SalesBoard {
   columns: SalesBoardColumn[];
   createdById: string;
   createdByName: string;
+  /** API token the record came in through; absent means written by hand. */
+  createdVia?: string;
   createdAt?: string;
   /** Open (non-archived) cards on this board — filled by list queries. */
   cardCount?: number;
@@ -541,6 +551,8 @@ export interface SalesCard {
   outcomeByName?: string;
   createdById: string;
   createdByName: string;
+  /** API token the record came in through; absent means written by hand. */
+  createdVia?: string;
   createdAt?: string;
   // Joined from the Client at read time — never stored on the card.
   company: string;

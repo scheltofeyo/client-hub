@@ -474,6 +474,7 @@ export async function getLogsByClientId(clientId: string): Promise<Log[]> {
     isSystemGenerated: doc.isSystemGenerated ?? false,
     createdById: doc.createdById,
     createdByName: doc.createdByName,
+    createdVia: doc.createdVia ?? undefined,
     createdAt: doc.createdAt?.toISOString().split("T")[0],
   }));
 }
@@ -537,6 +538,7 @@ function mapTask(doc: ReturnType<typeof Object.assign>): Task {
     completedByName: doc.completedByName ?? undefined,
     createdById: doc.createdById,
     createdByName: doc.createdByName,
+    createdVia: doc.createdVia ?? undefined,
     createdAt: doc.createdAt?.toISOString(),
   };
 }
@@ -566,6 +568,7 @@ export async function getSessionsByProjectId(projectId: string): Promise<Session
     templateSessionId: doc.templateSessionId ?? undefined,
     createdById: doc.createdById,
     createdByName: doc.createdByName,
+    createdVia: doc.createdVia ?? undefined,
     createdAt: doc.createdAt?.toISOString().split("T")[0],
   }));
 }
@@ -2295,6 +2298,7 @@ export async function getMyDayFollowUps(userId: string): Promise<MyDayFollowUpDa
         isSystemGenerated: doc.isSystemGenerated ?? false,
         createdById: doc.createdById,
         createdByName: doc.createdByName,
+        createdVia: doc.createdVia ?? undefined,
         createdAt: doc.createdAt?.toISOString().split("T")[0],
         clientName: info?.name ?? "",
         clientPrimaryColor: info?.primaryColor,

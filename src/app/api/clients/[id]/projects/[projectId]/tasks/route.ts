@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { creatorFields } from "@/lib/actor";
 import { hasPermission } from "@/lib/auth-helpers";
 import { connectDB } from "@/lib/mongodb";
 import { TaskModel } from "@/lib/models/Task";
@@ -37,6 +38,7 @@ export async function GET(
       order: doc.order ?? 0,
       createdById: doc.createdById,
       createdByName: doc.createdByName,
+      createdVia: doc.createdVia ?? undefined,
       createdAt: doc.createdAt?.toISOString(),
     }))
   );
@@ -82,8 +84,7 @@ export async function POST(
     assignees: taskAssignees,
     completionDate: completionDate || undefined,
     order: taskOrder,
-    createdById: session.user.id,
-    createdByName: session.user.name ?? "Unknown",
+    ...(await creatorFields(session!)),
   });
 
   // Recalculate project status only for kicked-off projects. Before kickoff,
@@ -125,6 +126,7 @@ export async function POST(
       order: doc.order ?? 0,
       createdById: doc.createdById,
       createdByName: doc.createdByName,
+      createdVia: doc.createdVia ?? undefined,
       createdAt: doc.createdAt?.toISOString(),
     },
     { status: 201 }

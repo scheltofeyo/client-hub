@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { creatorFields } from "@/lib/actor";
 import { connectDB } from "@/lib/mongodb";
 import { SessionModel } from "@/lib/models/Session";
 import { ProjectModel } from "@/lib/models/Project";
@@ -38,6 +39,7 @@ function serialize(doc: {
   templateSessionId?: string | null;
   createdById: string;
   createdByName: string;
+  createdVia?: string;
   createdAt?: Date;
 }) {
   return {
@@ -54,6 +56,7 @@ function serialize(doc: {
     templateSessionId: doc.templateSessionId ?? null,
     createdById: doc.createdById,
     createdByName: doc.createdByName,
+    createdVia: doc.createdVia ?? undefined,
     createdAt: doc.createdAt?.toISOString().split("T")[0],
   };
 }
@@ -105,8 +108,7 @@ export async function POST(
     participants: normalizeParticipants(participants),
     info: info?.trim() || undefined,
     order,
-    createdById: session.user.id,
-    createdByName: session.user.name ?? "Unknown",
+    ...(await creatorFields(session!)),
   });
 
   // Suppress activity for draft projects — they are still inside an unaccepted plan.

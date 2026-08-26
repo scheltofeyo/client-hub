@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { auth } from "@/auth";
+import { creatorFields } from "@/lib/actor";
 import { requirePermission } from "@/lib/auth-helpers";
 import { connectDB } from "@/lib/mongodb";
 import { SalesBoardModel, DEFAULT_SALES_COLUMNS } from "@/lib/models/SalesBoard";
@@ -49,8 +50,7 @@ export async function POST(req: NextRequest) {
     description: description?.trim() || undefined,
     rank: last ? (last.rank ?? 0) + 1 : 0,
     columns: DEFAULT_SALES_COLUMNS.map((c, i) => ({ id: randomUUID(), ...c, rank: i })),
-    createdById: session!.user.id,
-    createdByName: session!.user.name ?? "Unknown",
+    ...(await creatorFields(session!)),
   });
 
   return NextResponse.json(serializeSalesBoard(doc.toObject()), { status: 201 });

@@ -13,6 +13,8 @@ export interface ISession extends Document {
   templateSessionId?: string;
   createdById: string;
   createdByName: string;
+  /** Name of the API token this was written through; absent means by hand. */
+  createdVia?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -39,6 +41,7 @@ const SessionSchema = new Schema<ISession>(
     templateSessionId: { type: String },
     createdById: { type: String, required: true },
     createdByName: { type: String, required: true },
+    createdVia: { type: String },
   },
   { timestamps: true }
 );

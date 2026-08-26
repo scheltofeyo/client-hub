@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { creatorFields } from "@/lib/actor";
 import { connectDB } from "@/lib/mongodb";
 import { LogModel } from "@/lib/models/Log";
 import { TaskModel } from "@/lib/models/Task";
@@ -90,8 +91,7 @@ export async function PATCH(
             logId,
             title: taskTitle,
             completionDate: taskDeadline || undefined,
-            createdById: session.user.id,
-            createdByName: session.user.name ?? "Unknown",
+            ...(await creatorFields(session!)),
           });
           update.followUpTaskId = task._id.toString();
         }
@@ -163,6 +163,7 @@ export async function PATCH(
     isSystemGenerated: doc.isSystemGenerated ?? false,
     createdById: doc.createdById,
     createdByName: doc.createdByName,
+    createdVia: doc.createdVia ?? undefined,
     createdAt: doc.createdAt?.toISOString().split("T")[0],
   });
 }

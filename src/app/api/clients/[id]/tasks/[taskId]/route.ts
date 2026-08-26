@@ -183,6 +183,7 @@ export async function PATCH(
     completedByName: doc.completedByName ?? undefined,
     createdById: doc.createdById,
     createdByName: doc.createdByName,
+    createdVia: doc.createdVia ?? undefined,
     createdAt: doc.createdAt?.toISOString(),
   });
 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { creatorFields } from "@/lib/actor";
 import { requirePermission } from "@/lib/auth-helpers";
 import { connectDB } from "@/lib/mongodb";
 import { TimeOffModel } from "@/lib/models/TimeOff";
@@ -129,8 +130,7 @@ export async function POST(req: NextRequest) {
     leaveTypeSlug,
     notes: notes?.slice(0, 200),
     status: "confirmed",
-    createdById: session.user.id,
-    createdByName: session.user.name ?? "",
+    ...(await creatorFields(session!)),
   });
 
   return NextResponse.json(
@@ -146,6 +146,7 @@ export async function POST(req: NextRequest) {
       status: doc.status,
       createdById: doc.createdById.toString(),
       createdByName: doc.createdByName,
+      createdVia: doc.createdVia ?? undefined,
     },
     { status: 201 }
   );

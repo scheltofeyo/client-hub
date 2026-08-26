@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { creatorFields } from "@/lib/actor";
 import { connectDB } from "@/lib/mongodb";
 import { ClientModel } from "@/lib/models/Client";
 import { ProjectModel } from "@/lib/models/Project";
@@ -205,8 +206,7 @@ export async function POST(
       completedAt: completedAtIso,
       completedById: session.user.id,
       completedByName: session.user.name ?? "Unknown",
-      createdById: session.user.id,
-      createdByName: session.user.name ?? "Unknown",
+      ...(await creatorFields(session!)),
     });
   }
 
