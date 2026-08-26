@@ -20,6 +20,7 @@ import { UserModel } from "@/lib/models/User";
 import { SalesBoardModel } from "@/lib/models/SalesBoard";
 import { SalesCardModel } from "@/lib/models/SalesCard";
 import { moveSalesCard } from "@/lib/sales";
+import { createClient, findDuplicateClients, resolveClientReferenceData } from "@/lib/clients";
 import { createLogEntry, serializeLog } from "@/lib/logs";
 import {
   canEditTask,
@@ -103,6 +104,26 @@ function strArray(args: Record<string, unknown>, key: string): string[] | undefi
     throw new ToolError(`"${key}" must be an array of strings.`);
   }
   return value as string[];
+}
+
+/**
+ * The shape check for a list of objects — what each one has to contain is left
+ * to the shared write helper, so the rule lives in one place and its refusal
+ * reads the same on both surfaces.
+ */
+function objectArray(
+  args: Record<string, unknown>,
+  key: string
+): Record<string, unknown>[] | undefined {
+  const value = args[key];
+  if (value === undefined || value === null) return undefined;
+  if (!Array.isArray(value)) throw new ToolError(`"${key}" must be an array of objects.`);
+  return value.map((entry, i) => {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+      throw new ToolError(`"${key}[${i}]" must be an object.`);
+    }
+    return entry as Record<string, unknown>;
+  });
 }
 
 function limit(args: Record<string, unknown>, fallback: number, max = 100): number {
@@ -298,6 +319,121 @@ export const MCP_TOOLS: McpTool[] = [
         .lean();
 
       return { count: docs.length, clients: docs.map(serializeClient) };
+    },
+  },
+
+  {
+    name: "create_client",
+    description:
+      "Add a new client or prospect to the hub. Search with find_clients first: a company " +
+      "whose name already exists is refused, since nothing else would notice the duplicate. " +
+      "The client's Google Drive folder and sheet structure is created too, exactly as it is " +
+      "when a client is added in the hub — pass createFolder false to skip that.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        company: { type: "string", description: "Company name." },
+        status: {
+          type: "string",
+          description:
+            'Client status — one of the configured options, e.g. "prospect" or "active". ' +
+            "The slug or its label both work.",
+        },
+        platform: {
+          type: "string",
+          description: "Client platform — one of the configured options, by slug or label.",
+        },
+        clientSince: { type: "string", description: "YYYY-MM-DD — when they became a client." },
+        website: { type: "string", description: "Company website URL." },
+        employees: { type: "number", description: "Headcount." },
+        description: { type: "string", description: "What the company does. Plain text." },
+        contacts: {
+          type: "array",
+          description:
+            "People at the company. Each one gets an id back, usable straight away as a " +
+            "contactIds value on create_log_entry.",
+          items: {
+            type: "object",
+            properties: {
+              firstName: { type: "string" },
+              lastName: { type: "string" },
+              role: { type: "string", description: "Their job title." },
+              email: { type: "string" },
+              phone: { type: "string" },
+            },
+            required: ["firstName"],
+            additionalProperties: false,
+          },
+        },
+        addressStreet: { type: "string", description: "Street and number." },
+        addressPostalCode: { type: "string" },
+        addressCity: { type: "string" },
+        addressCountry: { type: "string" },
+        createFolder: {
+          type: "boolean",
+          description:
+            "Create the client's folder and sheet structure in Google Drive — real folders, " +
+            "the same ones the hub creates. Defaults to true; pass false to skip it.",
+        },
+        allowDuplicate: {
+          type: "boolean",
+          description:
+            "Create the client even though one with the same name already exists. Only pass " +
+            "this when the two are genuinely different companies.",
+        },
+      },
+      required: ["company"],
+      additionalProperties: false,
+    },
+    permission: "clients.create",
+    handler: async (session, args) => {
+      const company = requiredStr(args, "company");
+      const status = str(args, "status");
+      const platform = str(args, "platform");
+      const contacts = objectArray(args, "contacts");
+      const createFolder = bool(args, "createFolder") ?? true;
+
+      await connectDB();
+
+      // Every refusal happens before the write, so one can never leave a
+      // half-made client behind — or a stray folder in Drive.
+      const resolved = await resolveClientReferenceData({ status, platform });
+      if (!resolved.ok) throw new ToolError(resolved.error);
+
+      if (bool(args, "allowDuplicate") !== true) {
+        const existing = await findDuplicateClients(company);
+        if (existing.length) {
+          const named = existing.map((c) => `"${c.company}" (id ${c.id})`).join(", ");
+          throw new ToolError(
+            `A client by that name already exists: ${named}. Read it with find_clients, or ` +
+              `pass allowDuplicate true if this really is a different company with the same name.`
+          );
+        }
+      }
+
+      const created = await createClient(session, {
+        company,
+        status: resolved.status,
+        platform: resolved.platform,
+        clientSince: str(args, "clientSince"),
+        employees: num(args, "employees"),
+        website: str(args, "website"),
+        description: str(args, "description"),
+        contacts,
+        addressStreet: str(args, "addressStreet"),
+        addressPostalCode: str(args, "addressPostalCode"),
+        addressCity: str(args, "addressCity"),
+        addressCountry: str(args, "addressCountry"),
+        createFolder,
+      });
+      if (!created.ok) throw new ToolError(created.error);
+
+      return {
+        created: true,
+        client: serializeClient(created.client),
+        // "pending" until GAS calls back — the hub shows a banner meanwhile.
+        folderStatus: created.client.folderStatus ?? null,
+      };
     },
   },
 
