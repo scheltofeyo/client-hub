@@ -1,13 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { creatorFields } from "@/lib/actor";
 import { requirePermission } from "@/lib/auth-helpers";
 import { connectDB } from "@/lib/mongodb";
-import { SalesBoardModel } from "@/lib/models/SalesBoard";
 import { SalesCardModel } from "@/lib/models/SalesCard";
 import { ClientModel } from "@/lib/models/Client";
-import { serializeSalesCard } from "@/lib/sales";
-import { recordActivity } from "@/lib/activity";
+import { createSalesCard, serializeSalesCard } from "@/lib/sales";
 
 export async function GET(
   req: NextRequest,
@@ -59,53 +56,19 @@ export async function POST(
     return NextResponse.json({ error: "clientId is required" }, { status: 400 });
   }
 
-  await connectDB();
-  const [board, client] = await Promise.all([
-    SalesBoardModel.findById(boardId).lean(),
-    ClientModel.findById(clientId).select("company status primaryColor website contacts").lean(),
-  ]);
-  if (!board) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  if (!client) return NextResponse.json({ error: "Client not found" }, { status: 404 });
-  if (client.status !== "prospect") {
-    return NextResponse.json({ error: "Only prospects can be added to a board" }, { status: 400 });
+  // The write itself lives in createSalesCard so the MCP tool cannot drift from
+  // it — the prospect-only rule, the first-column fallback, the append and the
+  // sales.card_added event are all there.
+  const created = await createSalesCard(session!, boardId, { clientId, column: columnId });
+  if (!created.ok) {
+    return NextResponse.json({ error: created.error }, { status: created.status });
   }
-
-  // Default to the first column so the caller can just hand over a clientId.
-  const columns = [...(board.columns ?? [])].sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0));
-  const targetColumn = columnId
-    ? columns.find((c) => c.id === columnId)
-    : columns[0];
-  if (!targetColumn) {
-    return NextResponse.json({ error: "Column not found on this board" }, { status: 400 });
-  }
-
-  const last = await SalesCardModel.findOne({ boardId, columnId: targetColumn.id })
-    .sort({ order: -1 })
-    .lean();
-
-  const doc = await SalesCardModel.create({
-    boardId,
-    columnId: targetColumn.id,
-    clientId,
-    order: last ? (last.order ?? 0) + 1 : 0,
-    owners: [],
-    labels: [],
-    ...(await creatorFields(session!)),
-  });
-
-  await recordActivity({
-    clientId,
-    actorId: session!.user.id,
-    actorName: session!.user.name ?? "Unknown",
-    type: "sales.card_added",
-    metadata: { boardId, boardName: board.name, columnTitle: targetColumn.title },
-  });
 
   return NextResponse.json(
-    serializeSalesCard(doc.toObject(), {
-      company: client.company,
-      clientPrimaryColor: client.primaryColor ?? undefined,
-      clientWebsite: client.website ?? undefined,
+    serializeSalesCard(created.card, {
+      company: created.client.company,
+      clientPrimaryColor: created.client.primaryColor ?? undefined,
+      clientWebsite: created.client.website ?? undefined,
     }),
     { status: 201 }
   );

@@ -5,8 +5,9 @@
  * MCP endpoint grants no capability a token holder does not already have over
  * the REST API, which is why it needs no permission of its own. Writes go
  * through the same shared helpers the REST routes call (createLogEntry,
- * moveSalesCard), so behaviour cannot drift between the two surfaces and the
- * "via" attribution from the API-token work keeps working for free.
+ * createSalesCard, moveSalesCard), so behaviour cannot drift between the two
+ * surfaces and the "via" attribution from the API-token work keeps working
+ * for free.
  */
 import type { Session } from "next-auth";
 import mongoose from "mongoose";
@@ -19,7 +20,7 @@ import { TaskModel } from "@/lib/models/Task";
 import { UserModel } from "@/lib/models/User";
 import { SalesBoardModel } from "@/lib/models/SalesBoard";
 import { SalesCardModel } from "@/lib/models/SalesCard";
-import { moveSalesCard } from "@/lib/sales";
+import { createSalesCard, findOpenCardForClient, moveSalesCard } from "@/lib/sales";
 import { createClient, findDuplicateClients, resolveClientReferenceData } from "@/lib/clients";
 import { createLogEntry, serializeLog } from "@/lib/logs";
 import {
@@ -578,6 +579,80 @@ export const MCP_TOOLS: McpTool[] = [
               };
             }),
         })),
+      };
+    },
+  },
+
+  {
+    name: "create_sales_card",
+    description:
+      "Put a prospect on a sales board — the card lands at the end of a column, exactly as " +
+      "adding one in the hub does. Only clients with status \"prospect\" can go on a board; " +
+      "if the company is not in the hub yet, add it with create_client first. Leave the " +
+      "column out to start the prospect in the board's first funnel stage.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        board: { type: "string", description: "Board id or board name." },
+        clientId: {
+          type: "string",
+          description:
+            "Client id, as returned by find_clients, list_prospects or create_client.",
+        },
+        column: {
+          type: "string",
+          description:
+            "Column id or title to start in. Defaults to the board's first funnel stage.",
+        },
+        allowDuplicate: {
+          type: "boolean",
+          description:
+            "Add the card even though this prospect already has an open card on this board. " +
+            "Only pass this when a second card is genuinely wanted — to move the existing " +
+            "one to another stage, use move_sales_card.",
+        },
+      },
+      required: ["board", "clientId"],
+      additionalProperties: false,
+    },
+    permission: "sales.cards.manage",
+    handler: async (session, args) => {
+      const boardRef = requiredStr(args, "board");
+      const clientId = requiredStr(args, "clientId");
+      const column = str(args, "column");
+
+      await connectDB();
+      const board = await requireBoard(boardRef);
+      const boardId = board._id.toString();
+      const client = await requireClient(clientId);
+
+      // Checked before the write, so a refusal cannot leave a card behind. The
+      // hub's picker greys out a prospect already on the board and a person
+      // never sees the option; a model that has not read the board first would
+      // otherwise be handed a silent second card.
+      if (bool(args, "allowDuplicate") !== true) {
+        const existing = await findOpenCardForClient(boardId, clientId);
+        if (existing) {
+          const stage =
+            (board.columns ?? []).find((c) => c.id === existing.columnId)?.title ??
+            "an earlier stage";
+          throw new ToolError(
+            `"${client.company}" is already on board "${board.name}", in "${stage}" (cardId ` +
+              `${existing.cardId}). Move it with move_sales_card, or pass allowDuplicate true ` +
+              `to add a second card.`
+          );
+        }
+      }
+
+      const created = await createSalesCard(session, boardId, { clientId, column });
+      if (!created.ok) throw new ToolError(created.error);
+
+      return {
+        added: true,
+        cardId: created.card._id.toString(),
+        board: board.name,
+        column: created.column.title,
+        company: created.client.company,
       };
     },
   },

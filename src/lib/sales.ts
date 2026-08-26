@@ -1,15 +1,19 @@
 /**
- * Shared sales-funnel logic — serializers and card moves — used by
+ * Shared sales-funnel logic — serializers, card writes and card moves — used by
  * src/lib/data.ts (server render), the /api/sales routes and the MCP tools, so
  * the surfaces can never drift apart.
  */
+import mongoose from "mongoose";
 import type { Session } from "next-auth";
-import type { ISalesBoard } from "./models/SalesBoard";
+import type { ISalesBoard, ISalesBoardColumn } from "./models/SalesBoard";
 import type { ISalesCard } from "./models/SalesCard";
+import type { IClient } from "./models/Client";
 import type { SalesBoard, SalesCard } from "@/types";
 import { connectDB } from "./mongodb";
 import { SalesBoardModel } from "./models/SalesBoard";
 import { SalesCardModel } from "./models/SalesCard";
+import { ClientModel } from "./models/Client";
+import { creatorFields } from "./actor";
 import { recordActivity } from "./activity";
 
 /** The lean() shape of a doc — same fields, no Document methods. */
@@ -75,6 +79,38 @@ export function serializeSalesCard(
   };
 }
 
+// ── Columns ──────────────────────────────────────────────────────────
+
+/** A board's columns in the order the board itself shows them. */
+function columnsByRank(board: Lean<ISalesBoard>): ISalesBoardColumn[] {
+  return [...(board.columns ?? [])].sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0));
+}
+
+/**
+ * Find a column by its id or by its title, case-insensitively.
+ *
+ * The title fallback is what lets a model work in the words the board uses: it
+ * reasons about "Onderhandeling", not about a UUID. A miss comes back naming
+ * the columns that do exist, since a caller that guessed once will otherwise
+ * guess again.
+ */
+function resolveColumn(
+  board: Lean<ISalesBoard>,
+  ref: string
+): { ok: true; column: ISalesBoardColumn } | { ok: false; error: string } {
+  const columns = columnsByRank(board);
+  const column =
+    columns.find((c) => c.id === ref) ??
+    columns.find((c) => c.title.toLowerCase() === ref.trim().toLowerCase());
+  if (column) return { ok: true, column };
+
+  const available = columns.map((c) => c.title).join(", ");
+  return {
+    ok: false,
+    error: `"${ref}" is not a column on board "${board.name}". Available columns: ${available}.`,
+  };
+}
+
 // ── Card moves ───────────────────────────────────────────────────────
 
 export type MoveSalesCardResult = { ok: true; from?: string; to: string } | { ok: false; error: string };
@@ -107,17 +143,9 @@ export async function moveSalesCard(
   if (!board) return { ok: false, error: `No board found with id ${boardId}.` };
   if (!card) return { ok: false, error: `No card found with id ${cardId} on board "${board.name}".` };
 
-  const columns = board.columns ?? [];
-  const target =
-    columns.find((c) => c.id === toColumn) ??
-    columns.find((c) => c.title.toLowerCase() === toColumn.trim().toLowerCase());
-  if (!target) {
-    const available = columns.map((c) => c.title).join(", ");
-    return {
-      ok: false,
-      error: `"${toColumn}" is not a column on board "${board.name}". Available columns: ${available}.`,
-    };
-  }
+  const resolved = resolveColumn(board, toColumn);
+  if (!resolved.ok) return { ok: false, error: resolved.error };
+  const target = resolved.column;
 
   let orderedIds = opts.orderedIds;
   if (!orderedIds) {
@@ -149,7 +177,7 @@ export async function moveSalesCard(
     )
   );
 
-  const fromColumn = columns.find((c) => c.id === card.columnId);
+  const fromColumn = (board.columns ?? []).find((c) => c.id === card.columnId);
   if (card.columnId !== target.id) {
     await recordActivity({
       clientId: card.clientId,
@@ -166,4 +194,148 @@ export async function moveSalesCard(
   }
 
   return { ok: true, from: fromColumn?.title, to: target.title };
+}
+
+// ── Card creation ────────────────────────────────────────────────────
+
+export type CreateSalesCardInput = {
+  clientId: string;
+  /** Column id or title. Defaults to the board's first stage. */
+  column?: string;
+};
+
+/**
+ * A refusal carries the status the REST route should answer with rather than
+ * being collapsed into one 400 the way /cards/move was: this route already
+ * promised a 404 for a missing board or client, and the extraction is not the
+ * place to take that back. The MCP tool ignores the status and reads only the
+ * message.
+ */
+export type CreateSalesCardResult =
+  | {
+      ok: true;
+      card: Lean<ISalesCard>;
+      board: Lean<ISalesBoard>;
+      client: Lean<IClient>;
+      column: ISalesBoardColumn;
+    }
+  | { ok: false; error: string; status: 400 | 404 };
+
+/** What both callers need back about the client: the joined card fields. */
+const CARD_CLIENT_SELECT = "company status primaryColor website contacts";
+
+/**
+ * Put a prospect on a board, at the end of a column.
+ *
+ * Everything that can refuse does so before the document is written, so a
+ * refusal can never leave a card behind — the same guarantee createClient()
+ * and createTask() give.
+ *
+ * Note what this deliberately does *not* check: whether the client already has
+ * a card on this board. See findOpenCardForClient below.
+ */
+export async function createSalesCard(
+  session: Session,
+  boardId: string,
+  input: CreateSalesCardInput
+): Promise<CreateSalesCardResult> {
+  const { clientId } = input;
+  await connectDB();
+
+  // An id that is not an ObjectId at all would make findById throw, so it is
+  // answered as the "not found" it means.
+  const [board, client] = await Promise.all([
+    mongoose.Types.ObjectId.isValid(boardId) ? SalesBoardModel.findById(boardId).lean() : null,
+    mongoose.Types.ObjectId.isValid(clientId)
+      ? ClientModel.findById(clientId).select(CARD_CLIENT_SELECT).lean()
+      : null,
+  ]);
+  if (!board) return { ok: false, status: 404, error: `No board found with id ${boardId}.` };
+  if (!client) return { ok: false, status: 404, error: `No client found with id ${clientId}.` };
+
+  // A board is a funnel of prospects: an active client on one would sit outside
+  // every stage its columns describe.
+  if (client.status !== "prospect") {
+    return {
+      ok: false,
+      status: 400,
+      error:
+        `"${client.company}" has status "${client.status ?? "none"}", not "prospect" — only ` +
+        `prospects can be put on a sales board.`,
+    };
+  }
+
+  let column: ISalesBoardColumn | undefined;
+  if (input.column) {
+    const resolved = resolveColumn(board, input.column);
+    if (!resolved.ok) return { ok: false, status: 400, error: resolved.error };
+    column = resolved.column;
+  } else {
+    // Default to the first stage, so a caller can hand over just a clientId.
+    column = columnsByRank(board)[0];
+  }
+  if (!column) {
+    return {
+      ok: false,
+      status: 400,
+      error: `Board "${board.name}" has no columns to put a card in.`,
+    };
+  }
+
+  const last = await SalesCardModel.findOne({ boardId, columnId: column.id })
+    .sort({ order: -1 })
+    .lean();
+
+  const doc = await SalesCardModel.create({
+    boardId,
+    columnId: column.id,
+    clientId,
+    order: last ? (last.order ?? 0) + 1 : 0,
+    owners: [],
+    labels: [],
+    ...(await creatorFields(session)),
+  });
+
+  await recordActivity({
+    clientId,
+    actorId: session.user.id,
+    actorName: session.user.name ?? "Unknown",
+    type: "sales.card_added",
+    metadata: { boardId, boardName: board.name, columnTitle: column.title },
+  });
+
+  return {
+    ok: true,
+    card: doc.toObject() as Lean<ISalesCard>,
+    board,
+    client,
+    column,
+  };
+}
+
+/**
+ * The client's open (not yet won or lost) card on this board, if it has one.
+ *
+ * Deliberately not called by createSalesCard or by the REST route — the same
+ * shape, and the same reasoning, as findDuplicateClients() in ./clients.
+ * SalesBoardView hands AddProspectPicker the board's open cards and the picker
+ * greys out a prospect already on it, so there is nothing here for the check to
+ * catch and leaving POST untouched keeps its behaviour exactly as it was. A
+ * model that has not read the board first has no such protection, so the MCP
+ * tool checks before it writes.
+ */
+export async function findOpenCardForClient(
+  boardId: string,
+  clientId: string
+): Promise<{ cardId: string; columnId: string } | null> {
+  await connectDB();
+  const card = await SalesCardModel.findOne({
+    boardId,
+    clientId,
+    outcome: { $exists: false },
+  })
+    .select("columnId")
+    .lean();
+
+  return card ? { cardId: card._id.toString(), columnId: card.columnId } : null;
 }

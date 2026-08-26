@@ -204,6 +204,23 @@ function normalizeContacts(value: unknown): NormalizedContacts {
 }
 
 /**
+ * How long we are willing to hold the request open waiting for GAS to answer.
+ *
+ * The whole create runs inside one Netlify Function, and a synchronous Netlify
+ * Function is killed at its configured timeout — the caller then gets a bare
+ * 502 Bad Gateway from the platform, not our JSON. GAS answers doPost only
+ * once the script has finished building the folder tree, which on a cold
+ * script takes tens of seconds, so an unbounded wait here turns every slow
+ * Drive call into a 502 on an endpoint that had already done its real work.
+ *
+ * Bounding it does not weaken the contract: the response is thrown away either
+ * way, "ready" comes from the callback, and a client we stop waiting on is
+ * left exactly where a failed webhook leaves it — "pending", with the banner
+ * still polling.
+ */
+const GAS_WEBHOOK_TIMEOUT_MS = 5000;
+
+/**
  * Ask GAS to build the client's Drive folder and sheet structure.
  *
  * Fire-and-forget by design: the script answers on its own schedule and calls
@@ -233,8 +250,20 @@ async function requestDriveFolder(clientId: string, companyName: string): Promis
         appCallbackUrl: `${appUrl}/api/internal/folder-callback`,
         secret,
       }),
+      signal: AbortSignal.timeout(GAS_WEBHOOK_TIMEOUT_MS),
     });
   } catch (err) {
+    // A timeout is the expected shape of "GAS is being slow", not a fault:
+    // the request reached Apps Script, the script keeps running, and the
+    // callback still flips folderStatus when it lands. Logged apart from a
+    // real failure so a genuinely broken webhook stays visible.
+    if (err instanceof Error && err.name === "TimeoutError") {
+      console.warn(
+        `[folder-webhook] GAS did not answer within ${GAS_WEBHOOK_TIMEOUT_MS}ms for client ` +
+          `${clientId}; leaving folderStatus "pending" for the callback.`
+      );
+      return;
+    }
     console.error("[folder-webhook] Failed to call GAS webhook:", err);
   }
 }
