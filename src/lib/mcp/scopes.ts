@@ -25,6 +25,27 @@ export const MCP_SCOPES: Permission[] = [
 const KNOWN = new Set<string>(MCP_SCOPES);
 
 /**
+ * What every connection can do regardless of the scopes it was granted, in
+ * plain language for the consent screen.
+ *
+ * `find_clients`, `list_prospects` and `list_client_logs` declare no permission
+ * — not because a check was forgotten, but because the app has no read
+ * permission to declare: `GET /api/clients` and the logbook `GET` are open to
+ * any signed-in employee, and the tools mirror that exactly.
+ *
+ * The consent screen has to say so anyway. Without this line its list reads as
+ * exhaustive while a connection scoped to, say, `logs.create` can still read
+ * every client and every logbook entry — the user would be consenting to less
+ * than they hand over. If a new tool is added without a permission, widen this
+ * sentence to cover it.
+ *
+ * English to match its neighbours in the list, which come from
+ * PERMISSION_GROUPS and are English app-wide. The surrounding page copy is
+ * Dutch, but a list with one Dutch item among English ones reads as a mistake.
+ */
+export const BASELINE_ACCESS_LABEL = "Read clients, contacts and log entries";
+
+/**
  * Keep only scopes this server actually offers.
  *
  * Unknown scopes are dropped rather than rejected. A client that asks for

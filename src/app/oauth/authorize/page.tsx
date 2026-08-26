@@ -6,7 +6,7 @@ import { permissionLabel } from "@/lib/permissions";
 import { connectDB } from "@/lib/mongodb";
 import { OAuthClientModel } from "@/lib/models/OAuthClient";
 import { hubOrigin, mcpResource, resourceMatches, signConsent } from "@/lib/oauth";
-import { MCP_SCOPES, parseScopeParam } from "@/lib/mcp/scopes";
+import { BASELINE_ACCESS_LABEL, MCP_SCOPES, parseScopeParam } from "@/lib/mcp/scopes";
 import SummMark from "@/components/ui/SummMark";
 import UserAvatar from "@/components/ui/UserAvatar";
 
@@ -256,6 +256,20 @@ export default async function AuthorizePage({
         Wat de app mag
       </p>
       <ul className="space-y-1.5 mb-2">
+        {/*
+          Listed first and unconditionally: a handful of tools carry no
+          permission, so this much comes with any connection whatever it was
+          granted. Showing it only when nothing else was granted made the list
+          read as exhaustive when it was not — see BASELINE_ACCESS_LABEL.
+          Styled like the rest on purpose: playing it down would understate
+          what is being handed over, which is the thing this line exists to fix.
+        */}
+        <li className="flex items-start gap-2">
+          <Check size={15} className="mt-0.5 shrink-0" style={{ color: "var(--success)" }} />
+          <span className="typo-body-sm" style={{ color: "var(--text-primary)" }}>
+            {BASELINE_ACCESS_LABEL}
+          </span>
+        </li>
         {granted.map((scope) => (
           <li key={scope} className="flex items-start gap-2">
             <Check size={15} className="mt-0.5 shrink-0" style={{ color: "var(--success)" }} />
@@ -264,11 +278,6 @@ export default async function AuthorizePage({
             </span>
           </li>
         ))}
-        {granted.length === 0 && (
-          <li className="typo-body-sm" style={{ color: "var(--text-muted)" }}>
-            Alleen clients en logboekregels lezen.
-          </li>
-        )}
       </ul>
 
       {withheld.length > 0 && (
