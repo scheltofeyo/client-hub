@@ -8,6 +8,8 @@
  * off the request itself, never remembered — the server keeps no session state.
  */
 
+import { SERVER_ICON_PNG_128 } from "./server-icon";
+
 /** Newest first: the first entry is what we advertise as preferred. */
 export const SUPPORTED_VERSIONS = ["2026-07-28", "2025-11-25", "2025-06-18"] as const;
 
@@ -20,7 +22,18 @@ export const ASSUMED_VERSION = "2025-03-26";
 export const PROTOCOL_VERSION_META_KEY = "io.modelcontextprotocol/protocolVersion";
 export const SERVER_INFO_META_KEY = "io.modelcontextprotocol/serverInfo";
 
-export const SERVER_INFO = { name: "summ-hub", version: "1.0.0" };
+/**
+ * How the server introduces itself: the id clients key on, plus the display
+ * name and mark they show instead of a generated letter tile. Carried by both
+ * eras — `initialize` returns it as `serverInfo`, `server/discover` puts it
+ * under SERVER_INFO_META_KEY.
+ */
+export const SERVER_INFO = {
+  name: "summ-hub",
+  title: "SUMM Hub",
+  version: "1.0.0",
+  icons: [{ src: SERVER_ICON_PNG_128, mimeType: "image/png", sizes: ["128x128"] }],
+};
 
 export const SERVER_INSTRUCTIONS =
   "SUMM Hub: clients, the sales funnel, the client logbook and client tasks. Resolve a client " +
