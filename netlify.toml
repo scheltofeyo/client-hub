@@ -2,18 +2,27 @@
   command = "npm run build && npm run seed"
   publish = ".next"
 
+# The function timeout is NOT settable here, and trying cost us a red deploy.
+#
 # A synchronous Netlify Function that outlives its timeout is killed by the
 # platform, and the caller gets a bare 502 Bad Gateway instead of anything this
 # app wrote — so the timeout is the real budget every request lives inside.
 # Left implicit it is 10s, which a cold function plus a cold Atlas dial can eat
-# on its own. 26s is the synchronous maximum; Netlify has to enable it per site
-# (Support > "raise function timeout"), and until they do this value is capped
-# back to 10s rather than rejected, so it is safe to commit ahead of the ask.
+# on its own, and 26s is the synchronous maximum.
 #
-# This is a floor, not a licence: anything genuinely slow (the proposal PDF
-# render) needs a background function, not a bigger number here.
-[functions]
-  timeout = 26
+# But `[functions]` accepts only deno_import_map, directory,
+# external_node_modules, ignored_node_modules, included_files, memory,
+# node_bundler, region, schedule and vcpu. Any other key is read as the *name*
+# of a function, so `timeout = 26` resolves to "a function called timeout",
+# fails validation with "functions.timeout must be an object", and kills the
+# build in config resolution before anything is compiled. Raising it is a
+# site-level setting: Netlify Support, "raise function timeout".
+#
+# The defence that does live in this repo is bounding the slow outbound calls
+# themselves — see GAS_WEBHOOK_TIMEOUT_MS in src/lib/clients.ts and
+# PHOTO_FETCH_TIMEOUT_MS in the e-mail-signature photo route. Anything
+# genuinely slow (the proposal PDF render) needs a background function, not a
+# bigger number anywhere.
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
