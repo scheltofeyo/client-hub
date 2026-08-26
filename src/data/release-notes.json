@@ -1,6 +1,16 @@
 [
   {
     "date": "2026-08-26",
+    "title": "Koppelingen tonen nu wat ze mogen, en leads kunnen hun eigen klanten bewerken vanuit de Claude-app",
+    "details": [
+      "Ben je lead op een klant zonder het algemene recht om klanten te bewerken, dan kon je die klant wel bijwerken met een persoonlijk token maar niet via de Claude-app. Dat is verholpen: het recht gaat nu mee bij het koppelen",
+      "Op het toestemmingsscherm staan zulke rechten apart, onder \"Alleen op klanten waar jij lead van bent\" — je geeft dus nooit meer weg dan je zelf hebt",
+      "Onder Profiel > Integrations zie je per koppeling welke rechten hij heeft en welke tools de app precies kan gebruiken, in plaats van alleen een aantal",
+      "Is een koppeling gemaakt voordat je bepaalde rechten had, dan zegt de pagina dat er nu meer mogelijk is en dat opnieuw koppelen die rechten meeneemt"
+    ]
+  },
+  {
+    "date": "2026-08-26",
     "title": "Klantgegevens, contactpersonen en verkoopkaarten bijwerken vanuit de Claude-app",
     "details": [
       "Je kon vanuit de Claude-app al klanten opzoeken en aanmaken; nu kun je ze ook bijwerken. Bedrijfsnaam, status, platform, archetype, adres, website en aantal medewerkers — alleen wat je noemt verandert, de rest blijft staan",

@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { hasPermission } from "@/lib/auth-helpers";
 import { connectDB } from "@/lib/mongodb";
 import { OAuthClientModel } from "@/lib/models/OAuthClient";
 import { hubOrigin, issueAuthCode, resourceMatches, verifyConsent } from "@/lib/oauth";
-import { filterKnownScopes } from "@/lib/mcp/scopes";
+import { filterKnownScopes, mayDelegateScope } from "@/lib/mcp/scopes";
 
 /**
  * Where the consent screen's Allow / Weigeren buttons land.
@@ -94,8 +93,13 @@ export async function POST(req: NextRequest) {
   // role can be narrowed between rendering the screen and clicking Allow, and
   // the grant must reflect what is true now. filterKnownScopes runs again here
   // so a grant can only ever hold scopes this server recognises.
+  //
+  // mayDelegateScope, not hasPermission: a lead-eligible scope may be delegated
+  // on the strength of leading a client. It still confers nothing globally —
+  // sessionFromOAuthToken derives `permissions` from the role, so a scope that
+  // got in this way lands only in `leadPermissions`.
   const scopes = filterKnownScopes(consent.scopes).filter((scope) =>
-    hasPermission(session, scope)
+    mayDelegateScope(session, scope)
   );
 
   const code = await issueAuthCode({
