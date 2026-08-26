@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Award, Trash2, XCircle } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Award, Building2, Trash2, XCircle } from "lucide-react";
+import { useRightPanel } from "@/components/layout/RightPanel";
+import ClientEditor from "@/components/ui/editor-panel/ClientEditor";
 import EditorPanel from "@/components/ui/editor-panel/EditorPanel";
 import PanelSection from "@/components/ui/editor-panel/PanelSection";
 import { useEditorDraft } from "@/components/ui/editor-panel/useEditorDraft";
@@ -9,7 +11,7 @@ import RichTextEditor from "@/components/ui/RichTextEditor";
 import RichTextDisplay from "@/components/ui/RichTextDisplay";
 import UserAvatar from "@/components/ui/UserAvatar";
 import { inputClass, inputStyle } from "@/components/ui/form-styles";
-import type { Contact, SalesCard, SalesCardOwner } from "@/types";
+import type { Client, Contact, SalesCard, SalesCardOwner } from "@/types";
 
 type Tab = "details" | "notes";
 
@@ -47,7 +49,10 @@ export default function SalesCardEditor({
   contacts,
   canManageCards,
   canConvert,
+  canEditClient,
+  canDeleteClient,
   onUpdated,
+  onClientUpdated,
   onRemoved,
   onClosed,
   onClose,
@@ -56,22 +61,40 @@ export default function SalesCardEditor({
   contacts: Contact[];
   canManageCards: boolean;
   canConvert: boolean;
+  canEditClient: boolean;
+  canDeleteClient: boolean;
   onUpdated: (card: SalesCard) => void;
+  /** Fired after the company behind this card was edited. */
+  onClientUpdated: (client: Client) => void;
+  /** Fired after the whole prospect (client + cards) was deleted. */
   onRemoved: (cardId: string) => void;
-  /** Fired after a won/lost outcome; `promoted` says whether the client became active. */
-  onClosed: (cardId: string, outcome: "won" | "lost", promoted: boolean) => void;
+  /** Fired after a won/lost outcome; `statusChanged` says whether the client's
+   *  status moved with it (active on won, inactive on lost). */
+  onClosed: (cardId: string, outcome: "won" | "lost", statusChanged: boolean) => void;
   onClose: () => void;
 }) {
+  const { openSecondaryPanel, closeSecondaryPanel } = useRightPanel();
   const [tab, setTab] = useState<Tab>("details");
   const [error, setError] = useState<string | null>(null);
   const [users, setUsers] = useState<AssignableUser[]>([]);
   const [labelInput, setLabelInput] = useState("");
   const [busy, setBusy] = useState(false);
+  // The company and its contacts can change from the stacked editor, so they
+  // live in state rather than being read straight off the props.
+  const [company, setCompany] = useState(card.company);
+  const [contactList, setContactList] = useState(contacts);
   // The RightPanel snapshots its content, so the `card` prop never refreshes.
   // Hold the saved state locally (as ProjectEditor does) or the fields would
   // snap back to their pre-save values once `pending` is cleared.
   const [source, setSource] = useState(() => toDraft(card));
   const { display, dirty, saving, editorKey, setField, discard, save } = useEditorDraft(source);
+  // The stacked company editor is snapshotted on open, so it needs a live
+  // reference to the currently selected contact rather than a captured value.
+  const contactIdRef = useRef(display.contactId);
+
+  useEffect(() => {
+    contactIdRef.current = display.contactId;
+  }, [display.contactId]);
 
   useEffect(() => {
     fetch("/api/users/assignable")
@@ -81,6 +104,32 @@ export default function SalesCardEditor({
   }, []);
 
   const readOnly = !canManageCards || !!card.outcome;
+  const assignableUsers = users.filter((u) => !display.owners.some((o) => o.userId === u.id));
+
+  function openCompanyEditor() {
+    openSecondaryPanel(
+      "Bedrijf bewerken",
+      <ClientEditor
+        mode="edit"
+        clientId={card.clientId}
+        statusLocked
+        guardScope="secondary"
+        onSaved={(client) => {
+          setCompany(client.company);
+          const nextContacts = client.contacts ?? [];
+          setContactList(nextContacts);
+          // A removed contact must not stay selected on the card.
+          if (contactIdRef.current && !nextContacts.some((c) => c.id === contactIdRef.current)) {
+            setField("contactId", "");
+          }
+          onClientUpdated(client);
+          closeSecondaryPanel();
+        }}
+        onClose={closeSecondaryPanel}
+      />,
+      { padded: false }
+    );
+  }
 
   async function handleSave() {
     setError(null);
@@ -118,8 +167,8 @@ export default function SalesCardEditor({
   async function handleOutcome(outcome: "won" | "lost") {
     const question =
       outcome === "won"
-        ? `"${card.company}" als gewonnen markeren? De prospect wordt omgezet naar een actieve klant en de kaart gaat naar het archief.`
-        : `"${card.company}" als verloren markeren? De kaart gaat naar het archief; de client blijft een prospect.`;
+        ? `"${company}" als gewonnen markeren? De prospect wordt een actieve klant en de kaart gaat naar het archief.`
+        : `"${company}" als verloren markeren? De prospect wordt op inactief gezet en de kaart gaat van het bord naar het archief.`;
     if (!confirm(question)) return;
 
     setBusy(true);
@@ -135,17 +184,19 @@ export default function SalesCardEditor({
       setError(d.error ?? "Actie mislukt");
       return;
     }
-    const { promoted } = await res.json();
-    onClosed(card.id, outcome, !!promoted);
+    const { promoted, demoted } = await res.json();
+    onClosed(card.id, outcome, !!promoted || !!demoted);
     onClose();
   }
 
-  async function handleRemove() {
-    if (!confirm(`"${card.company}" van dit bord halen? De client zelf blijft bestaan.`)) return;
+  async function handleDeleteProspect() {
+    const question =
+      `"${company}" definitief verwijderen? De client verdwijnt uit de hub — met zijn logboek, ` +
+      `projecten, taken en kaarten op alle borden. Dit kan niet ongedaan worden gemaakt.`;
+    if (!confirm(question)) return;
+
     setBusy(true);
-    const res = await fetch(`/api/sales/boards/${card.boardId}/cards/${card.id}`, {
-      method: "DELETE",
-    });
+    const res = await fetch(`/api/clients/${card.clientId}`, { method: "DELETE" });
     setBusy(false);
     if (!res.ok) {
       setError("Verwijderen mislukt");
@@ -155,14 +206,16 @@ export default function SalesCardEditor({
     onClose();
   }
 
-  function toggleOwner(user: AssignableUser) {
-    const already = display.owners.some((o) => o.userId === user.id);
-    setField(
-      "owners",
-      already
-        ? display.owners.filter((o) => o.userId !== user.id)
-        : [...display.owners, { userId: user.id, name: user.name, image: user.image ?? undefined }]
-    );
+  function addOwner(user: AssignableUser) {
+    if (display.owners.some((o) => o.userId === user.id)) return;
+    setField("owners", [
+      ...display.owners,
+      { userId: user.id, name: user.name, image: user.image ?? undefined },
+    ]);
+  }
+
+  function removeOwner(userId: string) {
+    setField("owners", display.owners.filter((o) => o.userId !== userId));
   }
 
   function addLabel() {
@@ -199,9 +252,39 @@ export default function SalesCardEditor({
         ) : undefined
       }
     >
-      <div className="p-6 space-y-8">
+      <div className="space-y-8">
         {tab === "details" && (
           <>
+            <PanelSection
+              title="Bedrijf"
+              action={
+                canEditClient && (
+                  <button
+                    type="button"
+                    onClick={openCompanyEditor}
+                    className="btn-tertiary inline-flex items-center gap-1"
+                  >
+                    <Building2 size={12} />
+                    Bedrijfsgegevens bewerken
+                  </button>
+                )
+              }
+            >
+              <p className="typo-card-title" style={{ color: "var(--text-primary)" }}>
+                {company}
+              </p>
+              {card.clientWebsite && (
+                <a
+                  href={card.clientWebsite.startsWith("http") ? card.clientWebsite : `https://${card.clientWebsite}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="typo-caption btn-link"
+                >
+                  {card.clientWebsite}
+                </a>
+              )}
+            </PanelSection>
+
             <PanelSection title="Deal">
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -245,7 +328,7 @@ export default function SalesCardEditor({
             </PanelSection>
 
             <PanelSection title="Contactpersoon" description="Uit de contacten van deze client.">
-              {contacts.length === 0 ? (
+              {contactList.length === 0 ? (
                 <p className="typo-caption">Deze client heeft nog geen contactpersonen.</p>
               ) : (
                 <select
@@ -256,7 +339,7 @@ export default function SalesCardEditor({
                   style={inputStyle}
                 >
                   <option value="">Geen</option>
-                  {contacts.map((c) => (
+                  {contactList.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.firstName} {c.lastName}
                       {c.role ? ` — ${c.role}` : ""}
@@ -267,27 +350,61 @@ export default function SalesCardEditor({
             </PanelSection>
 
             <PanelSection title="Eigenaars">
-              <div className="space-y-1">
-                {users.map((user) => {
-                  const selected = display.owners.some((o) => o.userId === user.id);
-                  return (
-                    <button
-                      key={user.id}
-                      type="button"
-                      onClick={() => toggleOwner(user)}
-                      disabled={readOnly}
-                      className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg text-left transition-colors hover-row"
-                      style={selected ? { background: "var(--bg-selected)" } : undefined}
+              {display.owners.length > 0 && (
+                <div className="space-y-1">
+                  {display.owners.map((owner) => (
+                    <div
+                      key={owner.userId}
+                      className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg"
+                      style={{ background: "var(--bg-selected)" }}
                     >
-                      <UserAvatar name={user.name} image={user.image} size={22} />
+                      <UserAvatar name={owner.name} image={owner.image} size={22} />
                       <span className="typo-body flex-1 truncate" style={{ color: "var(--text-primary)" }}>
-                        {user.name}
+                        {owner.name}
                       </span>
-                      {selected && <span className="typo-caption">Eigenaar</span>}
-                    </button>
-                  );
-                })}
-              </div>
+                      {!readOnly && (
+                        <button
+                          type="button"
+                          onClick={() => removeOwner(owner.userId)}
+                          className="btn-icon p-1 shrink-0"
+                          aria-label={`${owner.name} als eigenaar verwijderen`}
+                        >
+                          <XCircle size={13} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {!readOnly && (
+                assignableUsers.length > 0 ? (
+                  <select
+                    value=""
+                    onChange={(e) => {
+                      const user = users.find((u) => u.id === e.target.value);
+                      if (user) addOwner(user);
+                    }}
+                    className={inputClass}
+                    style={inputStyle}
+                  >
+                    <option value="">
+                      {display.owners.length === 0 ? "Eigenaar kiezen…" : "Eigenaar toevoegen…"}
+                    </option>
+                    {assignableUsers.map((user) => (
+                      <option key={user.id} value={user.id}>
+                        {user.name}
+                      </option>
+                    ))}
+                  </select>
+                ) : users.length > 0 ? (
+                  <p className="typo-caption">Iedereen staat al als eigenaar op deze kaart.</p>
+                ) : null
+              )}
+
+              {readOnly && display.owners.length === 0 && (
+                <p className="typo-caption">Geen eigenaars.</p>
+              )}
             </PanelSection>
 
             <PanelSection title="Labels">
@@ -332,46 +449,48 @@ export default function SalesCardEditor({
               )}
             </PanelSection>
 
-            {!card.outcome && (canConvert || canManageCards) && (
+            {!card.outcome && canConvert && (
               <PanelSection
                 title="Afronden"
-                description="Een afgeronde kaart verdwijnt van het bord en is terug te vinden onder het archief."
+                description="Beide brengen de kaart naar het archief: gewonnen maakt er een actieve klant van, verloren zet de prospect op inactief."
               >
                 <div className="flex flex-wrap gap-2">
-                  {canConvert && (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => handleOutcome("won")}
-                        disabled={busy}
-                        className="btn-primary"
-                      >
-                        <Award size={14} className="inline mr-1.5 -mt-px" />
-                        Gewonnen
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleOutcome("lost")}
-                        disabled={busy}
-                        className="btn-border border"
-                      >
-                        Verloren
-                      </button>
-                    </>
-                  )}
-                  {canManageCards && (
-                    <button
-                      type="button"
-                      onClick={handleRemove}
-                      disabled={busy}
-                      className="btn-ghost ml-auto"
-                      style={{ color: "var(--danger)" }}
-                    >
-                      <Trash2 size={14} className="inline mr-1.5 -mt-px" />
-                      Van bord halen
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => handleOutcome("won")}
+                    disabled={busy}
+                    className="btn-primary"
+                  >
+                    <Award size={14} className="inline mr-1.5 -mt-px" />
+                    Markeer als gewonnen
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleOutcome("lost")}
+                    disabled={busy}
+                    className="btn-border border"
+                  >
+                    Markeer als verloren
+                  </button>
                 </div>
+              </PanelSection>
+            )}
+
+            {!card.outcome && canDeleteClient && (
+              <PanelSection
+                title="Verwijderen"
+                description="Voor een prospect die hier nooit had moeten staan. De client zelf verdwijnt uit de hub, inclusief zijn logboek, projecten en kaarten op andere borden."
+              >
+                <button
+                  type="button"
+                  onClick={handleDeleteProspect}
+                  disabled={busy}
+                  className="btn-ghost"
+                  style={{ color: "var(--danger)" }}
+                >
+                  <Trash2 size={14} className="inline mr-1.5 -mt-px" />
+                  Verwijder prospect
+                </button>
               </PanelSection>
             )}
           </>

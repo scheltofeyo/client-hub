@@ -31,6 +31,9 @@ export default async function SalesBoardPage({
       canManageBoards={hasPermission(session, "sales.boards.manage")}
       canManageCards={hasPermission(session, "sales.cards.manage")}
       canConvert={hasPermission(session, "sales.convert")}
+      canCreateClient={hasPermission(session, "clients.create")}
+      canEditClient={hasPermission(session, "clients.edit")}
+      canDeleteClient={hasPermission(session, "clients.delete")}
     />
   );
 }

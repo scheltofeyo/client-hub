@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   DndContext,
@@ -23,7 +23,8 @@ import { SalesCardBody } from "./SalesCardTile";
 import AddProspectPicker from "./AddProspectPicker";
 import SalesCardEditor from "./SalesCardEditor";
 import BoardSettingsEditor from "./BoardSettingsEditor";
-import type { ProspectOption, SalesBoard, SalesCard } from "@/types";
+import ClientEditor from "@/components/ui/editor-panel/ClientEditor";
+import type { Client, ProspectOption, SalesBoard, SalesCard } from "@/types";
 
 const COLUMN_PREFIX = "col:";
 
@@ -78,6 +79,9 @@ export default function SalesBoardView({
   canManageBoards,
   canManageCards,
   canConvert,
+  canCreateClient,
+  canEditClient,
+  canDeleteClient,
 }: {
   board: SalesBoard;
   cards: SalesCard[];
@@ -85,13 +89,23 @@ export default function SalesBoardView({
   canManageBoards: boolean;
   canManageCards: boolean;
   canConvert: boolean;
+  canCreateClient: boolean;
+  canEditClient: boolean;
+  canDeleteClient: boolean;
 }) {
   const [board, setBoard] = useState(initialBoard);
   const [cards, setCards] = useState(initialCards);
+  // Kept locally so an edit made from a card is reflected before the server
+  // data catches up on the next refresh.
+  const [prospectList, setProspectList] = useState(prospects);
   const [showArchived, setShowArchived] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
   const { openPanel, closePanel } = useRightPanel();
   const router = useRouter();
+
+  useEffect(() => {
+    setProspectList(prospects);
+  }, [prospects]);
 
   // Snapshot to roll back to if the move request fails.
   const beforeDragRef = useRef<SalesCard[] | null>(null);
@@ -127,11 +141,41 @@ export default function SalesBoardView({
 
   const contactsFor = useCallback(
     (card: SalesCard) => {
-      const prospect = prospects.find((p) => p.id === card.clientId);
+      const prospect = prospectList.find((p) => p.id === card.clientId);
       if (prospect?.contacts?.length) return prospect.contacts;
       return card.contact ? [card.contact] : [];
     },
-    [prospects]
+    [prospectList]
+  );
+
+  /** Fan a saved client back out over the card snapshots and the prospect list. */
+  const applyClientUpdate = useCallback(
+    (client: Client) => {
+      setCards((prev) =>
+        prev.map((c) =>
+          c.clientId === client.id
+            ? {
+                ...c,
+                company: client.company,
+                clientPrimaryColor: client.primaryColor,
+                contact: c.contactId
+                  ? (client.contacts ?? []).find((ct) => ct.id === c.contactId)
+                  : undefined,
+              }
+            : c
+        )
+      );
+      setProspectList((prev) =>
+        prev.map((p) =>
+          p.id === client.id
+            ? { ...p, company: client.company, primaryColor: client.primaryColor, contacts: client.contacts ?? [] }
+            : p
+        )
+      );
+      window.dispatchEvent(new Event("sales-boards-updated"));
+      router.refresh();
+    },
+    [router]
   );
 
   // ── Panels ───────────────────────────────────────────────────────
@@ -145,28 +189,89 @@ export default function SalesBoardView({
           contacts={contactsFor(card)}
           canManageCards={canManageCards}
           canConvert={canConvert}
+          canEditClient={canEditClient}
+          canDeleteClient={canDeleteClient}
+          onClientUpdated={applyClientUpdate}
           onUpdated={(updated) =>
             setCards((prev) => prev.map((c) => (c.id === updated.id ? updated : c)))
           }
           onRemoved={(cardId) => {
-            setCards((prev) => prev.filter((c) => c.id !== cardId));
+            const clientId = cards.find((c) => c.id === cardId)?.clientId;
+            setCards((prev) => prev.filter((c) => (clientId ? c.clientId !== clientId : c.id !== cardId)));
+            if (clientId) setProspectList((prev) => prev.filter((p) => p.id !== clientId));
+            window.dispatchEvent(new Event("sales-boards-updated"));
             router.refresh();
           }}
-          onClosed={(cardId, outcome, promoted) => {
+          onClosed={(cardId, outcome, statusChanged) => {
             setCards((prev) =>
               prev.map((c) => (c.id === cardId ? { ...c, outcome, outcomeAt: new Date().toISOString() } : c))
             );
             window.dispatchEvent(new Event("sales-boards-updated"));
-            // A promotion changed the client's status, so the prospect list is stale.
-            if (promoted) router.refresh();
+            // Closing moves the client off "prospect", so the picker list is stale.
+            if (statusChanged) router.refresh();
           }}
           onClose={closePanel}
         />,
         { padded: false }
       );
     },
-    [openPanel, closePanel, contactsFor, canManageCards, canConvert, router]
+    [
+      openPanel,
+      closePanel,
+      contactsFor,
+      cards,
+      canManageCards,
+      canConvert,
+      canEditClient,
+      canDeleteClient,
+      applyClientUpdate,
+      router,
+    ]
   );
+
+  /** Put a freshly created prospect on the board, in the column it was started from. */
+  const addCardForClient = useCallback(
+    async (client: Client, columnId: string) => {
+      const res = await fetch(`/api/sales/boards/${board.id}/cards`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientId: client.id, columnId }),
+      });
+      if (res.ok) {
+        const card: SalesCard = await res.json();
+        setCards((prev) => [...prev, card]);
+        setProspectList((prev) => [
+          ...prev,
+          {
+            id: client.id,
+            company: client.company,
+            primaryColor: client.primaryColor,
+            contacts: client.contacts ?? [],
+          },
+        ]);
+        window.dispatchEvent(new Event("sales-boards-updated"));
+      } else {
+        alert(`${client.company} is aangemaakt, maar kon niet op het bord worden gezet.`);
+      }
+      router.refresh();
+    },
+    [board.id, router]
+  );
+
+  function openNewCompany(columnId: string, prefillCompany: string) {
+    openPanel(
+      "Nieuw bedrijf",
+      <ClientEditor
+        mode="create"
+        prefillCompany={prefillCompany}
+        initialStatus="prospect"
+        statusLocked
+        onSaved={(client) => void addCardForClient(client, columnId)}
+        onClose={closePanel}
+      />,
+      { padded: false }
+    );
+  }
 
   function openAddProspect(columnId: string) {
     openPanel(
@@ -174,12 +279,14 @@ export default function SalesBoardView({
       <AddProspectPicker
         boardId={board.id}
         columnId={columnId}
-        prospects={prospects}
+        prospects={prospectList}
         existingClientIds={openCards.map((c) => c.clientId)}
+        canCreateClient={canCreateClient}
         onAdded={(card) => {
           setCards((prev) => [...prev, card]);
           window.dispatchEvent(new Event("sales-boards-updated"));
         }}
+        onCreateNew={(prefillCompany) => openNewCompany(columnId, prefillCompany)}
         onClose={closePanel}
       />
     );

@@ -34,7 +34,10 @@ export async function POST(req: NextRequest) {
   if (forbidden) return forbidden;
 
   const body = await req.json();
-  const { company, status, platform, clientSince, employees, website, description, primaryColor, createFolder } = body;
+  const {
+    company, status, platform, clientSince, employees, website, description, primaryColor, createFolder,
+    contacts, addressStreet, addressPostalCode, addressCity, addressCountry,
+  } = body;
 
   if (!company?.trim()) {
     return NextResponse.json({ error: "Company name is required" }, { status: 400 });
@@ -50,8 +53,12 @@ export async function POST(req: NextRequest) {
     website: website?.trim() || undefined,
     description: description?.trim() || undefined,
     primaryColor: primaryColor?.trim() || undefined,
-    contacts: [],
+    contacts: Array.isArray(contacts) ? contacts : [],
     leads: [],
+    addressStreet: addressStreet?.trim() || undefined,
+    addressPostalCode: addressPostalCode?.trim() || undefined,
+    addressCity: addressCity?.trim() || undefined,
+    addressCountry: addressCountry?.trim() || undefined,
     folderStatus: createFolder ? "pending" : undefined,
   });
 
@@ -92,12 +99,18 @@ export async function POST(req: NextRequest) {
       id: doc._id.toString(),
       company: doc.company,
       status: doc.status,
+      platform: doc.platform,
+      clientSince: doc.clientSince,
       employees: doc.employees,
       website: doc.website,
       description: doc.description,
       primaryColor: doc.primaryColor ?? undefined,
-      contacts: [],
+      contacts: doc.contacts ?? [],
       leads: [],
+      addressStreet: doc.addressStreet ?? null,
+      addressPostalCode: doc.addressPostalCode ?? null,
+      addressCity: doc.addressCity ?? null,
+      addressCountry: doc.addressCountry ?? null,
       folderStatus: doc.folderStatus,
     },
     { status: 201 }

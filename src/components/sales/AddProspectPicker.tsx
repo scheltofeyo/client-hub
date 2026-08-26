@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Check, Search } from "lucide-react";
+import { Check, Plus, Search } from "lucide-react";
 import { inputClass, inputStyle } from "@/components/ui/form-styles";
 import { clientColor } from "@/lib/styles";
 import type { ProspectOption, SalesCard } from "@/types";
@@ -11,14 +11,19 @@ export default function AddProspectPicker({
   columnId,
   prospects,
   existingClientIds,
+  canCreateClient,
   onAdded,
+  onCreateNew,
   onClose,
 }: {
   boardId: string;
   columnId: string;
   prospects: ProspectOption[];
   existingClientIds: string[];
+  canCreateClient: boolean;
   onAdded: (card: SalesCard) => void;
+  /** Hands the typed search term over to the new-company editor. */
+  onCreateNew: (prefillCompany: string) => void;
   onClose: () => void;
 }) {
   const [query, setQuery] = useState("");
@@ -71,9 +76,33 @@ export default function AddProspectPicker({
         />
       </div>
 
+      {canCreateClient && (
+        <button
+          onClick={() => onCreateNew(query.trim())}
+          disabled={savingId !== null}
+          className="w-full flex items-center gap-3 px-2 py-2 rounded-lg text-left transition-colors hover-row"
+        >
+          <span
+            className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+            style={{ background: "var(--primary-light)", color: "var(--primary)" }}
+          >
+            <Plus size={14} />
+          </span>
+          <span className="typo-body truncate flex-1" style={{ color: "var(--text-primary)" }}>
+            {query.trim() ? `Nieuw bedrijf "${query.trim()}" aanmaken` : "Nieuw bedrijf aanmaken"}
+          </span>
+        </button>
+      )}
+
+      {canCreateClient && prospects.length > 0 && (
+        <div className="border-t" style={{ borderColor: "var(--border)" }} />
+      )}
+
       {prospects.length === 0 ? (
         <p className="typo-caption py-6 text-center">
-          Er zijn nog geen clients met de status prospect. Maak er eerst een aan op de clients-pagina.
+          {canCreateClient
+            ? "Er zijn nog geen clients met de status prospect. Maak er hierboven een aan."
+            : "Er zijn nog geen clients met de status prospect. Maak er eerst een aan op de clients-pagina."}
         </p>
       ) : filtered.length === 0 ? (
         <p className="typo-caption py-6 text-center">Geen prospect gevonden voor &ldquo;{query}&rdquo;.</p>

@@ -211,7 +211,7 @@ export default function BoardSettingsEditor({
       onDiscard={discard}
       error={error}
     >
-      <div className="p-6 space-y-8">
+      <div className="space-y-8">
         {tab === "general" && (
           <PanelSection title="Bord">
             <div>

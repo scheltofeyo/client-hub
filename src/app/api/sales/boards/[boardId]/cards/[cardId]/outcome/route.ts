@@ -7,8 +7,9 @@ import { SalesCardModel } from "@/lib/models/SalesCard";
 import { ClientModel } from "@/lib/models/Client";
 import { recordActivity } from "@/lib/activity";
 
-/** The seeded slug a converted prospect lands on — see DEFAULT_CLIENT_STATUSES. */
+/** Seeded slugs a closed prospect lands on — see DEFAULT_CLIENT_STATUSES. */
 const CLIENT_STATUS_ACTIVE = "active";
+const CLIENT_STATUS_INACTIVE = "inactive";
 
 export async function POST(
   req: NextRequest,
@@ -42,15 +43,21 @@ export async function POST(
     },
   });
 
-  // Won promotes the prospect to a client; lost leaves the client untouched.
+  // Closing a card resolves the prospect either way: won promotes it to an
+  // active client, lost parks it as inactive. A client that is no longer a
+  // prospect (already converted elsewhere) is left alone.
   let promoted = false;
-  if (outcome === "won") {
-    const client = await ClientModel.findById(card.clientId).select("status clientSince").lean();
-    if (client && client.status === "prospect") {
+  let demoted = false;
+  const client = await ClientModel.findById(card.clientId).select("status clientSince").lean();
+  if (client && client.status === "prospect") {
+    if (outcome === "won") {
       const clientUpdate: Record<string, unknown> = { status: CLIENT_STATUS_ACTIVE };
       if (!client.clientSince) clientUpdate.clientSince = now.split("T")[0];
       await ClientModel.findByIdAndUpdate(card.clientId, { $set: clientUpdate });
       promoted = true;
+    } else {
+      await ClientModel.findByIdAndUpdate(card.clientId, { $set: { status: CLIENT_STATUS_INACTIVE } });
+      demoted = true;
     }
   }
 
@@ -65,8 +72,9 @@ export async function POST(
       boardName: board?.name,
       dealValue: card.dealValue,
       promoted,
+      demoted,
     },
   });
 
-  return NextResponse.json({ success: true, promoted });
+  return NextResponse.json({ success: true, promoted, demoted });
 }
