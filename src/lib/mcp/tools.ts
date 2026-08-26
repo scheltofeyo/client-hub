@@ -12,16 +12,33 @@
 import type { Session } from "next-auth";
 import mongoose from "mongoose";
 import type { Permission } from "@/lib/permissions";
+import { hasLeadPermission, hasPermission, hasPermissionOrIsLead } from "@/lib/auth-helpers";
 import { connectDB } from "@/lib/mongodb";
-import { ClientModel } from "@/lib/models/Client";
+import { ClientModel, type IContact } from "@/lib/models/Client";
 import { LogModel } from "@/lib/models/Log";
 import { ProjectModel } from "@/lib/models/Project";
 import { TaskModel } from "@/lib/models/Task";
 import { UserModel } from "@/lib/models/User";
 import { SalesBoardModel } from "@/lib/models/SalesBoard";
 import { SalesCardModel } from "@/lib/models/SalesCard";
-import { createSalesCard, findOpenCardForClient, moveSalesCard } from "@/lib/sales";
-import { createClient, findDuplicateClients, resolveClientReferenceData } from "@/lib/clients";
+import {
+  createSalesCard,
+  findOpenCardForClient,
+  moveSalesCard,
+  updateSalesCard,
+  type UpdateSalesCardInput,
+} from "@/lib/sales";
+import {
+  addClientContact,
+  createClient,
+  findDuplicateClients,
+  removeClientContact,
+  resolveArchetype,
+  resolveClientReferenceData,
+  updateClient,
+  updateClientContact,
+  type UpdateClientInput,
+} from "@/lib/clients";
 import { createLogEntry, serializeLog } from "@/lib/logs";
 import {
   canEditTask,
@@ -47,7 +64,27 @@ export interface McpTool {
   inputSchema: Record<string, unknown>;
   /** Absent means "any authenticated caller", matching GET /api/clients. */
   permission?: Permission;
+  /**
+   * The permission may also be held as a lead permission, on the clients this
+   * caller leads. Only the coarse gate is affected — whether the tool is listed
+   * and callable at all. Which client it may actually touch is decided inside
+   * the handler with hasPermissionOrIsLead(), against that client's leads.
+   */
+  leadEligible?: boolean;
   handler: (session: Session, args: Record<string, unknown>) => Promise<unknown>;
+}
+
+/**
+ * Whether this caller may reach a tool at all.
+ *
+ * A courtesy filter on tools/list and the first gate on tools/call — never the
+ * authorization boundary for a specific client, which the handlers apply
+ * themselves.
+ */
+export function mayUseTool(session: Session, tool: McpTool): boolean {
+  if (!tool.permission) return true;
+  if (hasPermission(session, tool.permission)) return true;
+  return !!tool.leadEligible && hasLeadPermission(session, tool.permission);
 }
 
 // ── Argument helpers ─────────────────────────────────────────────────
@@ -142,7 +179,7 @@ async function requireClient(clientId: string) {
   if (!mongoose.Types.ObjectId.isValid(clientId)) {
     throw new ToolError(`"${clientId}" is not a valid client id. Use find_clients to look one up.`);
   }
-  const client = await ClientModel.findById(clientId).select("company contacts").lean();
+  const client = await ClientModel.findById(clientId).select(CLIENT_SELECT).lean();
   if (!client) throw new ToolError(`No client found with id ${clientId}.`);
   return client;
 }
@@ -203,14 +240,14 @@ async function requireTask(taskId: string): Promise<LeanTask> {
  * assigned to nobody is a quiet data-quality bug, the same reasoning
  * create_log_entry applies to contact ids.
  */
-async function resolveAssignees(names: string[]): Promise<TaskAssignee[]> {
+async function resolveUsers(names: string[]) {
   const users = await UserModel.find({
     $or: [{ status: "active" }, { status: { $exists: false } }],
   })
     .select("name email image")
     .lean();
 
-  const resolved: TaskAssignee[] = [];
+  const resolved: (typeof users)[number][] = [];
   for (const raw of names) {
     const needle = raw.trim().toLowerCase();
     if (!needle) continue;
@@ -226,14 +263,57 @@ async function resolveAssignees(names: string[]): Promise<TaskAssignee[]> {
         `"${raw}" matches ${matches.length} users. Use the person's email address instead.`
       );
     }
-    const user = matches[0];
-    resolved.push({
-      userId: user._id.toString(),
-      name: user.name,
-      image: user.image ?? undefined,
-    });
+    resolved.push(matches[0]);
   }
   return resolved;
+}
+
+/** Task assignees and sales-card owners share this snapshot shape. */
+async function resolveAssignees(names: string[]): Promise<TaskAssignee[]> {
+  return (await resolveUsers(names)).map((user) => ({
+    userId: user._id.toString(),
+    name: user.name,
+    image: user.image ?? undefined,
+  }));
+}
+
+/** Client leads store an email rather than an image — same lookup, other shape. */
+async function resolveLeads(names: string[]) {
+  return (await resolveUsers(names)).map((user) => ({
+    userId: user._id.toString(),
+    name: user.name,
+    email: user.email,
+  }));
+}
+
+/**
+ * Resolve a client for a write, and check this caller may write to *this* one.
+ *
+ * `clients.edit` is lead-eligible, so the registry gate is deliberately coarse:
+ * it lets through anyone holding the permission globally or as a lead. Which
+ * client a lead may actually touch is only knowable here, with that client's
+ * own leads array in hand — and it runs before any write, so a refusal cannot
+ * leave half a change behind.
+ */
+async function requireClientForWrite(session: Session, clientId: string) {
+  const client = await requireClient(clientId);
+  if (!hasPermissionOrIsLead(session, "clients.edit", client.leads ?? [])) {
+    throw new ToolError(
+      `Not allowed: editing "${client.company}" needs the "clients.edit" permission, or being ` +
+        `a lead on that client.`
+    );
+  }
+  return client;
+}
+
+/** Cards are always resolved within a board that has already been resolved. */
+async function requireCard(boardId: string, boardName: string, cardId: string) {
+  if (!mongoose.Types.ObjectId.isValid(cardId)) {
+    throw new ToolError(`"${cardId}" is not a valid card id. Use get_sales_board to look one up.`);
+  }
+  const card = await SalesCardModel.findOne({ _id: cardId, boardId }).lean();
+  if (!card) throw new ToolError(`No card found with id ${cardId} on board "${boardName}".`);
+  return card;
 }
 
 /** Boards resolve by id or name — a model reasoning about the funnel has the name. */
@@ -277,6 +357,23 @@ function serializeClient(doc: {
       email: c.email ?? null,
     })),
     leads: (doc.leads ?? []).map((l) => l.name),
+  };
+}
+
+/**
+ * One contact, in full. find_clients collapses a contact to a display name
+ * because it lists many; the contact tools answer about exactly one, and the
+ * caller needs the parts back to know what it now holds.
+ */
+function serializeContact(contact: IContact) {
+  return {
+    id: contact.id,
+    name: [contact.firstName, contact.lastName].filter(Boolean).join(" "),
+    firstName: contact.firstName,
+    lastName: contact.lastName,
+    role: contact.role ?? null,
+    email: contact.email ?? null,
+    phone: contact.phone ?? null,
   };
 }
 
@@ -435,6 +532,241 @@ export const MCP_TOOLS: McpTool[] = [
         // "pending" until GAS calls back — the hub shows a banner meanwhile.
         folderStatus: created.client.folderStatus ?? null,
       };
+    },
+  },
+
+  {
+    name: "update_client",
+    description:
+      "Update an existing client's details: company name, status, platform, archetype, " +
+      "leads, address, website, description or headcount. Only the fields you pass change — " +
+      "everything else is left exactly as it was. Get the clientId from find_clients. " +
+      "Contact people are managed with add_client_contact, update_client_contact and " +
+      "remove_client_contact, not here.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        clientId: { type: "string", description: "Client id, as returned by find_clients." },
+        company: { type: "string", description: "Company name. Cannot be emptied." },
+        status: {
+          type: "string",
+          description:
+            'Client status — one of the configured options, e.g. "prospect" or "active". ' +
+            "The slug or its label both work.",
+        },
+        platform: {
+          type: "string",
+          description: "Client platform — one of the configured options, by slug or label.",
+        },
+        archetype: {
+          type: "string",
+          description:
+            "Archetype name, as configured under admin. Pass an empty string to clear it.",
+        },
+        leads: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "The people leading this client, by name or e-mail address. Replaces the current " +
+            "list; an empty array leaves the client without leads. Needs the " +
+            "clients.assignLeads permission.",
+        },
+        clientSince: { type: "string", description: "YYYY-MM-DD — when they became a client." },
+        website: { type: "string", description: "Company website URL." },
+        employees: { type: "number", description: "Headcount." },
+        description: { type: "string", description: "What the company does. Plain text." },
+        addressStreet: { type: "string", description: "Street and number." },
+        addressPostalCode: { type: "string" },
+        addressCity: { type: "string" },
+        addressCountry: { type: "string" },
+      },
+      required: ["clientId"],
+      additionalProperties: false,
+    },
+    permission: "clients.edit",
+    leadEligible: true,
+    handler: async (session, args) => {
+      const clientId = requiredStr(args, "clientId");
+      const status = str(args, "status");
+      const platform = str(args, "platform");
+      const archetype = nullableStr(args, "archetype");
+      const leadNames = strArray(args, "leads");
+
+      await connectDB();
+
+      // Every refusal runs before the write, so none can leave a half-update.
+      await requireClientForWrite(session, clientId);
+
+      const resolved = await resolveClientReferenceData({ status, platform });
+      if (!resolved.ok) throw new ToolError(resolved.error);
+
+      let archetypeId: string | undefined;
+      if (archetype === null) {
+        archetypeId = "";
+      } else if (archetype !== undefined) {
+        const hit = await resolveArchetype(archetype);
+        if (!hit.ok) throw new ToolError(hit.error);
+        archetypeId = hit.archetypeId;
+      }
+
+      const leads = leadNames ? await resolveLeads(leadNames) : undefined;
+
+      const input: UpdateClientInput = {};
+      const company = str(args, "company");
+      if (company !== undefined) input.company = company;
+      if (resolved.status !== undefined) input.status = resolved.status;
+      if (resolved.platform !== undefined) input.platform = resolved.platform;
+      if (archetypeId !== undefined) input.archetypeId = archetypeId;
+      if (leads !== undefined) input.leads = leads;
+
+      const clientSince = str(args, "clientSince");
+      if (clientSince !== undefined) input.clientSince = clientSince;
+      const employees = num(args, "employees");
+      if (employees !== undefined) input.employees = employees;
+
+      // Free-text fields can be emptied — an explicit "" or null clears them.
+      const clearable = [
+        "website",
+        "description",
+        "addressStreet",
+        "addressPostalCode",
+        "addressCity",
+        "addressCountry",
+      ] as const;
+      for (const key of clearable) {
+        const value = nullableStr(args, key);
+        if (value !== undefined) input[key] = value ?? "";
+      }
+
+      const result = await updateClient(session, clientId, input);
+      if (!result.ok) throw new ToolError(result.error);
+
+      return {
+        updated: true,
+        client: serializeClient(result.client),
+        // The stored field is archetypeId; the argument the caller passed is
+        // "archetype", and that is the word to hand back.
+        changed: result.changed.map((f) => (f === "archetypeId" ? "archetype" : f)),
+      };
+    },
+  },
+
+  {
+    name: "add_client_contact",
+    description:
+      "Add a contact person to a client. Returns the new contact's id, usable straight away " +
+      "as a contactIds value on create_log_entry. Get the clientId from find_clients.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        clientId: { type: "string", description: "Client id, as returned by find_clients." },
+        firstName: { type: "string" },
+        lastName: { type: "string" },
+        role: { type: "string", description: "Their job title." },
+        email: { type: "string" },
+        phone: { type: "string" },
+      },
+      required: ["clientId", "firstName"],
+      additionalProperties: false,
+    },
+    permission: "clients.edit",
+    leadEligible: true,
+    handler: async (session, args) => {
+      const clientId = requiredStr(args, "clientId");
+      const firstName = requiredStr(args, "firstName");
+
+      await connectDB();
+      const client = await requireClientForWrite(session, clientId);
+
+      const result = await addClientContact(session, clientId, {
+        firstName,
+        lastName: str(args, "lastName"),
+        role: str(args, "role"),
+        email: str(args, "email"),
+        phone: str(args, "phone"),
+      });
+      if (!result.ok) throw new ToolError(result.error);
+
+      return { added: true, company: client.company, contact: serializeContact(result.contact) };
+    },
+  },
+
+  {
+    name: "update_client_contact",
+    description:
+      "Change one of a client's contact people. Only the fields you pass change. The " +
+      "contactId comes from find_clients, which lists every contact with its id.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        clientId: { type: "string", description: "Client id, as returned by find_clients." },
+        contactId: { type: "string", description: "Contact id, as returned by find_clients." },
+        firstName: { type: "string" },
+        lastName: { type: "string", description: "Pass an empty string to clear it." },
+        role: { type: "string", description: "Their job title. Empty string clears it." },
+        email: { type: "string", description: "Empty string clears it." },
+        phone: { type: "string", description: "Empty string clears it." },
+      },
+      required: ["clientId", "contactId"],
+      additionalProperties: false,
+    },
+    permission: "clients.edit",
+    leadEligible: true,
+    handler: async (session, args) => {
+      const clientId = requiredStr(args, "clientId");
+      const contactId = requiredStr(args, "contactId");
+
+      const fields = {
+        firstName: str(args, "firstName"),
+        lastName: nullableStr(args, "lastName"),
+        role: nullableStr(args, "role"),
+        email: nullableStr(args, "email"),
+        phone: nullableStr(args, "phone"),
+      };
+      if (Object.values(fields).every((value) => value === undefined)) {
+        throw new ToolError(
+          "Pass at least one field to change: firstName, lastName, role, email or phone."
+        );
+      }
+
+      await connectDB();
+      const client = await requireClientForWrite(session, clientId);
+
+      const result = await updateClientContact(session, clientId, contactId, fields);
+      if (!result.ok) throw new ToolError(result.error);
+
+      return { updated: true, company: client.company, contact: serializeContact(result.contact) };
+    },
+  },
+
+  {
+    name: "remove_client_contact",
+    description:
+      "Remove a contact person from a client. The contactId comes from find_clients. Log " +
+      "entries already attributed to this person keep pointing at the id, so they are not " +
+      "rewritten — only the client's contact list changes.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        clientId: { type: "string", description: "Client id, as returned by find_clients." },
+        contactId: { type: "string", description: "Contact id, as returned by find_clients." },
+      },
+      required: ["clientId", "contactId"],
+      additionalProperties: false,
+    },
+    permission: "clients.edit",
+    leadEligible: true,
+    handler: async (session, args) => {
+      const clientId = requiredStr(args, "clientId");
+      const contactId = requiredStr(args, "contactId");
+
+      await connectDB();
+      const client = await requireClientForWrite(session, clientId);
+
+      const result = await removeClientContact(session, clientId, contactId);
+      if (!result.ok) throw new ToolError(result.error);
+
+      return { removed: true, company: client.company, contact: serializeContact(result.contact) };
     },
   },
 
@@ -701,6 +1033,122 @@ export const MCP_TOOLS: McpTool[] = [
         board: board.name,
         from: moved.from ?? null,
         to: moved.to,
+      };
+    },
+  },
+
+  {
+    name: "update_sales_card",
+    description:
+      "Update a prospect card on a sales board: deal value, owners, source, expected close " +
+      "date, labels, the contact person the deal runs through, and its notes. Only the " +
+      "fields you pass change. Call get_sales_board first to get the cardId. To write a note " +
+      "use appendNote — it puts a dated entry above what is already there; `notes` " +
+      "overwrites the whole field and is only for a deliberate rewrite, and passing both is " +
+      "refused. Moving a card to another funnel stage is move_sales_card.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        board: { type: "string", description: "Board id or board name." },
+        cardId: { type: "string", description: "Card id, as returned by get_sales_board." },
+        dealValue: { type: "number", description: "Deal value in euros." },
+        owners: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "The people owning this deal, by name or e-mail address. Replaces the current list.",
+        },
+        source: { type: "string", description: "Where the lead came from. Empty string clears it." },
+        expectedCloseDate: {
+          type: "string",
+          description: "YYYY-MM-DD. Empty string clears it.",
+        },
+        labels: {
+          type: "array",
+          items: { type: "string" },
+          description: "Replaces the card's current labels.",
+        },
+        contactId: {
+          type: "string",
+          description:
+            "Id of the contact person the deal runs through. Must be a contact on this card's " +
+            "own client — find_clients lists them. Empty string clears it.",
+        },
+        appendNote: {
+          type: "string",
+          description:
+            "A note to add to the card. Keeps the existing notes and puts this one above " +
+            "them, stamped with today's date and your name.",
+        },
+        notes: {
+          type: "string",
+          description:
+            "Replace the card's entire notes field. Only for deliberately rewriting what is " +
+            "there — to add a note, use appendNote instead.",
+        },
+      },
+      required: ["board", "cardId"],
+      additionalProperties: false,
+    },
+    permission: "sales.cards.manage",
+    handler: async (session, args) => {
+      const boardRef = requiredStr(args, "board");
+      const cardId = requiredStr(args, "cardId");
+
+      await connectDB();
+      const board = await requireBoard(boardRef);
+      const boardId = board._id.toString();
+      const card = await requireCard(boardId, board.name, cardId);
+
+      const input: UpdateSalesCardInput = {};
+
+      const ownerNames = strArray(args, "owners");
+      if (ownerNames !== undefined) input.owners = await resolveAssignees(ownerNames);
+
+      // A contact from a different client would render as nothing on the card,
+      // so it is refused rather than stored.
+      const contactId = nullableStr(args, "contactId");
+      if (contactId === null) {
+        input.contactId = null;
+      } else if (contactId !== undefined) {
+        const client = await ClientModel.findById(card.clientId)
+          .select("company contacts")
+          .lean();
+        const contacts = client?.contacts ?? [];
+        if (!contacts.some((c) => c.id === contactId)) {
+          const named = contacts
+            .map((c) => `"${[c.firstName, c.lastName].filter(Boolean).join(" ")}" (id ${c.id})`)
+            .join(", ");
+          throw new ToolError(
+            `No contact with id ${contactId} on ${client?.company ?? "this card's client"}. ` +
+              (named ? `Its contacts: ${named}.` : "That client has no contacts yet.")
+          );
+        }
+        input.contactId = contactId;
+      }
+
+      const source = nullableStr(args, "source");
+      if (source !== undefined) input.source = source ?? "";
+      const expectedCloseDate = nullableStr(args, "expectedCloseDate");
+      if (expectedCloseDate !== undefined) input.expectedCloseDate = expectedCloseDate ?? "";
+      const dealValue = num(args, "dealValue");
+      if (dealValue !== undefined) input.dealValue = dealValue;
+      const labels = strArray(args, "labels");
+      if (labels !== undefined) input.labels = labels;
+      const notes = nullableStr(args, "notes");
+      if (notes !== undefined) input.notes = notes;
+      const appendNote = str(args, "appendNote");
+      if (appendNote !== undefined) input.appendNote = appendNote;
+
+      const result = await updateSalesCard(session, boardId, cardId, input);
+      if (!result.ok) throw new ToolError(result.error);
+
+      return {
+        updated: true,
+        cardId,
+        board: board.name,
+        changed: result.changed,
+        notes: result.card.notes ?? null,
       };
     },
   },

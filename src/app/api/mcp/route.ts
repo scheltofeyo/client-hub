@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { Session } from "next-auth";
 import { auth } from "@/auth";
-import { hasPermission } from "@/lib/auth-helpers";
 import { bearerFromHeaders } from "@/lib/api-token";
 import {
   OAUTH_ACCESS_PREFIX,
@@ -10,7 +9,7 @@ import {
   protectedResourceMetadataUrl,
 } from "@/lib/oauth";
 import { MCP_SCOPES } from "@/lib/mcp/scopes";
-import { MCP_TOOLS, ToolError, findTool } from "@/lib/mcp/tools";
+import { MCP_TOOLS, ToolError, findTool, mayUseTool } from "@/lib/mcp/tools";
 import {
   INTERNAL_ERROR,
   INVALID_PARAMS,
@@ -187,7 +186,7 @@ async function dispatch(
   // Only the tools this caller may actually use. Filtering the list is a
   // courtesy to the model, not the authorization boundary — tools/call checks
   // again below, because a client is free to call a tool it never listed.
-  const visible = MCP_TOOLS.filter((t) => !t.permission || hasPermission(session, t.permission));
+  const visible = MCP_TOOLS.filter((t) => mayUseTool(session, t));
 
   switch (method) {
     // Legacy handshake (revision 2025-11-25 and earlier).
@@ -251,7 +250,7 @@ async function dispatch(
 
       // Refuse before any work starts, so a caller without the permission can
       // never leave a partial write behind.
-      if (tool.permission && !hasPermission(session, tool.permission)) {
+      if (tool.permission && !mayUseTool(session, tool)) {
         // An OAuth connection that simply was not granted this scope can be
         // widened by re-consenting, so it gets a challenge the client can act
         // on instead of a dead end.

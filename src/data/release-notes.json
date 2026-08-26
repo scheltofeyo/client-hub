@@ -1,6 +1,17 @@
 [
   {
     "date": "2026-08-26",
+    "title": "Klantgegevens, contactpersonen en verkoopkaarten bijwerken vanuit de Claude-app",
+    "details": [
+      "Je kon vanuit de Claude-app al klanten opzoeken en aanmaken; nu kun je ze ook bijwerken. Bedrijfsnaam, status, platform, archetype, adres, website en aantal medewerkers — alleen wat je noemt verandert, de rest blijft staan",
+      "Contactpersonen kun je toevoegen, aanpassen en verwijderen zonder de hele lijst opnieuw door te geven, dus er raakt niemand zoek",
+      "Op een verkoopkaart kun je de dealwaarde, eigenaren, bron, verwachte sluitdatum, labels en het contactpersoon aanpassen",
+      "Notities schrijven op een verkoopkaart voegt toe in plaats van te overschrijven: je nieuwe notitie komt bovenaan met de datum en je naam erboven, en wat er stond blijft eronder staan",
+      "Ben je lead op een klant, dan mag je die klant bijwerken ook zonder het algemene recht om klanten te bewerken — precies zoals in de hub zelf. Bij een klant waar je geen lead van bent krijg je een duidelijke melding en wordt er niets gewijzigd"
+    ]
+  },
+  {
+    "date": "2026-08-26",
     "title": "Een klant aanmaken loopt niet meer vast als Google Drive traag is",
     "details": [
       "Bij het aanmaken van een klant met Drive-map wachtte de hub onbeperkt op Google. Duurde dat te lang, dan kapte de server de aanvraag af met een 502-melding — terwijl de klant al wel was aangemaakt",

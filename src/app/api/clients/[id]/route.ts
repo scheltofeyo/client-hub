@@ -9,10 +9,8 @@ import { ClientEventModel } from "@/lib/models/ClientEvent";
 import { SheetModel } from "@/lib/models/Sheet";
 import { ActivityEventModel } from "@/lib/models/ActivityEvent";
 import { SalesCardModel } from "@/lib/models/SalesCard";
-import { recordActivity } from "@/lib/activity";
-import { hasPermission, hasPermissionOrIsLead, requirePermission } from "@/lib/auth-helpers";
-import { ClientStatusOptionModel } from "@/lib/models/ClientStatusOption";
-import { ClientPlatformOptionModel } from "@/lib/models/ClientPlatformOption";
+import { requirePermission } from "@/lib/auth-helpers";
+import { updateClient } from "@/lib/clients";
 import type { IClient } from "@/lib/models/Client";
 
 /** Structural type so both lean results and hydrated docs fit. */
@@ -82,147 +80,16 @@ export async function PATCH(
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
-  await connectDB();
-
-  // Check if user is admin or a lead on this client
-  const existing = await ClientModel.findById(id).lean();
-  if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
-
-  if (!hasPermissionOrIsLead(session, "clients.edit", existing.leads ?? [])) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
-
   const body = await req.json();
-  const { company, status, platform, clientSince, employees, website, description, primaryColor, contacts, leads, archetypeId, culturalDna, culturalLevels, addressStreet, addressPostalCode, addressCity, addressCountry } = body;
 
-  if (company !== undefined && !company?.trim()) {
-    return NextResponse.json({ error: "Company name cannot be empty" }, { status: 400 });
-  }
+  // The whole handler lives in updateClient(): the lead-aware permission
+  // check, the field handling and the granular activity events. The MCP tools
+  // call the same function, so the two surfaces cannot drift on what updating
+  // a client means.
+  const result = await updateClient(session, id, body);
+  if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
 
-  // Only users with assignLeads permission can reassign leads
-  if (leads !== undefined && !hasPermission(session, "clients.assignLeads")) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
-
-  const update: Record<string, unknown> = {};
-  if (company !== undefined) update.company = company.trim();
-  if (status !== undefined) update.status = status || null;
-  if (platform !== undefined) update.platform = platform || null;
-  if (clientSince !== undefined) update.clientSince = clientSince?.trim() || null;
-  if (employees !== undefined) update.employees = employees ? Number(employees) : null;
-  if (website !== undefined) update.website = website.trim() || null;
-  if (description !== undefined) update.description = description.trim() || null;
-  if (primaryColor !== undefined) update.primaryColor = primaryColor?.trim() || null;
-  if (contacts !== undefined) update.contacts = contacts;
-  if (leads !== undefined) update.leads = leads;
-  if (archetypeId !== undefined) update.archetypeId = archetypeId || null;
-  if (culturalDna !== undefined) update.culturalDna = culturalDna;
-  if (culturalLevels !== undefined) update.culturalLevels = culturalLevels;
-  if (addressStreet !== undefined) update.addressStreet = typeof addressStreet === "string" ? addressStreet.trim() || null : null;
-  if (addressPostalCode !== undefined) update.addressPostalCode = typeof addressPostalCode === "string" ? addressPostalCode.trim() || null : null;
-  if (addressCity !== undefined) update.addressCity = typeof addressCity === "string" ? addressCity.trim() || null : null;
-  if (addressCountry !== undefined) update.addressCountry = typeof addressCountry === "string" ? addressCountry.trim() || null : null;
-
-  const doc = await ClientModel.findByIdAndUpdate(id, { $set: update }, { new: true }).lean();
-  if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
-
-  // Emit activity for contact changes
-  if (contacts !== undefined) {
-    type ContactInput = { id?: string; firstName?: string; lastName?: string };
-    const oldIds = new Set((existing.contacts ?? []).map((c) => c.id));
-    const newIds = new Set((contacts as ContactInput[]).map((c) => c.id ?? ""));
-    const added = (contacts as ContactInput[]).filter((c) => c.id && !oldIds.has(c.id));
-    const removed = (existing.contacts ?? []).filter((c) => !newIds.has(c.id));
-    if (added.length > 0 || removed.length > 0) {
-      await recordActivity({
-        clientId: id,
-        actorId: session.user.id,
-        actorName: session.user.name ?? "Unknown",
-        type: "contact.changed",
-        metadata: {
-          added: added.map((c) => [c.firstName, c.lastName].filter(Boolean).join(" ")),
-          removed: removed.map((c) => [c.firstName, c.lastName].filter(Boolean).join(" ")),
-        },
-      });
-    }
-  }
-
-  // Emit granular activity for status changes
-  if (status !== undefined) {
-    const newVal = status || null;
-    const oldVal = existing.status ?? null;
-    if (oldVal !== newVal) {
-      const [fromOpt, toOpt] = await Promise.all([
-        oldVal ? ClientStatusOptionModel.findOne({ slug: oldVal }).lean() : null,
-        newVal ? ClientStatusOptionModel.findOne({ slug: newVal }).lean() : null,
-      ]);
-      await recordActivity({
-        clientId: id,
-        actorId: session.user.id,
-        actorName: session.user.name ?? "Unknown",
-        type: "client.status_changed",
-        metadata: {
-          from: oldVal, to: newVal,
-          fromLabel: fromOpt?.label ?? oldVal, toLabel: toOpt?.label ?? newVal,
-        },
-      });
-    }
-  }
-
-  // Emit granular activity for platform changes
-  if (platform !== undefined) {
-    const newVal = platform || null;
-    const oldVal = existing.platform ?? null;
-    if (oldVal !== newVal) {
-      const [fromOpt, toOpt] = await Promise.all([
-        oldVal ? ClientPlatformOptionModel.findOne({ slug: oldVal }).lean() : null,
-        newVal ? ClientPlatformOptionModel.findOne({ slug: newVal }).lean() : null,
-      ]);
-      await recordActivity({
-        clientId: id,
-        actorId: session.user.id,
-        actorName: session.user.name ?? "Unknown",
-        type: "client.platform_changed",
-        metadata: {
-          from: oldVal, to: newVal,
-          fromLabel: fromOpt?.label ?? oldVal, toLabel: toOpt?.label ?? newVal,
-        },
-      });
-    }
-  }
-
-  // Emit activity for lead changes
-  if (leads !== undefined) {
-    type LeadInput = { userId: string; name?: string };
-    const oldIds = new Set((existing.leads ?? []).map((l) => l.userId));
-    const newIds = new Set((leads as LeadInput[]).map((l) => l.userId));
-    const added = (leads as LeadInput[]).filter((l) => !oldIds.has(l.userId)).map((l) => l.name ?? "Unknown");
-    const removed = (existing.leads ?? []).filter((l) => !newIds.has(l.userId)).map((l) => l.name);
-    if (added.length > 0 || removed.length > 0) {
-      await recordActivity({
-        clientId: id,
-        actorId: session.user.id,
-        actorName: session.user.name ?? "Unknown",
-        type: "client.leads_changed",
-        metadata: { added, removed },
-      });
-    }
-  }
-
-  // Emit activity for remaining company data changes (non-contact, non-status, non-platform, non-leads)
-  const companyFields = ["company", "clientSince", "employees", "website", "description", "primaryColor", "archetypeId"] as const;
-  const changedFields = companyFields.filter((f) => body[f] !== undefined);
-  if (changedFields.length > 0) {
-    await recordActivity({
-      clientId: id,
-      actorId: session.user.id,
-      actorName: session.user.name ?? "Unknown",
-      type: "client.updated",
-      metadata: { fields: changedFields },
-    });
-  }
-
-  return NextResponse.json(serializeClient(doc));
+  return NextResponse.json(serializeClient(result.client));
 }
 
 export async function DELETE(
