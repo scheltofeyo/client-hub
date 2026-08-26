@@ -3,7 +3,7 @@ import { auth } from "@/auth";
 import { connectDB } from "@/lib/mongodb";
 import { ClientModel } from "@/lib/models/Client";
 import { requirePermission } from "@/lib/auth-helpers";
-import { recordActivity } from "@/lib/activity";
+import { createClient, serializeCreatedClient } from "@/lib/clients";
 
 export async function GET() {
   const session = await auth();
@@ -34,85 +34,9 @@ export async function POST(req: NextRequest) {
   if (forbidden) return forbidden;
 
   const body = await req.json();
-  const {
-    company, status, platform, clientSince, employees, website, description, primaryColor, createFolder,
-    contacts, addressStreet, addressPostalCode, addressCity, addressCountry,
-  } = body;
 
-  if (!company?.trim()) {
-    return NextResponse.json({ error: "Company name is required" }, { status: 400 });
-  }
+  const created = await createClient(session!, body);
+  if (!created.ok) return NextResponse.json({ error: created.error }, { status: 400 });
 
-  await connectDB();
-  const doc = await ClientModel.create({
-    company: company.trim(),
-    status: status || undefined,
-    platform: platform || undefined,
-    clientSince: clientSince?.trim() || undefined,
-    employees: employees ? Number(employees) : undefined,
-    website: website?.trim() || undefined,
-    description: description?.trim() || undefined,
-    primaryColor: primaryColor?.trim() || undefined,
-    contacts: Array.isArray(contacts) ? contacts : [],
-    leads: [],
-    addressStreet: addressStreet?.trim() || undefined,
-    addressPostalCode: addressPostalCode?.trim() || undefined,
-    addressCity: addressCity?.trim() || undefined,
-    addressCountry: addressCountry?.trim() || undefined,
-    folderStatus: createFolder ? "pending" : undefined,
-  });
-
-  if (createFolder) {
-    const webhookUrl = process.env.GAS_FOLDER_WEBHOOK_URL;
-    const secret = process.env.GAS_FOLDER_WEBHOOK_SECRET;
-    const appUrl = process.env.APP_URL;
-    if (webhookUrl && secret && appUrl) {
-      try {
-        await fetch(webhookUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            companyName: doc.company,
-            clientId: doc._id.toString(),
-            appCallbackUrl: `${appUrl}/api/internal/folder-callback`,
-            secret,
-          }),
-        });
-      } catch (err) {
-        console.error("[folder-webhook] Failed to call GAS webhook:", err);
-      }
-    } else {
-      console.warn("[folder-webhook] Missing env vars: GAS_FOLDER_WEBHOOK_URL, GAS_FOLDER_WEBHOOK_SECRET, or APP_URL");
-    }
-  }
-
-  await recordActivity({
-    clientId: doc._id.toString(),
-    actorId: session!.user.id,
-    actorName: session!.user.name ?? "Unknown",
-    type: "client.created",
-    metadata: { company: doc.company },
-  });
-
-  return NextResponse.json(
-    {
-      id: doc._id.toString(),
-      company: doc.company,
-      status: doc.status,
-      platform: doc.platform,
-      clientSince: doc.clientSince,
-      employees: doc.employees,
-      website: doc.website,
-      description: doc.description,
-      primaryColor: doc.primaryColor ?? undefined,
-      contacts: doc.contacts ?? [],
-      leads: [],
-      addressStreet: doc.addressStreet ?? null,
-      addressPostalCode: doc.addressPostalCode ?? null,
-      addressCity: doc.addressCity ?? null,
-      addressCountry: doc.addressCountry ?? null,
-      folderStatus: doc.folderStatus,
-    },
-    { status: 201 }
-  );
+  return NextResponse.json(serializeCreatedClient(created.client), { status: 201 });
 }
