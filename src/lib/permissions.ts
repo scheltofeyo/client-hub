@@ -85,6 +85,15 @@ export const ALL_PERMISSIONS = [
   // Finance — company-wide revenue reporting
   "finance.access",
 
+  // Integrations — personal API tokens for callers without a browser
+  "integrations.tokens",
+
+  // Sales — funnel boards for prospects
+  "sales.access",
+  "sales.boards.manage",
+  "sales.cards.manage",
+  "sales.convert",
+
   // Admin panel access
   "admin.access",
 
@@ -168,6 +177,11 @@ export const PERMISSION_DEPENDENCIES: Partial<Record<Permission, Permission>> = 
   "tools.surveys.deleteAny": "tools.surveys.viewOthers",
   "tools.lineLab.access": "tools.access",
   "admin.surveys.manageTemplates": "admin.access",
+
+  // Sales sub-features require sales access
+  "sales.boards.manage": "sales.access",
+  "sales.cards.manage": "sales.access",
+  "sales.convert": "sales.cards.manage",
 };
 
 /** Given a permission, return all permissions it transitively depends on. */
@@ -335,6 +349,23 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
     ],
   },
   {
+    label: "Integrations",
+    description: "Personal API tokens let a user's own tooling (a scheduled task, an MCP client) call the hub as them. A token can never do more than its owner's role allows, and creating one always requires a browser session.",
+    permissions: [
+      { key: "integrations.tokens", label: "Create and revoke own API tokens" },
+    ],
+  },
+  {
+    label: "Sales",
+    description: "Funnel boards that track which stage each prospect is in. Boards are visible to everyone with access; converting a prospect to a client is a separate, deliberate permission.",
+    permissions: [
+      { key: "sales.access", label: "Access the sales section" },
+      { key: "sales.boards.manage", label: "Create, edit & delete boards and columns", requires: "sales.access" },
+      { key: "sales.cards.manage", label: "Add, edit, move & remove prospect cards", requires: "sales.access" },
+      { key: "sales.convert", label: "Mark deals won/lost and promote a prospect to client", requires: "sales.cards.manage" },
+    ],
+  },
+  {
     label: "Tools",
     description: "Workshop tools, holiday planner, and facilitation features.",
     permissions: [
@@ -358,6 +389,35 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
     ],
   },
 ];
+
+// ── Token-grantable permissions ──────────────────────────────────────
+/**
+ * Administering the hub itself stays behind a browser session. An API token
+ * lives in a config file on someone's laptop or in a scheduler, so its blast
+ * radius has to be day-to-day data work — never the admin panel, employee
+ * records, roles, or the minting of further tokens.
+ *
+ * This is enforced server-side on every request (see sessionFromApiToken), so
+ * it holds even for a token created without an explicit scope, which would
+ * otherwise inherit everything its owner's role grants.
+ *
+ * Prefix-based on purpose: a new admin.* or employees.* permission is excluded
+ * automatically, instead of silently becoming grantable because someone forgot
+ * to update a list here.
+ */
+export function isTokenGrantable(permission: string): boolean {
+  if (permission.startsWith("admin.")) return false;
+  if (permission.startsWith("employees.")) return false;
+  if (permission === "roles.manage") return false;
+  // A token must never be able to mint another token.
+  if (permission === "integrations.tokens") return false;
+  return true;
+}
+
+/** Filter a permission list down to what an API token may carry. */
+export function tokenGrantable(permissions: string[]): string[] {
+  return permissions.filter(isTokenGrantable);
+}
 
 // ── Lead-eligible permissions ────────────────────────────────────────
 // Only permissions whose API routes honor lead scope via hasPermissionOrIsLead.
@@ -460,4 +520,13 @@ export const MEMBER_PERMISSIONS: Permission[] = [
   // Workshop tools
   "tools.spinTheWheel.access",
   "tools.emailSignature.access",
+
+  // Sales — see the boards and work the cards; board setup and
+  // won/lost conversion stay with admins.
+  "sales.access",
+  "sales.cards.manage",
+
+  // Integrations — everyone may wire up their own Claude; the token can never
+  // exceed the role it was minted from.
+  "integrations.tokens",
 ];

@@ -11,12 +11,14 @@ import {
   Calendar,
   Wrench,
   TrendingUp,
+  Target,
 } from "lucide-react";
 import UserMenu from "./UserMenu";
 
 const topItems: { href: string; label: string; icon: typeof LayoutDashboard; requires?: string }[] = [
   { href: "/my-day", label: "Dashboard", icon: LayoutDashboard },
   { href: "/clients", label: "Clients", icon: Building2 },
+  { href: "/sales", label: "Sales", icon: Target, requires: "sales.access" },
   { href: "/finance", label: "Finance", icon: TrendingUp, requires: "finance.access" },
   { href: "/tools", label: "Tools", icon: Wrench, requires: "tools.access" },
 ];

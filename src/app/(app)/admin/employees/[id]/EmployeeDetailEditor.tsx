@@ -6,6 +6,7 @@ import Image from "next/image";
 import PageHeader from "@/components/layout/PageHeader";
 import { Save, Archive, RotateCcw, AlertTriangle } from "lucide-react";
 import { usePermission } from "@/hooks/usePermission";
+import ApiTokensSection from "@/components/ui/ApiTokensSection";
 
 interface RoleOption { slug: string; name: string; }
 
@@ -40,13 +41,16 @@ interface EmployeeData {
   createdAt: string;
 }
 
-type TabKey = "identity" | "employment" | "access" | "notes";
+type TabKey = "identity" | "employment" | "access" | "notes" | "integrations";
 
-const ALL_TABS: { key: TabKey; label: string; adminOnly: boolean }[] = [
-  { key: "identity",   label: "Identity & Personal", adminOnly: false },
-  { key: "employment", label: "Employment",          adminOnly: true },
-  { key: "access",     label: "System Access",       adminOnly: true },
-  { key: "notes",      label: "Notes",               adminOnly: true },
+const ALL_TABS: { key: TabKey; label: string; adminOnly: boolean; selfOnly?: boolean }[] = [
+  { key: "identity",     label: "Identity & Personal", adminOnly: false },
+  { key: "employment",   label: "Employment",          adminOnly: true },
+  { key: "access",       label: "System Access",       adminOnly: true },
+  { key: "notes",        label: "Notes",               adminOnly: true },
+  // Tokens are personal credentials: only ever shown on your own record, never
+  // to an admin looking at someone else.
+  { key: "integrations", label: "Integrations",        adminOnly: false, selfOnly: true },
 ];
 
 const TAB_FIELDS: Record<TabKey, string[]> = {
@@ -63,6 +67,8 @@ const TAB_FIELDS: Record<TabKey, string[]> = {
   ],
   access: ["role", "status"],
   notes: ["notes"],
+  // Not a form tab — ApiTokensSection saves itself through its own endpoints.
+  integrations: [],
 };
 
 function SectionHeading({ children }: { children: React.ReactNode }) {
@@ -192,6 +198,7 @@ export default function EmployeeDetailEditor({
   const [status, setStatus] = useState(employee.status);
   const [roleOptions, setRoleOptions] = useState<RoleOption[]>([]);
   const canArchive = usePermission("employees.archive");
+  const canManageTokens = usePermission("integrations.tokens");
 
   // Archive state
   const [showArchiveDialog, setShowArchiveDialog] = useState(false);
@@ -320,9 +327,8 @@ export default function EmployeeDetailEditor({
     setSaving(false);
   }
 
-  const visibleTabs = mode === "admin"
-    ? ALL_TABS
-    : ALL_TABS.filter((t) => !t.adminOnly);
+  const visibleTabs = (mode === "admin" ? ALL_TABS : ALL_TABS.filter((t) => !t.adminOnly))
+    .filter((t) => !t.selfOnly || (isCurrentUser && canManageTokens));
 
   const breadcrumbs = mode === "admin"
     ? [
@@ -394,7 +400,7 @@ export default function EmployeeDetailEditor({
                 {reactivating ? "Reactivating\u2026" : "Reactivate"}
               </button>
             )}
-            {employee.status !== "inactive" && (
+            {employee.status !== "inactive" && activeTab !== "integrations" && (
               <button
                 onClick={handleSave}
                 disabled={saving}
@@ -699,6 +705,13 @@ export default function EmployeeDetailEditor({
                 You cannot change your own role or status.
               </p>
             )}
+          </>
+        )}
+
+        {activeTab === "integrations" && (
+          <>
+            <SectionHeading>API tokens</SectionHeading>
+            <ApiTokensSection />
           </>
         )}
 

@@ -1,5 +1,49 @@
 [
   {
+    "date": "2026-08-26",
+    "title": "Koppel je eigen tools aan de hub met een API-token",
+    "details": [
+      "Onder Profiel > Integrations maak je een persoonlijk token aan waarmee gereedschap buiten de browser (bijvoorbeeld je eigen Claude of een geplande taak) namens jou in de hub kan werken",
+      "Een token kan nooit meer dan jouw eigen rol toestaat, en beheerrechten zoals het adminpaneel, medewerkers en rollen zitten er nooit in",
+      "Je kunt een token beperken tot alleen de rechten die het nodig heeft en er een vervaldatum aan hangen",
+      "Acties die via een token binnenkomen staan op jouw naam in het activiteitenoverzicht, met een label dat laat zien welk token het was",
+      "Een token intrekken werkt onmiddellijk"
+    ]
+  },
+  {
+    "date": "2026-08-25",
+    "title": "Nieuw: Salesfunnel met kanban borden",
+    "details": [
+      "Nieuwe sectie Sales in de linkerbalk waarin je zelf kanban borden aanmaakt, met per bord instelbare kolommen en kleuren",
+      "Voeg handmatig prospects toe aan een bord en sleep ze tussen de fases; dezelfde prospect mag op meerdere borden staan",
+      "Per kaart leg je eigenaars, contactpersoon, bron, dealwaarde, verwachte closing, labels en een notitie vast",
+      "Markeer een deal als gewonnen om de prospect in één klik om te zetten naar een actieve klant, of als verloren om hem te archiveren",
+      "Alle acties op een kaart komen terug in het activiteitenoverzicht van de betreffende client"
+    ],
+    "whatsNew": {
+      "id": "sales-funnel-boards",
+      "title": "Houd je salesfunnel bij in SUMM Hub",
+      "steps": [
+        {
+          "title": "Maak een bord",
+          "description": "Ga naar Sales in de linkerbalk en maak een bord aan. Je start met vier standaardkolommen die je onder Instellingen kunt hernoemen, een kleur kunt geven of kunt aanvullen."
+        },
+        {
+          "title": "Voeg prospects toe",
+          "description": "Alleen clients met de status prospect zijn kiesbaar. Je bepaalt zelf wie er op welk bord komt, dus je bord blijft precies zo overzichtelijk als jij wilt."
+        },
+        {
+          "title": "Sleep door de funnel",
+          "description": "Verplaats kaarten tussen kolommen om de fase bij te werken. Per kolom zie je meteen het aantal prospects en de opgetelde dealwaarde."
+        },
+        {
+          "title": "Rond de deal af",
+          "description": "Gewonnen zet de prospect om naar een actieve klant en archiveert de kaart. Verloren archiveert alleen de kaart, zodat je client een prospect blijft."
+        }
+      ]
+    }
+  },
+  {
     "date": "2026-07-09",
     "title": "Foutscherm na inloggen verholpen",
     "details": [
@@ -1017,7 +1061,7 @@
     "details": [
       "Admin 'Users' section is now 'Employees' with invitation-only access",
       "Rich employee profiles: personal details, employment info, contract data, emergency contacts",
-      "Admins can invite employees by email \u2014 account auto-activates on first Google login",
+      "Admins can invite employees by email — account auto-activates on first Google login",
       "Admin-controlled display name and avatar overrides (Google values imported automatically)",
       "Dedicated employee detail page with full profile editor",
       "Role-based access: Admin and Member roles (replaces simple admin toggle)",

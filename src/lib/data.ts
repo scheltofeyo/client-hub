@@ -29,7 +29,10 @@ import { RoleModel } from "./models/Role";
 import { LeaveTypeModel, DEFAULT_LEAVE_TYPES } from "./models/LeaveType";
 import { TimeOffModel } from "./models/TimeOff";
 import { CompanyHolidayModel } from "./models/CompanyHoliday";
-import type { Archetype, BirthdayItem, Client, ClientLead, ClientPlatformOption, ClientStatusOption, CompanyHoliday, Contact, DashboardStats, EventType, LeaveType, Log, LogSignal, MyDayFollowUpData, MyDayTaskData, MyDayUserInfo, MyProjectOverview, Project, ProjectLabel, ProjectRole, ProjectStatus, ProjectTemplate, RecurrenceUnit, RevenueAnalytics, RevenueBucket, RevenueRow, Service, Session, Sheet, Task, TemplateSession, TemplateTask, TimelineEvent, TimeOffEntry, TimeOffBalance, WeekTeamData } from "@/types";
+import { SalesBoardModel } from "./models/SalesBoard";
+import { SalesCardModel } from "./models/SalesCard";
+import { serializeSalesBoard, serializeSalesCard } from "./sales";
+import type { Archetype, BirthdayItem, Client, ClientLead, ClientPlatformOption, ClientStatusOption, CompanyHoliday, Contact, DashboardStats, EventType, LeaveType, Log, LogSignal, MyDayFollowUpData, MyDayTaskData, MyDayUserInfo, MyProjectOverview, Project, ProjectLabel, ProjectRole, ProjectStatus, ProjectTemplate, ProspectOption, RecurrenceUnit, RevenueAnalytics, RevenueBucket, RevenueRow, SalesBoard, SalesCard, Service, Session, Sheet, Task, TemplateSession, TemplateTask, TimelineEvent, TimeOffEntry, TimeOffBalance, WeekTeamData } from "@/types";
 import type { WeekCalendarItem } from "@/lib/utils";
 import { mapToWeekday, isLiveProject } from "@/lib/utils";
 
@@ -2601,3 +2604,100 @@ export async function getWeekTeamData(start: string, end: string): Promise<WeekT
 
   return { timeOff, companyHolidays, birthdays, leaveTypes };
 }
+
+// ── Sales funnel ───────────────────────────────────────────────────
+
+/** All boards, newest-first by rank, with open-card counts and summed deal value. */
+export const getSalesBoards = cache(async (): Promise<SalesBoard[]> => {
+  await connectDB();
+  const [boardDocs, totals] = await Promise.all([
+    SalesBoardModel.find().sort({ rank: 1, createdAt: 1 }).lean(),
+    SalesCardModel.aggregate<{ _id: string; count: number; value: number }>([
+      { $match: { outcome: { $exists: false } } },
+      { $group: { _id: "$boardId", count: { $sum: 1 }, value: { $sum: { $ifNull: ["$dealValue", 0] } } } },
+    ]),
+  ]);
+  const totalsMap = new Map(totals.map((t) => [t._id, t]));
+  return boardDocs.map((doc) => {
+    const board = serializeSalesBoard(doc);
+    const t = totalsMap.get(board.id);
+    board.cardCount = t?.count ?? 0;
+    board.totalValue = t?.value ?? 0;
+    return board;
+  });
+});
+
+export const getSalesBoardById = cache(async (boardId: string): Promise<SalesBoard | undefined> => {
+  if (!mongoose.Types.ObjectId.isValid(boardId)) return undefined;
+  await connectDB();
+  const doc = await SalesBoardModel.findById(boardId).lean();
+  return doc ? serializeSalesBoard(doc) : undefined;
+});
+
+/**
+ * Cards on a board, joined with their Client for display. Archived cards (those
+ * with an outcome) are excluded unless includeArchived is set.
+ */
+export const getSalesCards = cache(
+  async (boardId: string, includeArchived = false): Promise<SalesCard[]> => {
+    if (!mongoose.Types.ObjectId.isValid(boardId)) return [];
+    await connectDB();
+    const filter: Record<string, unknown> = { boardId };
+    if (!includeArchived) filter.outcome = { $exists: false };
+    const cardDocs = await SalesCardModel.find(filter).sort({ order: 1, createdAt: 1 }).lean();
+    if (cardDocs.length === 0) return [];
+
+    const clientIds = [...new Set(cardDocs.map((c) => c.clientId))].filter((id) =>
+      mongoose.Types.ObjectId.isValid(id)
+    );
+    const clientDocs = await ClientModel.find({ _id: { $in: clientIds } })
+      .select("company primaryColor website contacts")
+      .lean();
+    const clientMap = new Map(clientDocs.map((c) => [c._id.toString(), c]));
+
+    return cardDocs.map((doc) => {
+      const client = clientMap.get(doc.clientId);
+      const contact = doc.contactId
+        ? (client?.contacts ?? []).find((c) => c.id === doc.contactId)
+        : undefined;
+      return serializeSalesCard(doc, {
+        // A deleted client leaves the card readable rather than crashing the board.
+        company: client?.company ?? "Onbekende prospect",
+        clientPrimaryColor: client?.primaryColor ?? undefined,
+        clientWebsite: client?.website ?? undefined,
+        contact: contact
+          ? {
+              id: contact.id,
+              firstName: contact.firstName,
+              lastName: contact.lastName,
+              role: contact.role,
+              email: contact.email,
+              phone: contact.phone,
+            }
+          : undefined,
+      });
+    });
+  }
+);
+
+/** Clients with status "prospect" — the only ones that may be added to a board. */
+export const getProspectClients = cache(async (): Promise<ProspectOption[]> => {
+  await connectDB();
+  const docs = await ClientModel.find({ status: "prospect" })
+    .select("company primaryColor contacts")
+    .sort({ company: 1 })
+    .lean();
+  return docs.map((d) => ({
+    id: d._id.toString(),
+    company: d.company,
+    primaryColor: d.primaryColor ?? undefined,
+    contacts: (d.contacts ?? []).map((c) => ({
+      id: c.id,
+      firstName: c.firstName,
+      lastName: c.lastName,
+      role: c.role,
+      email: c.email,
+      phone: c.phone,
+    })),
+  }));
+});

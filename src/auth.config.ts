@@ -63,6 +63,13 @@ export const authConfig: NextAuthConfig = {
           : true;
       }
       if (pathname.startsWith("/api/auth") || pathname.startsWith("/api/internal/") || pathname.startsWith("/api/public/") || pathname.startsWith("/ranking/") || pathname.startsWith("/proposal/") || pathname.startsWith("/s/") || pathname.startsWith("/archetype-as-is-survey/")) return true;
+      // Bearer-authenticated API calls carry no session cookie, so the check
+      // below would bounce them to /login before the route ever runs. Let them
+      // past this edge gate — src/auth.ts validates the token against the DB
+      // (which the edge runtime cannot reach) and the route still enforces
+      // permissions, so this is a coarse gate, not the authorization decision.
+      // Scoped to /api/ on purpose: a bearer header must not fetch app HTML.
+      if (pathname.startsWith("/api/") && request.headers.get("authorization")?.startsWith("Bearer ")) return true;
       return !!auth;
     },
   },

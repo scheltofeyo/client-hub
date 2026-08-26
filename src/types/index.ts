@@ -489,3 +489,70 @@ export interface WeekTeamData {
   birthdays: BirthdayItem[];
   leaveTypes: LeaveType[];
 }
+
+// ── Sales funnel ───────────────────────────────────────────────────
+
+export interface SalesBoardColumn {
+  id: string;
+  title: string;
+  color: string;
+  rank: number;
+}
+
+export interface SalesBoard {
+  id: string;
+  name: string;
+  description?: string;
+  rank: number;
+  columns: SalesBoardColumn[];
+  createdById: string;
+  createdByName: string;
+  createdAt?: string;
+  /** Open (non-archived) cards on this board — filled by list queries. */
+  cardCount?: number;
+  /** Summed dealValue of the open cards — filled by list queries. */
+  totalValue?: number;
+}
+
+export interface SalesCardOwner {
+  userId: string;
+  name: string;
+  image?: string;
+}
+
+export type SalesCardOutcome = "won" | "lost";
+
+export interface SalesCard {
+  id: string;
+  boardId: string;
+  columnId: string;
+  clientId: string;
+  order: number;
+  owners: SalesCardOwner[];
+  contactId?: string;
+  source?: string;
+  dealValue?: number;
+  expectedCloseDate?: string;
+  labels: string[];
+  notes?: string;
+  outcome?: SalesCardOutcome;
+  outcomeAt?: string;
+  outcomeById?: string;
+  outcomeByName?: string;
+  createdById: string;
+  createdByName: string;
+  createdAt?: string;
+  // Joined from the Client at read time — never stored on the card.
+  company: string;
+  clientPrimaryColor?: string;
+  clientWebsite?: string;
+  contact?: Contact;
+}
+
+/** Slim client shape for the "add prospect" picker. */
+export interface ProspectOption {
+  id: string;
+  company: string;
+  primaryColor?: string;
+  contacts?: Contact[];
+}
