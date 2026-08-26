@@ -5,6 +5,38 @@ const nextConfig: NextConfig = {
   // is only needed by the proposal-PDF route (which also imports it lazily)
   // and bundling it inflates every cold start of the shared SSR function.
   serverExternalPackages: ["@sparticuz/chromium", "playwright-core"],
+  /**
+   * OAuth discovery documents live at fixed /.well-known/ paths that the spec
+   * dictates, but the handlers belong with the rest of the API. Rewriting keeps
+   * both true without depending on how the App Router treats a directory whose
+   * name starts with a dot.
+   *
+   * Each document is matched twice because the well-known URL is built by
+   * inserting the path component: RFC 9728 turns the resource
+   * https://host/api/mcp into /.well-known/oauth-protected-resource/api/mcp,
+   * and clients probe the bare form too. Serving both costs nothing and saves a
+   * failed discovery round-trip.
+   */
+  async rewrites() {
+    return [
+      {
+        source: "/.well-known/oauth-protected-resource",
+        destination: "/api/oauth/protected-resource",
+      },
+      {
+        source: "/.well-known/oauth-protected-resource/:path*",
+        destination: "/api/oauth/protected-resource",
+      },
+      {
+        source: "/.well-known/oauth-authorization-server",
+        destination: "/api/oauth/authorization-server",
+      },
+      {
+        source: "/.well-known/oauth-authorization-server/:path*",
+        destination: "/api/oauth/authorization-server",
+      },
+    ];
+  },
   images: {
     remotePatterns: [
       {

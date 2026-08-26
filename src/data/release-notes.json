@@ -1,6 +1,17 @@
 [
   {
     "date": "2026-08-26",
+    "title": "Koppel de hub aan de Claude-app",
+    "details": [
+      "Voeg SUMM Hub toe als connector in de Claude-app en log in met je gewone Google-account — er valt niets te installeren en je hoeft geen token meer over te tikken",
+      "Je ziet vooraf precies wat de app namens jou mag, en je kunt niets weggeven wat je zelf niet hebt",
+      "Onder Profiel > Integrations staat welke apps gekoppeld zijn en wanneer ze voor het laatst iets deden; verbreek je de koppeling, dan stopt de app onmiddellijk",
+      "Wat er via de app binnenkomt, staat op jouw naam in het logboek en het activiteitenoverzicht, met de aantekening via welke koppeling het ging",
+      "Bestaande API-tokens blijven gewoon werken — voor je eigen Claude Code of een geplande taak verandert er niets"
+    ]
+  },
+  {
+    "date": "2026-08-26",
     "title": "Werk vanuit je eigen Claude rechtstreeks in de hub",
     "details": [
       "Koppel je Claude aan de hub met één adres en je persoonlijke API-token — er valt niets te installeren",

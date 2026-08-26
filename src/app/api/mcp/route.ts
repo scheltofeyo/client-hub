@@ -2,6 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import type { Session } from "next-auth";
 import { auth } from "@/auth";
 import { hasPermission } from "@/lib/auth-helpers";
+import { bearerFromHeaders } from "@/lib/api-token";
+import {
+  OAUTH_ACCESS_PREFIX,
+  hubOrigin,
+  isScopeGap,
+  protectedResourceMetadataUrl,
+} from "@/lib/oauth";
+import { MCP_SCOPES } from "@/lib/mcp/scopes";
 import { MCP_TOOLS, ToolError, findTool } from "@/lib/mcp/tools";
 import {
   INTERNAL_ERROR,
@@ -33,10 +41,18 @@ import {
  * stream sits badly with Netlify's function limits — so every request carries
  * everything needed to serve it.
  *
- * Authentication is the personal API token from the integrations settings:
- * auth() turns `Authorization: Bearer shub_…` into a real Session with the
- * owner's permissions, so the tools enforce exactly what the rest of the app
- * enforces. Nothing here needs installing on the caller's machine.
+ * Two ways in, one code path. A personal API token (`Bearer shub_…`) suits a
+ * client that can set a static header — Claude Code, a scheduled task — while
+ * the Claude app's custom connectors speak OAuth and get a `shubo_…` access
+ * token from the hub's own authorization server (src/lib/oauth.ts). auth()
+ * resolves either into a real Session carrying the owner's permissions, so
+ * everything below this line is indifferent to which arrived.
+ *
+ * In OAuth terms this route is the resource server. It accepts only tokens it
+ * issued itself — they are opaque and matched by hash against a grant, so a
+ * token minted for anything else is simply not found — and it points an
+ * unauthenticated caller at its Protected Resource Metadata so a client can
+ * discover where to sign in.
  *
  * No CORS headers are set, deliberately. The spec's Origin-validation rule
  * targets DNS-rebinding attacks on servers that authenticate with cookies;
@@ -46,6 +62,18 @@ import {
  */
 
 const CAPABILITIES = { tools: {} };
+
+/**
+ * Raised when an OAuth caller is refused over a scope it could still be
+ * granted. Thrown rather than returned because it leaves the JSON-RPC layer
+ * entirely: the answer is an HTTP 403 with a WWW-Authenticate challenge, which
+ * is the only thing a client can act on to widen its own access.
+ */
+class ScopeGap extends Error {
+  constructor(readonly scope: string) {
+    super(`insufficient_scope: ${scope}`);
+  }
+}
 
 /** Static server description — safe to hold for a while. */
 const DISCOVER_TTL_MS = 300_000;
@@ -60,10 +88,51 @@ function json(body: unknown, status = 200) {
   return NextResponse.json(body, { status });
 }
 
-function unauthorized() {
+/**
+ * The 401 that starts an OAuth connection.
+ *
+ * `resource_metadata` is the pointer a client follows to discover which
+ * authorization server to use — without it the Claude app has nowhere to go and
+ * the connector just fails. The `scope` hint tells it what to ask for up front,
+ * so a first connection covers every tool instead of stepping up once per tool.
+ */
+function unauthorized(req: NextRequest) {
+  const metadata = protectedResourceMetadataUrl(hubOrigin(req.headers));
   return NextResponse.json(
     { error: "Unauthorized" },
-    { status: 401, headers: { "WWW-Authenticate": 'Bearer realm="summ-hub"' } }
+    {
+      status: 401,
+      headers: {
+        "WWW-Authenticate":
+          `Bearer realm="summ-hub", resource_metadata="${metadata}", ` +
+          `scope="${MCP_SCOPES.join(" ")}"`,
+      },
+    }
+  );
+}
+
+/**
+ * The 403 that asks an OAuth client to widen an existing connection.
+ *
+ * Used only for a genuine scope gap — the person holds the permission but did
+ * not delegate it — because that is the one case re-consenting can fix. When
+ * the role never had the permission, a step-up would send the user round the
+ * whole flow to be refused again, so that case keeps the readable tool-result
+ * refusal instead.
+ */
+function insufficientScope(req: NextRequest, scope: string) {
+  const metadata = protectedResourceMetadataUrl(hubOrigin(req.headers));
+  return NextResponse.json(
+    { error: "insufficient_scope" },
+    {
+      status: 403,
+      headers: {
+        "WWW-Authenticate":
+          `Bearer error="insufficient_scope", scope="${scope}", ` +
+          `resource_metadata="${metadata}", ` +
+          `error_description="This connection was not granted ${scope}"`,
+      },
+    }
   );
 }
 
@@ -183,12 +252,20 @@ async function dispatch(
       // Refuse before any work starts, so a caller without the permission can
       // never leave a partial write behind.
       if (tool.permission && !hasPermission(session, tool.permission)) {
+        // An OAuth connection that simply was not granted this scope can be
+        // widened by re-consenting, so it gets a challenge the client can act
+        // on instead of a dead end.
+        const raw = await bearerFromHeaders();
+        if (raw?.startsWith(OAUTH_ACCESS_PREFIX) && (await isScopeGap(raw, tool.permission))) {
+          throw new ScopeGap(tool.permission);
+        }
         return result(
           id,
           complete(
             toolContent(
               `Not allowed: "${name}" requires the "${tool.permission}" permission, which this ` +
-                `token does not carry. Ask an admin to widen the token's scope or your role.`,
+                `connection does not carry. Ask an admin to widen your role, or reconnect with ` +
+                `that permission included.`,
               true
             )
           )
@@ -221,7 +298,7 @@ async function dispatch(
 
 export async function POST(req: NextRequest) {
   const session = await auth();
-  if (!session?.user) return unauthorized();
+  if (!session?.user) return unauthorized(req);
 
   let msg: JsonRpcMessage;
   try {
@@ -255,6 +332,8 @@ export async function POST(req: NextRequest) {
   try {
     return json(await dispatch(session, msg, id, isModernVersion(version)));
   } catch (err) {
+    // Leaves JSON-RPC behind deliberately — see ScopeGap.
+    if (err instanceof ScopeGap) return insufficientScope(req, err.scope);
     console.error("[mcp] dispatch failed:", err);
     return json(error(id, INTERNAL_ERROR, "Internal error"));
   }

@@ -7,6 +7,7 @@ import PageHeader from "@/components/layout/PageHeader";
 import { Save, Archive, RotateCcw, AlertTriangle } from "lucide-react";
 import { usePermission } from "@/hooks/usePermission";
 import ApiTokensSection from "@/components/ui/ApiTokensSection";
+import ConnectedAppsSection from "@/components/ui/ConnectedAppsSection";
 
 interface RoleOption { slug: string; name: string; }
 
@@ -710,8 +711,12 @@ export default function EmployeeDetailEditor({
 
         {activeTab === "integrations" && (
           <>
-            <SectionHeading>API tokens</SectionHeading>
-            <ApiTokensSection />
+            <SectionHeading>Gekoppelde apps</SectionHeading>
+            <ConnectedAppsSection />
+            <div className="mt-8">
+              <SectionHeading>API tokens</SectionHeading>
+              <ApiTokensSection />
+            </div>
           </>
         )}
 

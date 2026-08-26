@@ -7,6 +7,11 @@ import { UserModel } from "./models/User";
 import { RoleModel } from "./models/Role";
 import { getLeadSettings } from "./models/LeadSettings";
 import { tokenGrantable } from "./permissions";
+import {
+  OAUTH_ACCESS_PREFIX,
+  oauthClientName,
+  sessionFromOAuthToken,
+} from "./oauth";
 
 const TOKEN_PREFIX = "shub_";
 const PREFIX_DISPLAY_LENGTH = TOKEN_PREFIX.length + 6;
@@ -34,13 +39,22 @@ export function generateApiToken(): { raw: string; tokenHash: string; prefix: st
 // to the caller's continuation, which resumes in the context captured before
 // the call. Reading the header back is stateless and cannot break that way.
 
-/** The raw bearer token on the current request, if any. */
+/**
+ * The raw bearer token on the current request, if any — a personal API token
+ * or an OAuth access token.
+ *
+ * Both kinds are reported here on purpose. Every caller of this function is
+ * asking "did this request arrive over a machine credential rather than a
+ * browser session?", and the answer is yes for both: it is what keeps an OAuth
+ * connector out of the token-management endpoints, and what makes the "via"
+ * attribution fire for connector writes.
+ */
 export async function bearerFromHeaders(): Promise<string | null> {
   try {
     const value = (await headers()).get("authorization");
     if (!value?.startsWith("Bearer ")) return null;
     const raw = value.slice(7).trim();
-    return raw.startsWith(TOKEN_PREFIX) ? raw : null;
+    return isHubToken(raw) ? raw : null;
   } catch {
     // headers() throws outside a request scope.
     return null;
@@ -48,13 +62,26 @@ export async function bearerFromHeaders(): Promise<string | null> {
 }
 
 /**
- * Name of the API token that authenticated this request, or null for a normal
- * browser session. Costs one indexed lookup, and only on requests that both use
- * a token and record activity, so it stays off the hot path.
+ * The two prefixes are mutually exclusive rather than merely unlikely to
+ * collide: a personal token is exactly `shub_` + base64url, so it can never
+ * begin `shubo_` — they differ at index 4 ("_" vs "o"). Routing on the prefix
+ * is therefore exact.
+ */
+function isHubToken(raw: string): boolean {
+  return raw.startsWith(TOKEN_PREFIX) || raw.startsWith(OAUTH_ACCESS_PREFIX);
+}
+
+/**
+ * How this request arrived, for the "via" marker on anything it writes: the
+ * name of the personal API token, or the name of the connected app for an
+ * OAuth caller, or null for a normal browser session. Costs one indexed lookup,
+ * and only on requests that both use a credential and record activity, so it
+ * stays off the hot path.
  */
 export async function activeTokenName(): Promise<string | null> {
   const raw = await bearerFromHeaders();
   if (!raw) return null;
+  if (raw.startsWith(OAUTH_ACCESS_PREFIX)) return oauthClientName(raw);
   await connectDB();
   const doc = await ApiTokenModel.findOne({ tokenHash: hashToken(raw) }, { name: 1 }).lean();
   return doc?.name ?? null;
@@ -67,13 +94,21 @@ function intersect(granted: string[], allowed?: string[] | null): string[] {
 }
 
 /**
- * Resolve a raw token into a Session, or null if it is unusable for any reason.
+ * Resolve a raw bearer credential into a Session, or null if it is unusable for
+ * any reason.
  *
- * Unlike the JWT path (which caches its claims for 15 minutes), this re-reads
- * the token, the user and the role on every request. That costs one indexed
+ * Two kinds arrive here and they are told apart by prefix, exactly (see
+ * isHubToken). An OAuth access token hands off to sessionFromOAuthToken, which
+ * does the same job against a grant; everything below this line is the personal
+ * API token path, unchanged.
+ *
+ * Unlike the JWT path (which caches its claims for 15 minutes), both re-read
+ * the credential, the user and the role on every request. That costs one indexed
  * lookup but makes revocation, expiry and archiving take effect immediately.
  */
 export async function sessionFromApiToken(raw: string): Promise<Session | null> {
+  if (raw.startsWith(OAUTH_ACCESS_PREFIX)) return sessionFromOAuthToken(raw);
+
   await connectDB();
 
   const doc = await ApiTokenModel.findOne({ tokenHash: hashToken(raw) }).lean();

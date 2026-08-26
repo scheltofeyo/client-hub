@@ -419,6 +419,21 @@ export function tokenGrantable(permissions: string[]): string[] {
   return permissions.filter(isTokenGrantable);
 }
 
+const PERMISSION_LABELS = new Map<string, string>(
+  PERMISSION_GROUPS.flatMap((group) => group.permissions.map((p) => [p.key as string, p.label]))
+);
+
+/**
+ * Human wording for a permission key, falling back to the key itself.
+ *
+ * Lives here rather than beside the OAuth scope list so that client components
+ * can label a permission without importing anything server-side — the scope
+ * module reaches the MCP tool registry, and through it Mongoose.
+ */
+export function permissionLabel(permission: string): string {
+  return PERMISSION_LABELS.get(permission) ?? permission;
+}
+
 // ── Lead-eligible permissions ────────────────────────────────────────
 // Only permissions whose API routes honor lead scope via hasPermissionOrIsLead.
 // Other permissions are enforced globally in the API, so granting them here
