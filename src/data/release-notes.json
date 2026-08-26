@@ -1,6 +1,15 @@
 [
   {
     "date": "2026-08-26",
+    "title": "Een klant aanmaken loopt niet meer vast als Google Drive traag is",
+    "details": [
+      "Bij het aanmaken van een klant met Drive-map wachtte de hub onbeperkt op Google. Duurde dat te lang, dan kapte de server de aanvraag af met een 502-melding — terwijl de klant al wel was aangemaakt",
+      "De hub wacht nu kort op Google en laat de map daarna op de achtergrond afmaken. Je krijgt meteen antwoord en de melding \"map wordt aangemaakt\" verdwijnt vanzelf zodra Drive klaar is",
+      "Hetzelfde gold voor de profielfoto in de e-mailhandtekening; die haalt de hub nu ook met een tijdslimiet op"
+    ]
+  },
+  {
+    "date": "2026-08-26",
     "title": "Werk vanuit de Claude-app rechtstreeks in de hub",
     "details": [
       "Voeg SUMM Hub toe als connector in de Claude-app en log in met je gewone Google-account — er valt niets te installeren en je hoeft geen token over te tikken",
