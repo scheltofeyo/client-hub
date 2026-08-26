@@ -15,6 +15,7 @@ import { SalesCardModel } from "./models/SalesCard";
 import { ClientModel } from "./models/Client";
 import { creatorFields } from "./actor";
 import { recordActivity } from "./activity";
+import { fmtDate } from "./utils";
 
 /** The lean() shape of a doc — same fields, no Document methods. */
 type Lean<T> = Omit<T, keyof import("mongoose").Document> & {
@@ -338,4 +339,123 @@ export async function findOpenCardForClient(
     .lean();
 
   return card ? { cardId: card._id.toString(), columnId: card.columnId } : null;
+}
+
+// ── Card edits ───────────────────────────────────────────────────────
+
+export type UpdateSalesCardInput = {
+  owners?: unknown;
+  contactId?: unknown;
+  source?: unknown;
+  dealValue?: unknown;
+  expectedCloseDate?: unknown;
+  labels?: unknown;
+  notes?: unknown;
+  /** Add to `notes` instead of replacing it. Mutually exclusive with `notes`. */
+  appendNote?: unknown;
+};
+
+export type UpdateSalesCardResult =
+  | { ok: true; card: Lean<ISalesCard>; changed: string[] }
+  | { ok: false; error: string; status: 400 | 404 };
+
+function trimmed(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+/**
+ * Prepend a dated, attributed entry to a card's notes.
+ *
+ * `notes` is one text field, not a collection, so the only way to "write a
+ * note" without losing the last one is to fold it into the same string. Newest
+ * first because the card shows the field in a fixed-height box — the entry
+ * someone just added should be the one visible without scrolling.
+ */
+function prependNote(existing: string | undefined, note: string, author: string): string {
+  const stamp = fmtDate(new Date().toISOString().split("T")[0]);
+  const entry = `${stamp} — ${author}\n${note}`;
+  const before = (existing ?? "").trim();
+  return before ? `${entry}\n\n${before}` : entry;
+}
+
+/**
+ * Update one card's own fields — everything except which column it sits in,
+ * which is moveSalesCard()'s job.
+ *
+ * Owners arrive already resolved to `{ userId, name, image }`: the board UI
+ * picks real people out of a list, and the MCP tool resolves names to users
+ * before calling. The snapshot has to carry `image`, since the board reads
+ * `owners[].image` rather than joining against User.
+ */
+export async function updateSalesCard(
+  session: Session,
+  boardId: string,
+  cardId: string,
+  input: UpdateSalesCardInput
+): Promise<UpdateSalesCardResult> {
+  await connectDB();
+
+  const existing = await SalesCardModel.findOne({ _id: cardId, boardId }).lean();
+  if (!existing) return { ok: false, error: "Not found", status: 404 };
+
+  if (input.notes !== undefined && input.appendNote !== undefined) {
+    return {
+      ok: false,
+      error:
+        "Pass either notes or appendNote, not both — appendNote adds to what is already " +
+        "there, notes replaces all of it.",
+      status: 400,
+    };
+  }
+
+  const update: Record<string, unknown> = {};
+  if (input.owners !== undefined) {
+    update.owners = (input.owners as { userId: string; name: string; image?: string }[]).map(
+      (o) => ({ userId: o.userId, name: o.name, image: o.image })
+    );
+  }
+  if (input.contactId !== undefined) update.contactId = input.contactId || null;
+  if (input.source !== undefined) update.source = trimmed(input.source) || null;
+  if (input.dealValue !== undefined) {
+    const n =
+      input.dealValue === null || input.dealValue === "" ? null : Number(input.dealValue);
+    if (n !== null && (Number.isNaN(n) || n < 0)) {
+      return { ok: false, error: "dealValue must be a positive number", status: 400 };
+    }
+    update.dealValue = n;
+  }
+  if (input.expectedCloseDate !== undefined) {
+    update.expectedCloseDate = input.expectedCloseDate || null;
+  }
+  if (input.labels !== undefined) {
+    update.labels = (input.labels as string[]).map((l) => l.trim()).filter(Boolean);
+  }
+  if (input.notes !== undefined) update.notes = input.notes || null;
+  if (input.appendNote !== undefined) {
+    const note = trimmed(input.appendNote);
+    if (!note) return { ok: false, error: "appendNote cannot be empty", status: 400 };
+    update.notes = prependNote(existing.notes, note, session.user.name ?? "Unknown");
+  }
+
+  const doc = await SalesCardModel.findByIdAndUpdate(cardId, { $set: update }, { new: true }).lean();
+  if (!doc) return { ok: false, error: "Not found", status: 404 };
+
+  // appendNote reports as "notes" — the activity log records which field moved,
+  // not which argument spelling got it there.
+  const changed = (
+    ["owners", "dealValue", "expectedCloseDate", "source", "labels", "notes", "contactId"] as const
+  ).filter((f) => input[f] !== undefined || (f === "notes" && input.appendNote !== undefined));
+
+  if (changed.length > 0) {
+    const board = await SalesBoardModel.findById(boardId).select("name").lean();
+    await recordActivity({
+      clientId: doc.clientId,
+      actorId: session.user.id,
+      actorName: session.user.name ?? "Unknown",
+      type: "sales.card_updated",
+      metadata: { boardId, boardName: board?.name, fields: changed },
+    });
+  }
+
+  return { ok: true, card: doc as Lean<ISalesCard>, changed: [...changed] };
 }

@@ -1,20 +1,26 @@
 /**
- * Shared client writes, used by both POST /api/clients and the MCP tool so the
- * two surfaces can never drift on what creating a client actually does — the
- * Google Drive folder it asks GAS to build, and the activity event it records.
+ * Shared client writes, used by the /api/clients routes and the MCP tools so
+ * the two surfaces can never drift on what creating or updating a client
+ * actually does — the Google Drive folder it asks GAS to build, the permission
+ * it demands, and the activity events it records.
  *
  * The reference-data and duplicate checks live here too, next to the write they
- * guard, but they are deliberately *not* wired into the REST route: the Add
+ * guard, but they are deliberately *not* wired into the create route: the Add
  * client form only ever offers configured options and shows the existing
  * clients in a list behind it, so there is nothing for them to catch there, and
- * leaving POST untouched keeps its behaviour exactly as it was.
+ * leaving POST untouched keeps its behaviour exactly as it was. `updateClient`
+ * is the opposite case — PATCH always went through this logic, so the whole
+ * handler moved here and the route now calls it.
  */
 import { randomUUID } from "node:crypto";
 import type { Session } from "next-auth";
 import { connectDB } from "./mongodb";
 import { ClientModel, type IClient, type IContact } from "./models/Client";
-import { getClientStatuses, getClientPlatforms } from "./data";
+import { ClientStatusOptionModel } from "./models/ClientStatusOption";
+import { ClientPlatformOptionModel } from "./models/ClientPlatformOption";
+import { getArchetypes, getClientStatuses, getClientPlatforms } from "./data";
 import { recordActivity } from "./activity";
+import { hasPermission, hasPermissionOrIsLead } from "./auth-helpers";
 
 /** The lean() shape of a doc — same fields, no Document methods. */
 type Lean<T> = Omit<T, keyof import("mongoose").Document> & {
@@ -103,6 +109,31 @@ export async function resolveClientReferenceData(input: {
   }
 
   return { ok: true, status, platform };
+}
+
+export type ResolveArchetypeResult =
+  | { ok: true; archetypeId: string }
+  | { ok: false; error: string };
+
+/**
+ * Turn an archetype name into the id `Client.archetypeId` stores, or refuse.
+ *
+ * Separate from resolveClientReferenceData() because Archetype is shaped
+ * differently from the status and platform options: it carries no slug, only a
+ * unique name, so the id is the only thing worth storing and the name is the
+ * only thing a caller can reasonably have said.
+ */
+export async function resolveArchetype(value: string): Promise<ResolveArchetypeResult> {
+  const needle = value.trim().toLowerCase();
+  const archetypes = await getArchetypes();
+  const hit = archetypes.find((a) => a.name.toLowerCase() === needle || a.id === value.trim());
+  if (hit) return { ok: true, archetypeId: hit.id };
+
+  const available = archetypes.map((a) => a.name).join(", ") || "none configured";
+  return {
+    ok: false,
+    error: `Unknown archetype "${value}". Configured archetypes: ${available}.`,
+  };
 }
 
 // ── Duplicates ───────────────────────────────────────────────────────
@@ -324,4 +355,376 @@ export async function createClient(
   });
 
   return { ok: true, client: doc.toObject() as LeanClient };
+}
+
+// ── Update ───────────────────────────────────────────────────────────
+
+export type UpdateClientInput = {
+  company?: unknown;
+  status?: unknown;
+  platform?: unknown;
+  clientSince?: unknown;
+  employees?: unknown;
+  website?: unknown;
+  description?: unknown;
+  primaryColor?: unknown;
+  contacts?: unknown;
+  leads?: unknown;
+  archetypeId?: unknown;
+  culturalDna?: unknown;
+  culturalLevels?: unknown;
+  addressStreet?: unknown;
+  addressPostalCode?: unknown;
+  addressCity?: unknown;
+  addressCountry?: unknown;
+};
+
+/** Everything updateClient() knows how to set, in the order `changed` reports. */
+const UPDATABLE_FIELDS: readonly (keyof UpdateClientInput)[] = [
+  "company",
+  "status",
+  "platform",
+  "archetypeId",
+  "clientSince",
+  "employees",
+  "website",
+  "description",
+  "primaryColor",
+  "contacts",
+  "leads",
+  "culturalDna",
+  "culturalLevels",
+  "addressStreet",
+  "addressPostalCode",
+  "addressCity",
+  "addressCountry",
+];
+
+/**
+ * `changed` lists the fields the caller actually passed. The REST route drops
+ * it — the editor already knows what it sent — but a model does not, and a tool
+ * that can answer "updated status and website" is what lets it confirm back
+ * without reading the client again.
+ */
+export type UpdateClientResult =
+  | { ok: true; client: LeanClient; changed: string[] }
+  | { ok: false; error: string; status: 400 | 403 | 404 };
+
+/**
+ * Update a client, emitting the same granular activity the hub has always
+ * emitted: contacts, status, platform and leads each get their own event, and
+ * everything else collapses into one `client.updated`.
+ *
+ * Absent keys are left alone — this is a partial update on both surfaces. A
+ * caller that wants to clear a field passes an empty string, which is what the
+ * editor sends too.
+ */
+export async function updateClient(
+  session: Session,
+  clientId: string,
+  input: UpdateClientInput
+): Promise<UpdateClientResult> {
+  await connectDB();
+
+  const existing = await ClientModel.findById(clientId).lean();
+  if (!existing) return { ok: false, error: "Not found", status: 404 };
+
+  // A lead may edit their own client — LeadSettings decides whether
+  // clients.edit is one of the permissions being a lead confers.
+  if (!hasPermissionOrIsLead(session, "clients.edit", existing.leads ?? [])) {
+    return { ok: false, error: "Forbidden", status: 403 };
+  }
+
+  const {
+    company,
+    status,
+    platform,
+    clientSince,
+    employees,
+    website,
+    description,
+    primaryColor,
+    contacts,
+    leads,
+    archetypeId,
+    culturalDna,
+    culturalLevels,
+    addressStreet,
+    addressPostalCode,
+    addressCity,
+    addressCountry,
+  } = input;
+
+  if (company !== undefined && !trimmed(company)) {
+    return { ok: false, error: "Company name cannot be empty", status: 400 };
+  }
+
+  // Reassigning leads is its own permission, and not one a lead inherits —
+  // otherwise a lead could quietly write themselves off the client.
+  if (leads !== undefined && !hasPermission(session, "clients.assignLeads")) {
+    return { ok: false, error: "Forbidden", status: 403 };
+  }
+
+  const update: Record<string, unknown> = {};
+  if (company !== undefined) update.company = trimmed(company);
+  if (status !== undefined) update.status = trimmed(status) || null;
+  if (platform !== undefined) update.platform = trimmed(platform) || null;
+  if (clientSince !== undefined) update.clientSince = trimmed(clientSince) || null;
+  if (employees !== undefined) update.employees = employees ? Number(employees) : null;
+  if (website !== undefined) update.website = trimmed(website) || null;
+  if (description !== undefined) update.description = trimmed(description) || null;
+  if (primaryColor !== undefined) update.primaryColor = trimmed(primaryColor) || null;
+  if (contacts !== undefined) update.contacts = contacts;
+  if (leads !== undefined) update.leads = leads;
+  if (archetypeId !== undefined) update.archetypeId = trimmed(archetypeId) || null;
+  if (culturalDna !== undefined) update.culturalDna = culturalDna;
+  if (culturalLevels !== undefined) update.culturalLevels = culturalLevels;
+  if (addressStreet !== undefined) update.addressStreet = trimmed(addressStreet) || null;
+  if (addressPostalCode !== undefined) update.addressPostalCode = trimmed(addressPostalCode) || null;
+  if (addressCity !== undefined) update.addressCity = trimmed(addressCity) || null;
+  if (addressCountry !== undefined) update.addressCountry = trimmed(addressCountry) || null;
+
+  const doc = await ClientModel.findByIdAndUpdate(clientId, { $set: update }, { new: true }).lean();
+  if (!doc) return { ok: false, error: "Not found", status: 404 };
+
+  const actorId = session.user.id;
+  const actorName = session.user.name ?? "Unknown";
+
+  // Contacts — added and removed are named; an edit in place is deliberately
+  // not reported, matching what the hub has always recorded.
+  if (contacts !== undefined) {
+    type ContactInput = { id?: string; firstName?: string; lastName?: string };
+    const list = (contacts as ContactInput[]) ?? [];
+    const oldIds = new Set((existing.contacts ?? []).map((c) => c.id));
+    const newIds = new Set(list.map((c) => c.id ?? ""));
+    const added = list.filter((c) => c.id && !oldIds.has(c.id));
+    const removed = (existing.contacts ?? []).filter((c) => !newIds.has(c.id));
+    if (added.length > 0 || removed.length > 0) {
+      await recordActivity({
+        clientId,
+        actorId,
+        actorName,
+        type: "contact.changed",
+        metadata: {
+          added: added.map((c) => [c.firstName, c.lastName].filter(Boolean).join(" ")),
+          removed: removed.map((c) => [c.firstName, c.lastName].filter(Boolean).join(" ")),
+        },
+      });
+    }
+  }
+
+  if (status !== undefined) {
+    const newVal = (update.status as string | null) ?? null;
+    const oldVal = existing.status ?? null;
+    if (oldVal !== newVal) {
+      const [fromOpt, toOpt] = await Promise.all([
+        oldVal ? ClientStatusOptionModel.findOne({ slug: oldVal }).lean() : null,
+        newVal ? ClientStatusOptionModel.findOne({ slug: newVal }).lean() : null,
+      ]);
+      await recordActivity({
+        clientId,
+        actorId,
+        actorName,
+        type: "client.status_changed",
+        metadata: {
+          from: oldVal,
+          to: newVal,
+          fromLabel: fromOpt?.label ?? oldVal,
+          toLabel: toOpt?.label ?? newVal,
+        },
+      });
+    }
+  }
+
+  if (platform !== undefined) {
+    const newVal = (update.platform as string | null) ?? null;
+    const oldVal = existing.platform ?? null;
+    if (oldVal !== newVal) {
+      const [fromOpt, toOpt] = await Promise.all([
+        oldVal ? ClientPlatformOptionModel.findOne({ slug: oldVal }).lean() : null,
+        newVal ? ClientPlatformOptionModel.findOne({ slug: newVal }).lean() : null,
+      ]);
+      await recordActivity({
+        clientId,
+        actorId,
+        actorName,
+        type: "client.platform_changed",
+        metadata: {
+          from: oldVal,
+          to: newVal,
+          fromLabel: fromOpt?.label ?? oldVal,
+          toLabel: toOpt?.label ?? newVal,
+        },
+      });
+    }
+  }
+
+  if (leads !== undefined) {
+    type LeadInput = { userId: string; name?: string };
+    const list = (leads as LeadInput[]) ?? [];
+    const oldIds = new Set((existing.leads ?? []).map((l) => l.userId));
+    const newIds = new Set(list.map((l) => l.userId));
+    const added = list.filter((l) => !oldIds.has(l.userId)).map((l) => l.name ?? "Unknown");
+    const removed = (existing.leads ?? []).filter((l) => !newIds.has(l.userId)).map((l) => l.name);
+    if (added.length > 0 || removed.length > 0) {
+      await recordActivity({
+        clientId,
+        actorId,
+        actorName,
+        type: "client.leads_changed",
+        metadata: { added, removed },
+      });
+    }
+  }
+
+  const companyFields = [
+    "company",
+    "clientSince",
+    "employees",
+    "website",
+    "description",
+    "primaryColor",
+    "archetypeId",
+  ] as const;
+  const changedCompanyFields = companyFields.filter((f) => input[f] !== undefined);
+  if (changedCompanyFields.length > 0) {
+    await recordActivity({
+      clientId,
+      actorId,
+      actorName,
+      type: "client.updated",
+      metadata: { fields: changedCompanyFields },
+    });
+  }
+
+  return {
+    ok: true,
+    client: doc as LeanClient,
+    changed: UPDATABLE_FIELDS.filter((f) => input[f] !== undefined),
+  };
+}
+
+// ── Contacts ─────────────────────────────────────────────────────────
+
+/**
+ * Contact writes are their own helpers rather than a `contacts` array on
+ * updateClient().
+ *
+ * The hub sends the whole array on every change — it holds the current list in
+ * React state, so that is free and safe. A model does not: asking it to resend
+ * every contact to add one makes dropping a colleague a plausible outcome of a
+ * single forgotten line. These read the stored array, change exactly one entry
+ * and hand the result to updateClient(), so the permission check and the
+ * `contact.changed` event still live in one place.
+ */
+export type ContactWriteResult =
+  | { ok: true; client: LeanClient; contact: IContact }
+  | { ok: false; error: string; status: 400 | 403 | 404 };
+
+function contactLabel(contact: IContact): string {
+  return [contact.firstName, contact.lastName].filter(Boolean).join(" ");
+}
+
+/** Names the client's contacts so a wrong id can be corrected without a re-read. */
+function describeContacts(contacts: IContact[]): string {
+  if (!contacts.length) return "This client has no contacts yet.";
+  const named = contacts.map((c) => `"${contactLabel(c)}" (id ${c.id})`).join(", ");
+  return `Contacts on this client: ${named}.`;
+}
+
+export type ContactFields = {
+  firstName?: unknown;
+  lastName?: unknown;
+  role?: unknown;
+  email?: unknown;
+  phone?: unknown;
+};
+
+export async function addClientContact(
+  session: Session,
+  clientId: string,
+  input: ContactFields
+): Promise<ContactWriteResult> {
+  await connectDB();
+  const existing = await ClientModel.findById(clientId).select("contacts").lean();
+  if (!existing) return { ok: false, error: "Not found", status: 404 };
+
+  // normalizeContacts mints the id, exactly as the create path does, so the
+  // contact is usable as a create_log_entry contactId straight away.
+  const normalized = normalizeContacts([input]);
+  if (!normalized.ok) return { ok: false, error: normalized.error, status: 400 };
+  const contact = normalized.contacts[0];
+
+  const result = await updateClient(session, clientId, {
+    contacts: [...(existing.contacts ?? []), contact],
+  });
+  if (!result.ok) return result;
+  return { ok: true, client: result.client, contact };
+}
+
+export async function updateClientContact(
+  session: Session,
+  clientId: string,
+  contactId: string,
+  input: ContactFields
+): Promise<ContactWriteResult> {
+  await connectDB();
+  const existing = await ClientModel.findById(clientId).select("contacts").lean();
+  if (!existing) return { ok: false, error: "Not found", status: 404 };
+
+  const contacts = existing.contacts ?? [];
+  const current = contacts.find((c) => c.id === contactId);
+  if (!current) {
+    return {
+      ok: false,
+      error: `No contact with id ${contactId} on this client. ${describeContacts(contacts)}`,
+      status: 404,
+    };
+  }
+
+  if (input.firstName !== undefined && !trimmed(input.firstName)) {
+    return { ok: false, error: "A contact needs a first name", status: 400 };
+  }
+
+  // Absent keys keep their stored value; an empty string clears an optional one.
+  const merged: IContact = {
+    id: current.id,
+    firstName: input.firstName !== undefined ? trimmed(input.firstName) : current.firstName,
+    lastName: input.lastName !== undefined ? trimmed(input.lastName) : current.lastName,
+    role: input.role !== undefined ? trimmed(input.role) || undefined : current.role,
+    email: input.email !== undefined ? trimmed(input.email) || undefined : current.email,
+    phone: input.phone !== undefined ? trimmed(input.phone) || undefined : current.phone,
+  };
+
+  const result = await updateClient(session, clientId, {
+    contacts: contacts.map((c) => (c.id === contactId ? merged : c)),
+  });
+  if (!result.ok) return result;
+  return { ok: true, client: result.client, contact: merged };
+}
+
+export async function removeClientContact(
+  session: Session,
+  clientId: string,
+  contactId: string
+): Promise<ContactWriteResult> {
+  await connectDB();
+  const existing = await ClientModel.findById(clientId).select("contacts").lean();
+  if (!existing) return { ok: false, error: "Not found", status: 404 };
+
+  const contacts = existing.contacts ?? [];
+  const current = contacts.find((c) => c.id === contactId);
+  if (!current) {
+    return {
+      ok: false,
+      error: `No contact with id ${contactId} on this client. ${describeContacts(contacts)}`,
+      status: 404,
+    };
+  }
+
+  const result = await updateClient(session, clientId, {
+    contacts: contacts.filter((c) => c.id !== contactId),
+  });
+  if (!result.ok) return result;
+  return { ok: true, client: result.client, contact: current };
 }
