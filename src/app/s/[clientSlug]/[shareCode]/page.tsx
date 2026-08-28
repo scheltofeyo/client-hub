@@ -2231,11 +2231,7 @@ function SortableRankAllItem({
           borderLeft: accent ? `4px solid ${accent}` : "1px solid var(--border)",
         }}
       >
-        <GripVertical
-          size={16}
-          style={{ color: "var(--text-muted)" }}
-          className="shrink-0 opacity-60"
-        />
+        <DragHandle />
         <span
           className="w-8 h-8 rounded-full flex items-center justify-center text-[14px] tabular-nums font-bold shrink-0"
           style={accent ? { background: accent, color: chipText } : rankChipStyle(rank, true)}
@@ -2479,6 +2475,39 @@ function SlotCell({
   );
 }
 
+/**
+ * The grab area of a rank card.
+ *
+ * A touch drag needs `touch-action: none` somewhere: dnd-kit only calls
+ * `preventDefault()` on move events *after* a drag has activated, so on a phone
+ * the browser wins the first few pixels, starts scrolling, and the movement
+ * tolerance then cancels the drag before it ever begins — the page moves and the
+ * card does not. Putting `touch-none` on the whole card fixes that but makes the
+ * card unpannable, and a list of eight values is taller than a phone screen, so
+ * the participant would have nothing left to scroll with. Hence a handle: it is
+ * the only part that opts out of browser panning, while the drag listeners stay
+ * on the card itself — a mouse ignores `touch-action`, so on desktop you can
+ * still grab a card anywhere.
+ *
+ * The negative margins swallow the card's own padding and the gap that follows,
+ * so the box grows to roughly 36×56px — a real thumb target — while the grip and
+ * everything after it stay exactly where they were.
+ */
+function DragHandle() {
+  return (
+    <span
+      className="self-stretch shrink-0 -my-3 sm:-my-3.5 -ml-2 -mr-3 pl-2 pr-3 flex items-center touch-none select-none cursor-grab active:cursor-grabbing"
+      aria-hidden="true"
+    >
+      <GripVertical
+        size={16}
+        style={{ color: "var(--text-muted)" }}
+        className="opacity-60"
+      />
+    </span>
+  );
+}
+
 function DraggableRankItem({
   id,
   zone,
@@ -2510,7 +2539,7 @@ function DraggableRankItem({
       }}
       {...attributes}
       {...listeners}
-      className="flex items-center gap-3 pl-2 pr-4 py-3 sm:py-3.5 rounded-card cursor-grab active:cursor-grabbing touch-none min-h-[56px] sm:min-h-[64px] select-none"
+      className="flex items-center gap-3 pl-2 pr-4 py-3 sm:py-3.5 rounded-card cursor-grab active:cursor-grabbing min-h-[56px] sm:min-h-[64px] select-none"
     >
       <RankItemBody zone={zone} rank={rank} label={label} text={text} />
     </motion.div>
@@ -2530,11 +2559,7 @@ function RankItemBody({
 }) {
   return (
     <>
-      <GripVertical
-        size={16}
-        style={{ color: "var(--text-muted)" }}
-        className="shrink-0 opacity-60"
-      />
+      <DragHandle />
       {zone === "slot" && rank !== undefined && (
         <span
           className="w-8 h-8 rounded-full flex items-center justify-center text-[14px] tabular-nums font-bold shrink-0 transition-colors"

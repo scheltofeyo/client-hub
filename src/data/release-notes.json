@@ -1,6 +1,14 @@
 [
   {
     "date": "2026-08-28",
+    "title": "Rangschikvragen zijn weer te slepen op mobiel",
+    "details": [
+      "Op een telefoon scrollde de pagina mee zodra je een kaart wilde verslepen, waardoor de kaart zelf bleef staan. Dat gold voor elke vraag waarin je een hele lijst rangschikt — ook de rangschikvraag van de Cultural Self-Assessment.",
+      "Slepen gaat op mobiel nu via het greepje links op de kaart; de rest van de kaart blijft vrij om de lijst door te scrollen. Op desktop pak je een kaart nog gewoon overal vast."
+    ]
+  },
+  {
+    "date": "2026-08-28",
     "title": "Cultural Self-Assessment: één survey-template die het Cultural DNA van elke klant zelf invult",
     "details": [
       "Nieuwe surveyvorm waarin deelnemers zichzelf scoren op de waarden van hun eigen organisatie. Je maakt één sessie aan voor een klant en de waarden, niveaus en gedragingen komen automatisch uit het Cultural DNA van die klant",
