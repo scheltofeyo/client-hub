@@ -474,20 +474,20 @@ const DEMO_RANK_SEGMENTS = [
 
 // Two rows at n=2 (the real small-group case), the rest at n=12.
 const DEMO_VALUE_RANKS = [
-  { id: "collab", label: "Collaboration", color: "var(--accent-2)", distribution: [7, 3, 2, 1, 1], meanRank: 2 },
-  { id: "drive", label: "Drive", color: "var(--accent-0)", distribution: [3, 5, 3, 2, 1], meanRank: 2.5 },
-  { id: "steward", label: "Stewardship", color: "var(--accent-6)", distribution: [2, 3, 5, 3, 1], meanRank: 3 },
-  { id: "dec", label: "Decisiveness", color: "var(--accent-1)", distribution: [1, 2, 3, 5, 3], meanRank: 3.5 },
-  { id: "ent", label: "Entrepreneurship", color: "var(--accent-3)", distribution: [1, 1, 1, 3, 8], meanRank: 4.1 },
+  { id: "collab", label: "Collaboration", color: "#059669", distribution: [7, 3, 2, 1, 1], meanRank: 2 },
+  { id: "drive", label: "Drive", color: "#7C3AED", distribution: [3, 5, 3, 2, 1], meanRank: 2.5 },
+  { id: "steward", label: "Stewardship", color: "#0891B2", distribution: [2, 3, 5, 3, 1], meanRank: 3 },
+  { id: "dec", label: "Decisiveness", color: "#2563EB", distribution: [1, 2, 3, 5, 3], meanRank: 3.5 },
+  { id: "ent", label: "Entrepreneurship", color: "#D97706", distribution: [1, 1, 1, 3, 8], meanRank: 4.1 },
 ];
 
 const DEMO_SCALE_BOUNDS = { min: 1, max: 5 };
 const DEMO_SCALE_SERIES: ScaleSeries[] = [
-  { id: "drive", label: "Drive", color: "var(--accent-0)", n: 2, mean: 2.5, sd: 1.5, distribution: [1, 0, 0, 1, 0] },
-  { id: "decisive", label: "Decisiveness", color: "var(--accent-1)", n: 2, mean: 3.5, sd: 0.5, distribution: [0, 0, 1, 1, 0] },
-  { id: "collab", label: "Collaboration", color: "var(--accent-2)", n: 12, mean: 3.3, sd: 1.1, distribution: [1, 2, 3, 4, 2] },
-  { id: "entrepreneur", label: "Entrepreneurship", color: "var(--accent-3)", n: 12, mean: 4.1, sd: 0.9, distribution: [0, 1, 2, 4, 5] },
-  { id: "steward", label: "Stewardship", color: "var(--accent-6)", n: 12, mean: 2.4, sd: 1.3, distribution: [4, 3, 2, 2, 1] },
+  { id: "drive", label: "Drive", color: "#7C3AED", n: 2, mean: 2.5, sd: 1.5, distribution: [1, 0, 0, 1, 0] },
+  { id: "decisive", label: "Decisiveness", color: "#2563EB", n: 2, mean: 3.5, sd: 0.5, distribution: [0, 0, 1, 1, 0] },
+  { id: "collab", label: "Collaboration", color: "#059669", n: 12, mean: 3.3, sd: 1.1, distribution: [1, 2, 3, 4, 2] },
+  { id: "entrepreneur", label: "Entrepreneurship", color: "#D97706", n: 12, mean: 4.1, sd: 0.9, distribution: [0, 1, 2, 4, 5] },
+  { id: "steward", label: "Stewardship", color: "#0891B2", n: 12, mean: 2.4, sd: 1.3, distribution: [4, 3, 2, 2, 1] },
 ];
 
 const DEMO_CHOICES: MCChoiceDatum[] = [

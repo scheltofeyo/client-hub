@@ -128,15 +128,6 @@
   --accent-6: #0891B2;
   --accent-7: #0D9488;
 
-  /* Ordered-scale (Likert) ramp — one hue, light to dark, stepped through SUMM
-     primary (#7c3aed sits at step 3). Sequential rather than diverging because
-     the scale reads as one direction, low to high. Validated as an ordinal ramp:
-     monotone lightness, visible step gaps, light end clears the surface. */
-  --scale-1: #bcaaff;
-  --scale-2: #9b7bf5;
-  --scale-3: #7c3aed;
-  --scale-4: #5b21b6;
-  --scale-5: #2e1065;
 
   /* Ink for text sitting on a strong --primary fill (heatmap cells). Flips per
      mode because the fill darkens on light and lightens on dark. */
@@ -254,14 +245,6 @@
   --accent-6: #22d3ee;
   --accent-7: #2dd4bf;
 
-  /* Ordered-scale ramp (dark) — re-stepped against the dark surface rather than
-     flipped: here the ramp runs dim to bright, with the dark primary at step 4.
-     Step 1 still clears 2:1 against #1c1a32 so a low score is never a hole. */
-  --scale-1: #544593;
-  --scale-2: #6f5cb8;
-  --scale-3: #8b74e0;
-  --scale-4: #a78bfa;
-  --scale-5: #c9b8ff;
 
   /* Dark-mode primary fills get lighter with intensity, so the ink goes dark. */
   --on-primary-strong: #1c1a32;
@@ -397,6 +380,22 @@ select:not(.appearance-none):not([multiple]):not([size]) {
    extra Tailwind utilities. Layout uses longhand properties (padding-{top,
    bottom,left,right}, font-size, etc.) so single-axis Tailwind overrides like
    `py-3` or `text-xs` cleanly win via the cascade. */
+/* ── Ordinal ramp scope ──────────────────────────────────────────────────────
+   Charts tinted with a cultural value's own colour write four inline custom
+   properties on each row (see ordinalRampAnchors in src/lib/colors.ts) and mark
+   it `.ramp-scope`. These two rules pick the pair belonging to the active
+   theme, so a ramp of any length needs no per-step tokens. Dark takes the other
+   pair because there the ramp runs bright to dim rather than dark to light —
+   a high score has to keep its weight, not sink into the background. */
+.ramp-scope {
+  --ramp-strong: var(--ramp-strong-l);
+  --ramp-faint: var(--ramp-faint-l);
+}
+.dark .ramp-scope {
+  --ramp-strong: var(--ramp-strong-d);
+  --ramp-faint: var(--ramp-faint-d);
+}
+
 @layer components {
   .btn-primary {
     display: inline-flex;

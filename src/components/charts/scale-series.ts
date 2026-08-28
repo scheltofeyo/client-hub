@@ -59,35 +59,6 @@ export function maxStack(series: ScaleSeries[]): number {
 }
 
 /**
- * The five validated steps of the ordered-scale ramp, interpolated to any
- * bucket count.
- *
- * A 1–5 scale lands exactly on the tokens; a 1–7 scale gets `color-mix` points
- * between them rather than a repeated colour, which would make two adjacent
- * answers indistinguishable.
- */
-const SCALE_STOPS = [
-  "var(--scale-1)",
-  "var(--scale-2)",
-  "var(--scale-3)",
-  "var(--scale-4)",
-  "var(--scale-5)",
-] as const;
-
-export function scaleRampColors(buckets: number): string[] {
-  if (buckets <= 1) return [SCALE_STOPS[2]];
-  return Array.from({ length: buckets }, (_, i) => {
-    const t = (i / (buckets - 1)) * (SCALE_STOPS.length - 1);
-    const lower = Math.floor(t);
-    const frac = t - lower;
-    if (frac < 0.001) return SCALE_STOPS[lower];
-    const upper = Math.min(SCALE_STOPS.length - 1, lower + 1);
-    const pct = Math.round((1 - frac) * 100);
-    return `color-mix(in oklab, ${SCALE_STOPS[lower]} ${pct}%, ${SCALE_STOPS[upper]})`;
-  });
-}
-
-/**
  * Lowest and highest score anyone actually gave, or null when nobody answered.
  *
  * Deliberately the observed range and not mean ± 1 SD: at these group sizes an

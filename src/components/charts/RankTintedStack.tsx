@@ -2,7 +2,7 @@
 
 import { motion, useReducedMotion } from "motion/react";
 import { useChartContext } from "./ChartContext";
-import { CHART_TOKENS, surfaceTints } from "./ChartTheme";
+import { CHART_TOKENS, ordinalRampStep, ordinalRampVars } from "./ChartTheme";
 
 export interface RankTintedItem {
   id: string;
@@ -23,7 +23,7 @@ interface RankTintedStackProps {
 
 /**
  * One 100%-wide bar per item, split by the rank position respondents gave it,
- * in tints of that item's own colour — darkest at rank 1.
+ * in tints of that item's own colour — strongest at rank 1.
  *
  * A shared ramp cannot work here: every row is a different cultural value with
  * its own colour, and that colour is the identity readers already know from the
@@ -31,8 +31,10 @@ interface RankTintedStackProps {
  * carries rank across each bar, which are the two things being asked at once.
  *
  * No segment labels and no colour legend, deliberately. Segment order and tint
- * both run in the same direction, so "left and dark = ranked first" is the only
- * reading available; the exact counts sit in the tooltips.
+ * both run in the same direction, so "left and strongest = ranked first" is the
+ * only reading available; the exact counts sit in the tooltips. Note "strongest"
+ * is darkest on the light theme and brightest on the dark one — the ramp anchors
+ * flip so a top rank never sinks into the background.
  */
 export function RankTintedStack({ items, ranks, className }: RankTintedStackProps) {
   const ctx = useChartContext();
@@ -55,8 +57,8 @@ export function RankTintedStack({ items, ranks, className }: RankTintedStackProp
     <div className={"overflow-x-auto " + (className ?? "")}>
       <div className="min-w-[420px]">
         <p className="typo-caption mb-3">
-          Each bar = 100% of respondents · left to right is rank 1 to {rankCount}, dark to
-          light · sorted by mean rank
+          Each bar = 100% of respondents · left to right is rank 1 to {rankCount}, full to
+          faint · sorted by mean rank
         </p>
 
         <div
@@ -65,7 +67,6 @@ export function RankTintedStack({ items, ranks, className }: RankTintedStackProp
         >
           {sorted.map((item, rowIndex) => {
             const color = item.color || CHART_TOKENS.primary;
-            const tints = surfaceTints(color, rankCount);
             const total = item.distribution.reduce((sum, c) => sum + c, 0);
             let cursor = 0;
 
@@ -86,7 +87,7 @@ export function RankTintedStack({ items, ranks, className }: RankTintedStackProp
                   </span>
                 </div>
 
-                <div className="relative h-5">
+                <div className="ramp-scope relative h-5" style={ordinalRampVars(color)}>
                   {Array.from({ length: rankCount }).map((_, i) => {
                     const count = item.distribution[i] ?? 0;
                     if (count === 0) return null;
@@ -110,7 +111,7 @@ export function RankTintedStack({ items, ranks, className }: RankTintedStackProp
                           left: `${left}%`,
                           // 2px surface gap between fills, never a border.
                           width: `max(2px, calc(${width}% - 2px))`,
-                          background: tints[i],
+                          background: ordinalRampStep(i, rankCount),
                           borderTopLeftRadius: first ? 4 : 0,
                           borderBottomLeftRadius: first ? 4 : 0,
                           borderTopRightRadius: last ? 4 : 0,

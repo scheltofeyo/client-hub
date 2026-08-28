@@ -2,12 +2,11 @@
 
 import { motion, useReducedMotion } from "motion/react";
 import { useChartContext } from "./ChartContext";
-import { CHART_TOKENS } from "./ChartTheme";
+import { CHART_TOKENS, ordinalRampStep, ordinalRampVars } from "./ChartTheme";
 import { ScaleStatCell } from "./ScaleStatCell";
 import {
   bucketCount,
   scalePoints,
-  scaleRampColors,
   totalResponses,
   type ScaleBounds,
   type ScaleSeries,
@@ -22,7 +21,7 @@ interface LikertDivergingBarProps {
 }
 
 interface RowGeometry {
-  segments: { point: number; count: number; from: number; to: number; color: string }[];
+  segments: { point: number; index: number; count: number; from: number; to: number }[];
   leftShare: number;
   rightShare: number;
 }
@@ -34,11 +33,14 @@ interface RowGeometry {
  * how far a value leans — and whether the group is split or merely undecided —
  * is a shape you read across rows without comparing numbers.
  *
- * Colour is a single-hue ramp through SUMM primary, light to dark, never a
- * rainbow. The layout is diverging, the colour job is sequential — the scale
- * runs in one direction, and the position already carries the polarity.
+ * Colour is a single-hue ramp built from each value's own colour, strongest at
+ * the top of the scale. The layout is diverging, the colour job is sequential —
+ * the scale runs in one direction, and position already carries the polarity.
+ * Using the value's colour rather than one shared ramp keeps the row tied to the
+ * identity readers know from the rest of the survey; the cost is that no single
+ * colour legend can exist, so the caption carries the reading instead.
  */
-function geometryFor(s: ScaleSeries, bounds: ScaleBounds, colors: string[]): RowGeometry | null {
+function geometryFor(s: ScaleSeries, bounds: ScaleBounds): RowGeometry | null {
   const total = totalResponses(s.distribution);
   if (total === 0) return null;
 
@@ -61,10 +63,10 @@ function geometryFor(s: ScaleSeries, bounds: ScaleBounds, colors: string[]): Row
     if (width > 0) {
       segments.push({
         point,
+        index: i,
         count: s.distribution[i] ?? 0,
         from: cursor,
         to: cursor + width,
-        color: colors[i],
       });
     }
     cursor += width;
@@ -77,9 +79,8 @@ export function LikertDivergingBar({ series, bounds, groupN, className }: Likert
   const ctx = useChartContext();
   const reduceMotion = useReducedMotion();
 
-  const points = scalePoints(bounds);
-  const colors = scaleRampColors(bucketCount(bounds));
-  const rows = series.map((s) => ({ s, geo: geometryFor(s, bounds, colors) }));
+  const buckets = bucketCount(bounds);
+  const rows = series.map((s) => ({ s, geo: geometryFor(s, bounds) }));
 
   if (rows.every((r) => r.geo === null)) {
     return (
@@ -102,6 +103,10 @@ export function LikertDivergingBar({ series, bounds, groupN, className }: Likert
   return (
     <div className={"overflow-x-auto " + (className ?? "")}>
       <div className="min-w-[440px]">
+        <p className="typo-caption mb-3">
+          Each bar = 100% of respondents, centred on the neutral midpoint · left to right
+          is {bounds.min} to {bounds.max}, faint to full, in each value&apos;s own colour
+        </p>
         <div
           className="grid items-center gap-x-3 gap-y-2.5"
           style={{ gridTemplateColumns: "minmax(5rem,9rem) minmax(190px,1fr) auto" }}
@@ -123,7 +128,10 @@ export function LikertDivergingBar({ series, bounds, groupN, className }: Likert
                 </span>
               </div>
 
-              <div className="relative h-5">
+              <div
+                className="ramp-scope relative h-5"
+                style={ordinalRampVars(s.color || CHART_TOKENS.primary)}
+              >
                 <span
                   aria-hidden
                   className="absolute top-0 bottom-0 left-1/2 w-px -translate-x-1/2"
@@ -147,7 +155,8 @@ export function LikertDivergingBar({ series, bounds, groupN, className }: Likert
                         left: `${x(seg.from)}%`,
                         // 2px surface gap between fills, never a border.
                         width: `max(2px, calc(${x(seg.to) - x(seg.from)}% - 2px))`,
-                        background: seg.color,
+                        // Reversed: the strongest step belongs to the top of the scale.
+                        background: ordinalRampStep(buckets - 1 - seg.index, buckets),
                         borderTopLeftRadius: first ? 4 : 0,
                         borderBottomLeftRadius: first ? 4 : 0,
                         borderTopRightRadius: last ? 4 : 0,
@@ -177,22 +186,6 @@ export function LikertDivergingBar({ series, bounds, groupN, className }: Likert
           </div>
           <div aria-hidden />
         </div>
-
-        <ul className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs">
-          {points.map((p, i) => (
-            <li key={p} className="inline-flex items-center gap-1.5">
-              <span
-                aria-hidden
-                className="inline-block size-2.5 rounded-sm"
-                style={{ background: colors[i] }}
-              />
-              <span style={{ color: CHART_TOKENS.textMuted }}>
-                {p}
-                {p === bounds.min ? " (low)" : p === bounds.max ? " (high)" : ""}
-              </span>
-            </li>
-          ))}
-        </ul>
       </div>
     </div>
   );

@@ -10,8 +10,8 @@
       "Drie nieuwe vraagtypes die je ook los kunt gebruiken: Scale (een Likert-vraag), Value assessment en Value ranking",
       "Intro- en bedanktekst zijn per survey in te stellen",
       "In de resultaten zie je per waarde het gemiddelde, de verdeling over de schaal, de spreiding en de gemiddelde rangpositie — en je kunt filteren per Cultural Level",
-      "Vijf weergaven voor de self-assessment-scores, om te wisselen per vraag: Dots (één stip per deelnemer, met de band van laagste tot hoogste antwoord en het gemiddelde erdoorheen), Likert bar (verdeling gecentreerd op het middelpunt), Mean & spread (gesorteerd op gemiddelde), Heatmap en de oude Histogram",
-      "Zes weergaven voor de value ranking: Podium, Sorted bar, Rank spread (per waarde een balk in tinten van de eigen kleur — donker is hoog geplaatst), Heatmap, Top-1 share en de tabel"
+      "Vijf weergaven voor de self-assessment-scores, om te wisselen per vraag: Dots (één stip per deelnemer, met de band van laagste tot hoogste antwoord en het gemiddelde erdoorheen), Likert bar (verdeling gecentreerd op het middelpunt, in tinten van de kleur van de waarde zelf), Mean & spread (gesorteerd op gemiddelde), Heatmap en de oude Histogram",
+      "Zes weergaven voor de value ranking: Podium, Sorted bar, Rank spread (per waarde een balk in tinten van de eigen kleur — de volste tint is hoog geplaatst), Heatmap, Top-1 share en de tabel"
     ],
     "whatsNew": {
       "id": "cultural-self-assessment-2026-08",
