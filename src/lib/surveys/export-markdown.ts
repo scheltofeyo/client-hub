@@ -30,6 +30,9 @@ export function buildSurveyResultsMarkdown(input: BuildMarkdownInput): string {
   const top3Weights = snapshot.top3Weights ?? [5, 3, 1];
 
   const archetypeNameById = new Map(archetypes.map((a) => [a.id, a.name]));
+  const valueTitleById = new Map(
+    (snapshot.culturalValues ?? []).map((v) => [v.id, v.title])
+  );
   const questionMetaById = new Map(questionMetas.map((q) => [q.id, q]));
   const sectionTitleById = new Map(
     (snapshot.sections ?? []).map((s) => [s.id, s.title])
@@ -246,7 +249,7 @@ export function buildSurveyResultsMarkdown(input: BuildMarkdownInput): string {
         for (const qSnap of renderableQuestions) {
           const ans = answersByQuestion.get(qSnap.id);
           if (!ans) continue;
-          renderParticipantAnswer(out, qSnap, ans, archetypeNameById);
+          renderParticipantAnswer(out, qSnap, ans, archetypeNameById, valueTitleById);
         }
         const sectionOpen = sectionOpenByMap.get(section.id);
         if (sectionOpen) {
@@ -290,6 +293,12 @@ function questionTypeExplanation(
       const max = typeof meta?.maxSelections === "number" ? meta.maxSelections : null;
       return `Meerdere keuzes toegestaan${max !== null ? ` (max ${max})` : ""}. **Percentage** = aandeel deelnemers dat die optie aanvinkte.`;
     }
+    case "scale":
+      return "Eén Likert-score per deelnemer. **Gemiddelde** en **spreiding** (standaarddeviatie) zijn berekend over de ingevulde scores; de verdeling toont hoeveel deelnemers elke schaalwaarde kozen.";
+    case "value-assessment":
+      return "Per cultuurwaarde geeft de deelnemer zichzelf een Likert-score op het gedrag dat bij zijn/haar gekozen Cultural Level hoort. **Spreiding** is de standaarddeviatie: hoog betekent dat de groep sterk van mening verschilt over die waarde.";
+    case "value-ranking":
+      return "Deelnemers rangschikken alle cultuurwaarden ten opzichte van elkaar. **Gem. rang** is de gemiddelde positie — lager betekent gemiddeld hoger geplaatst. Bewust géén gewogen punten: bij meer waarden dan gewichten zouden de laagste posities stilzwijgend op 0 uitkomen.";
     case "open-text":
       return "Vrije tekst, geen scoring. De antwoorden hieronder zijn de letterlijke inzendingen van deelnemers.";
     case "intro":
@@ -365,6 +374,37 @@ function renderQuestionResult(
       }
       return;
     }
+    case "scale": {
+      const scalePoints = q.distribution.map((count, i) => `${q.min + i}: ${count}`);
+      out.push(`- Gemiddelde: ${q.mean ?? "—"}`);
+      out.push(`- Spreiding (SD): ${q.sd ?? "—"}`);
+      out.push(`- Verdeling — ${scalePoints.join(" · ")}`);
+      return;
+    }
+    case "value-assessment": {
+      if (q.values.length === 0) return;
+      const buckets = Array.from({ length: q.max - q.min + 1 }, (_, i) => q.min + i);
+      out.push(`| Waarde | n | Gem. | SD | ${buckets.join(" | ")} |`);
+      out.push(`|---|---|---|---|${buckets.map(() => "---").join("|")}|`);
+      for (const v of q.values) {
+        out.push(
+          `| ${escapeCell(v.title)} | ${v.n} | ${v.mean ?? "—"} | ${v.sd ?? "—"} | ${v.distribution.join(" | ")} |`
+        );
+      }
+      return;
+    }
+    case "value-ranking": {
+      if (q.values.length === 0) return;
+      const sorted = [...q.values].sort(
+        (a, b) => (a.meanRank ?? Infinity) - (b.meanRank ?? Infinity)
+      );
+      out.push("| Waarde | Gem. rang |");
+      out.push("|---|---|");
+      for (const v of sorted) {
+        out.push(`| ${escapeCell(v.title)} | ${v.meanRank ?? "—"} |`);
+      }
+      return;
+    }
     case "open-text": {
       if (q.answers.length === 0) {
         out.push("_Geen antwoorden._");
@@ -386,9 +426,11 @@ function renderParticipantAnswer(
   out: string[],
   qSnap: ISurveyQuestionSnapshot,
   ans: ISurveyAnswer,
-  archetypeNameById: Map<string, string>
+  archetypeNameById: Map<string, string>,
+  valueTitleById: Map<string, string>
 ): void {
   const header = `- **${escapeInline(qSnap.title)}** (\`${qSnap.type}\`)`;
+  const valueTitle = (valueId: string) => valueTitleById.get(valueId) ?? valueId;
   switch (qSnap.type) {
     case "archetype-ranking":
     case "archetype-top3": {
@@ -447,6 +489,38 @@ function renderParticipantAnswer(
       });
       out.push(header);
       out.push(`  - Gekozen: ${labels.map((l) => `"${escapeInline(l)}"`).join(", ")}`);
+      return;
+    }
+    case "scale": {
+      if (ans.scaleValue === undefined || ans.scaleValue === null) return;
+      out.push(header);
+      out.push(`  - Score: ${ans.scaleValue}`);
+      return;
+    }
+    case "value-assessment": {
+      const scores = (ans.scores ?? {}) as Record<string, number>;
+      const entries = Object.entries(scores);
+      if (entries.length === 0) return;
+      out.push(header);
+      for (const item of qSnap.valueItems ?? []) {
+        const score = scores[item.id];
+        if (score === undefined) continue;
+        out.push(`  - ${escapeInline(valueTitle(item.valueId))}: ${score}`);
+      }
+      return;
+    }
+    case "value-ranking": {
+      const rankings = (ans.rankings ?? {}) as Record<string, number>;
+      const items = qSnap.valueItems ?? [];
+      const ordered = items
+        .map((item) => ({ item, rank: Number(rankings[item.id]) }))
+        .filter((r) => Number.isFinite(r.rank))
+        .sort((a, b) => a.rank - b.rank);
+      if (ordered.length === 0) return;
+      out.push(header);
+      for (const { item, rank } of ordered) {
+        out.push(`  - ${rank}. ${escapeInline(valueTitle(item.valueId))}`);
+      }
       return;
     }
     case "open-text": {

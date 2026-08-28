@@ -21,6 +21,11 @@ import { RankSortedBar } from "@/components/charts/RankSortedBar";
 import { RankVerticalSortedBar } from "@/components/charts/RankVerticalSortedBar";
 import { RankHeatmap } from "@/components/charts/RankHeatmap";
 import { RankTopOneShareBar } from "@/components/charts/RankTopOneShareBar";
+import { RankTintedStack } from "@/components/charts/RankTintedStack";
+import { ScaleDotPlot } from "@/components/charts/ScaleDotPlot";
+import { LikertDivergingBar } from "@/components/charts/LikertDivergingBar";
+import { ScaleMeanSpread } from "@/components/charts/ScaleMeanSpread";
+import type { ScaleSeries } from "@/components/charts/scale-series";
 import { ChartPicker } from "@/components/survey-results/ChartPicker";
 import type { Task } from "@/types";
 
@@ -467,6 +472,24 @@ const DEMO_RANK_SEGMENTS = [
   { key: "hero", label: "Hero", value: 8, color: "var(--accent-7)" },
 ];
 
+// Two rows at n=2 (the real small-group case), the rest at n=12.
+const DEMO_VALUE_RANKS = [
+  { id: "collab", label: "Collaboration", color: "#059669", distribution: [7, 3, 2, 1, 1], meanRank: 2 },
+  { id: "drive", label: "Drive", color: "#7C3AED", distribution: [3, 5, 3, 2, 1], meanRank: 2.5 },
+  { id: "steward", label: "Stewardship", color: "#0891B2", distribution: [2, 3, 5, 3, 1], meanRank: 3 },
+  { id: "dec", label: "Decisiveness", color: "#2563EB", distribution: [1, 2, 3, 5, 3], meanRank: 3.5 },
+  { id: "ent", label: "Entrepreneurship", color: "#D97706", distribution: [1, 1, 1, 3, 8], meanRank: 4.1 },
+];
+
+const DEMO_SCALE_BOUNDS = { min: 1, max: 5 };
+const DEMO_SCALE_SERIES: ScaleSeries[] = [
+  { id: "drive", label: "Drive", color: "#7C3AED", n: 2, mean: 2.5, sd: 1.5, distribution: [1, 0, 0, 1, 0] },
+  { id: "decisive", label: "Decisiveness", color: "#2563EB", n: 2, mean: 3.5, sd: 0.5, distribution: [0, 0, 1, 1, 0] },
+  { id: "collab", label: "Collaboration", color: "#059669", n: 12, mean: 3.3, sd: 1.1, distribution: [1, 2, 3, 4, 2] },
+  { id: "entrepreneur", label: "Entrepreneurship", color: "#D97706", n: 12, mean: 4.1, sd: 0.9, distribution: [0, 1, 2, 4, 5] },
+  { id: "steward", label: "Stewardship", color: "#0891B2", n: 12, mean: 2.4, sd: 1.3, distribution: [4, 3, 2, 2, 1] },
+];
+
 const DEMO_CHOICES: MCChoiceDatum[] = [
   { id: "a", label: "Strongly improve", count: 14, percentage: 56 },
   { id: "b", label: "Slightly improve", count: 6, percentage: 24 },
@@ -583,6 +606,46 @@ function SurveyChartsDemo() {
         </p>
         <RankHeatmap
           items={DEMO_RANK_ITEMS.map((i) => ({ id: i.id, label: i.label, distribution: i.distribution }))}
+        />
+      </div>
+
+      <div>
+        <p className="typo-section-header mb-2" style={{ color: "var(--text-muted)" }}>
+          RankTintedStack (value-ranking — tints of each value&apos;s own colour)
+        </p>
+        <RankTintedStack items={DEMO_VALUE_RANKS} />
+      </div>
+
+      <div>
+        <p className="typo-section-header mb-2" style={{ color: "var(--text-muted)" }}>
+          ScaleDotPlot (value-assessment default)
+        </p>
+        <ScaleDotPlot series={DEMO_SCALE_SERIES} bounds={DEMO_SCALE_BOUNDS} />
+      </div>
+
+      <div>
+        <p className="typo-section-header mb-2" style={{ color: "var(--text-muted)" }}>
+          LikertDivergingBar
+        </p>
+        <LikertDivergingBar series={DEMO_SCALE_SERIES} bounds={DEMO_SCALE_BOUNDS} />
+      </div>
+
+      <div>
+        <p className="typo-section-header mb-2" style={{ color: "var(--text-muted)" }}>
+          ScaleMeanSpread
+        </p>
+        <ScaleMeanSpread series={DEMO_SCALE_SERIES} bounds={DEMO_SCALE_BOUNDS} />
+      </div>
+
+      <div>
+        <p className="typo-section-header mb-2" style={{ color: "var(--text-muted)" }}>
+          RankHeatmap — ordered-scale columns
+        </p>
+        <RankHeatmap
+          items={DEMO_SCALE_SERIES.map((s) => ({ id: s.id, label: s.label, distribution: s.distribution }))}
+          columnLabels={["1", "2", "3", "4", "5"]}
+          rowHeader="Value"
+          columnNoun="score"
         />
       </div>
 

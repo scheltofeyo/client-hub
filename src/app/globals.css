@@ -128,6 +128,11 @@
   --accent-6: #0891B2;
   --accent-7: #0D9488;
 
+
+  /* Ink for text sitting on a strong --primary fill (heatmap cells). Flips per
+     mode because the fill darkens on light and lightens on dark. */
+  --on-primary-strong: #ffffff;
+
   /* Week calendar card types */
   --card-deadline: #7c3aed;
   --card-deadline-bg: #ede9fe;
@@ -239,6 +244,10 @@
   --accent-5: #f472b6;
   --accent-6: #22d3ee;
   --accent-7: #2dd4bf;
+
+
+  /* Dark-mode primary fills get lighter with intensity, so the ink goes dark. */
+  --on-primary-strong: #1c1a32;
 
   /* Week calendar card types (dark) */
   --card-deadline: #a78bfa;
@@ -371,6 +380,22 @@ select:not(.appearance-none):not([multiple]):not([size]) {
    extra Tailwind utilities. Layout uses longhand properties (padding-{top,
    bottom,left,right}, font-size, etc.) so single-axis Tailwind overrides like
    `py-3` or `text-xs` cleanly win via the cascade. */
+/* ── Ordinal ramp scope ──────────────────────────────────────────────────────
+   Charts tinted with a cultural value's own colour write four inline custom
+   properties on each row (see ordinalRampAnchors in src/lib/colors.ts) and mark
+   it `.ramp-scope`. These two rules pick the pair belonging to the active
+   theme, so a ramp of any length needs no per-step tokens. Dark takes the other
+   pair because there the ramp runs bright to dim rather than dark to light —
+   a high score has to keep its weight, not sink into the background. */
+.ramp-scope {
+  --ramp-strong: var(--ramp-strong-l);
+  --ramp-faint: var(--ramp-faint-l);
+}
+.dark .ramp-scope {
+  --ramp-strong: var(--ramp-strong-d);
+  --ramp-faint: var(--ramp-faint-d);
+}
+
 @layer components {
   .btn-primary {
     display: inline-flex;
@@ -860,6 +885,52 @@ select:not(.appearance-none):not([multiple]):not([size]) {
 }
 .behavior-html li {
   margin: 0.125rem 0;
+}
+
+/* ── Survey Likert scale buttons ─────────────────────────────────── */
+
+/* Unselected appearance lives here rather than inline, because an inline style
+   always beats a :hover rule — there would be no way to show a hover state. The
+   selected state is set inline and guarded out with :not([aria-pressed="true"]). */
+.survey-scale-btn {
+  background: var(--bg-neutral);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  transition:
+    background-color 140ms ease-out,
+    border-color 140ms ease-out,
+    color 140ms ease-out,
+    transform 120ms ease-out;
+}
+.survey-scale-btn:not([aria-pressed="true"]):hover {
+  background: var(--bg-hover);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+.survey-scale-btn:active {
+  transform: translateY(1px);
+}
+.survey-scale-btn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* Level-selection cards. Same reasoning as .survey-scale-btn: the selected state
+   is inline, so the resting and hover states have to live in CSS to be reachable. */
+.survey-level-btn {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  transition:
+    background-color 140ms ease-out,
+    border-color 140ms ease-out;
+}
+.survey-level-btn:not([aria-pressed="true"]):hover {
+  background: var(--bg-hover);
+  border-color: var(--primary);
+}
+.survey-level-btn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
 
 /* ── Survey participant form animations ──────────────────────────── */

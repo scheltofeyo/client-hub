@@ -64,6 +64,24 @@ function toShellQuestion(q: QuestionRow): ShellQuestionAny {
         multiline: q.multiline,
         required: q.required,
       };
+    case "scale":
+      return { ...base, type: "scale", scale: q.scale, required: q.required };
+    case "value-assessment":
+      return {
+        ...base,
+        type: "value-assessment",
+        scale: q.scale,
+        assessmentPrompt: q.assessmentPrompt,
+        valueItems: q.valueItems,
+        required: q.required,
+      };
+    case "value-ranking":
+      return {
+        ...base,
+        type: "value-ranking",
+        valueItems: q.valueItems,
+        required: q.required,
+      };
     case "intro":
       return { ...base, type: "intro", bodyHtml: q.bodyHtml };
   }
@@ -276,6 +294,9 @@ export default function TemplateEditor({
       "general-top3": "New top 3 question",
       "multiple-choice": "New choice question",
       "open-text": "New open question",
+      scale: "New scale question",
+      "value-assessment": "Cultural self-assessment",
+      "value-ranking": "Rank the values",
       intro: "",
     };
     const res = await withSave(() =>

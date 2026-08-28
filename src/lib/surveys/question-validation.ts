@@ -29,12 +29,23 @@ export interface BuildQuestionInput {
   multiline?: unknown;
   required?: unknown;
 
+  // scale | value-assessment
+  scale?: unknown;
+
+  // value-assessment
+  assessmentPrompt?: unknown;
+
+  // value-assessment | value-ranking
+  valueItems?: unknown;
+
   // intro
   bodyHtml?: unknown;
 }
 
 export interface BuildQuestionDefaults {
   archetypeIds?: string[];
+  /** Cultural value ids to materialise value-backed questions from. */
+  culturalValueIds?: string[];
 }
 
 interface OptionLike {
@@ -55,6 +66,59 @@ interface ChoiceLike {
 
 function trim(v: unknown): string {
   return typeof v === "string" ? v.trim() : "";
+}
+
+const SCALE_MIN_BOUND = 0;
+const SCALE_MAX_BOUND = 10;
+
+/**
+ * Coerce a scale config, clamping to a sane Likert range. A scale wider than
+ * 0..10 stops being a Likert and starts being a number field, and every renderer
+ * here draws one button per point.
+ */
+function normalizeScale(input: unknown): { min: number; max: number; minLabel?: string; maxLabel?: string } {
+  const raw = (input ?? {}) as Record<string, unknown>;
+  let min = Number(raw.min);
+  let max = Number(raw.max);
+  if (!Number.isFinite(min)) min = 1;
+  if (!Number.isFinite(max)) max = 5;
+  min = Math.round(Math.min(Math.max(min, SCALE_MIN_BOUND), SCALE_MAX_BOUND));
+  max = Math.round(Math.min(Math.max(max, SCALE_MIN_BOUND), SCALE_MAX_BOUND));
+  if (max <= min) max = min + 1;
+  const minLabel = trim(raw.minLabel);
+  const maxLabel = trim(raw.maxLabel);
+  return {
+    min,
+    max,
+    ...(minLabel ? { minLabel } : {}),
+    ...(maxLabel ? { maxLabel } : {}),
+  };
+}
+
+/**
+ * Value-backed questions never take authored items — they are rebuilt from the
+ * supplied cultural value ids, preserving existing item ids where the value is
+ * unchanged so answers already given keep pointing at the same item.
+ */
+function normalizeValueItems(
+  input: unknown,
+  culturalValueIds: string[]
+): { id: string; valueId: string }[] {
+  const existing = new Map<string, string>();
+  if (Array.isArray(input)) {
+    for (const raw of input) {
+      if (raw && typeof raw === "object") {
+        const v = raw as { id?: unknown; valueId?: unknown };
+        if (typeof v.valueId === "string" && typeof v.id === "string" && v.id) {
+          existing.set(v.valueId, v.id);
+        }
+      }
+    }
+  }
+  return culturalValueIds.map((valueId) => ({
+    id: existing.get(valueId) ?? randomUUID(),
+    valueId,
+  }));
 }
 
 function normalizeOptions(input: unknown, archetypeIds: string[]): {
@@ -120,6 +184,9 @@ export function buildCreateQuestion(
   placeholder?: string;
   multiline?: boolean;
   required?: boolean;
+  scale?: { min: number; max: number; minLabel?: string; maxLabel?: string };
+  assessmentPrompt?: string;
+  valueItems?: { id: string; valueId: string }[];
   bodyHtml?: string;
 }> {
   const type = normalizeQuestionType(body.type);
@@ -173,6 +240,24 @@ export function buildCreateQuestion(
       const placeholder = trim(body.placeholder);
       if (placeholder) out.placeholder = placeholder;
       out.multiline = body.multiline === true;
+      out.required = defaultRequired;
+      break;
+    }
+    case "scale": {
+      out.scale = normalizeScale(body.scale);
+      out.required = defaultRequired;
+      break;
+    }
+    case "value-assessment": {
+      out.scale = normalizeScale(body.scale);
+      const prompt = trim(body.assessmentPrompt);
+      if (prompt) out.assessmentPrompt = prompt;
+      out.valueItems = normalizeValueItems(body.valueItems, defaults.culturalValueIds ?? []);
+      out.required = defaultRequired;
+      break;
+    }
+    case "value-ranking": {
+      out.valueItems = normalizeValueItems(body.valueItems, defaults.culturalValueIds ?? []);
       out.required = defaultRequired;
       break;
     }
@@ -246,6 +331,15 @@ export function buildPatchQuestion(
   }
   if (body.multiline !== undefined) update.multiline = !!body.multiline;
   if (body.required !== undefined) update.required = !!body.required;
+  if (body.scale !== undefined) {
+    update.scale = normalizeScale(body.scale);
+  }
+  if (body.assessmentPrompt !== undefined) {
+    update.assessmentPrompt = trim(body.assessmentPrompt) || undefined;
+  }
+  if (body.valueItems !== undefined) {
+    update.valueItems = normalizeValueItems(body.valueItems, defaults.culturalValueIds ?? []);
+  }
   if (body.bodyHtml !== undefined) {
     update.bodyHtml = typeof body.bodyHtml === "string" ? body.bodyHtml : "";
   }

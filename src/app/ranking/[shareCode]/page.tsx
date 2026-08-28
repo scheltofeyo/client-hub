@@ -22,6 +22,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { MATCH_PROMPTS, TRIO_PROMPTS, t, type Locale } from "@/lib/ranking/translations";
 import BehaviorDisplay from "@/components/ui/BehaviorDisplay";
+import { darkenHex, lightenHex, shouldUseLightText } from "@/lib/colors";
 import LocaleSwitcher from "@/components/ui/LocaleSwitcher";
 import SummLogo from "@/components/ui/SummLogo";
 
@@ -186,37 +187,6 @@ function ValueReadAgainCard({ value, onShowDetail, locale }: { value: RankingVal
 }
 
 // ── Color utilities ────────────────────────────────────────────────
-
-function darkenHex(hex: string, factor: number): string {
-  const h = hex.replace("#", "");
-  const r = Math.round(parseInt(h.substring(0, 2), 16) * (1 - factor));
-  const g = Math.round(parseInt(h.substring(2, 4), 16) * (1 - factor));
-  const b = Math.round(parseInt(h.substring(4, 6), 16) * (1 - factor));
-  return `rgb(${r}, ${g}, ${b})`;
-}
-
-function lightenHex(hex: string, factor: number): string {
-  const h = hex.replace("#", "");
-  const r = Math.round(parseInt(h.substring(0, 2), 16) + (255 - parseInt(h.substring(0, 2), 16)) * factor);
-  const g = Math.round(parseInt(h.substring(2, 4), 16) + (255 - parseInt(h.substring(2, 4), 16)) * factor);
-  const b = Math.round(parseInt(h.substring(4, 6), 16) + (255 - parseInt(h.substring(4, 6), 16)) * factor);
-  return `rgb(${r}, ${g}, ${b})`;
-}
-
-function relativeLuminance(hex: string): number {
-  const h = hex.replace("#", "");
-  const [rs, gs, bs] = [
-    parseInt(h.substring(0, 2), 16) / 255,
-    parseInt(h.substring(2, 4), 16) / 255,
-    parseInt(h.substring(4, 6), 16) / 255,
-  ];
-  const toLinear = (c: number) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
-  return 0.2126 * toLinear(rs) + 0.7152 * toLinear(gs) + 0.0722 * toLinear(bs);
-}
-
-function shouldUseLightText(hex: string): boolean {
-  return relativeLuminance(hex) < 0.4;
-}
 
 // ── Value detail modal (read-only, for public form) ─────────────────
 

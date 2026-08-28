@@ -31,6 +31,7 @@ import { useRightPanel } from "@/components/layout/RightPanel";
 import { normalizeQuestionType } from "@/lib/surveys/types";
 import type { QuestionMeta } from "@/lib/surveys/distributions";
 import { slugify } from "@/lib/slug";
+import SectionCard from "@/components/ui/SectionCard";
 
 interface ArchetypeSnapshot {
   id: string;
@@ -48,6 +49,9 @@ interface SessionDetail {
     name: string;
     description?: string;
     archetypes: ArchetypeSnapshot[];
+    culturalValues?: { id: string; title: string }[];
+    culturalLevels?: string[];
+    thankYouText?: string;
     rankWeights: number[];
     top3Weights: number[];
     sections: {
@@ -100,6 +104,9 @@ export default function SurveyDetailPage() {
   const [loading, setLoading] = useState(true);
 
   const [showPublishModal, setShowPublishModal] = useState(false);
+  const [activeSegment, setActiveSegment] = useState<string | null>(null);
+  const [showRefreshDnaModal, setShowRefreshDnaModal] = useState(false);
+  const [refreshingDna, setRefreshingDna] = useState(false);
   const [showCloseModal, setShowCloseModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showShareLink, setShowShareLink] = useState(false);
@@ -143,10 +150,17 @@ export default function SurveyDetailPage() {
   }, [id]);
 
   const loadResults = useCallback(async () => {
-    const res = await fetch(`/api/surveys/sessions/${id}/results`);
-    if (!res.ok) return;
+    const query = activeSegment ? `?segment=${encodeURIComponent(activeSegment)}` : "";
+    const res = await fetch(`/api/surveys/sessions/${id}/results${query}`);
+    if (!res.ok) {
+      // A segment can fall below the privacy floor between renders (a response is
+      // deleted, options change). Fall back to the whole group rather than leaving
+      // stale numbers labelled with a segment.
+      if (activeSegment) setActiveSegment(null);
+      return;
+    }
     setResults((await res.json()) as ResultsData);
-  }, [id]);
+  }, [id, activeSegment]);
 
   useEffect(() => {
     async function load() {
@@ -184,6 +198,14 @@ export default function SurveyDetailPage() {
     await Promise.all([loadSession(), loadResults()]);
     return true;
   }, [id, loadSession, loadResults]);
+
+  const refreshCulturalDna = useCallback(async () => {
+    setRefreshingDna(true);
+    const ok = await persistSettings({ refreshCulturalDna: true });
+    setRefreshingDna(false);
+    setShowRefreshDnaModal(false);
+    if (!ok) alert("Could not refresh the Cultural DNA.");
+  }, [persistSettings]);
 
   const deleteAnalysis = useCallback(async (analysisId: string) => {
     if (!confirm("Delete analysis?")) return;
@@ -301,6 +323,23 @@ export default function SurveyDetailPage() {
     (sum, s) => sum + (s.questions?.length ?? 0),
     0
   );
+
+  const questionTypes = new Set(
+    (data.templateSnapshot.sections ?? []).flatMap((s) =>
+      (s.questions ?? []).map((q) => q.type ?? "")
+    )
+  );
+
+  const culturalValueCount = data.templateSnapshot.culturalValues?.length ?? 0;
+  const culturalLevelCount = data.templateSnapshot.culturalLevels?.length ?? 0;
+  // Only meaningful on a draft that actually leans on the client's DNA — either it
+  // already carries values, or it has questions that need them.
+  const showCulturalRefresh =
+    canEdit &&
+    data.status === "draft" &&
+    (culturalValueCount > 0 ||
+      questionTypes.has("value-assessment") ||
+      questionTypes.has("value-ranking"));
 
   return (
     <div className="flex-1 overflow-y-auto">
@@ -558,6 +597,9 @@ export default function SurveyDetailPage() {
                     .map((q) => [q.id, q.bodyHtml as string])
                 )
               )}
+              segments={results?.segments ?? []}
+              activeSegment={results?.activeSegment ?? null}
+              onSelectSegment={setActiveSegment}
               canEditAnalyses={canEdit}
               onCreateAnalysis={() => openAnalysisForm()}
               onEditAnalysis={(a) => openAnalysisForm({ id: a.id, analysis: a })}
@@ -571,7 +613,30 @@ export default function SurveyDetailPage() {
       )}
 
       {tab === "settings" && results && (
-        <div className="px-7 py-6 max-w-5xl">
+        <div className="px-7 py-6 max-w-5xl space-y-6">
+          {showCulturalRefresh && (
+            <SectionCard title="Cultural DNA">
+              <p className="text-xs mb-4" style={{ color: "var(--text-muted)", lineHeight: 1.5 }}>
+                {culturalValueCount === 0
+                  ? "No cultural values are attached to this survey yet."
+                  : `${culturalValueCount} cultural ${
+                      culturalValueCount === 1 ? "value" : "values"
+                    } and ${culturalLevelCount} ${
+                      culturalLevelCount === 1 ? "level" : "levels"
+                    } copied from ${data.clientName ?? "the client"}.`}{" "}
+                Refreshing re-copies them and rebuilds the items of every value question.
+                Only possible while the survey is a draft.
+              </p>
+              <button
+                type="button"
+                disabled={refreshingDna}
+                onClick={() => setShowRefreshDnaModal(true)}
+                className="btn-border border rounded-button px-3 py-2 text-xs"
+              >
+                {refreshingDna ? "Refreshing…" : "Refresh from client DNA"}
+              </button>
+            </SectionCard>
+          )}
           <ConfigureSheet
             key={data.id}
             meta={{
@@ -581,10 +646,28 @@ export default function SurveyDetailPage() {
               },
             }}
             canEdit={canEdit}
+            hasRankQuestions={questionTypes.has("archetype-ranking")}
+            hasTop3Questions={questionTypes.has("archetype-top3")}
             onSaveRankWeights={(next) => persistSettings({ rankWeights: next })}
             onSaveTop3Weights={(next) => persistSettings({ top3Weights: next })}
           />
         </div>
+      )}
+
+      {showRefreshDnaModal && (
+        <ConfirmModal
+          title="Refresh from client DNA?"
+          onClose={() => setShowRefreshDnaModal(false)}
+          onConfirm={refreshCulturalDna}
+          confirmLabel="Refresh"
+        >
+          <p className="text-sm leading-relaxed" style={{ color: "var(--text-muted)" }}>
+            The cultural values and levels are re-copied from{" "}
+            {data.clientName ?? "the client"}, and every value question rebuilds its
+            items from the new set. Any wording you changed on those questions in this
+            survey is replaced.
+          </p>
+        </ConfirmModal>
       )}
 
       {showPublishModal && (

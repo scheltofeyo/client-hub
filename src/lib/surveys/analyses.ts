@@ -10,6 +10,7 @@ export type AnalysisType = "summary" | "comparison";
 export type AnalysisOperation =
   | "mc-average"
   | "mc-pooled"
+  | "scale-mean"
   | "archetype-points"
   | "ranking-mean"
   | "open-text-frequency"
@@ -80,6 +81,7 @@ export interface AnalysisResult {
 export interface AnalysisComputeContext {
   questionMetas: QuestionMeta[];
   archetypes: { id: string; name: string; color: string }[];
+  culturalValues: { id: string; title: string; color: string }[];
   acc: SurveyAccumulators;
   submissions: SubmissionLike[];
   rankWeights: number[];
@@ -92,6 +94,7 @@ export interface AnalysisComputeContext {
 export const SUMMARY_OPERATIONS: AnalysisOperation[] = [
   "mc-average",
   "mc-pooled",
+  "scale-mean",
   "archetype-points",
   "ranking-mean",
   "open-text-frequency",
@@ -108,6 +111,7 @@ export const COMPARISON_OPERATIONS: AnalysisOperation[] = [
 export const OP_QUESTION_TYPES: Record<AnalysisOperation, SurveyQuestionType[]> = {
   "mc-average": ["multiple-choice"],
   "mc-pooled": ["multiple-choice"],
+  "scale-mean": ["scale", "value-assessment"],
   "archetype-points": ["archetype-ranking", "archetype-top3"],
   "ranking-mean": ["general-ranking", "general-top3"],
   "open-text-frequency": ["open-text"],
@@ -121,6 +125,7 @@ export const OP_QUESTION_TYPES: Record<AnalysisOperation, SurveyQuestionType[]> 
 export const OP_LABEL: Record<AnalysisOperation, string> = {
   "mc-average": "Average %",
   "mc-pooled": "Pooled %",
+  "scale-mean": "Mean score",
   "archetype-points": "Archetype points",
   "ranking-mean": "Mean rank",
   "open-text-frequency": "Term frequency",
@@ -165,6 +170,24 @@ export function questionSchemaKey(q: QuestionMeta): string {
         t: "gr3",
         i: [...(q.rankingItems ?? []).map((i) => i.id)].sort(),
         len: (q.rankingItems ?? []).length,
+      });
+    case "scale":
+      // Bounds are part of the schema: a 1-5 answer and a 1-10 answer are not
+      // the same measurement and must not be averaged together.
+      return JSON.stringify({ t: "scale", min: q.scale?.min ?? 1, max: q.scale?.max ?? 5 });
+    case "value-assessment":
+      return JSON.stringify({
+        t: "va",
+        min: q.scale?.min ?? 1,
+        max: q.scale?.max ?? 5,
+        // Keyed by valueId so the same assessment across two sessions of the
+        // same client stays comparable.
+        v: [...(q.valueItems ?? []).map((i) => i.valueId)].sort(),
+      });
+    case "value-ranking":
+      return JSON.stringify({
+        t: "vr",
+        v: [...(q.valueItems ?? []).map((i) => i.valueId)].sort(),
       });
     case "open-text":
       return "open-text";
@@ -250,6 +273,38 @@ function distributionForQuestion(
     }
     return { keys, values, n };
   }
+  if (qm.type === "scale") {
+    // A single-key distribution: the question itself carries one mean.
+    const values = acc.scaleValuesByQuestion.get(qm.id) ?? [];
+    const mean = values.length > 0 ? values.reduce((s, v) => s + v, 0) / values.length : 0;
+    return {
+      keys: [{ id: qm.id, label: qm.title || "(untitled)" }],
+      values: { [qm.id]: mean },
+      n,
+    };
+  }
+  if (qm.type === "value-assessment") {
+    // One key per cultural value, so several assessments can be compared
+    // value-by-value even when they belong to different sessions.
+    const byItem = acc.scaleValuesByQuestionItem.get(qm.id);
+    const valueById = new Map(ctx.culturalValues.map((v) => [v.id, v]));
+    const keys: AnalysisKeyMeta[] = [];
+    const values: Record<string, number> = {};
+    for (const item of qm.valueItems ?? []) {
+      const value = valueById.get(item.valueId);
+      // Keyed by valueId, not item id: item ids are regenerated per session,
+      // so keying by them would make cross-session comparison impossible.
+      keys.push({
+        id: item.valueId,
+        label: value?.title ?? "Removed value",
+        color: value?.color,
+      });
+      const scores = byItem?.get(item.id) ?? [];
+      values[item.valueId] =
+        scores.length > 0 ? scores.reduce((s, v) => s + v, 0) / scores.length : 0;
+    }
+    return { keys, values, n };
+  }
   if (qm.type === "archetype-ranking" || qm.type === "archetype-top3") {
     // Normalize per-question so each archetype's value is its share (%) of
     // the question's total ranking points. Side aggregation then averages
@@ -328,6 +383,7 @@ function aggregateSide(
 
   switch (operation) {
     case "mc-average":
+    case "scale-mean":
     case "ranking-mean":
     case "side-by-side-n":
     case "convergence":
@@ -825,6 +881,9 @@ function isLowConfidence(ns: number[], ctx: AnalysisComputeContext): boolean {
 
 function unitForOperation(op: AnalysisOperation): AnalysisResult["unit"] {
   if (op === "archetype-points") return "points";
+  // A mean Likert score is a plain number on the question's own scale — not a
+  // percentage, so it must not get a % suffix or a 0-100 axis.
+  if (op === "scale-mean") return "points";
   if (op === "ranking-mean") return "rank";
   if (op === "open-text-frequency") return "count";
   if (op === "top-k-overlap") return "count";

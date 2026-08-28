@@ -12,6 +12,8 @@
     "restore:template-budgets": "npx tsx scripts/restore-template-budgets.ts",
     "seed:archetype-survey": "npx tsx scripts/seed-archetype-survey-cultural.ts",
     "seed:archetype-survey-nl": "npx tsx scripts/seed-archetype-survey-cultural-nl.ts",
+    "seed:cultural-assessment": "npx tsx scripts/seed-cultural-self-assessment.ts nl",
+    "seed:cultural-assessment-en": "npx tsx scripts/seed-cultural-self-assessment.ts en",
     "backfill:project-status": "npx tsx scripts/backfill-project-status.ts",
     "cleanup:orphaned-tasks": "npx tsx scripts/cleanup-orphaned-tasks.ts",
     "migrate:project-discounts": "npx tsx scripts/migrate-plan-discount-to-projects.ts"

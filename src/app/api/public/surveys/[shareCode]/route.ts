@@ -3,6 +3,7 @@ import { connectDB } from "@/lib/mongodb";
 import { SurveySessionModel } from "@/lib/models/SurveySession";
 import { ClientModel } from "@/lib/models/Client";
 import { serializeQuestionForPublic } from "@/lib/surveys/serializers";
+import { effectiveRespondentVariable } from "@/lib/surveys/cultural-dna";
 
 export async function GET(
   _req: NextRequest,
@@ -42,9 +43,16 @@ export async function GET(
     title: doc.title,
     clientCompany,
     clientPrimaryColor,
+    // The full cultural values, every level included. Deliberate: the runner needs
+    // to switch behaviours as soon as the respondent picks a level, and doing that
+    // client-side keeps this a single stateless fetch. Unlike `archetypeId` — which
+    // would leak the scoring mapping — seeing another level's behaviours is harmless.
+    culturalValues: doc.templateSnapshot.culturalValues ?? [],
+    respondentVariable: effectiveRespondentVariable(doc) ?? null,
     template: {
       name: doc.templateSnapshot.name,
       description: doc.templateSnapshot.description ?? undefined,
+      thankYouText: doc.templateSnapshot.thankYouText ?? undefined,
       // legacy section + closing open-question fields kept for pre-migration sessions
       closingOpenQuestion: doc.templateSnapshot.closingOpenQuestion ?? undefined,
       sections: (doc.templateSnapshot.sections ?? []).map((s) => ({

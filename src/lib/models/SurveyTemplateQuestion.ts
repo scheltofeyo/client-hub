@@ -7,7 +7,31 @@ export type SurveyQuestionType =
   | "general-top3"
   | "multiple-choice"
   | "open-text"
+  | "scale"
+  | "value-assessment"
+  | "value-ranking"
   | "intro";
+
+/** Likert-style numeric scale. Shared by `scale` and `value-assessment`. */
+export interface ISurveyScaleConfig {
+  min: number;
+  max: number;
+  minLabel?: string;
+  maxLabel?: string;
+}
+
+/**
+ * One cultural value inside a value-backed question.
+ *
+ * Never authored in a template — materialised at session creation from the
+ * client's `culturalDna`. That is precisely what lets one template serve every
+ * client regardless of how many values they have.
+ */
+export interface ISurveyValueItem {
+  id: string;
+  /** References `templateSnapshot.culturalValues[].id`. */
+  valueId: string;
+}
 
 export interface ISurveyQuestionOption {
   id: string;
@@ -49,6 +73,15 @@ export interface ISurveyTemplateQuestion extends Document {
   multiline?: boolean;
   required?: boolean;
 
+  // type === "scale" | "value-assessment"
+  scale?: ISurveyScaleConfig;
+
+  // type === "value-assessment" — the Likert prompt repeated for every value
+  assessmentPrompt?: string;
+
+  // type === "value-assessment" | "value-ranking" — filled at session creation
+  valueItems: ISurveyValueItem[];
+
   // type === "intro"
   bodyHtml?: string;
 
@@ -85,6 +118,24 @@ const ChoiceSchema = new Schema<IMultipleChoiceItem>(
   { _id: false }
 );
 
+const ScaleConfigSchema = new Schema<ISurveyScaleConfig>(
+  {
+    min: { type: Number, default: 1 },
+    max: { type: Number, default: 5 },
+    minLabel: { type: String, trim: true },
+    maxLabel: { type: String, trim: true },
+  },
+  { _id: false }
+);
+
+const ValueItemSchema = new Schema<ISurveyValueItem>(
+  {
+    id: { type: String, required: true },
+    valueId: { type: String, required: true },
+  },
+  { _id: false }
+);
+
 const SurveyTemplateQuestionSchema = new Schema<ISurveyTemplateQuestion>(
   {
     templateId: { type: String, required: true, index: true },
@@ -98,6 +149,9 @@ const SurveyTemplateQuestionSchema = new Schema<ISurveyTemplateQuestion>(
         "general-top3",
         "multiple-choice",
         "open-text",
+        "scale",
+        "value-assessment",
+        "value-ranking",
         "intro",
       ],
       default: "archetype-ranking",
@@ -118,6 +172,10 @@ const SurveyTemplateQuestionSchema = new Schema<ISurveyTemplateQuestion>(
     placeholder: { type: String, trim: true },
     multiline: { type: Boolean },
     required: { type: Boolean },
+
+    scale: { type: ScaleConfigSchema, default: undefined },
+    assessmentPrompt: { type: String, trim: true },
+    valueItems: { type: [ValueItemSchema], default: [] },
 
     bodyHtml: { type: String },
 

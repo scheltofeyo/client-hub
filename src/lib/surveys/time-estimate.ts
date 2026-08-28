@@ -8,6 +8,7 @@ export interface EstimableQuestion {
   choiceMode?: "single" | "multi";
   options?: { id: string }[];
   rankingItems?: { id: string }[];
+  valueItems?: { id: string }[];
   multiline?: boolean;
 }
 
@@ -37,6 +38,14 @@ export function estimateQuestionSeconds(q: EstimableQuestion): number {
       return 20 + Math.min(3, q.rankingItems?.length ?? 0) * 6;
     case "open-text":
       return q.multiline ? 90 : 40;
+    case "scale":
+      return 15;
+    case "value-assessment":
+      // One screen per value, each with a mantra and the level's behaviours to
+      // read before scoring — far more than a bare Likert.
+      return (q.valueItems?.length ?? 0) * 35;
+    case "value-ranking":
+      return 15 + (q.valueItems?.length ?? 0) * 6;
     default:
       return 25;
   }

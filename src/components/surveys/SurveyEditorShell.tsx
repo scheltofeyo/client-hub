@@ -46,6 +46,11 @@ export interface SurveyEditorShellProps {
   archetypes: ArchetypeLite[];
   allArchetypes: ArchetypeLite[];
   archetypeMutable: boolean;
+  /**
+   * The session's cultural values. Absent when editing a template — a template has
+   * no client, which is exactly why value-backed questions carry no items there.
+   */
+  culturalValues?: { id: string; title: string }[];
   closingOpenQuestion?: { enabled: boolean; label: string };
   sections: ShellSection[];
 
@@ -223,6 +228,14 @@ function isQuestionIncomplete(q: ShellQuestion): boolean {
       return q.choices.length < 2 || q.choices.some((c) => !c.text.trim());
     case "open-text":
       return !q.title.trim();
+    case "scale":
+      return !q.title.trim();
+    case "value-assessment":
+      // Items are materialised from the client's DNA, so an empty list means the
+      // client has no cultural values yet — the question cannot be answered.
+      return !q.title.trim() || (q.valueItems?.length ?? 0) === 0;
+    case "value-ranking":
+      return !q.title.trim() || (q.valueItems?.length ?? 0) < 2;
     case "intro":
       return false;
   }
@@ -472,6 +485,7 @@ function QuestionView({
   section,
   question,
   archetypes,
+  culturalValues,
   onUpdateQuestion,
   onDeleteQuestion,
   onSelect,
@@ -487,6 +501,7 @@ function QuestionView({
       totalQuestionsInSection={section.questions.length}
       question={question as QuestionFormQuestion}
       archetypes={archetypes}
+      culturalValues={culturalValues}
       onChange={(updates) => onUpdateQuestion(section.id, question.id, updates as Partial<ShellQuestion>)}
       onPrev={prev ? () => onSelect({ kind: "question", sectionId: section.id, id: prev.id }) : undefined}
       onNext={next ? () => onSelect({ kind: "question", sectionId: section.id, id: next.id }) : undefined}

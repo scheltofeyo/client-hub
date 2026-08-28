@@ -23,6 +23,12 @@ export interface SurveyAccumulators {
   openTextAnswersByQuestion: Map<string, { text: string }[]>;
   /** Legacy free-text comments attached to archetype-ranking answers */
   legacyOpenTextByQuestion: Map<string, { text: string }[]>;
+  /** scale: qid → every submitted numeric answer */
+  scaleValuesByQuestion: Map<string, number[]>;
+  /** value-assessment: qid → valueItemId → every submitted score */
+  scaleValuesByQuestionItem: Map<string, Map<string, number[]>>;
+  /** value-ranking: qid → valueItemId → rank-bucket distribution */
+  valueRankDistMap: Map<string, Map<string, number[]>>;
   /** qid → number of completed submissions that answered the question */
   questionN: Map<string, number>;
 }
@@ -35,6 +41,9 @@ export function emptyAccumulators(): SurveyAccumulators {
     choiceCountMap: new Map(),
     openTextAnswersByQuestion: new Map(),
     legacyOpenTextByQuestion: new Map(),
+    scaleValuesByQuestion: new Map(),
+    scaleValuesByQuestionItem: new Map(),
+    valueRankDistMap: new Map(),
     questionN: new Map(),
   };
 }
@@ -122,6 +131,44 @@ export function buildAccumulators(
           let dist = itemDist.get(item.id);
           if (!dist) { dist = Array(distLen).fill(0); itemDist.set(item.id, dist); }
           dist[rank - 1] += 1;
+        }
+        if (answered) acc.questionN.set(meta.id, (acc.questionN.get(meta.id) ?? 0) + 1);
+      } else if (answerType === "value-ranking" && meta.type === "value-ranking") {
+        // Mean rank only — no weighted points. See dispersion.meanRankFromDistribution
+        // for why weights are the wrong instrument for a 3-8 item value ranking.
+        const items = meta.valueItems ?? [];
+        const rankings = (a.rankings ?? {}) as Record<string, number>;
+        let itemDist = acc.valueRankDistMap.get(meta.id);
+        if (!itemDist) { itemDist = new Map(); acc.valueRankDistMap.set(meta.id, itemDist); }
+        let answered = false;
+        for (const item of items) {
+          const rank = Number(rankings[item.id]);
+          if (!rank || rank < 1 || rank > items.length) continue;
+          answered = true;
+          let dist = itemDist.get(item.id);
+          if (!dist) { dist = Array(items.length).fill(0); itemDist.set(item.id, dist); }
+          dist[rank - 1] += 1;
+        }
+        if (answered) acc.questionN.set(meta.id, (acc.questionN.get(meta.id) ?? 0) + 1);
+      } else if (answerType === "scale" && meta.type === "scale") {
+        const v = Number(a.scaleValue);
+        if (!Number.isFinite(v)) continue;
+        const arr = acc.scaleValuesByQuestion.get(meta.id) ?? [];
+        arr.push(v);
+        acc.scaleValuesByQuestion.set(meta.id, arr);
+        acc.questionN.set(meta.id, (acc.questionN.get(meta.id) ?? 0) + 1);
+      } else if (answerType === "value-assessment" && meta.type === "value-assessment") {
+        const scores = (a.scores ?? {}) as Record<string, number>;
+        let byItem = acc.scaleValuesByQuestionItem.get(meta.id);
+        if (!byItem) { byItem = new Map(); acc.scaleValuesByQuestionItem.set(meta.id, byItem); }
+        let answered = false;
+        for (const item of meta.valueItems ?? []) {
+          const v = Number(scores[item.id]);
+          if (!Number.isFinite(v)) continue;
+          answered = true;
+          const arr = byItem.get(item.id) ?? [];
+          arr.push(v);
+          byItem.set(item.id, arr);
         }
         if (answered) acc.questionN.set(meta.id, (acc.questionN.get(meta.id) ?? 0) + 1);
       } else if (answerType === "multiple-choice" && meta.type === "multiple-choice") {

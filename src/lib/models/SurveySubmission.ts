@@ -9,6 +9,10 @@ export interface ISurveyAnswer {
   rankings?: Record<string, number>;
   // multiple-choice
   selectedChoiceIds?: string[];
+  // scale — a single numeric answer
+  scaleValue?: number;
+  // value-assessment: valueItemId -> score. Mongoose Map; plain object on .lean().
+  scores?: Record<string, number>;
   // open-text
   text?: string;
   // legacy: pre-migration single-question open-text comment attached to a rank-question
@@ -54,10 +58,15 @@ const AnswerSchema = new Schema<ISurveyAnswer>(
         "general-top3",
         "multiple-choice",
         "open-text",
+        "scale",
+        "value-assessment",
+        "value-ranking",
         "intro",
       ],
     },
     rankings: { type: Map, of: Number, default: undefined },
+    scaleValue: { type: Number },
+    scores: { type: Map, of: Number, default: undefined },
     selectedChoiceIds: { type: [String], default: undefined },
     text: { type: String, trim: true },
     openText: { type: String, trim: true },

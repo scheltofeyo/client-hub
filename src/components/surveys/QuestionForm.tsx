@@ -16,6 +16,8 @@ export interface QuestionFormProps {
   totalQuestionsInSection: number;
   question: ShellQuestionAny;
   archetypes: ArchetypeLite[];
+  /** The session's cultural values — read-only context for value-backed questions. */
+  culturalValues?: { id: string; title: string }[];
   onChange: (updates: Partial<ShellQuestionAny>) => void;
   onPrev?: () => void;
   onNext?: () => void;
@@ -32,6 +34,7 @@ export default function QuestionForm({
   totalQuestionsInSection,
   question,
   archetypes,
+  culturalValues,
   onChange,
   onPrev,
   onNext,
@@ -102,6 +105,7 @@ export default function QuestionForm({
       <QuestionTypeRouter
         question={question}
         archetypes={archetypes}
+        culturalValues={culturalValues ?? []}
         onChange={onChange}
       />
     </SectionCard>
@@ -111,10 +115,12 @@ export default function QuestionForm({
 function QuestionTypeRouter({
   question,
   archetypes,
+  culturalValues,
   onChange,
 }: {
   question: ShellQuestionAny;
   archetypes: ArchetypeLite[];
+  culturalValues: { id: string; title: string }[];
   onChange: (updates: Partial<ShellQuestionAny>) => void;
 }) {
   switch (question.type) {
@@ -130,6 +136,24 @@ function QuestionTypeRouter({
       return <MultipleChoiceEditor question={question} onChange={onChange} />;
     case "open-text":
       return <OpenTextEditor question={question} onChange={onChange} />;
+    case "scale":
+      return <ScaleEditor question={question} onChange={onChange} />;
+    case "value-assessment":
+      return (
+        <ValueAssessmentEditor
+          question={question}
+          culturalValues={culturalValues}
+          onChange={onChange}
+        />
+      );
+    case "value-ranking":
+      return (
+        <ValueRankingEditor
+          question={question}
+          culturalValues={culturalValues}
+          onChange={onChange}
+        />
+      );
     case "intro":
       return <IntroEditor question={question} onChange={onChange} />;
   }
@@ -618,6 +642,216 @@ function OpenTextEditor({
           className="input"
         />
       </div>
+    </div>
+  );
+}
+
+// ── Scale + value-backed editors ──────────────────────────────────
+
+const SCALE_BOUND_MIN = 0;
+const SCALE_BOUND_MAX = 10;
+
+/** Shared min/max/label controls for `scale` and `value-assessment`. */
+function ScaleFields({
+  scale,
+  onChange,
+}: {
+  scale?: { min: number; max: number; minLabel?: string; maxLabel?: string };
+  onChange: (next: { min: number; max: number; minLabel?: string; maxLabel?: string }) => void;
+}) {
+  const current = { min: scale?.min ?? 1, max: scale?.max ?? 5, ...scale };
+  const points = Math.max(0, current.max - current.min + 1);
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-end gap-3">
+        <label className="flex flex-col text-xs" style={{ color: "var(--text-muted)" }}>
+          From
+          <input
+            type="number"
+            min={SCALE_BOUND_MIN}
+            max={SCALE_BOUND_MAX}
+            value={current.min}
+            onChange={(e) => onChange({ ...current, min: Number(e.target.value) })}
+            className="input input-sm"
+            style={{ width: 80 }}
+          />
+        </label>
+        <label className="flex flex-col text-xs" style={{ color: "var(--text-muted)" }}>
+          To
+          <input
+            type="number"
+            min={SCALE_BOUND_MIN}
+            max={SCALE_BOUND_MAX}
+            value={current.max}
+            onChange={(e) => onChange({ ...current, max: Number(e.target.value) })}
+            className="input input-sm"
+            style={{ width: 80 }}
+          />
+        </label>
+        <span className="text-xs pb-2" style={{ color: "var(--text-muted)" }}>
+          {points} point{points === 1 ? "" : "s"}
+        </span>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div>
+          <label className="typo-label">Label for {current.min} (optional)</label>
+          <input
+            type="text"
+            defaultValue={current.minLabel ?? ""}
+            onBlur={(e) => onChange({ ...current, minLabel: e.target.value })}
+            placeholder="Not at all"
+            className="input"
+          />
+        </div>
+        <div>
+          <label className="typo-label">Label for {current.max} (optional)</label>
+          <input
+            type="text"
+            defaultValue={current.maxLabel ?? ""}
+            onBlur={(e) => onChange({ ...current, maxLabel: e.target.value })}
+            placeholder="Very well"
+            className="input"
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Value-backed questions have no authorable item list — the items come from the
+ * client's Cultural DNA. Showing them read-only makes that visible instead of
+ * leaving the editor looking suspiciously empty.
+ */
+function CulturalValueList({
+  culturalValues,
+  emptyHint,
+}: {
+  culturalValues: { id: string; title: string }[];
+  emptyHint: string;
+}) {
+  return (
+    <div>
+      <label className="typo-label">
+        Cultural values ({culturalValues.length}) — from the client
+      </label>
+      {culturalValues.length === 0 ? (
+        <p className="text-xs" style={{ color: "var(--danger)", lineHeight: 1.5 }}>
+          {emptyHint}
+        </p>
+      ) : (
+        <ul className="flex flex-wrap gap-1.5">
+          {culturalValues.map((v) => (
+            <li
+              key={v.id}
+              className="rounded-badge px-2 py-1 typo-tag"
+              style={{ background: "var(--bg-neutral)", color: "var(--text-muted)" }}
+            >
+              {v.title}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function ScaleEditor({
+  question,
+  onChange,
+}: {
+  question: Extract<ShellQuestionAny, { type: "scale" }>;
+  onChange: (updates: Partial<ShellQuestionAny>) => void;
+}) {
+  return (
+    <div className="space-y-5">
+      <TitleField
+        title={question.title}
+        placeholder="What's the question?"
+        onCommit={(v) => onChange({ title: v })}
+      />
+      <DescriptionField
+        description={question.description}
+        onCommit={(v) => onChange({ description: v })}
+      />
+      <ScaleFields
+        scale={question.scale}
+        onChange={(scale) => onChange({ scale } as Partial<ShellQuestionAny>)}
+      />
+    </div>
+  );
+}
+
+function ValueAssessmentEditor({
+  question,
+  culturalValues,
+  onChange,
+}: {
+  question: Extract<ShellQuestionAny, { type: "value-assessment" }>;
+  culturalValues: { id: string; title: string }[];
+  onChange: (updates: Partial<ShellQuestionAny>) => void;
+}) {
+  return (
+    <div className="space-y-5">
+      <TitleField
+        title={question.title}
+        placeholder="Section title shown above every value"
+        onCommit={(v) => onChange({ title: v })}
+      />
+      <DescriptionField
+        description={question.description}
+        onCommit={(v) => onChange({ description: v })}
+      />
+      <div>
+        <label className="typo-label">Question asked for every value</label>
+        <input
+          type="text"
+          defaultValue={question.assessmentPrompt ?? ""}
+          onBlur={(e) => {
+            if (e.target.value !== (question.assessmentPrompt ?? "")) {
+              onChange({ assessmentPrompt: e.target.value } as Partial<ShellQuestionAny>);
+            }
+          }}
+          placeholder="How well do you feel you show this behaviour today?"
+          className="input"
+        />
+      </div>
+      <ScaleFields
+        scale={question.scale}
+        onChange={(scale) => onChange({ scale } as Partial<ShellQuestionAny>)}
+      />
+      <CulturalValueList
+        culturalValues={culturalValues}
+        emptyHint="This client has no cultural values yet, so this question has nothing to ask. Add them on the client's Content tab, then refresh the DNA in Settings."
+      />
+    </div>
+  );
+}
+
+function ValueRankingEditor({
+  question,
+  culturalValues,
+  onChange,
+}: {
+  question: Extract<ShellQuestionAny, { type: "value-ranking" }>;
+  culturalValues: { id: string; title: string }[];
+  onChange: (updates: Partial<ShellQuestionAny>) => void;
+}) {
+  return (
+    <div className="space-y-5">
+      <TitleField
+        title={question.title}
+        placeholder="Rank the values from…"
+        onCommit={(v) => onChange({ title: v })}
+      />
+      <DescriptionField
+        description={question.description}
+        onCommit={(v) => onChange({ description: v })}
+      />
+      <CulturalValueList
+        culturalValues={culturalValues}
+        emptyHint="This client has no cultural values yet, so there is nothing to rank. Add them on the client's Content tab, then refresh the DNA in Settings."
+      />
     </div>
   );
 }

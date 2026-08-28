@@ -9,6 +9,9 @@ export const SURVEY_QUESTION_TYPES: SurveyQuestionType[] = [
   "general-top3",
   "multiple-choice",
   "open-text",
+  "scale",
+  "value-assessment",
+  "value-ranking",
   "intro",
 ];
 
@@ -27,6 +30,9 @@ export const COMPARISON_ELIGIBLE_TYPES: SurveyQuestionType[] = [
   "general-ranking",
   "general-top3",
   "multiple-choice",
+  "scale",
+  "value-assessment",
+  "value-ranking",
 ];
 
 export function questionTypeLabel(type: SurveyQuestionType): string {
@@ -43,6 +49,12 @@ export function questionTypeLabel(type: SurveyQuestionType): string {
       return "Multiple choice";
     case "open-text":
       return "Open text";
+    case "scale":
+      return "Scale";
+    case "value-assessment":
+      return "Value assessment";
+    case "value-ranking":
+      return "Value ranking";
     case "intro":
       return "Info block";
   }
@@ -68,7 +80,29 @@ export function isTop3Type(type: SurveyQuestionType): boolean {
 }
 
 export function isRankLikeType(type: SurveyQuestionType): boolean {
-  return isFullRankingType(type) || isTop3Type(type);
+  return isFullRankingType(type) || isTop3Type(type) || type === "value-ranking";
+}
+
+/** Types that produce one or more numeric Likert answers. */
+export function isScaleLikeType(type: SurveyQuestionType): boolean {
+  return type === "scale" || type === "value-assessment";
+}
+
+/**
+ * Types whose items are materialised from the client's Cultural DNA at session
+ * creation rather than authored in the template.
+ */
+export function isValueBackedType(type: SurveyQuestionType): boolean {
+  return type === "value-assessment" || type === "value-ranking";
+}
+
+export const DEFAULT_SCALE = { min: 1, max: 5 } as const;
+
+/** Number of buckets in a scale's distribution array. */
+export function scaleBucketCount(scale?: { min: number; max: number }): number {
+  const min = scale?.min ?? DEFAULT_SCALE.min;
+  const max = scale?.max ?? DEFAULT_SCALE.max;
+  return Math.max(0, Math.round(max - min) + 1);
 }
 
 /**
@@ -83,6 +117,9 @@ export function effectiveRankLength(
 ): number {
   if (isTop3Type(type)) return TOP3_RANK_LENGTH;
   if (type === "general-ranking") return context.itemsLength ?? context.rankWeightsLength ?? 0;
+  // Bounded by the client's own number of cultural values (3-8), never by
+  // rankWeights — a 5-long weight array would silently cut off values 6-8.
+  if (type === "value-ranking") return context.itemsLength ?? 0;
   if (type === "archetype-ranking") return context.rankWeightsLength ?? 0;
   return 0;
 }
