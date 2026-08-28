@@ -284,13 +284,41 @@ type Screen =
   | { kind: "closing" }
   | { kind: "done" };
 
+/**
+ * A question whose content the respondent variable actually changes.
+ *
+ * Only the assessment: it shows the behaviours for the level the respondent
+ * picked, so without an answer it cannot render the right card. A value-ranking
+ * also lists the cultural values, but it shows every respondent the same ones —
+ * the level buys it nothing.
+ */
+function usesRespondentVariable(q: PublicQuestion): boolean {
+  return q.type === "value-assessment" && (q.valueItems?.length ?? 0) > 0;
+}
+
 function buildScreens(
   sections: Section[],
   hasClosing: boolean,
   hasRespondentVariable: boolean
 ): Screen[] {
   const screens: Screen[] = [{ kind: "identity" }];
-  if (hasRespondentVariable) screens.push({ kind: "respondent-variable" });
+
+  // The respondent variable is asked directly before the first question that
+  // needs it, not up front. Asking it cold makes the first thing a participant
+  // sees the one thing nothing has explained yet; by the time it appears here
+  // the intro and the section text have set up what a level means.
+  //
+  // A survey can still carry the variable without ever having an assessment —
+  // it doubles as a results segment — and then there is nothing to sit in front
+  // of, so it keeps its old place at the front. Note this walks the sections in
+  // array order, which is the same order the runner renders them in, so the
+  // screen cannot land after a question that needed it.
+  const firstDependentQuestionId =
+    sections.flatMap((s) => s.questions ?? []).find(usesRespondentVariable)?.id ?? null;
+  if (hasRespondentVariable && !firstDependentQuestionId) {
+    screens.push({ kind: "respondent-variable" });
+  }
+
   sections.forEach((section, sectionIndex) => {
     screens.push({
       kind: "section-intro",
@@ -300,6 +328,9 @@ function buildScreens(
     });
     const qs = section.questions ?? [];
     qs.forEach((q, qIndex) => {
+      if (hasRespondentVariable && q.id === firstDependentQuestionId) {
+        screens.push({ kind: "respondent-variable" });
+      }
       const shared = {
         kind: "question" as const,
         questionId: q.id,
