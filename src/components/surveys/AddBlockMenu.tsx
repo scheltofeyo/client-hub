@@ -1,9 +1,12 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   ArrowDownUp,
+  Gauge,
+  Heart,
+  Sparkles,
   FileText,
   LayoutGrid,
   ListChecks,
@@ -13,45 +16,94 @@ import {
 } from "lucide-react";
 import type { SurveyQuestionType } from "@/lib/surveys/types";
 
+/**
+ * Groups are the kind of interaction the participant performs, not the kind of
+ * content the block is bound to. Someone building a survey decides "I want them
+ * to rank something" before they decide whether that something is archetypes,
+ * cultural values or a free list — so archetype/general/value variants of the
+ * same interaction sit together rather than each dragging its own family along.
+ */
+type BlockGroup = "ranking" | "rating" | "choice" | "text" | "content";
+
+const GROUP_LABEL: Record<BlockGroup, string> = {
+  ranking: "Ranking",
+  rating: "Rating",
+  choice: "Choice",
+  text: "Open answers",
+  content: "Content",
+};
+
 interface BlockOption {
   type: SurveyQuestionType;
+  group: BlockGroup;
   label: string;
   description: string;
   icon: typeof LayoutGrid;
   color: string;
 }
 
+// Order here IS the menu order. Keep entries grouped by `group`; the renderer
+// emits a heading whenever the group changes.
 const OPTIONS: BlockOption[] = [
   {
     type: "archetype-ranking",
+    group: "ranking",
     label: "Archetype ranking",
     description: "Rank archetype-bound options",
     icon: LayoutGrid,
     color: "var(--primary)",
   },
   {
-    type: "archetype-top3",
-    label: "Archetype top 3",
-    description: "Pick top 3 from archetype options",
-    icon: Trophy,
-    color: "var(--primary)",
-  },
-  {
     type: "general-ranking",
+    group: "ranking",
     label: "General ranking",
     description: "Rank a list of items",
     icon: ArrowDownUp,
     color: "var(--info)",
   },
   {
+    type: "value-ranking",
+    group: "ranking",
+    label: "Value ranking",
+    description: "Rank the client's cultural values",
+    icon: Heart,
+    color: "var(--primary)",
+  },
+  {
+    type: "archetype-top3",
+    group: "ranking",
+    label: "Archetype top 3",
+    description: "Pick top 3 from archetype options",
+    icon: Trophy,
+    color: "var(--primary)",
+  },
+  {
     type: "general-top3",
+    group: "ranking",
     label: "General top 3",
     description: "Pick top 3 from a list of items",
     icon: Trophy,
     color: "var(--info)",
   },
   {
+    type: "scale",
+    group: "rating",
+    label: "Scale",
+    description: "One Likert rating",
+    icon: Gauge,
+    color: "var(--info)",
+  },
+  {
+    type: "value-assessment",
+    group: "rating",
+    label: "Value assessment",
+    description: "Rate every cultural value of the client",
+    icon: Sparkles,
+    color: "var(--primary)",
+  },
+  {
     type: "multiple-choice",
+    group: "choice",
     label: "Multiple choice",
     description: "Single or multi-select choices",
     icon: ListChecks,
@@ -59,6 +111,7 @@ const OPTIONS: BlockOption[] = [
   },
   {
     type: "open-text",
+    group: "text",
     label: "Open text",
     description: "Free-form participant answer",
     icon: MessageSquare,
@@ -66,6 +119,7 @@ const OPTIONS: BlockOption[] = [
   },
   {
     type: "intro",
+    group: "content",
     label: "Info block",
     description: "Rich-text info section (no input)",
     icon: FileText,
@@ -116,7 +170,13 @@ export default function AddBlockMenu({
       const inMenu = menuRef.current?.contains(e.target as Node);
       if (!inButton && !inMenu) setOpen(false);
     }
-    function onScroll() {
+    // The menu is position:fixed at coordinates computed once on open, so a page
+    // scroll would leave it floating away from its button — hence closing on
+    // scroll. But the option list scrolls internally, and a capture-phase
+    // listener sees that too: without this guard, scrolling the list to reach an
+    // option closes the menu before it can be clicked.
+    function onScroll(e: Event) {
+      if (e.target instanceof Node && menuRef.current?.contains(e.target)) return;
       setOpen(false);
     }
     document.addEventListener("mousedown", onDown);
@@ -218,8 +278,22 @@ export default function AddBlockMenu({
                 const Icon = opt.icon;
                 const isDisabled = disabled.has(opt.type);
                 const isActive = i === activeIdx;
+                // A heading whenever the group changes. Derived from the list
+                // rather than nested, so `filtered` stays flat and arrow-key
+                // navigation keeps indexing straight into it.
+                const startsGroup = i === 0 || filtered[i - 1].group !== opt.group;
                 return (
-                  <li key={opt.type}>
+                  <Fragment key={opt.type}>
+                  {startsGroup && (
+                    <li
+                      role="presentation"
+                      className="typo-section-header px-3 pt-2 pb-1"
+                      style={{ color: "var(--text-muted)" }}
+                    >
+                      {GROUP_LABEL[opt.group]}
+                    </li>
+                  )}
+                  <li>
                     <button
                       type="button"
                       role="menuitem"
@@ -244,6 +318,7 @@ export default function AddBlockMenu({
                       </div>
                     </button>
                   </li>
+                  </Fragment>
                 );
               })}
             </ul>

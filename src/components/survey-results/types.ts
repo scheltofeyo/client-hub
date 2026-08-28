@@ -17,7 +17,26 @@ export interface ResultsCapabilities {
   hasGeneralTop3: boolean;
   hasMultipleChoice: boolean;
   hasOpenText: boolean;
+  hasScale: boolean;
+  hasValueAssessment: boolean;
+  hasValueRanking: boolean;
   hasAnalyses: boolean;
+}
+
+export interface ResultsCulturalValue {
+  id: string;
+  title: string;
+  color: string;
+  mantra?: string;
+}
+
+/** One respondent segment (e.g. a Cultural Level) available on the results view. */
+export interface ResultsSegment {
+  value: string;
+  label: string;
+  n: number;
+  /** False only when the segment has no responses yet — nothing to filter to. */
+  selectable: boolean;
 }
 
 export interface OpenAnswer {
@@ -67,12 +86,52 @@ export type QuestionResult =
       choiceMode: "single" | "multi";
       distribution: { choiceId: string; text: string; count: number; percentage: number }[];
     })
+  | (QuestionBase & {
+      type: "scale";
+      min: number;
+      max: number;
+      mean: number | null;
+      sd: number | null;
+      distribution: number[];
+    })
+  | (QuestionBase & {
+      type: "value-assessment";
+      min: number;
+      max: number;
+      values: {
+        valueItemId: string;
+        valueId: string;
+        title: string;
+        color: string;
+        n: number;
+        mean: number | null;
+        sd: number | null;
+        distribution: number[];
+      }[];
+    })
+  | (QuestionBase & {
+      type: "value-ranking";
+      values: {
+        valueItemId: string;
+        valueId: string;
+        title: string;
+        color: string;
+        meanRank: number | null;
+        distribution: number[];
+      }[];
+    })
   | (QuestionBase & { type: "open-text"; answers: OpenAnswer[] })
   | (QuestionBase & { type: "intro" });
 
 export interface ResultsData {
   participantCount: number;
   archetypes: ResultsArchetype[];
+  culturalValues: ResultsCulturalValue[];
+  /** Every segment present in the data, including suppressed ones. */
+  segments: ResultsSegment[];
+  /** The segment this payload is filtered to, or null for the whole group. */
+  activeSegment: string | null;
+  segmentLabel: string | null;
   capabilities: ResultsCapabilities;
   overall: {
     archetypes: { archetypeId: string; percentage: number }[];

@@ -3,6 +3,7 @@ import { connectDB } from "@/lib/mongodb";
 import { SurveySessionModel } from "@/lib/models/SurveySession";
 import { SurveySubmissionModel } from "@/lib/models/SurveySubmission";
 import { sanitizeAnswersForSave, type IncomingAnswer } from "@/lib/surveys/answer-validation";
+import { sanitizeCohortTags, effectiveRespondentVariable } from "@/lib/surveys/cultural-dna";
 
 export async function POST(
   req: NextRequest,
@@ -36,7 +37,16 @@ export async function POST(
   const incomingAnswers: IncomingAnswer[] = Array.isArray(body.answers) ? body.answers : [];
   const sanitized = sanitizeAnswersForSave(incomingAnswers, sections, rankWeights);
 
+  // Autosave is permissive by design, so an invalid cohort value is dropped rather
+  // than failing the save — submit is where it has to be right.
+  const effective = effectiveRespondentVariable(surveySession);
+  const cohort = sanitizeCohortTags(
+    body.cohortTags,
+    effective ? { ...effective, required: false } : undefined
+  );
+
   submission.set({ answers: sanitized });
+  if (cohort.ok && cohort.tags) submission.set({ cohortTags: cohort.tags });
   await submission.save();
 
   return NextResponse.json({ ok: true, savedAt: new Date().toISOString() });

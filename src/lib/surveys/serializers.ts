@@ -1,5 +1,7 @@
 import type {
   ISurveyTemplateQuestion,
+  ISurveyScaleConfig,
+  ISurveyValueItem,
   SurveyQuestionType,
 } from "@/lib/models/SurveyTemplateQuestion";
 import type { ISurveyQuestionSnapshot } from "@/lib/models/SurveySession";
@@ -21,6 +23,9 @@ export interface SerializedQuestion {
   placeholder?: string;
   multiline?: boolean;
   required?: boolean;
+  scale?: ISurveyScaleConfig;
+  assessmentPrompt?: string;
+  valueItems?: ISurveyValueItem[];
   bodyHtml?: string;
 
   // legacy (pre-migration) — still emitted so the existing editor handles old templates
@@ -33,7 +38,19 @@ type QuestionLike = Partial<ISurveyTemplateQuestion> & {
   options?: ISurveyTemplateQuestion["options"];
   rankingItems?: ISurveyTemplateQuestion["rankingItems"];
   choices?: ISurveyTemplateQuestion["choices"];
+  valueItems?: ISurveyTemplateQuestion["valueItems"];
 };
+
+const DEFAULT_SCALE_CONFIG: ISurveyScaleConfig = { min: 1, max: 5 };
+
+function normalizeScale(scale: ISurveyScaleConfig | undefined): ISurveyScaleConfig {
+  return {
+    min: scale?.min ?? DEFAULT_SCALE_CONFIG.min,
+    max: scale?.max ?? DEFAULT_SCALE_CONFIG.max,
+    minLabel: scale?.minLabel,
+    maxLabel: scale?.maxLabel,
+  };
+}
 
 /**
  * Serialize a question document (DB shape) for the wire / editor.
@@ -81,6 +98,20 @@ export function serializeQuestion(doc: QuestionLike): SerializedQuestion {
       if (doc.multiline) out.multiline = true;
       out.required = doc.required !== false;
       break;
+    case "scale":
+      out.scale = normalizeScale(doc.scale);
+      out.required = doc.required !== false;
+      break;
+    case "value-assessment":
+      out.scale = normalizeScale(doc.scale);
+      if (doc.assessmentPrompt) out.assessmentPrompt = doc.assessmentPrompt;
+      out.valueItems = (doc.valueItems ?? []).map((v) => ({ id: v.id, valueId: v.valueId }));
+      out.required = doc.required !== false;
+      break;
+    case "value-ranking":
+      out.valueItems = (doc.valueItems ?? []).map((v) => ({ id: v.id, valueId: v.valueId }));
+      out.required = doc.required !== false;
+      break;
     case "intro":
       if (doc.bodyHtml) out.bodyHtml = doc.bodyHtml;
       break;
@@ -114,6 +145,9 @@ export function snapshotQuestionFrom(
     placeholder: serialized.placeholder,
     multiline: serialized.multiline,
     required: serialized.required,
+    scale: serialized.scale,
+    assessmentPrompt: serialized.assessmentPrompt,
+    valueItems: serialized.valueItems,
     bodyHtml: serialized.bodyHtml,
     openTextEnabled: serialized.openTextEnabled,
     openTextLabel: serialized.openTextLabel,
@@ -136,6 +170,10 @@ export interface PublicSerializedQuestion {
   placeholder?: string;
   multiline?: boolean;
   required?: boolean;
+  scale?: ISurveyScaleConfig;
+  assessmentPrompt?: string;
+  /** valueId is kept — the runner needs it to look up the value and its behaviours. */
+  valueItems?: ISurveyValueItem[];
   bodyHtml?: string;
 }
 
@@ -173,6 +211,20 @@ export function serializeQuestionForPublic(
     case "open-text":
       if (q.placeholder) out.placeholder = q.placeholder;
       if (q.multiline) out.multiline = true;
+      out.required = q.required !== false;
+      break;
+    case "scale":
+      out.scale = normalizeScale(q.scale);
+      out.required = q.required !== false;
+      break;
+    case "value-assessment":
+      out.scale = normalizeScale(q.scale);
+      if (q.assessmentPrompt) out.assessmentPrompt = q.assessmentPrompt;
+      out.valueItems = (q.valueItems ?? []).map((v) => ({ id: v.id, valueId: v.valueId }));
+      out.required = q.required !== false;
+      break;
+    case "value-ranking":
+      out.valueItems = (q.valueItems ?? []).map((v) => ({ id: v.id, valueId: v.valueId }));
       out.required = q.required !== false;
       break;
     case "intro":

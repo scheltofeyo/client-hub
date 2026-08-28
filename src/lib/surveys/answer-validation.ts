@@ -10,6 +10,8 @@ export interface IncomingAnswer {
   type?: string;
   rankings?: Record<string, unknown>;
   selectedChoiceIds?: unknown;
+  scaleValue?: unknown;
+  scores?: Record<string, unknown>;
   text?: unknown;
 }
 
@@ -18,6 +20,8 @@ export interface ValidatedAnswer {
   type: SurveyQuestionType;
   rankings?: Record<string, number>;
   selectedChoiceIds?: string[];
+  scaleValue?: number;
+  scores?: Record<string, number>;
   text?: string;
 }
 
@@ -92,6 +96,50 @@ function validateTop3(
     };
   }
   return { ok: true, rankings: out };
+}
+
+function scaleBounds(question: ISurveyQuestionSnapshot): { min: number; max: number } {
+  return { min: question.scale?.min ?? 1, max: question.scale?.max ?? 5 };
+}
+
+function validateScaleValue(
+  question: ISurveyQuestionSnapshot,
+  raw: unknown
+): { ok: true; value: number } | { ok: false; error: string } {
+  const { min, max } = scaleBounds(question);
+  const n = Number(raw);
+  if (!Number.isFinite(n) || !Number.isInteger(n) || n < min || n > max) {
+    return {
+      ok: false,
+      error: `Question ${question.id} needs a whole number between ${min} and ${max}`,
+    };
+  }
+  return { ok: true, value: n };
+}
+
+/**
+ * A value-assessment carries one score per cultural value. All-or-nothing: a
+ * partially scored question would silently under-represent the values a
+ * respondent skipped in every average computed from it.
+ */
+function validateScores(
+  question: ISurveyQuestionSnapshot,
+  raw: Record<string, unknown> | undefined
+): { ok: true; scores: Record<string, number> } | { ok: false; error: string } {
+  const items = question.valueItems ?? [];
+  if (items.length === 0) {
+    return { ok: false, error: `Question ${question.id} has no values to score` };
+  }
+  const { min, max } = scaleBounds(question);
+  const out: Record<string, number> = {};
+  for (const item of items) {
+    const n = Number((raw ?? {})[item.id]);
+    if (!Number.isFinite(n) || !Number.isInteger(n) || n < min || n > max) {
+      return { ok: false, error: `Score every value in question ${question.id}` };
+    }
+    out[item.id] = n;
+  }
+  return { ok: true, scores: out };
 }
 
 function validateMultipleChoice(
@@ -190,6 +238,32 @@ export function validateAnswers(
         validated.push({ questionId: q.id, type, rankings: r.rankings });
         break;
       }
+      case "value-ranking": {
+        if (q.required === false && isEmptyRanking) continue;
+        // Bounded by the number of cultural values, never by rankWeights — a
+        // 5-long weight array would reject ranks 6-8 for a client with 8 values.
+        const ids = (q.valueItems ?? []).map((v) => v.id);
+        const r = validateRanking(q, ids, a.rankings, ids.length);
+        if (!r.ok) return r;
+        validated.push({ questionId: q.id, type, rankings: r.rankings });
+        break;
+      }
+      case "scale": {
+        const empty = a.scaleValue === undefined || a.scaleValue === null || a.scaleValue === "";
+        if (q.required === false && empty) continue;
+        const r = validateScaleValue(q, a.scaleValue);
+        if (!r.ok) return r;
+        validated.push({ questionId: q.id, type, scaleValue: r.value });
+        break;
+      }
+      case "value-assessment": {
+        const emptyScores = !a.scores || Object.keys(a.scores).length === 0;
+        if (q.required === false && emptyScores) continue;
+        const r = validateScores(q, a.scores);
+        if (!r.ok) return r;
+        validated.push({ questionId: q.id, type, scores: r.scores });
+        break;
+      }
       case "multiple-choice": {
         if (q.required === false && isEmptyChoices) continue;
         const r = validateMultipleChoice(q, a.selectedChoiceIds);
@@ -253,6 +327,22 @@ export function sanitizeAnswersForSave(
             : (q.rankingItems ?? []).map((i) => i.id);
         const r = validateTop3(q, ids, a.rankings);
         if (r.ok) out.push({ questionId: q.id, type, rankings: r.rankings });
+        break;
+      }
+      case "value-ranking": {
+        const ids = (q.valueItems ?? []).map((v) => v.id);
+        const r = validateRanking(q, ids, a.rankings, ids.length);
+        if (r.ok) out.push({ questionId: q.id, type, rankings: r.rankings });
+        break;
+      }
+      case "scale": {
+        const r = validateScaleValue(q, a.scaleValue);
+        if (r.ok) out.push({ questionId: q.id, type, scaleValue: r.value });
+        break;
+      }
+      case "value-assessment": {
+        const r = validateScores(q, a.scores);
+        if (r.ok) out.push({ questionId: q.id, type, scores: r.scores });
         break;
       }
       case "multiple-choice": {

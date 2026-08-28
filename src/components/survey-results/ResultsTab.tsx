@@ -3,7 +3,7 @@
 import { Copy, Check, ChevronsDownUp, ChevronsUpDown } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { AnalysisResult } from "@/lib/surveys/analyses";
-import type { ResultsData } from "./types";
+import type { ResultsData, ResultsSegment } from "./types";
 import { QuestionCard } from "./QuestionCard";
 import { AnalysesSection } from "./AnalysesSection";
 import { ExportResultsButton } from "./ExportResultsButton";
@@ -17,6 +17,10 @@ interface ResultsTabProps {
   shareUrl: string;
   /** Lookup for intro-block bodyHtml, keyed by questionId. */
   introBodyByQuestionId?: Record<string, string>;
+  /** Respondent segments, including ones suppressed for being too small. */
+  segments?: ResultsSegment[];
+  activeSegment?: string | null;
+  onSelectSegment?: (segment: string | null) => void;
   /** Whether the current viewer may create/edit/delete analyses. */
   canEditAnalyses?: boolean;
   onCreateAnalysis?: () => void;
@@ -34,12 +38,76 @@ interface ResultsTabProps {
  * groups — no card chrome. Question expansion state lives here so the
  * Expand all / Collapse all buttons can drive every card at once.
  */
+/**
+ * Segment selector. A segment with no responses is listed but disabled: hiding it
+ * would make a level the client configured look like it does not exist.
+ */
+function SegmentPicker({
+  segments,
+  active,
+  onSelect,
+}: {
+  segments: ResultsSegment[];
+  active: string | null;
+  onSelect: (segment: string | null) => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-1">
+      <SegmentChip label="Everyone" selected={active === null} onClick={() => onSelect(null)} />
+      {segments.map((seg) => (
+        <SegmentChip
+          key={seg.value}
+          label={`${seg.label} (${seg.n})`}
+          selected={active === seg.value}
+          disabled={!seg.selectable}
+          title={seg.selectable ? undefined : "No responses at this level yet."}
+          onClick={() => onSelect(seg.value)}
+        />
+      ))}
+    </div>
+  );
+}
+
+function SegmentChip({
+  label,
+  selected,
+  disabled,
+  title,
+  onClick,
+}: {
+  label: string;
+  selected: boolean;
+  disabled?: boolean;
+  title?: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={disabled ? undefined : onClick}
+      disabled={disabled}
+      title={title}
+      aria-pressed={selected}
+      className="rounded-badge px-2.5 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+      style={{
+        background: selected ? "var(--primary)" : "var(--bg-neutral)",
+        color: selected ? "#fff" : "var(--text-muted)",
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
 export function ResultsTab({
   sessionId,
   results,
   loading,
   shareUrl,
   introBodyByQuestionId,
+  segments = [],
+  activeSegment = null,
+  onSelectSegment,
   canEditAnalyses = false,
   onCreateAnalysis,
   onEditAnalysis,
@@ -126,9 +194,19 @@ export function ResultsTab({
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm font-medium" style={{ color: "var(--text-muted)" }}>
-          {results.participantCount} respondent{results.participantCount === 1 ? "" : "s"}
-        </p>
+        <div className="flex flex-wrap items-center gap-3">
+          <p className="text-sm font-medium" style={{ color: "var(--text-muted)" }}>
+            {results.participantCount} respondent{results.participantCount === 1 ? "" : "s"}
+            {results.segmentLabel ? ` · ${results.segmentLabel}` : ""}
+          </p>
+          {segments.length > 0 && onSelectSegment && (
+            <SegmentPicker
+              segments={segments}
+              active={activeSegment}
+              onSelect={onSelectSegment}
+            />
+          )}
+        </div>
         <div className="flex items-center gap-1">
           {results.participantCount > 0 && <ExportResultsButton sessionId={sessionId} />}
           <button

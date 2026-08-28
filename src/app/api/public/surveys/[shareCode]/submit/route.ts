@@ -3,6 +3,7 @@ import { connectDB } from "@/lib/mongodb";
 import { SurveySessionModel } from "@/lib/models/SurveySession";
 import { SurveySubmissionModel } from "@/lib/models/SurveySubmission";
 import { validateAnswers, type IncomingAnswer } from "@/lib/surveys/answer-validation";
+import { sanitizeCohortTags, effectiveRespondentVariable } from "@/lib/surveys/cultural-dna";
 
 type IncomingSectionAnswer = {
   sectionId: string;
@@ -59,8 +60,27 @@ export async function POST(
       ? body.closingOpenAnswer.trim()
       : undefined;
 
+  // Submit is the binding check: a required respondent variable must be present and
+  // known, because it is what decided which behaviours this person was scoring and
+  // which segment the answers land in.
+  // `cohortTags` is a Mongoose Map on a hydrated document but a plain object on a
+  // .lean() read, and the generated type only describes the latter — hence the guard.
+  const storedTags: unknown = submission.cohortTags;
+  const storedCohort: Record<string, string> =
+    storedTags instanceof Map
+      ? (Object.fromEntries(storedTags) as Record<string, string>)
+      : ((storedTags ?? {}) as Record<string, string>);
+  const cohort = sanitizeCohortTags(
+    body.cohortTags ?? storedCohort,
+    effectiveRespondentVariable(surveySession)
+  );
+  if (!cohort.ok) {
+    return NextResponse.json({ error: cohort.error }, { status: 400 });
+  }
+
   submission.set({
     answers: result.answers,
+    ...(cohort.tags ? { cohortTags: cohort.tags } : {}),
     sectionOpenAnswers: validatedSectionAnswers,
     closingOpenAnswer,
     status: "completed",

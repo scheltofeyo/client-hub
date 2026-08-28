@@ -128,6 +128,20 @@
   --accent-6: #0891B2;
   --accent-7: #0D9488;
 
+  /* Ordered-scale (Likert) ramp — one hue, light to dark, stepped through SUMM
+     primary (#7c3aed sits at step 3). Sequential rather than diverging because
+     the scale reads as one direction, low to high. Validated as an ordinal ramp:
+     monotone lightness, visible step gaps, light end clears the surface. */
+  --scale-1: #bcaaff;
+  --scale-2: #9b7bf5;
+  --scale-3: #7c3aed;
+  --scale-4: #5b21b6;
+  --scale-5: #2e1065;
+
+  /* Ink for text sitting on a strong --primary fill (heatmap cells). Flips per
+     mode because the fill darkens on light and lightens on dark. */
+  --on-primary-strong: #ffffff;
+
   /* Week calendar card types */
   --card-deadline: #7c3aed;
   --card-deadline-bg: #ede9fe;
@@ -239,6 +253,18 @@
   --accent-5: #f472b6;
   --accent-6: #22d3ee;
   --accent-7: #2dd4bf;
+
+  /* Ordered-scale ramp (dark) — re-stepped against the dark surface rather than
+     flipped: here the ramp runs dim to bright, with the dark primary at step 4.
+     Step 1 still clears 2:1 against #1c1a32 so a low score is never a hole. */
+  --scale-1: #544593;
+  --scale-2: #6f5cb8;
+  --scale-3: #8b74e0;
+  --scale-4: #a78bfa;
+  --scale-5: #c9b8ff;
+
+  /* Dark-mode primary fills get lighter with intensity, so the ink goes dark. */
+  --on-primary-strong: #1c1a32;
 
   /* Week calendar card types (dark) */
   --card-deadline: #a78bfa;
@@ -860,6 +886,52 @@ select:not(.appearance-none):not([multiple]):not([size]) {
 }
 .behavior-html li {
   margin: 0.125rem 0;
+}
+
+/* ── Survey Likert scale buttons ─────────────────────────────────── */
+
+/* Unselected appearance lives here rather than inline, because an inline style
+   always beats a :hover rule — there would be no way to show a hover state. The
+   selected state is set inline and guarded out with :not([aria-pressed="true"]). */
+.survey-scale-btn {
+  background: var(--bg-neutral);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  transition:
+    background-color 140ms ease-out,
+    border-color 140ms ease-out,
+    color 140ms ease-out,
+    transform 120ms ease-out;
+}
+.survey-scale-btn:not([aria-pressed="true"]):hover {
+  background: var(--bg-hover);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+.survey-scale-btn:active {
+  transform: translateY(1px);
+}
+.survey-scale-btn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* Level-selection cards. Same reasoning as .survey-scale-btn: the selected state
+   is inline, so the resting and hover states have to live in CSS to be reachable. */
+.survey-level-btn {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  transition:
+    background-color 140ms ease-out,
+    border-color 140ms ease-out;
+}
+.survey-level-btn:not([aria-pressed="true"]):hover {
+  background: var(--bg-hover);
+  border-color: var(--primary);
+}
+.survey-level-btn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
 
 /* ── Survey participant form animations ──────────────────────────── */

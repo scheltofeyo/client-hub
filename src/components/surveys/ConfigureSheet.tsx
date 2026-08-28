@@ -13,6 +13,10 @@ export interface ConfigureSessionMeta {
 interface ConfigureSheetProps {
   meta: ConfigureSessionMeta;
   canEdit: boolean;
+  /** Whether the session has any `archetype-ranking` question. */
+  hasRankQuestions: boolean;
+  /** Whether the session has any `archetype-top3` question. */
+  hasTop3Questions: boolean;
   onSaveRankWeights: (next: number[]) => Promise<boolean>;
   onSaveTop3Weights: (next: number[]) => Promise<boolean>;
 }
@@ -27,15 +31,32 @@ const WEIGHT_DEBOUNCE_MS = 600;
  * Each editor owns its own debounce timer so saves remain independent.
  * Parent re-mounts with `key=` on session change, so initial state is loaded
  * exactly once per session.
+ *
+ * Both editors are gated on the session actually containing the question type
+ * they score. `rankWeights` in particular is validated server-side against
+ * `templateSnapshot.archetypes.length`, so on a session with no archetypes
+ * (a cultural assessment, say) the stored default of five entries can never be
+ * saved — rendering the editor there only offers a guaranteed 400.
  */
 export function ConfigureSheet({
   meta,
   canEdit,
+  hasRankQuestions,
+  hasTop3Questions,
   onSaveRankWeights,
   onSaveTop3Weights,
 }: ConfigureSheetProps) {
+  if (!hasRankQuestions && !hasTop3Questions) {
+    return (
+      <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+        This survey has no archetype questions, so there are no scoring weights to
+        configure.
+      </p>
+    );
+  }
   return (
     <div className="space-y-6">
+      {hasRankQuestions && (
       <WeightEditor
         title="Full-ranking weights"
         helper="Points awarded for each rank position in archetype-ranking questions (rank 1 = first choice). Only affects archetype-ranking questions — general-ranking uses mean rank instead."
@@ -45,6 +66,8 @@ export function ConfigureSheet({
         resetLabel={(len) => `Reset to ${len},${Math.max(1, len - 1)},…,1`}
         buildReset={(len) => Array.from({ length: len }, (_, i) => len - i)}
       />
+      )}
+      {hasTop3Questions && (
       <WeightEditor
         title="Top 3 weights"
         helper="Points awarded for positions 1, 2 and 3 in archetype-top3 questions. Items not placed in the top 3 score 0. General-top3 questions use mean rank, so these weights don't affect them."
@@ -55,6 +78,7 @@ export function ConfigureSheet({
         buildReset={() => [5, 3, 1]}
         fixedLength={3}
       />
+      )}
     </div>
   );
 }

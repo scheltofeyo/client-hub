@@ -17,9 +17,20 @@ function uid() {
   return globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2);
 }
 
+/**
+ * `value-assessment` and `value-ranking` carry no authored items — their items are
+ * materialised from the session's own cultural values, one per value. That is what
+ * keeps them client-agnostic; a client with 8 values gets 8 items without any
+ * configuration.
+ */
+function valueItemsFor(culturalValues: { id: string }[]) {
+  return culturalValues.map((v) => ({ id: uid(), valueId: v.id }));
+}
+
 function buildBlankQuestion(
   type: SurveyQuestionType,
-  archetypes: { id: string }[]
+  archetypes: { id: string }[],
+  culturalValues: { id: string }[]
 ): ShellQuestionAny {
   const id = uid();
   switch (type) {
@@ -73,6 +84,32 @@ function buildBlankQuestion(
       };
     case "open-text":
       return { id, type: "open-text", title: "New open question", required: true };
+    case "scale":
+      return {
+        id,
+        type: "scale",
+        title: "New scale question",
+        scale: { min: 1, max: 5 },
+        required: true,
+      };
+    case "value-assessment":
+      return {
+        id,
+        type: "value-assessment",
+        title: "Cultural self-assessment",
+        assessmentPrompt: "How well do you feel you show this behaviour today?",
+        scale: { min: 1, max: 5 },
+        valueItems: valueItemsFor(culturalValues),
+        required: true,
+      };
+    case "value-ranking":
+      return {
+        id,
+        type: "value-ranking",
+        title: "Rank the values",
+        valueItems: valueItemsFor(culturalValues),
+        required: true,
+      };
     case "intro":
       return { id, type: "intro", title: "" };
   }
@@ -88,6 +125,8 @@ interface Snapshot {
   name: string;
   description?: string;
   archetypes: ArchetypeSnapshot[];
+  culturalValues?: { id: string; title: string }[];
+  culturalLevels?: string[];
   rankWeights: number[];
   closingOpenQuestion?: { enabled: boolean; label: string };
   sections: ShellSection[];
@@ -251,7 +290,7 @@ export default function EditSnapshotPage() {
       });
       if (!ok) return;
     }
-    const newQuestion = buildBlankQuestion(type, archetypes);
+    const newQuestion = buildBlankQuestion(type, archetypes, snapshot?.culturalValues ?? []);
     const sections = snapshot.sections.map((s) =>
       s.id === sectionId ? { ...s, questions: [...s.questions, newQuestion] } : s
     );
@@ -365,6 +404,7 @@ export default function EditSnapshotPage() {
         archetypes={archetypeLites}
         allArchetypes={archetypeLites}
         archetypeMutable={false}
+      culturalValues={snapshot.culturalValues ?? []}
         closingOpenQuestion={snapshot.closingOpenQuestion}
         sections={snapshot.sections}
         selected={selected}

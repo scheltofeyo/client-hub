@@ -61,6 +61,9 @@ src/
     (app)/tools/                 # Tools landing — permission-gated tool grid (Team, Workshops categories)
     (app)/tools/team/            # Holiday Planner — calendar + balances tabs (requires team.viewCalendar)
     (app)/tools/ranking/         # Ranking the Values — session CRUD, rich text editor (requires tools.ranking.access)
+    (app)/tools/surveys/         # Surveys — session list, editor, runner preview, results (requires tools.surveys.access)
+    (app)/admin/surveys/         # Survey template editor (requires admin.surveys.manageTemplates)
+    s/[clientSlug]/[shareCode]/  # Public survey runner — outside (app), no login
     (app)/projects/             # Cross-client project list
     api/                        # Route handlers (see API layer below)
   components/
@@ -68,6 +71,9 @@ src/
     ui/                         # Feature components (tabs, forms, shared primitives)
     my-day/                     # My Day dashboard components (tasks, follow-ups, projects/Gantt, user card)
     team/                       # Holiday Planner components (HolidayCalendar, BalancesTable)
+    surveys/                    # Survey editor shell, question forms, block menu, configure sheet
+    survey-results/             # Results tab, question cards, result types
+    charts/                     # visx chart primitives shared by results views
   lib/
     mongodb.ts                  # Global Mongoose connection (singleton, dev-safe)
     data.ts                     # Server-side data helpers with React cache() deduplication
@@ -155,6 +161,11 @@ All in `src/lib/models/`. Models delete and recompile on hot reload (dev pattern
 | `OAuthAuthCode` | codeHash, userId, clientId, redirectUri, scopes[], codeChallenge, expiresAt (TTL), usedAt — single-use authorization code |
 | `RankingSession` | clientId, title, values[], culturalLevels[], status (`draft`\|`open`\|`closed`\|`archived`), shareCode — workshop value-ranking sessions |
 | `RankingSubmission` | sessionId, participantName, rankings[] — participant responses to ranking sessions |
+| `SurveyTemplate` | name, description, status, archetypeIds[], defaultRankWeights/Top3Weights, defaultThankYouText, defaultRespondentVariable — reusable survey blueprint |
+| `SurveyTemplateSection` | templateId, title, description, imageUrl, openQuestion, order — chapter inside a template |
+| `SurveyTemplateQuestion` | templateId, sectionId, type, title, options/rankingItems/choices/scale/assessmentPrompt/valueItems, order — one question block |
+| `SurveySession` | clientId, templateId, templateSnapshot (frozen copy of the whole template incl. `culturalValues`/`culturalLevels`), respondentVariable, analyses[], status (`draft`\|`open`\|`closed`\|`archived`), shareCode |
+| `SurveySubmission` | sessionId, email, answers[], cohortTags (Map — the respondent variable), completedAt — one participant response |
 
 Reference data models (Archetype, Service, LogSignal, EventType, ClientStatusOption, ClientPlatformOption, ProjectLabel) all support `rank` and a `/reorder` POST endpoint for drag-to-reorder in the admin UI.
 
@@ -207,6 +218,20 @@ RESTful nesting under `src/app/api/`:
 /api/ranking-sessions               GET, POST
 /api/ranking-sessions/[id]          PATCH, DELETE
 /api/ranking-sessions/[id]/submissions  GET, POST
+/api/surveys/templates              GET, POST
+/api/surveys/templates/[id]         GET, PATCH, DELETE + /usage
+/api/surveys/templates/[id]/sections            GET, POST + /[sectionId] PATCH, DELETE
+/api/surveys/templates/[id]/questions           GET, POST + /[questionId] PATCH, DELETE
+/api/surveys/sessions               GET, POST — POST materialises the template snapshot
+/api/surveys/sessions/[id]          GET, PATCH, DELETE
+/api/surveys/sessions/[id]/results  GET — computed results, `?segment=` filters by respondent variable
+/api/surveys/sessions/[id]/submissions          GET
+/api/surveys/sessions/[id]/analyses             GET, POST + /reorder + /[aid]
+/api/surveys/sessions/[id]/export   GET — markdown export
+/api/public/surveys/[shareCode]     GET — participant view of an open session (no auth)
+/api/public/surveys/[shareCode]/start   POST — identify + respondent variable
+/api/public/surveys/[shareCode]/save    POST — autosave partial answers
+/api/public/surveys/[shareCode]/submit  POST — final submit
 /api/mcp                            POST — remote MCP server (see below)
 /api/oauth/register                 POST — dynamic client registration (RFC 7591)
 /api/oauth/authorize                POST — consent decision → authorization code
@@ -230,7 +255,7 @@ The session carries two permission sets: `permissions` (global) and `leadPermiss
 
 Users must be invited (via admin) before they can log in. `POST /api/users` creates a User with `status: "invited"`. On first Google OAuth login, the user auto-activates if their email matches an invited record. Admin can set display name/image overrides, employment details, and role. The profile page (`/profile`) lets users edit their own personal details using the same `EmployeeDetailEditor` component.
 
-**Exception:** `/api/internal/` routes are excluded from the auth middleware (`auth.config.ts`) and are secured by shared secret instead. Do not add `auth()` calls to these routes. The `/ranking/[shareCode]` page is also public (outside the `(app)` group) — participants access it without logging in.
+**Exception:** `/api/internal/` routes are excluded from the auth middleware (`auth.config.ts`) and are secured by shared secret instead. Do not add `auth()` calls to these routes. The `/ranking/[shareCode]` and `/s/[clientSlug]/[shareCode]` pages are also public (outside the `(app)` group), together with `/api/public/` — participants access them without logging in.
 
 `/api/mcp`, `/api/oauth/` and `/.well-known/` are also excluded from the middleware gate, but for the opposite reason: they authenticate themselves and must be able to answer `401` (or an OAuth error) rather than be redirected to `/login`, which a non-browser caller cannot follow. The `/oauth/authorize` consent *page* stays gated — it is the one step that requires a signed-in browser.
 
@@ -264,6 +289,60 @@ The GAS web app must be deployed with **Execute as: Me**, **Who has access: Anyo
 ### Events timeline
 The Events tab renders a unified `TimelineEvent[]` that merges four sources: `log_followup` (from Log records with followUp=true), `task` (tasks with a completionDate), `project` (project milestones), and `custom` (ClientEvent records). The API assembles these server-side; `EventsTab.tsx` only renders the merged list. Custom events support recurrence (`none | weekly | biweekly | monthly | quarterly | yearly`) with optional `repetitions` cap.
 
+
+### Survey engine
+
+Templates are blueprints; a **session** is the thing participants fill in. Creating a session copies
+the entire template into `SurveySession.templateSnapshot` — sections, questions, cultural values,
+levels, thank-you text. Nothing is looked up live afterwards, so editing or deleting a template can
+never rewrite a survey people have already answered. The one deliberate exception is
+`enrichArchetypes()` (`src/lib/surveys/enrich-archetypes.ts`), which does resolve archetype ids
+against the global `Archetype` collection so renames propagate — archetypes are org-wide reference
+data, cultural values are client-owned free text.
+
+**Question types** (`SURVEY_QUESTION_TYPES` in `src/lib/surveys/types.ts`) — `archetype-ranking`,
+`archetype-top3`, `general-ranking`, `general-top3`, `multiple-choice`, `open-text`, `scale`,
+`value-assessment`, `value-ranking`, `intro`. Adding one means touching a known list of files:
+the two models (`SurveyTemplateQuestion`, `SurveySession`) plus `SurveySubmission` for the answer
+shape, then `types.ts`, `question-validation.ts`, `answer-validation.ts`, `serializers.ts`,
+`distributions.ts`, `compute-results.ts`, `export-markdown.ts`, and on the UI side
+`components/surveys/question-types.ts`, `AddBlockMenu.tsx`, `QuestionForm.tsx` and
+`survey-results/QuestionCard.tsx`. Missing one of these fails quietly rather than loudly — a question
+that renders but never appears in results.
+
+**Client-independent templates.** `value-assessment` and `value-ranking` carry **no items in the
+template**. Their `valueItems` are materialised at session creation from the chosen client's
+`culturalDna` (`src/lib/surveys/cultural-dna.ts`, `CULTURAL_SELECT` for the `.select()`). That is
+what lets one template serve a client with three values and a client with eight. Never author
+`valueItems` into a template or a seed script.
+
+**The respondent variable** is one attribute answered before the value questions that both *selects
+content* (which behaviours a participant sees for each value) and *slices results*. Stored on the
+session as `respondentVariable`, answered into `SurveySubmission.cohortTags`. Cultural Level is the
+first instance; the mechanism is generic. `effectiveRespondentVariable()` derives one when a session
+has value-backed questions but no stored config — without a level those questions would silently show
+every level's behaviours at once, which is wrong in a way nobody notices before a training. Levels are
+free text typed twice (once on the client, once per behaviour), so `normalizeLevel()` / `levelsMatch()`
+trim both sides of the join; skipping that shows a participant no behaviours at all.
+
+**Results.** `compute-results.ts` builds `QuestionResult`s from accumulators in `distributions.ts`.
+Two rules that are easy to get wrong:
+- Ordinal answers use `computeScaleStats()` from `dispersion.ts`, **not** `agreement.ts`. Entropy
+  cannot tell "half answered 1, half answered 5" from "everyone answered 3 or 4"; for a
+  self-assessment that difference is the whole conversation.
+- `value-ranking` reports **mean rank position** (`meanRankFromDistribution()`), never weighted
+  points. `rankWeights` is five long by default, so with six or more values every position past the
+  fifth would score zero and flatten the tail.
+
+`segments.ts` lists and filters by the respondent variable; a level nobody answered is still listed
+(so the UI can say so) but is not `selectable`. `?segment=` on the results route filters submissions
+before computation.
+
+**Seeding templates.** `scripts/seed-*.ts` upsert on title so section and question IDs survive a
+re-run and live sessions keep working. Each language is its own template — the participant page
+translates only its own chrome (`src/lib/surveys/translations.ts`), never template content. The
+Cultural Self-Assessment keeps both languages in one script (`npm run seed:cultural-assessment` /
+`:cultural-assessment-en`); the older archetype survey predates that and has one file per language.
 
 ### Remote MCP server
 

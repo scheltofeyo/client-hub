@@ -1,9 +1,12 @@
 import {
   ArrowDownUp,
   FileText,
+  Gauge,
+  Heart,
   LayoutGrid,
   ListChecks,
   MessageSquare,
+  Sparkles,
   Trophy,
   type LucideIcon,
 } from "lucide-react";
@@ -19,6 +22,9 @@ export const QUESTION_TYPE_META: Record<
   "general-top3": { label: "General top 3", icon: Trophy, color: "var(--info)" },
   "multiple-choice": { label: "Multiple choice", icon: ListChecks, color: "var(--info)" },
   "open-text": { label: "Open text", icon: MessageSquare, color: "var(--text-muted)" },
+  scale: { label: "Scale", icon: Gauge, color: "var(--info)" },
+  "value-assessment": { label: "Value assessment", icon: Sparkles, color: "var(--primary)" },
+  "value-ranking": { label: "Value ranking", icon: Heart, color: "var(--primary)" },
   intro: { label: "Info block", icon: FileText, color: "var(--text-muted)" },
 };
 
@@ -68,6 +74,39 @@ export interface ShellOpenText extends ShellQuestionBase {
   required?: boolean;
 }
 
+export interface ShellScaleConfig {
+  min: number;
+  max: number;
+  minLabel?: string;
+  maxLabel?: string;
+}
+
+export interface ShellValueItem {
+  id: string;
+  valueId: string;
+}
+
+export interface ShellScale extends ShellQuestionBase {
+  type: "scale";
+  scale?: ShellScaleConfig;
+  required?: boolean;
+}
+
+export interface ShellValueAssessment extends ShellQuestionBase {
+  type: "value-assessment";
+  scale?: ShellScaleConfig;
+  assessmentPrompt?: string;
+  /** Materialised from the client's DNA — read-only in the editor. */
+  valueItems?: ShellValueItem[];
+  required?: boolean;
+}
+
+export interface ShellValueRanking extends ShellQuestionBase {
+  type: "value-ranking";
+  valueItems?: ShellValueItem[];
+  required?: boolean;
+}
+
 export interface ShellIntro extends ShellQuestionBase {
   type: "intro";
   bodyHtml?: string;
@@ -80,4 +119,7 @@ export type ShellQuestionAny =
   | ShellGeneralTop3
   | ShellMultipleChoice
   | ShellOpenText
+  | ShellScale
+  | ShellValueAssessment
+  | ShellValueRanking
   | ShellIntro;

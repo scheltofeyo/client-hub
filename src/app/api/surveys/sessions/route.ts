@@ -12,7 +12,13 @@ import { ClientModel } from "@/lib/models/Client";
 import { UserModel } from "@/lib/models/User";
 import { ArchetypeModel } from "@/lib/models/Archetype";
 import { snapshotQuestionFrom } from "@/lib/surveys/serializers";
-import { normalizeQuestionType } from "@/lib/surveys/types";
+import {
+  CULTURAL_SELECT,
+  culturalSnapshotFromClient,
+  respondentVariableFromLevels,
+} from "@/lib/surveys/cultural-dna";
+import { normalizeQuestionType, isValueBackedType } from "@/lib/surveys/types";
+import { randomUUID } from "node:crypto";
 
 export async function GET() {
   const session = await auth();
@@ -83,8 +89,14 @@ export async function POST(req: NextRequest) {
   }
   const isFromScratch = fromScratch === true || !templateId;
 
-  const client = await ClientModel.findById(clientId).select("company").lean();
+  const client = await ClientModel.findById(clientId)
+    .select(`company ${CULTURAL_SELECT}`)
+    .lean();
   if (!client) return NextResponse.json({ error: "Client not found" }, { status: 404 });
+
+  // Copied once, here. See culturalSnapshotFromClient() for why this is a copy
+  // rather than a live lookup like archetypes get.
+  const cultural = culturalSnapshotFromClient(client);
 
   const shareCode = await ensureUniqueShareCode((code) =>
     SurveySessionModel.exists({ shareCode: code })
@@ -106,6 +118,8 @@ export async function POST(req: NextRequest) {
       templateSnapshot: {
         name: title.trim(),
         archetypes,
+        culturalValues: cultural.culturalValues,
+        culturalLevels: cultural.culturalLevels,
         rankWeights: [5, 4, 3, 2, 1],
         top3Weights: [5, 3, 1],
         sections: [],
@@ -162,6 +176,20 @@ export async function POST(req: NextRequest) {
     questionsBySection.set(q.sectionId, arr);
   }
 
+  // A template never carries value items — this is where they come into being, one
+  // per cultural value of the chosen client. It is the whole reason a single
+  // template works for a client with three values and one with eight.
+  const materializeValueItems = (q: ReturnType<typeof snapshotQuestionFrom>) =>
+    isValueBackedType(q.type)
+      ? {
+          ...q,
+          valueItems: cultural.culturalValues.map((v) => ({
+            id: randomUUID(),
+            valueId: v.id,
+          })),
+        }
+      : q;
+
   const sectionSnapshots = sections.map((s) => ({
     id: s._id.toString(),
     title: s.title,
@@ -169,8 +197,24 @@ export async function POST(req: NextRequest) {
     imageUrl: s.imageUrl ?? undefined,
     order: s.order ?? 0,
     openQuestion: s.openQuestion ?? undefined,
-    questions: (questionsBySection.get(s._id.toString()) ?? []).map((q) => snapshotQuestionFrom(q)),
+    questions: (questionsBySection.get(s._id.toString()) ?? []).map((q) =>
+      materializeValueItems(snapshotQuestionFrom(q))
+    ),
   }));
+
+  // A value-backed template against a client with no Cultural DNA would produce a
+  // survey whose central question has nothing to show. Better to refuse here than
+  // to let someone discover it after sharing the link.
+  const needsCulturalDna = questions.some((q) => isValueBackedType(normalizeQuestionType(q.type)));
+  if (needsCulturalDna && cultural.culturalValues.length === 0) {
+    return NextResponse.json(
+      {
+        error:
+          "This template uses the client's Cultural DNA, but this client has no cultural values yet. Add them on the client's Content tab first.",
+      },
+      { status: 400 }
+    );
+  }
 
   const doc = await SurveySessionModel.create({
     clientId,
@@ -179,11 +223,18 @@ export async function POST(req: NextRequest) {
       name: template.name,
       description: template.description ?? undefined,
       archetypes,
+      culturalValues: cultural.culturalValues,
+      culturalLevels: cultural.culturalLevels,
+      thankYouText: template.defaultThankYouText || undefined,
       rankWeights: template.defaultRankWeights ?? [5, 4, 3, 2, 1],
       top3Weights: template.defaultTop3Weights ?? [5, 3, 1],
       closingOpenQuestion: template.closingOpenQuestion ?? undefined,
       sections: sectionSnapshots,
     },
+    respondentVariable: respondentVariableFromLevels(
+      cultural.culturalLevels,
+      template.defaultRespondentVariable
+    ),
     title: title.trim(),
     status: "draft",
     shareCode,

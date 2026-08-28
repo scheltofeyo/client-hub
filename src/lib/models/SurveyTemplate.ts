@@ -5,6 +5,20 @@ export interface ISurveyClosingQuestion {
   label: string;
 }
 
+/**
+ * Template-level copy for the respondent-variable step. The *options* are never
+ * stored here — they come from the client's `culturalLevels` at session creation,
+ * which is what lets one template serve every client.
+ */
+export interface ISurveyRespondentVariableDefaults {
+  enabled: boolean;
+  key: string;
+  label: string;
+  helpText?: string;
+  helpUrl?: string;
+  required: boolean;
+}
+
 export interface ISurveyTemplate extends Document {
   name: string;
   description?: string;
@@ -13,6 +27,8 @@ export interface ISurveyTemplate extends Document {
   defaultRankWeights: number[];
   defaultTop3Weights: number[];
   closingOpenQuestion?: ISurveyClosingQuestion;
+  defaultThankYouText?: string;
+  defaultRespondentVariable?: ISurveyRespondentVariableDefaults;
   version: number;
   createdBy: string;
   createdAt: Date;
@@ -27,6 +43,18 @@ const ClosingOpenQuestionSchema = new Schema<ISurveyClosingQuestion>(
   { _id: false }
 );
 
+const RespondentVariableDefaultsSchema = new Schema<ISurveyRespondentVariableDefaults>(
+  {
+    enabled: { type: Boolean, default: false },
+    key: { type: String, trim: true, default: "culturalLevel" },
+    label: { type: String, trim: true, default: "" },
+    helpText: { type: String, trim: true },
+    helpUrl: { type: String, trim: true },
+    required: { type: Boolean, default: true },
+  },
+  { _id: false }
+);
+
 const SurveyTemplateSchema = new Schema<ISurveyTemplate>(
   {
     name: { type: String, required: true, trim: true },
@@ -36,6 +64,8 @@ const SurveyTemplateSchema = new Schema<ISurveyTemplate>(
     defaultRankWeights: { type: [Number], default: [5, 4, 3, 2, 1] },
     defaultTop3Weights: { type: [Number], default: [5, 3, 1] },
     closingOpenQuestion: { type: ClosingOpenQuestionSchema, default: undefined },
+    defaultThankYouText: { type: String, trim: true },
+    defaultRespondentVariable: { type: RespondentVariableDefaultsSchema, default: undefined },
     version: { type: Number, default: 1 },
     createdBy: { type: String, required: true },
   },

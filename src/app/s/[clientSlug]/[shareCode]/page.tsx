@@ -37,6 +37,8 @@ import LocaleSwitcher, { type Locale } from "@/components/ui/LocaleSwitcher";
 import { t } from "@/lib/surveys/translations";
 import { pickGreeting, type Greeting } from "@/lib/surveys/greetings";
 import { estimateSurveyMinutes } from "@/lib/surveys/time-estimate";
+import DOMPurify from "dompurify";
+import { darkenHex, lightenHex, shouldUseLightText, isHexColor } from "@/lib/colors";
 
 // Public-side types — match the trimmed shape returned by the public GET endpoint.
 interface PublicQuestion {
@@ -53,7 +55,34 @@ interface PublicQuestion {
   placeholder?: string;
   multiline?: boolean;
   required?: boolean;
+  scale?: { min: number; max: number; minLabel?: string; maxLabel?: string };
+  assessmentPrompt?: string;
+  valueItems?: { id: string; valueId: string }[];
   bodyHtml?: string;
+}
+
+interface CulturalBehavior {
+  level: string;
+  content: string;
+}
+
+interface CulturalValue {
+  id: string;
+  title: string;
+  color: string;
+  mantra: string;
+  description: string;
+  behaviors?: CulturalBehavior[];
+}
+
+interface RespondentVariable {
+  enabled: boolean;
+  key: string;
+  label: string;
+  helpText?: string;
+  helpUrl?: string;
+  required: boolean;
+  options: { id: string; label: string; description?: string }[];
 }
 
 interface Section {
@@ -73,9 +102,12 @@ interface SurveyData {
   message?: string;
   clientCompany?: string;
   clientPrimaryColor?: string;
+  culturalValues?: CulturalValue[];
+  respondentVariable?: RespondentVariable | null;
   template?: {
     name: string;
     description?: string;
+    thankYouText?: string;
     closingOpenQuestion?: { enabled: boolean; label: string };
     sections: Section[];
   };
@@ -97,6 +129,9 @@ function rankingItemIds(q: PublicQuestion): string[] {
   if (q.type === "general-ranking" || q.type === "general-top3") {
     return (q.rankingItems ?? []).map((i) => i.id);
   }
+  if (q.type === "value-ranking") {
+    return (q.valueItems ?? []).map((v) => v.id);
+  }
   return [];
 }
 
@@ -110,6 +145,14 @@ function rankingItemIds(q: PublicQuestion): string[] {
 type Top3State = { kind: "top3"; ranked: (string | null)[]; pool: string[] };
 type RankAllState = { kind: "rank-all"; order: string[] };
 type RankingState = Top3State | RankAllState;
+
+/**
+ * Shared reading width for the card-like blocks: the culture card, the recap
+ * table and the level picker. Percentage widths let these stretch across a wide
+ * monitor, which turns a five-row table into a sparse band and pushes the score
+ * column an inch away from the value it belongs to.
+ */
+const CARD_MEASURE = "max-w-[640px]";
 
 const SLOT_ID_SEP = "::slot::";
 const POOL_ID_SEP = "::pool";
@@ -220,6 +263,7 @@ function computeNextTop3(
 
 type Screen =
   | { kind: "identity" }
+  | { kind: "respondent-variable" }
   | { kind: "section-intro"; sectionId: string; sectionIndex: number; totalSections: number }
   | {
       kind: "question";
@@ -229,12 +273,24 @@ type Screen =
       totalSections: number;
       qIndexInSection: number;
       qTotalInSection: number;
+      /**
+       * Set for `value-assessment`, which paginates into one screen per cultural
+       * value so each can show that value's mantra and the behaviours for the
+       * level this respondent picked.
+       */
+      itemIndex?: number;
     }
+  | { kind: "value-recap"; questionId: string }
   | { kind: "closing" }
   | { kind: "done" };
 
-function buildScreens(sections: Section[], hasClosing: boolean): Screen[] {
+function buildScreens(
+  sections: Section[],
+  hasClosing: boolean,
+  hasRespondentVariable: boolean
+): Screen[] {
   const screens: Screen[] = [{ kind: "identity" }];
+  if (hasRespondentVariable) screens.push({ kind: "respondent-variable" });
   sections.forEach((section, sectionIndex) => {
     screens.push({
       kind: "section-intro",
@@ -244,15 +300,23 @@ function buildScreens(sections: Section[], hasClosing: boolean): Screen[] {
     });
     const qs = section.questions ?? [];
     qs.forEach((q, qIndex) => {
-      screens.push({
-        kind: "question",
+      const shared = {
+        kind: "question" as const,
         questionId: q.id,
         sectionId: section.id,
         sectionIndex,
         totalSections: sections.length,
         qIndexInSection: qIndex,
         qTotalInSection: qs.length,
-      });
+      };
+      if (q.type === "value-assessment") {
+        const items = q.valueItems ?? [];
+        items.forEach((_, itemIndex) => screens.push({ ...shared, itemIndex }));
+        // The recap is only worth showing once there is something to recap.
+        if (items.length > 0) screens.push({ kind: "value-recap", questionId: q.id });
+        return;
+      }
+      screens.push(shared);
     });
   });
   if (hasClosing) screens.push({ kind: "closing" });
@@ -303,6 +367,10 @@ export default function PublicSurveyPage() {
   >({});
   const [choices, setChoices] = useState<Record<string, string[]>>({});
   const [openTexts, setOpenTexts] = useState<Record<string, string>>({});
+  // scale: questionId -> value. value-assessment: questionId -> valueItemId -> value.
+  const [scaleValues, setScaleValues] = useState<Record<string, number>>({});
+  const [scoreValues, setScoreValues] = useState<Record<string, Record<string, number>>>({});
+  const [cohortChoice, setCohortChoice] = useState<string>("");
 
   const [closingText, setClosingText] = useState("");
 
@@ -356,7 +424,7 @@ export default function PublicSurveyPage() {
                   ranked: Array(TOP3_RANK_LENGTH).fill(null),
                   pool: shuffled,
                 };
-              } else if (isFullRankingType(q.type)) {
+              } else if (isFullRankingType(q.type) || q.type === "value-ranking") {
                 init[q.id] = { kind: "rank-all", order: shuffled };
               }
             }
@@ -372,7 +440,43 @@ export default function PublicSurveyPage() {
 
   const sections = useMemo(() => survey?.template?.sections ?? [], [survey]);
   const closingEnabled = !!survey?.template?.closingOpenQuestion?.enabled;
-  const screens = useMemo(() => buildScreens(sections, closingEnabled), [sections, closingEnabled]);
+  const respondentVariable = survey?.respondentVariable ?? null;
+  const hasRespondentVariable =
+    !!respondentVariable?.enabled && respondentVariable.options.length > 0;
+  const screens = useMemo(
+    () => buildScreens(sections, closingEnabled, hasRespondentVariable),
+    [sections, closingEnabled, hasRespondentVariable]
+  );
+
+  // A plain string, so consumers depend on primitives only — an object or a
+  // memoized callback here defeats the React Compiler's memoization.
+  const cohortKey = respondentVariable?.enabled
+    ? respondentVariable.key || "culturalLevel"
+    : null;
+
+  const culturalValuesById = useMemo(() => {
+    const map = new Map<string, CulturalValue>();
+    for (const v of survey?.culturalValues ?? []) map.set(v.id, v);
+    return map;
+  }, [survey]);
+
+  /**
+   * The behaviours to show for a value, narrowed to the level this respondent
+   * picked. Tolerant comparison rather than ===: levels and behaviour levels are
+   * two free-text fields that drift apart by stray whitespace in real client
+   * data, and a miss here shows the participant an empty card.
+   */
+  const behaviorsForValue = useCallback(
+    (value: CulturalValue | undefined): CulturalBehavior[] => {
+      const all = value?.behaviors ?? [];
+      if (!cohortChoice) return all;
+      const wanted = cohortChoice.trim().toLowerCase();
+      return all.filter(
+        (b) => b.level.trim().toLowerCase() === wanted && b.content.trim()
+      );
+    },
+    [cohortChoice]
+  );
   const totalSteps = screens.length;
   const current = screens[step] ?? screens[screens.length - 1];
   const isDoneStep = current.kind === "done";
@@ -426,6 +530,12 @@ export default function PublicSurveyPage() {
       return;
     }
     setSubmissionId(data.submissionId);
+    // Restore the previously chosen level. Without this a returning participant
+    // silently falls back to "no level", and every value question would then show
+    // behaviours for a different level than the one they originally scored.
+    if (cohortKey && data.cohortTags && typeof data.cohortTags[cohortKey] === "string") {
+      setCohortChoice(data.cohortTags[cohortKey]);
+    }
     if (data.resumed && Array.isArray(data.answers) && data.answers.length) {
       hydrateAnswers(data.answers);
       setLastSavedAt(new Date());
@@ -436,6 +546,14 @@ export default function PublicSurveyPage() {
   }
 
   function validateScreen(screen: Screen): boolean {
+    if (screen.kind === "respondent-variable") {
+      if (respondentVariable?.required && !cohortChoice) {
+        setError(t(locale, "error.requiredAny"));
+        return false;
+      }
+      setError(null);
+      return true;
+    }
     if (screen.kind !== "question") {
       setError(null);
       return true;
@@ -465,11 +583,33 @@ export default function PublicSurveyPage() {
       return true;
     }
 
+    // A value-assessment is validated one value at a time, because that is how it
+    // is presented — blocking on the whole set would point at a screen the
+    // participant cannot see.
+    if (q.type === "value-assessment") {
+      const item = (q.valueItems ?? [])[screen.itemIndex ?? 0];
+      if (!item) {
+        setError(null);
+        return true;
+      }
+      if (q.required === false || scoreValues[q.id]?.[item.id] !== undefined) {
+        setError(null);
+        return true;
+      }
+      setError(t(locale, "error.requiredAny"));
+      return false;
+    }
+
     if (q.required === false) {
       setError(null);
       return true;
     }
-    if (q.type === "open-text") {
+    if (q.type === "scale") {
+      if (scaleValues[q.id] === undefined) {
+        setError(t(locale, "error.requiredAny"));
+        return false;
+      }
+    } else if (q.type === "open-text") {
       const text = (openTexts[q.id] ?? "").trim();
       if (!text) {
         setError(t(locale, "error.requiredAny"));
@@ -481,7 +621,7 @@ export default function PublicSurveyPage() {
         setError(t(locale, "error.requiredAny"));
         return false;
       }
-    } else if (isFullRankingType(q.type)) {
+    } else if (isFullRankingType(q.type) || q.type === "value-ranking") {
       // Ranking initialises with a complete shuffled order; if the state is
       // missing for some reason, treat it as unanswered.
       const state = rankingState[q.id];
@@ -557,6 +697,7 @@ export default function PublicSurveyPage() {
         switch (q.type) {
           case "intro":
             continue;
+          case "value-ranking":
           case "archetype-ranking":
           case "general-ranking": {
             const state = rankingState[q.id];
@@ -588,6 +729,18 @@ export default function PublicSurveyPage() {
             answers.push({ questionId: q.id, type: q.type, selectedChoiceIds: sel });
             break;
           }
+          case "scale": {
+            const value = scaleValues[q.id];
+            if (value === undefined) break;
+            answers.push({ questionId: q.id, type: q.type, scaleValue: value });
+            break;
+          }
+          case "value-assessment": {
+            const scores = scoreValues[q.id] ?? {};
+            if (Object.keys(scores).length === 0) break;
+            answers.push({ questionId: q.id, type: q.type, scores });
+            break;
+          }
           case "open-text": {
             const text = (openTexts[q.id] ?? "").trim();
             if (text || q.required !== false) {
@@ -599,7 +752,7 @@ export default function PublicSurveyPage() {
       }
     }
     return answers;
-  }, [sections, rankingState, choices, openTexts]);
+  }, [sections, rankingState, choices, openTexts, scaleValues, scoreValues]);
 
   // Fire-and-forget autosave. Called on every step advance/retreat past the
   // identity screen so participants can close the tab and resume later with
@@ -611,7 +764,11 @@ export default function PublicSurveyPage() {
     void fetch(`/api/public/surveys/${shareCode}/save`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ submissionId, answers }),
+      body: JSON.stringify({
+        submissionId,
+        answers,
+        ...(cohortKey && cohortChoice ? { cohortTags: { [cohortKey]: cohortChoice } } : {}),
+      }),
     })
       .then((r) => {
         if (r.ok) {
@@ -620,7 +777,7 @@ export default function PublicSurveyPage() {
         }
       })
       .catch(() => {});
-  }, [submissionId, shareCode, buildAnswers]);
+  }, [submissionId, shareCode, buildAnswers, cohortKey, cohortChoice]);
 
   // Inverse of buildAnswers — used to restore saved state when a returning
   // participant identifies with the same email and /start replies with
@@ -630,13 +787,15 @@ export default function PublicSurveyPage() {
       const rankings: Record<string, RankingState> = {};
       const newChoices: Record<string, string[]> = {};
       const newTexts: Record<string, string> = {};
+      const newScales: Record<string, number> = {};
+      const newScores: Record<string, Record<string, number>> = {};
 
       for (const a of saved) {
         const qid = typeof a.questionId === "string" ? a.questionId : null;
         if (!qid) continue;
         const q = questionsById.get(qid);
         if (!q) continue;
-        if (isFullRankingType(q.type)) {
+        if (isFullRankingType(q.type) || q.type === "value-ranking") {
           const allIds = rankingItemIds(q);
           if (allIds.length === 0) continue;
           const ranks = a.rankings as Record<string, number> | undefined;
@@ -664,11 +823,29 @@ export default function PublicSurveyPage() {
             ? (a.selectedChoiceIds as string[]).filter((x) => typeof x === "string")
             : [];
           newChoices[qid] = sel;
+        } else if (q.type === "scale") {
+          const v = Number(a.scaleValue);
+          if (Number.isFinite(v)) newScales[qid] = v;
+        } else if (q.type === "value-assessment") {
+          const raw = a.scores as Record<string, unknown> | undefined;
+          if (!raw || typeof raw !== "object") continue;
+          const parsed: Record<string, number> = {};
+          for (const item of q.valueItems ?? []) {
+            const v = Number(raw[item.id]);
+            if (Number.isFinite(v)) parsed[item.id] = v;
+          }
+          if (Object.keys(parsed).length) newScores[qid] = parsed;
         } else if (q.type === "open-text") {
           newTexts[qid] = typeof a.text === "string" ? a.text : "";
         }
       }
 
+      if (Object.keys(newScales).length) {
+        setScaleValues((prev) => ({ ...prev, ...newScales }));
+      }
+      if (Object.keys(newScores).length) {
+        setScoreValues((prev) => ({ ...prev, ...newScores }));
+      }
       if (Object.keys(rankings).length) {
         setRankingState((prev) => ({ ...prev, ...rankings }));
       }
@@ -699,6 +876,7 @@ export default function PublicSurveyPage() {
       body: JSON.stringify({
         submissionId,
         answers,
+        ...(cohortKey && cohortChoice ? { cohortTags: { [cohortKey]: cohortChoice } } : {}),
         closingOpenAnswer: closingText.trim() || undefined,
       }),
     });
@@ -849,6 +1027,84 @@ export default function PublicSurveyPage() {
       );
     }
 
+    if (screen.kind === "respondent-variable" && respondentVariable) {
+      return (
+        <div className="space-y-8 w-full">
+          <div>
+            <h2
+              className="text-[24px] sm:text-[28px] md:text-[30px] font-semibold leading-[1.2]"
+              style={{ color: "var(--text-primary)", letterSpacing: "-0.015em" }}
+            >
+              {respondentVariable.label?.trim()
+                ? respondentVariable.label
+                : t(locale, "respondentVariable.defaultLabel")}
+            </h2>
+            {/* A derived variable carries no copy, so fall back to a translated
+                default rather than rendering a heading with nothing under it. */}
+            <p
+              className="mt-3 text-[15px] sm:text-[16px] max-w-[65ch]"
+              style={{ color: "var(--text-muted)", lineHeight: 1.55 }}
+            >
+              {respondentVariable.helpText?.trim()
+                ? respondentVariable.helpText
+                : t(locale, "respondentVariable.defaultHelp")}
+            </p>
+            {respondentVariable.helpUrl && (
+              <a
+                href={respondentVariable.helpUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-2 inline-block text-[15px] underline"
+                style={{ color: "var(--primary)" }}
+              >
+                {t(locale, "respondentVariable.help")}
+              </a>
+            )}
+          </div>
+          <div className={`grid gap-3 w-full ${CARD_MEASURE}`}>
+            {respondentVariable.options.map((option) => {
+              const selected = cohortChoice === option.id;
+              return (
+                <button
+                  key={option.id}
+                  type="button"
+                  onClick={() => {
+                    setCohortChoice(option.id);
+                    markDirty();
+                  }}
+                  aria-pressed={selected}
+                  className="survey-level-btn text-left rounded-card px-4 py-3.5"
+                  style={
+                    selected
+                      ? {
+                          background: "var(--primary-light)",
+                          borderColor: "var(--primary)",
+                        }
+                      : undefined
+                  }
+                >
+                  <span
+                    className="block text-[16px] font-semibold"
+                    style={{ color: selected ? "var(--primary)" : "var(--text-primary)" }}
+                  >
+                    {option.label}
+                  </span>
+                  {option.description && (
+                    <span
+                      className="block mt-1 text-[14px]"
+                      style={{ color: "var(--text-muted)", lineHeight: 1.5 }}
+                    >
+                      {option.description}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+
     if (screen.kind === "section-intro") {
       const section = sectionsById.get(screen.sectionId);
       if (!section) return null;
@@ -966,6 +1222,56 @@ export default function PublicSurveyPage() {
         );
       }
 
+      if (q.type === "value-assessment") {
+        const items = q.valueItems ?? [];
+        const item = items[screen.itemIndex ?? 0];
+        const value = item ? culturalValuesById.get(item.valueId) : undefined;
+        if (!item || !value) return null;
+        return (
+          <div className="space-y-8 w-full">
+            <p
+              className="text-[15px] sm:text-[16px] font-semibold"
+              style={{ color: "var(--primary)", letterSpacing: "-0.005em" }}
+            >
+              {section.title}
+              <span className="ml-2 font-normal" style={{ color: "var(--text-muted)" }}>
+                · {t(locale, "nav.question", {
+                  n: (screen.itemIndex ?? 0) + 1,
+                  total: items.length,
+                })}
+              </span>
+            </p>
+
+            <CultureValueCard
+              value={value}
+              behaviors={behaviorsForValue(value)}
+              level={cohortChoice}
+              locale={locale}
+            />
+
+            <div className="w-full md:max-w-[50%]">
+              <p
+                className="text-[16px] sm:text-[17px] font-semibold mb-4"
+                style={{ color: "var(--text-primary)" }}
+              >
+                {q.assessmentPrompt || q.title}
+              </p>
+              <ScaleInput
+                scale={q.scale}
+                value={scoreValues[q.id]?.[item.id]}
+                onChange={(v) => {
+                  setScoreValues((prev) => ({
+                    ...prev,
+                    [q.id]: { ...(prev[q.id] ?? {}), [item.id]: v },
+                  }));
+                  markDirty();
+                }}
+              />
+            </div>
+          </div>
+        );
+      }
+
       return (
         <div className="space-y-8 w-full">
           <div>
@@ -997,13 +1303,26 @@ export default function PublicSurveyPage() {
             )}
           </div>
           <div className="w-full md:max-w-[50%]">
-            {isFullRankingType(q.type) && (
+            {(isFullRankingType(q.type) || q.type === "value-ranking") && (
               <RankAllInput
                 q={q}
                 locale={locale}
                 sensors={sensors}
                 state={rankingState[q.id]}
                 labels={rankingLabels[q.id] ?? {}}
+                itemsOverride={
+                  q.type === "value-ranking"
+                    ? (q.valueItems ?? []).map((item) => {
+                        const v = culturalValuesById.get(item.valueId);
+                        return {
+                          id: item.id,
+                          text: v?.title ?? "",
+                          subtitle: v?.mantra || undefined,
+                          color: v?.color || undefined,
+                        };
+                      })
+                    : undefined
+                }
                 onCommit={handleRankingCommit(q.id)}
               />
             )}
@@ -1025,6 +1344,16 @@ export default function PublicSurveyPage() {
                 onToggle={(cid) => toggleChoice(q.id, cid, q.choiceMode ?? "single")}
               />
             )}
+            {q.type === "scale" && (
+              <ScaleInput
+                scale={q.scale}
+                value={scaleValues[q.id]}
+                onChange={(v) => {
+                  setScaleValues((p) => ({ ...p, [q.id]: v }));
+                  markDirty();
+                }}
+              />
+            )}
             {q.type === "open-text" && (
               <OpenTextInput
                 q={q}
@@ -1035,6 +1364,77 @@ export default function PublicSurveyPage() {
                 }}
               />
             )}
+          </div>
+        </div>
+      );
+    }
+
+    if (screen.kind === "value-recap") {
+      const q = questionsById.get(screen.questionId);
+      if (!q) return null;
+      const scores = scoreValues[q.id] ?? {};
+      const rows = (q.valueItems ?? []).map((item) => ({
+        item,
+        value: culturalValuesById.get(item.valueId),
+        score: scores[item.id],
+      }));
+      return (
+        <div className="space-y-8 w-full">
+          <div>
+            <h2
+              className="text-[24px] sm:text-[28px] md:text-[30px] font-semibold leading-[1.2]"
+              style={{ color: "var(--text-primary)", letterSpacing: "-0.015em" }}
+            >
+              {t(locale, "recap.headline")}
+            </h2>
+            <p
+              className="mt-3 text-[15px] sm:text-[16px] max-w-[65ch]"
+              style={{ color: "var(--text-muted)", lineHeight: 1.55 }}
+            >
+              {t(locale, "recap.body")}
+            </p>
+          </div>
+          <div className={`w-full ${CARD_MEASURE}`}>
+            <table className="w-full text-left">
+              <thead>
+                <tr>
+                  <th className="typo-section-header pb-2" style={{ color: "var(--text-muted)" }}>
+                    {t(locale, "recap.value")}
+                  </th>
+                  <th
+                    className="typo-section-header pb-2 text-right"
+                    style={{ color: "var(--text-muted)" }}
+                  >
+                    {t(locale, "recap.score")}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map(({ item, value, score }) => (
+                  <tr key={item.id} style={{ borderTop: "1px solid var(--border)" }}>
+                    <td className="py-3">
+                      <span
+                        className="inline-block w-2 h-2 rounded-full mr-2 align-middle"
+                        style={{ background: value?.color || "var(--primary)" }}
+                        aria-hidden="true"
+                      />
+                      <span
+                        className="text-[16px] font-medium"
+                        style={{ color: "var(--text-primary)" }}
+                      >
+                        {value?.title ?? ""}
+                      </span>
+                    </td>
+                    <td
+                      className="py-3 text-right text-[18px] font-semibold tabular-nums"
+                      style={{ color: "var(--text-primary)" }}
+                    >
+                      {score ?? "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       );
@@ -1070,7 +1470,13 @@ export default function PublicSurveyPage() {
     }
 
     if (screen.kind === "done") {
-      return <DoneState locale={locale} participantFirstName="" />;
+      return (
+        <DoneState
+          locale={locale}
+          participantFirstName=""
+          customText={template.thankYouText}
+        />
+      );
     }
 
     return null;
@@ -1644,6 +2050,7 @@ function RankAllInput({
   sensors,
   state,
   labels,
+  itemsOverride,
   onCommit,
 }: {
   q: PublicQuestion;
@@ -1651,14 +2058,19 @@ function RankAllInput({
   sensors: ReturnType<typeof useSensors>;
   state: RankingState | undefined;
   labels: Record<string, string>;
+  /** Used by value-ranking, whose labels, colours and mantras live on the values. */
+  itemsOverride?: { id: string; text: string; subtitle?: string; color?: string }[];
   onCommit: (next: RankingState) => void;
 }) {
-  const items = useMemo(
+  const items = useMemo<
+    { id: string; text: string; subtitle?: string; color?: string }[]
+  >(
     () =>
-      q.type === "archetype-ranking"
+      itemsOverride ??
+      (q.type === "archetype-ranking"
         ? q.options ?? []
-        : q.rankingItems ?? [],
-    [q.type, q.options, q.rankingItems]
+        : q.rankingItems ?? []),
+    [itemsOverride, q.type, q.options, q.rankingItems]
   );
   const itemMap = useMemo(
     () => new Map(items.map((i) => [i.id, i] as const)),
@@ -1720,6 +2132,8 @@ function RankAllInput({
                 rank={idx + 1}
                 label={labels[id]}
                 text={item.text || "(no text)"}
+                subtitle={item.subtitle}
+                color={item.color}
                 hidden={activeId === id}
               />
             );
@@ -1744,14 +2158,22 @@ function SortableRankAllItem({
   rank,
   label,
   text,
+  subtitle,
+  color,
   hidden,
 }: {
   id: string;
   rank: number;
   label?: string;
   text: string;
+  /** Second line — the value's mantra, for value-ranking. */
+  subtitle?: string;
+  /** The value's own colour, shown as a spine down the card's left edge. */
+  color?: string;
   hidden: boolean;
 }) {
+  const accent = isHexColor(color) ? color.trim() : null;
+  const chipText = accent && shouldUseLightText(accent) ? "#fff" : darkenHex(accent ?? "#000000", 0.7);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id });
   const style: React.CSSProperties = {
@@ -1772,6 +2194,10 @@ function SortableRankAllItem({
         style={{
           background: "var(--bg-surface)",
           border: "1px solid var(--border)",
+          // A colour spine rather than a tinted card: the value colours are
+          // client-chosen and several of them behind body text would fail
+          // contrast in ways we cannot predict.
+          borderLeft: accent ? `4px solid ${accent}` : "1px solid var(--border)",
         }}
       >
         <GripVertical
@@ -1781,7 +2207,7 @@ function SortableRankAllItem({
         />
         <span
           className="w-8 h-8 rounded-full flex items-center justify-center text-[14px] tabular-nums font-bold shrink-0"
-          style={rankChipStyle(rank, true)}
+          style={accent ? { background: accent, color: chipText } : rankChipStyle(rank, true)}
         >
           {rank}
         </span>
@@ -1794,11 +2220,21 @@ function SortableRankAllItem({
             {label}
           </span>
         )}
-        <span
-          className="text-[15px] flex-1 min-w-0"
-          style={{ color: "var(--text-primary)", lineHeight: 1.4 }}
-        >
-          {text}
+        <span className="flex-1 min-w-0">
+          <span
+            className="block text-[15px] font-semibold"
+            style={{ color: "var(--text-primary)", lineHeight: 1.35 }}
+          >
+            {text}
+          </span>
+          {subtitle && (
+            <span
+              className="block text-[13px] sm:text-[14px] italic"
+              style={{ color: "var(--text-muted)", lineHeight: 1.35 }}
+            >
+              {subtitle}
+            </span>
+          )}
         </span>
       </div>
     </div>
@@ -2200,6 +2636,165 @@ function RankingPool({
   );
 }
 
+/**
+ * Likert control. One button per scale point, because a slider hides how many
+ * points there are and invites imprecise dragging on a scale this short.
+ */
+/**
+ * A cultural value rendered in its own colour, matching the culture cards in the
+ * hub: gradient built from the value's hex, title as a badge, mantra as the
+ * headline, and the level-specific behaviours below.
+ *
+ * Text colour follows the card's luminance rather than the theme, because the
+ * colour is chosen by the client and can land anywhere from near-black to pale.
+ * Behaviours are rich text authored in the hub, so they render as sanitised HTML
+ * — rendering them as plain text shows the participant raw `<ul><li>` markup.
+ */
+function CultureValueCard({
+  value,
+  behaviors,
+  level,
+  locale,
+}: {
+  value: CulturalValue;
+  behaviors: CulturalBehavior[];
+  level: string;
+  locale: Locale;
+}) {
+  const hex = isHexColor(value.color) ? value.color.trim() : null;
+  const light = hex ? shouldUseLightText(hex) : false;
+  const text = hex ? (light ? "#ffffff" : darkenHex(hex, 0.75)) : "var(--text-primary)";
+  const muted = hex
+    ? light
+      ? "rgba(255,255,255,0.78)"
+      : darkenHex(hex, 0.5)
+    : "var(--text-muted)";
+  const badgeBg = hex
+    ? light
+      ? darkenHex(hex, 0.2)
+      : "rgba(0,0,0,0.1)"
+    : "var(--bg-neutral)";
+  const panelBg = hex
+    ? light
+      ? "rgba(255,255,255,0.14)"
+      : "rgba(255,255,255,0.45)"
+    : "var(--bg-elevated)";
+
+  return (
+    <div
+      className={`rounded-card overflow-hidden w-full ${CARD_MEASURE}`}
+      style={{
+        background: hex
+          ? `linear-gradient(135deg, ${lightenHex(hex, 0.15)} 0%, ${hex} 40%, ${darkenHex(hex, 0.15)} 100%)`
+          : "var(--bg-neutral)",
+      }}
+    >
+      <div className="px-5 sm:px-7 py-6 sm:py-7">
+        <span
+          className="inline-block px-3 py-1 rounded-badge typo-tag"
+          style={{ background: badgeBg, color: text }}
+        >
+          {value.title}
+        </span>
+
+        {value.mantra && (
+          <h2
+            className="mt-4 text-[26px] sm:text-[32px] font-bold leading-[1.15]"
+            style={{ color: text, letterSpacing: "-0.015em" }}
+          >
+            {value.mantra}
+          </h2>
+        )}
+
+        {value.description && (
+          <p
+            className="mt-3 max-w-[65ch] text-[15px] sm:text-[16px]"
+            style={{ color: muted, lineHeight: 1.55 }}
+          >
+            {value.description}
+          </p>
+        )}
+
+        <div className="mt-6 rounded-card px-4 py-4" style={{ background: panelBg }}>
+          <p className="typo-section-header mb-2" style={{ color: muted }}>
+            {level
+              ? `${t(locale, "assessment.behaviorsTitle")} · ${level}`
+              : t(locale, "assessment.behaviorsTitle")}
+          </p>
+          {behaviors.length === 0 ? (
+            <p className="text-[15px] italic" style={{ color: muted }}>
+              {t(locale, "assessment.noBehaviors")}
+            </p>
+          ) : (
+            behaviors.map((b, i) => (
+              <div
+                key={`${b.level}-${i}`}
+                className="behavior-html text-[15px] sm:text-[16px]"
+                style={{ color: text, lineHeight: 1.6 }}
+                dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(b.content) }}
+              />
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ScaleInput({
+  scale,
+  value,
+  onChange,
+}: {
+  scale?: { min: number; max: number; minLabel?: string; maxLabel?: string };
+  value: number | undefined;
+  onChange: (next: number) => void;
+}) {
+  const min = scale?.min ?? 1;
+  const max = scale?.max ?? 5;
+  const points = Array.from({ length: Math.max(0, max - min + 1) }, (_, i) => min + i);
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap gap-2">
+        {points.map((point) => {
+          const selected = value === point;
+          return (
+            <button
+              key={point}
+              type="button"
+              onClick={() => onChange(point)}
+              aria-pressed={selected}
+              className="survey-scale-btn w-12 h-12 rounded-button text-[16px] font-semibold tabular-nums"
+              // Only the selected state is inline; the rest (including hover)
+              // comes from .survey-scale-btn so a :hover rule can win.
+              style={
+                selected
+                  ? {
+                      background: "var(--primary)",
+                      color: "#fff",
+                      borderColor: "var(--primary)",
+                    }
+                  : undefined
+              }
+            >
+              {point}
+            </button>
+          );
+        })}
+      </div>
+      {(scale?.minLabel || scale?.maxLabel) && (
+        <div
+          className="flex justify-between text-[13px] max-w-[336px]"
+          style={{ color: "var(--text-muted)" }}
+        >
+          <span>{scale?.minLabel ?? ""}</span>
+          <span>{scale?.maxLabel ?? ""}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function MultipleChoiceInput({
   q,
   locale,
@@ -2402,9 +2997,12 @@ function UnderlineTextarea({
 function DoneState({
   locale,
   participantFirstName,
+  customText,
 }: {
   locale: Locale;
   participantFirstName: string;
+  /** Per-survey closing copy; falls back to the built-in translation. */
+  customText?: string;
 }) {
   const [confettiSeed] = useState(() => Math.random());
 
@@ -2476,7 +3074,7 @@ function DoneState({
         className="text-[15px] max-w-[36ch] mx-auto"
         style={{ color: "var(--text-muted)", lineHeight: 1.55 }}
       >
-        {t(locale, "done.subline")}
+        {customText?.trim() ? customText : t(locale, "done.subline")}
       </p>
     </div>
   );

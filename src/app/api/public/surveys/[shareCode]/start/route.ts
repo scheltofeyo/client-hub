@@ -10,7 +10,9 @@ export async function POST(
   const { shareCode } = await params;
   await connectDB();
 
-  const surveySession = await SurveySessionModel.findOne({ shareCode }).select("_id status").lean();
+  const surveySession = await SurveySessionModel.findOne({ shareCode })
+    .select("_id status")
+    .lean();
   if (!surveySession) return NextResponse.json({ error: "Survey not found" }, { status: 404 });
   if (surveySession.status !== "open") {
     return NextResponse.json({ error: "Survey is not open" }, { status: 400 });
@@ -35,11 +37,15 @@ export async function POST(
         { status: 409 }
       );
     }
+    // The level is chosen on the screen after this one, so nothing to store here —
+    // but a returning participant needs theirs back, or they would be shown a
+    // different level's behaviours than the ones they originally scored.
     return NextResponse.json({
       submissionId: existing._id.toString(),
       status: existing.status,
       resumed: true,
       answers: existing.answers ?? [],
+      cohortTags: existing.cohortTags ?? undefined,
     });
   }
 

@@ -1,10 +1,13 @@
 import mongoose, { Schema, Document, Model } from "mongoose";
+import type { ICulturalBehavior, ICulturalDnaValue } from "./Client";
 import type { ISurveyClosingQuestion } from "./SurveyTemplate";
 import type { ISurveySectionOpenQuestion } from "./SurveyTemplateSection";
 import type {
   ISurveyQuestionOption,
   IGeneralRankingItem,
   IMultipleChoiceItem,
+  ISurveyScaleConfig,
+  ISurveyValueItem,
   SurveyQuestionType,
 } from "./SurveyTemplateQuestion";
 
@@ -21,6 +24,18 @@ export interface IArchetypeSnapshot {
   color?: string;
   description?: string;
 }
+
+/**
+ * A cultural value copied from `Client.culturalDna` when the session is created.
+ *
+ * Deliberately a *copy*, unlike `IArchetypeSnapshot` which stores only an id and
+ * resolves name/color live via `enrichArchetypes()`. Archetypes are a global
+ * reference collection where a rename should propagate to historical sessions;
+ * cultural values are client-owned free text that gets rewritten, and a closed
+ * session must not retroactively change the questions people answered.
+ */
+export type ICulturalValueSnapshot = ICulturalDnaValue;
+export type ICulturalBehaviorSnapshot = ICulturalBehavior;
 
 export interface ISurveyQuestionSnapshot {
   id: string;
@@ -45,6 +60,15 @@ export interface ISurveyQuestionSnapshot {
   multiline?: boolean;
   required?: boolean;
 
+  // scale | value-assessment
+  scale?: ISurveyScaleConfig;
+
+  // value-assessment
+  assessmentPrompt?: string;
+
+  // value-assessment | value-ranking
+  valueItems?: ISurveyValueItem[];
+
   // intro
   bodyHtml?: string;
 
@@ -67,6 +91,12 @@ export interface ISurveyTemplateSnapshot {
   name: string;
   description?: string;
   archetypes: IArchetypeSnapshot[];
+  /** Copied from `Client.culturalDna` at session creation. Empty for archetype surveys. */
+  culturalValues: ICulturalValueSnapshot[];
+  /** Copied from `Client.culturalLevels`. Drives the respondent-variable options. */
+  culturalLevels: string[];
+  /** Custom closing screen copy. Falls back to the built-in translation when unset. */
+  thankYouText?: string;
   rankWeights: number[];
   top3Weights: number[];
   closingOpenQuestion?: ISurveyClosingQuestion;
@@ -84,6 +114,7 @@ export type SurveyAnalysisType = "summary" | "comparison";
 export type SurveyAnalysisOperation =
   | "mc-average"
   | "mc-pooled"
+  | "scale-mean"
   | "archetype-points"
   | "ranking-mean"
   | "open-text-frequency"
@@ -104,11 +135,42 @@ export interface ISurveyAnalysis {
   capabilityFingerprint?: string;
 }
 
+export interface IRespondentVariableOption {
+  /**
+   * The level string itself, matching `culturalValue.behaviors[].level`. Using the
+   * level as its own id keeps that join trivial and mirrors how `Client.culturalDna`
+   * already relates behaviours to levels.
+   */
+  id: string;
+  label: string;
+  description?: string;
+}
+
+/**
+ * One attribute captured from the respondent before any question is shown. It both
+ * drives per-respondent content (which behaviours a value question renders) and
+ * slices the results. Session-level rather than a question type: it must be answered
+ * first, must not be reorderable, and the results filter needs it regardless of how
+ * the sections are structured.
+ */
+export interface IRespondentVariable {
+  enabled: boolean;
+  /** Key under which the answer is stored in `SurveySubmission.cohortTags`. */
+  key: string;
+  label: string;
+  helpText?: string;
+  /** Link to material where a respondent can look their level up. */
+  helpUrl?: string;
+  required: boolean;
+  options: IRespondentVariableOption[];
+}
+
 export interface ISurveySession extends Document {
   clientId: string;
   /** Empty string means the session was created from scratch (no underlying template). */
   templateId: string;
   templateSnapshot: ISurveyTemplateSnapshot;
+  respondentVariable?: IRespondentVariable;
   analyses: ISurveyAnalysis[];
   title: string;
   status: "draft" | "open" | "closed" | "archived";
@@ -131,6 +193,26 @@ const ArchetypeSnapshotSchema = new Schema<IArchetypeSnapshot>(
     name: { type: String },
     color: { type: String },
     description: { type: String },
+  },
+  { _id: false }
+);
+
+const CulturalBehaviorSnapshotSchema = new Schema<ICulturalBehaviorSnapshot>(
+  {
+    level: { type: String, required: true },
+    content: { type: String, default: "" },
+  },
+  { _id: false }
+);
+
+const CulturalValueSnapshotSchema = new Schema<ICulturalValueSnapshot>(
+  {
+    id: { type: String, required: true },
+    title: { type: String, required: true },
+    color: { type: String, default: "" },
+    mantra: { type: String, default: "" },
+    description: { type: String, default: "" },
+    behaviors: { type: [CulturalBehaviorSnapshotSchema], default: [] },
   },
   { _id: false }
 );
@@ -160,6 +242,24 @@ const ChoiceSchema = new Schema<IMultipleChoiceItem>(
   { _id: false }
 );
 
+const ScaleConfigSnapshotSchema = new Schema<ISurveyScaleConfig>(
+  {
+    min: { type: Number, default: 1 },
+    max: { type: Number, default: 5 },
+    minLabel: { type: String },
+    maxLabel: { type: String },
+  },
+  { _id: false }
+);
+
+const ValueItemSnapshotSchema = new Schema<ISurveyValueItem>(
+  {
+    id: { type: String, required: true },
+    valueId: { type: String, required: true },
+  },
+  { _id: false }
+);
+
 const QuestionSnapshotSchema = new Schema<ISurveyQuestionSnapshot>(
   {
     id: { type: String, required: true },
@@ -172,6 +272,9 @@ const QuestionSnapshotSchema = new Schema<ISurveyQuestionSnapshot>(
         "general-top3",
         "multiple-choice",
         "open-text",
+        "scale",
+        "value-assessment",
+        "value-ranking",
         "intro",
       ],
       default: "archetype-ranking",
@@ -191,6 +294,10 @@ const QuestionSnapshotSchema = new Schema<ISurveyQuestionSnapshot>(
     placeholder: { type: String },
     multiline: { type: Boolean },
     required: { type: Boolean },
+
+    scale: { type: ScaleConfigSnapshotSchema, default: undefined },
+    assessmentPrompt: { type: String },
+    valueItems: { type: [ValueItemSnapshotSchema], default: undefined },
 
     bodyHtml: { type: String },
 
@@ -253,6 +360,7 @@ const AnalysisSchema = new Schema<ISurveyAnalysis>(
       enum: [
         "mc-average",
         "mc-pooled",
+        "scale-mean",
         "archetype-points",
         "ranking-mean",
         "open-text-frequency",
@@ -276,10 +384,35 @@ const TemplateSnapshotSchema = new Schema<ISurveyTemplateSnapshot>(
     name: { type: String, required: true },
     description: { type: String },
     archetypes: { type: [ArchetypeSnapshotSchema], default: [] },
+    culturalValues: { type: [CulturalValueSnapshotSchema], default: [] },
+    culturalLevels: { type: [String], default: [] },
+    thankYouText: { type: String },
     rankWeights: { type: [Number], default: [5, 4, 3, 2, 1] },
     top3Weights: { type: [Number], default: [5, 3, 1] },
     closingOpenQuestion: { type: ClosingQuestionSchema, default: undefined },
     sections: { type: [SectionSnapshotSchema], default: [] },
+  },
+  { _id: false }
+);
+
+const RespondentVariableOptionSchema = new Schema<IRespondentVariableOption>(
+  {
+    id: { type: String, required: true },
+    label: { type: String, required: true },
+    description: { type: String },
+  },
+  { _id: false }
+);
+
+const RespondentVariableSchema = new Schema<IRespondentVariable>(
+  {
+    enabled: { type: Boolean, default: false },
+    key: { type: String, default: "culturalLevel" },
+    label: { type: String, default: "" },
+    helpText: { type: String },
+    helpUrl: { type: String },
+    required: { type: Boolean, default: true },
+    options: { type: [RespondentVariableOptionSchema], default: [] },
   },
   { _id: false }
 );
@@ -289,6 +422,7 @@ const SurveySessionSchema = new Schema<ISurveySession>(
     clientId: { type: String, required: true, index: true },
     templateId: { type: String, default: "" },
     templateSnapshot: { type: TemplateSnapshotSchema, required: true },
+    respondentVariable: { type: RespondentVariableSchema, default: undefined },
     analyses: { type: [AnalysisSchema], default: [] },
     title: { type: String, required: true, trim: true },
     status: {

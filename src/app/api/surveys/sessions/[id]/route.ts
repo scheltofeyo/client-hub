@@ -7,6 +7,13 @@ import { SurveySubmissionModel } from "@/lib/models/SurveySubmission";
 import { ClientModel } from "@/lib/models/Client";
 import { UserModel } from "@/lib/models/User";
 import { enrichArchetypes } from "@/lib/surveys/enrich-archetypes";
+import {
+  CULTURAL_SELECT,
+  culturalSnapshotFromClient,
+  respondentVariableFromLevels,
+} from "@/lib/surveys/cultural-dna";
+import { isValueBackedType } from "@/lib/surveys/types";
+import { randomUUID } from "node:crypto";
 
 export async function GET(
   _req: NextRequest,
@@ -45,6 +52,7 @@ export async function GET(
       archetypes: enrichedArchetypes,
       top3Weights: doc.templateSnapshot?.top3Weights ?? [5, 3, 1],
     },
+    respondentVariable: doc.respondentVariable ?? null,
     title: doc.title,
     status: doc.status,
     shareCode: doc.shareCode,
@@ -134,7 +142,10 @@ export async function PATCH(
     body.snapshotDescription !== undefined ||
     body.snapshotSections !== undefined ||
     body.snapshotArchetypes !== undefined ||
-    body.snapshotClosingOpenQuestion !== undefined;
+    body.snapshotClosingOpenQuestion !== undefined ||
+    body.snapshotThankYouText !== undefined ||
+    body.respondentVariable !== undefined ||
+    body.refreshCulturalDna === true;
   if (snapshotEditsRequested && existing.status !== "draft") {
     return NextResponse.json(
       { error: "Snapshot content can only be edited while the session is in draft." },
@@ -165,6 +176,68 @@ export async function PATCH(
     update["templateSnapshot.archetypes"] = body.snapshotArchetypes
       .filter((a: { id?: unknown }) => typeof a?.id === "string" && a.id.length > 0)
       .map((a: { id: string }) => ({ id: a.id }));
+  }
+  if (body.snapshotThankYouText !== undefined) {
+    update["templateSnapshot.thankYouText"] =
+      String(body.snapshotThankYouText).trim() || undefined;
+  }
+  if (body.respondentVariable !== undefined) {
+    update.respondentVariable = body.respondentVariable ?? undefined;
+  }
+  // Re-copy the client's Cultural DNA into the snapshot. Draft-only via the guard
+  // above: re-materialising values under answers that already reference them would
+  // orphan those answers.
+  if (body.refreshCulturalDna === true) {
+    const client = await ClientModel.findById(existing.clientId)
+      .select(CULTURAL_SELECT)
+      .lean();
+    if (!client) {
+      return NextResponse.json({ error: "Client not found" }, { status: 404 });
+    }
+    const cultural = culturalSnapshotFromClient(client);
+    update["templateSnapshot.culturalValues"] = cultural.culturalValues;
+    update["templateSnapshot.culturalLevels"] = cultural.culturalLevels;
+
+    // Re-materialise the items of every value-backed question. Without this the
+    // snapshot would list new values that no question asks about, and keep asking
+    // about values the client has removed.
+    //
+    // Item ids are preserved where the value is unchanged, so answers already
+    // saved by someone mid-flight keep pointing at the same item.
+    const sections = existing.templateSnapshot?.sections ?? [];
+    const rebuiltSections = sections.map((section) => ({
+      ...section,
+      questions: (section.questions ?? []).map((q) => {
+        if (!isValueBackedType(q.type)) return q;
+        const existingIdByValue = new Map(
+          (q.valueItems ?? []).map((item) => [item.valueId, item.id])
+        );
+        return {
+          ...q,
+          valueItems: cultural.culturalValues.map((v) => ({
+            id: existingIdByValue.get(v.id) ?? randomUUID(),
+            valueId: v.id,
+          })),
+        };
+      }),
+    }));
+    update["templateSnapshot.sections"] = rebuiltSections;
+
+    // The level options are derived from the same DNA, so they move with it.
+    if (existing.respondentVariable?.enabled) {
+      const rebuilt = respondentVariableFromLevels(cultural.culturalLevels, {
+        enabled: true,
+        key: existing.respondentVariable.key,
+        label: existing.respondentVariable.label,
+        helpText: existing.respondentVariable.helpText,
+        helpUrl: existing.respondentVariable.helpUrl,
+        required: existing.respondentVariable.required,
+      });
+      // Explicit null rather than undefined: the client may have removed all its
+      // levels, and Mongoose drops undefined from a $set, which would leave the
+      // old options in place and offer levels the client no longer has.
+      update.respondentVariable = rebuilt ?? null;
+    }
   }
 
   const doc = await SurveySessionModel.findByIdAndUpdate(

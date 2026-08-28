@@ -3,6 +3,7 @@ import type { ISurveySubmission } from "@/lib/models/SurveySubmission";
 import type { ResultsData, QuestionResult } from "@/components/survey-results/types";
 import { normalizeQuestionType, TOP3_RANK_LENGTH } from "./types";
 import { computeAgreement, averageAgreement } from "./agreement";
+import { computeScaleStats, meanRankFromDistribution } from "./dispersion";
 import { enrichArchetypes, type EnrichedArchetype } from "./enrich-archetypes";
 import { buildAccumulators, normalizeArchetypeScores, type QuestionMeta } from "./distributions";
 import {
@@ -27,9 +28,17 @@ export interface ComputedSurveyResults {
  * (markdown). Pure with respect to its inputs aside from one DB read in
  * `enrichArchetypes` to refresh archetype name/color from the live collection.
  */
+export interface ComputeOptions {
+  /** Segments available on this session, including suppressed ones. */
+  segments?: import("@/components/survey-results/types").ResultsSegment[];
+  activeSegment?: string | null;
+  segmentLabel?: string | null;
+}
+
 export async function computeSurveyResults(
   surveySession: ISurveySession,
-  submissions: ISurveySubmission[]
+  submissions: ISurveySubmission[],
+  options: ComputeOptions = {}
 ): Promise<ComputedSurveyResults> {
   const snapshot = surveySession.templateSnapshot;
   const rankWeights = snapshot.rankWeights ?? [5, 4, 3, 2, 1];
@@ -37,6 +46,15 @@ export async function computeSurveyResults(
   // Resolve archetype name + color live from the Archetype collection so that
   // changes propagate to historical sessions. Snapshot is fallback only.
   const archetypes = await enrichArchetypes(snapshot.archetypes ?? []);
+  // Cultural values come straight off the snapshot — they were copied from the
+  // client at creation and must not drift after the fact.
+  const culturalValues = (snapshot.culturalValues ?? []).map((v) => ({
+    id: v.id,
+    title: v.title,
+    color: v.color || "var(--primary)",
+    mantra: v.mantra || undefined,
+  }));
+  const culturalValueById = new Map(culturalValues.map((v) => [v.id, v]));
   const sections = snapshot.sections ?? [];
 
   // Flatten question metadata
@@ -55,6 +73,9 @@ export async function computeSurveyResults(
     choiceCountMap,
     openTextAnswersByQuestion,
     legacyOpenTextByQuestion,
+    scaleValuesByQuestion,
+    scaleValuesByQuestionItem,
+    valueRankDistMap,
     questionN,
   } = buildAccumulators(submissions, questionMetas, rankWeights, top3Weights);
 
@@ -170,6 +191,59 @@ export async function computeSurveyResults(
         });
         return { ...base, type: "multiple-choice", choiceMode: qm.choiceMode ?? "single", distribution };
       }
+      case "scale": {
+        const bounds = { min: qm.scale?.min ?? 1, max: qm.scale?.max ?? 5 };
+        const stats = computeScaleStats(scaleValuesByQuestion.get(qm.id) ?? [], bounds);
+        return {
+          ...base,
+          type: "scale",
+          min: bounds.min,
+          max: bounds.max,
+          mean: stats ? Math.round(stats.mean * 100) / 100 : null,
+          sd: stats?.sd != null ? Math.round(stats.sd * 100) / 100 : null,
+          distribution: stats?.distribution ?? Array(bounds.max - bounds.min + 1).fill(0),
+        };
+      }
+      case "value-assessment": {
+        const bounds = { min: qm.scale?.min ?? 1, max: qm.scale?.max ?? 5 };
+        const byItem = scaleValuesByQuestionItem.get(qm.id);
+        const bucketCount = Math.max(0, bounds.max - bounds.min + 1);
+        const values = (qm.valueItems ?? []).map((item) => {
+          const value = culturalValueById.get(item.valueId);
+          const stats = computeScaleStats(byItem?.get(item.id) ?? [], bounds);
+          return {
+            valueItemId: item.id,
+            valueId: item.valueId,
+            // A value deleted from the client's DNA after the session was created
+            // still has answers attached; name it rather than dropping it.
+            title: value?.title ?? "Removed value",
+            color: value?.color ?? "var(--text-muted)",
+            n: stats?.n ?? 0,
+            mean: stats ? Math.round(stats.mean * 100) / 100 : null,
+            sd: stats?.sd != null ? Math.round(stats.sd * 100) / 100 : null,
+            distribution: stats?.distribution ?? Array(bucketCount).fill(0),
+          };
+        });
+        return { ...base, type: "value-assessment", min: bounds.min, max: bounds.max, values };
+      }
+      case "value-ranking": {
+        const items = qm.valueItems ?? [];
+        const itemDist = valueRankDistMap.get(qm.id);
+        const values = items.map((item) => {
+          const value = culturalValueById.get(item.valueId);
+          const dist = itemDist?.get(item.id) ?? Array(items.length).fill(0);
+          const meanRank = meanRankFromDistribution(dist);
+          return {
+            valueItemId: item.id,
+            valueId: item.valueId,
+            title: value?.title ?? "Removed value",
+            color: value?.color ?? "var(--text-muted)",
+            meanRank: meanRank != null ? Math.round(meanRank * 100) / 100 : null,
+            distribution: dist,
+          };
+        });
+        return { ...base, type: "value-ranking", values };
+      }
       case "open-text":
         return { ...base, type: "open-text", answers: openTextAnswersByQuestion.get(qm.id) ?? [] };
       case "intro":
@@ -259,8 +333,12 @@ export async function computeSurveyResults(
       choiceCountMap,
       openTextAnswersByQuestion,
       legacyOpenTextByQuestion,
+      scaleValuesByQuestion,
+      scaleValuesByQuestionItem,
+      valueRankDistMap,
       questionN,
     },
+    culturalValues,
     submissions,
     rankWeights,
     top3Weights,
@@ -281,6 +359,9 @@ export async function computeSurveyResults(
     hasArchetypeTop3: questionMetas.some((q) => q.type === "archetype-top3"),
     hasGeneralTop3: questionMetas.some((q) => q.type === "general-top3"),
     hasMultipleChoice: questionMetas.some((q) => q.type === "multiple-choice"),
+    hasScale: questionMetas.some((q) => q.type === "scale"),
+    hasValueAssessment: questionMetas.some((q) => q.type === "value-assessment"),
+    hasValueRanking: questionMetas.some((q) => q.type === "value-ranking"),
     hasOpenText:
       questionMetas.some((q) => q.type === "open-text") ||
       submissions.some((s) =>
@@ -293,6 +374,10 @@ export async function computeSurveyResults(
   const results: ResultsData = {
     participantCount: submissions.length,
     archetypes,
+    culturalValues,
+    segments: options.segments ?? [],
+    activeSegment: options.activeSegment ?? null,
+    segmentLabel: options.segmentLabel ?? null,
     capabilities,
     overall: {
       archetypes: overallArchetypes,

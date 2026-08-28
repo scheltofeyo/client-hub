@@ -5,9 +5,11 @@ import { requirePermission, hasPermission } from "@/lib/auth-helpers";
 import { SurveySessionModel } from "@/lib/models/SurveySession";
 import { SurveySubmissionModel } from "@/lib/models/SurveySubmission";
 import { computeSurveyResults } from "@/lib/surveys/compute-results";
+import { listSegments, filterBySegment } from "@/lib/surveys/segments";
+import { effectiveRespondentVariable } from "@/lib/surveys/cultural-dna";
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await auth();
@@ -30,6 +32,33 @@ export async function GET(
     status: "completed",
   }).lean();
 
-  const { results } = await computeSurveyResults(surveySession, submissions);
+  const respondentVariable = effectiveRespondentVariable(surveySession);
+  const segments = listSegments(submissions, respondentVariable);
+
+  // Still validated rather than trusted, so an unknown segment is an error rather
+  // than silently returning the whole group's numbers under a segment label.
+  const requested = req.nextUrl.searchParams.get("segment");
+  let activeSegment: string | null = null;
+  let segmentLabel: string | null = null;
+  let scoped = submissions;
+  if (requested) {
+    const match = segments.find((seg) => seg.value === requested);
+    if (!match) {
+      return NextResponse.json({ error: "Unknown segment" }, { status: 400 });
+    }
+    activeSegment = match.value;
+    segmentLabel = match.label;
+    scoped = filterBySegment(
+      submissions,
+      respondentVariable?.key || "culturalLevel",
+      match.value
+    );
+  }
+
+  const { results } = await computeSurveyResults(surveySession, scoped, {
+    segments,
+    activeSegment,
+    segmentLabel,
+  });
   return NextResponse.json(results);
 }

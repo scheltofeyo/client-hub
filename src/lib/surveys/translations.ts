@@ -23,6 +23,32 @@ const translations = {
     en: "That's why we only ask for your email — it prevents duplicate responses, lets you log back in with the same address later, and your progress is saved automatically between questions.",
   },
   "identify.tag": { nl: "Hoi {company} teamlid", en: "Hi {company} team member" },
+
+  // Respondent variable (Cultural Level) step
+  "respondentVariable.defaultLabel": {
+    nl: "Welk niveau past het best bij jouw functie?",
+    en: "Which level best fits your role?",
+  },
+  "respondentVariable.defaultHelp": {
+    nl: "Kies het niveau dat het dichtst bij je dagelijkse werk ligt. Het bepaalt welk gedrag je straks per waarde te zien krijgt.",
+    en: "Pick the level closest to your day-to-day work. It decides which behaviours you'll see for each value.",
+  },
+  "respondentVariable.help": {
+    nl: "Weet je niet welk niveau bij jou past? Zoek het hier op",
+    en: "Not sure which level fits you? Look it up here",
+  },
+  "recap.headline": { nl: "Dit heb je ingevuld", en: "This is what you filled in" },
+  "recap.body": {
+    nl: "Een overzicht van je eigen scores. Op de volgende stap vragen we je de waarden ten opzichte van elkaar te rangschikken.",
+    en: "An overview of your own scores. Next, we'll ask you to rank the values against each other.",
+  },
+  "recap.value": { nl: "Waarde", en: "Value" },
+  "recap.score": { nl: "Score", en: "Score" },
+  "assessment.behaviorsTitle": { nl: "Wat dit betekent voor jouw niveau", en: "What this means at your level" },
+  "assessment.noBehaviors": {
+    nl: "Voor dit niveau zijn nog geen gedragsvoorbeelden vastgelegd.",
+    en: "No behaviour examples have been defined for this level yet.",
+  },
   "identify.tagFallback": { nl: "Hoi teamlid", en: "Hi team member" },
   "header.saved": { nl: "Opgeslagen", en: "Saved" },
   "header.unsaved": { nl: "Niet opgeslagen", en: "Unsaved" },

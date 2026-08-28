@@ -1,5 +1,38 @@
 [
   {
+    "date": "2026-08-28",
+    "title": "Cultural Self-Assessment: één survey-template die het Cultural DNA van elke klant zelf invult",
+    "details": [
+      "Nieuwe surveyvorm waarin deelnemers zichzelf scoren op de waarden van hun eigen organisatie. Je maakt één sessie aan voor een klant en de waarden, niveaus en gedragingen komen automatisch uit het Cultural DNA van die klant",
+      "De template staat er in twee talen: 'Cultural Self-Assessment (NL)' en 'Cultural Self-Assessment (EN)' — kies bij het aanmaken van een sessie de taal van de deelnemersgroep",
+      "De deelnemer kiest bij de start zijn Cultural Level en krijgt per waarde alleen de gedragsvoorbeelden die bij dát niveau horen",
+      "Na het scoren zie je je eigen scores op een rij, waarna je alle waarden ten opzichte van elkaar rangschikt",
+      "Drie nieuwe vraagtypes die je ook los kunt gebruiken: Scale (een Likert-vraag), Value assessment en Value ranking",
+      "Intro- en bedanktekst zijn per survey in te stellen",
+      "In de resultaten zie je per waarde het gemiddelde, de verdeling over de schaal, de spreiding en de gemiddelde rangpositie — en je kunt filteren per Cultural Level",
+      "Vijf weergaven voor de self-assessment-scores, om te wisselen per vraag: Dots (één stip per deelnemer, met de band van laagste tot hoogste antwoord en het gemiddelde erdoorheen), Likert bar (verdeling gecentreerd op het middelpunt), Mean & spread (gesorteerd op gemiddelde), Heatmap en de oude Histogram",
+      "Zes weergaven voor de value ranking: Podium, Sorted bar, Rank spread (per waarde een balk in tinten van de eigen kleur — donker is hoog geplaatst), Heatmap, Top-1 share en de tabel"
+    ],
+    "whatsNew": {
+      "id": "cultural-self-assessment-2026-08",
+      "title": "Cultural Self-Assessment",
+      "steps": [
+        {
+          "title": "Eén template, elke klant",
+          "description": "Maak een sessie aan vanuit de template 'Cultural Self-Assessment' — in het Nederlands (NL) of het Engels (EN) — en kies een klant. De waarden en niveaus van die klant worden er automatisch in gezet, of het er nu drie of acht zijn."
+        },
+        {
+          "title": "Iedere deelnemer ziet zijn eigen niveau",
+          "description": "De deelnemer kiest bij de start zijn Cultural Level. Per waarde verschijnen dan alleen de gedragsvoorbeelden die bij dat niveau horen, gevolgd door de scorevraag."
+        },
+        {
+          "title": "Inzicht op groepsniveau",
+          "description": "Het resultatenscherm toont per waarde het gemiddelde, de verdeling en de spreiding, plus de gemiddelde rangpositie. Je kunt de resultaten filteren per Cultural Level."
+        }
+      ]
+    }
+  },
+  {
     "date": "2026-08-26",
     "title": "Koppelingen tonen nu wat ze mogen, en leads kunnen hun eigen klanten bewerken vanuit de Claude-app",
     "details": [
