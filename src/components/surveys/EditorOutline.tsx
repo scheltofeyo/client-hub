@@ -275,6 +275,7 @@ export default function EditorOutline({
                               indent={20}
                               icon={<Layers size={14} style={{ color: "var(--info)" }} />}
                               label={respondentVariable!.label}
+                              dragHandle={<DragHandleSpacer />}
                             />
                           ) : null;
                         return (
@@ -326,6 +327,20 @@ function GroupHeader({ label }: { label: string }) {
     >
       {label}
     </p>
+  );
+}
+
+/**
+ * Holds the width a drag handle would take. The handle only becomes visible on
+ * hover but always occupies its column, so a row without one — the level step,
+ * which the runner positions itself — would otherwise sit a handle to the left of
+ * the questions it lines up with.
+ */
+function DragHandleSpacer() {
+  return (
+    <span className="p-0.5" aria-hidden="true">
+      <GripVertical size={12} className="invisible" />
+    </span>
   );
 }
 

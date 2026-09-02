@@ -1,6 +1,24 @@
 [
   {
     "date": "2026-09-02",
+    "title": "Het welkomstscherm van een survey kan nu een afbeelding tonen",
+    "details": [
+      "Onder \u201cWelcome screen\u201d in de survey-editor staat een veld \u201cImage URL\u201d, net als bij een sectie-intro.",
+      "De afbeelding staat op desktop naast de welkomsttekst en op mobiel eronder; laat het veld leeg voor een scherm zonder beeld."
+    ]
+  },
+  {
+    "date": "2026-09-02",
+    "title": "De niveauvraag voor de culturele zelfscan is nu aan te passen",
+    "details": [
+      "Nieuw onderdeel \"Level question\" in de survey-editor — het staat in de outline precies waar de deelnemer hem krijgt: vlak vóór de eerste vraag die het niveau nodig heeft.",
+      "Je past de vraagstelling, de uitleg eronder en een optionele link (\"waar zoek ik mijn niveau op?\") aan; leeg laten of \"Reset to default\" zet een veld terug op de standaardtekst, die meebeweegt met de taalkeuze van de deelnemer.",
+      "Met \"Answer required\" bepaal je of iemand de stap mag overslaan.",
+      "De keuzeopties zelf blijven vaststaan: die komen uit het Culturele DNA van de klant, want daar hangt het gedrag per waarde onder."
+    ]
+  },
+  {
+    "date": "2026-09-02",
     "title": "Het beschrijvingsveld van een survey heet nu 'Internal note'",
     "details": [
       "Het veld heette 'Description' en suggereerde dat deelnemers de tekst te zien kregen; in werkelijkheid kwam die door een fout in de koppeling nergens in de vragenlijst terecht.",

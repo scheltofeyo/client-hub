@@ -427,6 +427,21 @@ function WelcomeView(props: SurveyEditorShellProps) {
     onChangeWelcomeScreen(next);
   }
 
+  /**
+   * The image is not an override of a default the way the copy fields are —
+   * empty simply means no image — so it gets its own commit rather than going
+   * through the default-comparison above.
+   */
+  function commitImageUrl(raw: string) {
+    if (!onChangeWelcomeScreen) return;
+    const value = raw.trim();
+    if (value === (welcomeScreen?.imageUrl ?? "")) return;
+    const next: ISurveyWelcomeScreen = { ...welcomeScreen };
+    if (value) next.imageUrl = value;
+    else delete next.imageUrl;
+    onChangeWelcomeScreen(next);
+  }
+
   const visibleFields = WELCOME_FIELDS.filter(
     (f) => !autoGreeting || !GREETING_FIELDS.includes(f.field)
   );
@@ -521,6 +536,22 @@ function WelcomeView(props: SurveyEditorShellProps) {
             </Fragment>
           );
         })}
+        <div>
+          <label className="typo-label">Image URL (optional)</label>
+          <input
+            key={`welcome-imageUrl-${welcomeScreen?.imageUrl ?? ""}`}
+            type="url"
+            defaultValue={welcomeScreen?.imageUrl ?? ""}
+            onBlur={(e) => commitImageUrl(e.target.value)}
+            placeholder="https://…"
+            className="input"
+            disabled={!onChangeWelcomeScreen}
+          />
+          <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+            Shown beside the welcome copy, like a section image. Leave empty for
+            text only.
+          </p>
+        </div>
       </div>
       <p className="text-xs mt-4" style={{ color: "var(--text-muted)", lineHeight: 1.5 }}>
         {customCount === 0

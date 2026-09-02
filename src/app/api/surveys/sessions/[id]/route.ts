@@ -199,17 +199,21 @@ export async function PATCH(
     // levels — accepting them from the editor would let a typo create a level no
     // behaviour is filed under, which shows that participant nothing at all.
     const copy = normalizeRespondentVariableCopy(body.respondentVariable);
-    const rebuilt = respondentVariableFromLevels(
-      existing.templateSnapshot?.culturalLevels ?? [],
-      {
-        enabled: true,
-        key: existing.respondentVariable?.key || "culturalLevel",
-        label: copy.label ?? "",
-        helpText: copy.helpText,
-        helpUrl: copy.helpUrl,
-        required: copy.required !== false,
-      }
-    );
+    // The snapshot's levels are the source, falling back to the options already
+    // stored: a session whose snapshot predates `culturalLevels` still has them
+    // on the variable itself, and rebuilding from an empty list would silently
+    // remove a step the survey is running with.
+    const levels = existing.templateSnapshot?.culturalLevels?.length
+      ? existing.templateSnapshot.culturalLevels
+      : (existing.respondentVariable?.options ?? []).map((o) => o.id);
+    const rebuilt = respondentVariableFromLevels(levels, {
+      enabled: true,
+      key: existing.respondentVariable?.key || "culturalLevel",
+      label: copy.label ?? "",
+      helpText: copy.helpText,
+      helpUrl: copy.helpUrl,
+      required: copy.required !== false,
+    });
     // Explicit null: Mongoose drops undefined from a $set, which would leave
     // stale copy in place when every field was cleared.
     update.respondentVariable = rebuilt ?? null;

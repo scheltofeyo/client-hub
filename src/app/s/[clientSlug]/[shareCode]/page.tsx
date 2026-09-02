@@ -982,9 +982,15 @@ export default function PublicSurveyPage() {
     : t(locale, "nav.next");
   const showFooter = !isDoneStep;
   const showPrev = step > 0 && !isDoneStep;
-  const currentSectionIntroImg =
+  const welcomeImg = template.welcomeScreen?.imageUrl?.trim() || undefined;
+  // Both the welcome screen and a section intro can put an image alongside their
+  // copy, and both then carry the footer inside their own column instead of
+  // under the full-width content.
+  const currentSideImg =
     current.kind === "section-intro"
       ? sectionsById.get(current.sectionId)?.imageUrl?.trim() || undefined
+      : current.kind === "identity"
+      ? welcomeImg
       : undefined;
   const motionTransition = reducedMotion
     ? { duration: 0 }
@@ -993,77 +999,115 @@ export default function PublicSurveyPage() {
   function renderScreen(screen: Screen): React.ReactNode {
     if (screen.kind === "identity") {
       return (
-        <div className="space-y-8 sm:space-y-10 w-full">
-          <div>
-            {/* Survey context chip — personalized to client company */}
-            <div
-              className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full mb-6"
-              style={{
-                background: "var(--primary-light)",
-                color: "var(--primary)",
-              }}
-            >
-              <MessageCircle size={14} strokeWidth={2.2} />
-              <span className="text-[12px] font-semibold uppercase tracking-[0.06em]">
-                {welcome.tagline}
-              </span>
-            </div>
-
-            {/* Headline — time/day-aware greeting, split into welcome + thanks tiers */}
-            <h1
-              className="text-[28px] sm:text-[34px] md:text-[42px] font-semibold leading-[1.05]"
-              style={{ color: "var(--text-primary)", letterSpacing: "-0.022em" }}
-            >
-              {welcome.headline}
-            </h1>
-            <p
-              className="mt-2 sm:mt-3 text-[18px] sm:text-[22px] md:text-[26px] font-medium leading-[1.2]"
-              style={{ color: "var(--text-muted)", letterSpacing: "-0.012em" }}
-            >
-              {welcome.subheadline}
-            </p>
-
-            {/* Body — organizer → anonymity → email rationale */}
-            <div
-              className="mt-5 max-w-[65ch] space-y-3 text-[16px] sm:text-[18px]"
-              style={{ color: "var(--text-muted)", lineHeight: 1.6 }}
-            >
-              {welcomeParagraphs(welcome.bodyIntro).map((para, i) => (
-                <p key={i}>{para}</p>
-              ))}
-              {welcomeParagraphs(welcome.bodyEmail).map((para, i) => (
-                <p key={i} className="text-[14px] sm:text-[15px]">
-                  {para}
-                </p>
-              ))}
-            </div>
-
-          </div>
-
-          {/* Form */}
-          <div className="space-y-5 w-full md:max-w-[50%]">
-            <UnderlineField
-              label={t(locale, "identify.emailLabel") + " *"}
-              type="email"
-              value={email}
-              onChange={setEmail}
-              placeholder={t(locale, "identify.emailPlaceholder")}
-              autoFocus
-            />
-            {totalQuestions > 0 && (
-              <p
-                className="text-[14px] sm:text-[15px]"
-                style={{ color: "var(--text-muted)" }}
+        <div className={welcomeImg ? "w-full md:flex md:items-center md:gap-8" : "w-full"}>
+          <div
+            className={
+              welcomeImg
+                ? "flex-1 min-w-0 space-y-8 sm:space-y-10"
+                : "w-full space-y-8 sm:space-y-10"
+            }
+          >
+            <div>
+              {/* Survey context chip — personalized to client company */}
+              <div
+                className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full mb-6"
+                style={{
+                  background: "var(--primary-light)",
+                  color: "var(--primary)",
+                }}
               >
-                {totalQuestions === 1
-                  ? t(locale, "identify.statsLineOne")
-                  : t(locale, "identify.statsLine", {
-                      n: totalQuestions,
-                      min: estimatedMinutes,
-                    })}
+                <MessageCircle size={14} strokeWidth={2.2} />
+                <span className="text-[12px] font-semibold uppercase tracking-[0.06em]">
+                  {welcome.tagline}
+                </span>
+              </div>
+
+              {/* Headline — time/day-aware greeting, split into welcome + thanks tiers */}
+              <h1
+                className="text-[28px] sm:text-[34px] md:text-[42px] font-semibold leading-[1.05]"
+                style={{ color: "var(--text-primary)", letterSpacing: "-0.022em" }}
+              >
+                {welcome.headline}
+              </h1>
+              <p
+                className="mt-2 sm:mt-3 text-[18px] sm:text-[22px] md:text-[26px] font-medium leading-[1.2]"
+                style={{ color: "var(--text-muted)", letterSpacing: "-0.012em" }}
+              >
+                {welcome.subheadline}
               </p>
+
+              {/* Body — organizer → anonymity → email rationale */}
+              <div
+                className="mt-5 max-w-[65ch] space-y-3 text-[16px] sm:text-[18px]"
+                style={{ color: "var(--text-muted)", lineHeight: 1.6 }}
+              >
+                {welcomeParagraphs(welcome.bodyIntro).map((para, i) => (
+                  <p key={i}>{para}</p>
+                ))}
+                {welcomeParagraphs(welcome.bodyEmail).map((para, i) => (
+                  <p key={i} className="text-[14px] sm:text-[15px]">
+                    {para}
+                  </p>
+                ))}
+              </div>
+
+            </div>
+
+            {/* Form */}
+            <div className={`space-y-5 w-full${welcomeImg ? "" : " md:max-w-[50%]"}`}>
+              <UnderlineField
+                label={t(locale, "identify.emailLabel") + " *"}
+                type="email"
+                value={email}
+                onChange={setEmail}
+                placeholder={t(locale, "identify.emailPlaceholder")}
+                autoFocus
+              />
+              {totalQuestions > 0 && (
+                <p
+                  className="text-[14px] sm:text-[15px]"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  {totalQuestions === 1
+                    ? t(locale, "identify.statsLineOne")
+                    : t(locale, "identify.statsLine", {
+                        n: totalQuestions,
+                        min: estimatedMinutes,
+                      })}
+                </p>
+              )}
+            </div>
+
+            {welcomeImg && showFooter && (
+              <div className="hidden sm:block">
+                <ActionFooter
+                  locale={locale}
+                  submitting={submitting}
+                  error={error}
+                  errorToken={errorToken}
+                  reducedMotion={!!reducedMotion}
+                  onPrev={showPrev ? goPrev : undefined}
+                  onPrimary={goNext}
+                  primaryLabel={primaryLabel}
+                  primaryBusy={submitting && isLastAnswerScreen()}
+                />
+              </div>
             )}
           </div>
+
+          {welcomeImg && (
+            <div className="md:hidden mt-7 w-full aspect-square rounded-card overflow-hidden">
+              <img src={welcomeImg} alt="" className="w-full h-full object-cover" />
+            </div>
+          )}
+          {welcomeImg && (
+            <div
+              className="hidden md:block shrink-0 w-[45vw] aspect-square rounded-card overflow-hidden"
+              style={{ maxWidth: "min(50%, calc(100vh - 260px))" }}
+            >
+              <img src={welcomeImg} alt="" className="w-full h-full object-cover" />
+            </div>
+          )}
         </div>
       );
     }
@@ -1549,7 +1593,7 @@ export default function PublicSurveyPage() {
           />
         ) : null
       }
-      hideDesktopFooter={!!currentSectionIntroImg}
+      hideDesktopFooter={!!currentSideImg}
     >
       <AnimatePresence mode="wait" initial={false} custom={direction}>
         <motion.div

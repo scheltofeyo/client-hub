@@ -347,6 +347,7 @@ const WelcomeScreenSnapshotSchema = new Schema<ISurveyWelcomeScreen>(
     subheadline: { type: String },
     bodyIntro: { type: String },
     bodyEmail: { type: String },
+    imageUrl: { type: String },
   },
   { _id: false }
 );

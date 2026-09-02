@@ -34,6 +34,13 @@ export interface ISurveyWelcomeScreen {
   bodyIntro?: string;
   /** Closing, smaller body paragraph — why we ask for an email. */
   bodyEmail?: string;
+  /**
+   * Optional image beside the welcome copy, exactly like a section intro's.
+   * Unlike the copy fields this is not an override of anything — there is no
+   * built-in image — so it lives outside `WELCOME_SCREEN_FIELDS` and absent
+   * simply means "no image".
+   */
+  imageUrl?: string;
 }
 
 /*
@@ -142,6 +149,13 @@ export function normalizeWelcomeScreen(raw: unknown): ISurveyWelcomeScreen | und
   // Only `false` is worth storing — absent already means the automatic greeting.
   let any = input.autoGreeting === false;
   if (any) out.autoGreeting = false;
+  if (typeof input.imageUrl === "string") {
+    const url = input.imageUrl.trim();
+    if (url) {
+      out.imageUrl = url;
+      any = true;
+    }
+  }
   for (const field of WELCOME_SCREEN_FIELDS) {
     const value = input[field];
     if (typeof value !== "string") continue;

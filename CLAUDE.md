@@ -328,6 +328,11 @@ so authors are not made to count paragraph slots. The email field, the time esti
 button stay on the translations — mechanics rather than message, and they should follow the
 participant's own language even on a survey whose copy is authored in one.
 
+`imageUrl` is the one field that is *not* an override: there is no built-in welcome image, so it
+lives outside `WELCOME_SCREEN_FIELDS` and empty simply means no image. The runner lays it out exactly
+like a section intro's — beside the copy on desktop, under it on mobile — and, like a section intro,
+moves the footer into the text column so the tall image does not push it off screen.
+
 `autoGreeting` is the one non-string field. Absent means the rotating greeting from `greetings.ts`
 is used and the two headline fields are hidden in the editor; `false` swaps in the authored pair.
 `resolveWelcomeCopy()` withholds the greeting entirely in that case, otherwise an author who turns
@@ -343,6 +348,16 @@ has value-backed questions but no stored config — without a level those questi
 every level's behaviours at once, which is wrong in a way nobody notices before a training. Levels are
 free text typed twice (once on the client, once per behaviour), so `normalizeLevel()` / `levelsMatch()`
 trim both sides of the join; skipping that shows a participant no behaviours at all.
+
+Its *copy* is authored under *Level question* in the editor outline, and
+`respondent-variable-copy.ts` owns it on the same override-or-translation terms as the welcome
+screen. The outline places that row where `buildScreens()` will ask it — in front of the first
+value-backed question — rather than at the top, and it is not draggable, because the runner derives
+the position from the questions. The **options are never authored**: the editor shows them read-only
+and both write paths rebuild them with `respondentVariableFromLevels()` from the client's levels, so
+a typo cannot invent a level no behaviour is filed under. A template stores the copy under
+`defaultRespondentVariable` with `enabled: true` — authoring it is what asks for the step, and
+leaving the flag off would drop the copy at session creation.
 
 **Results.** `compute-results.ts` builds `QuestionResult`s from accumulators in `distributions.ts`.
 Two rules that are easy to get wrong:

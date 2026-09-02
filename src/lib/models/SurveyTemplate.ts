@@ -57,6 +57,7 @@ const WelcomeScreenSchema = new Schema<ISurveyWelcomeScreen>(
     subheadline: { type: String, trim: true },
     bodyIntro: { type: String, trim: true },
     bodyEmail: { type: String, trim: true },
+    imageUrl: { type: String, trim: true },
   },
   { _id: false }
 );
