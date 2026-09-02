@@ -1,6 +1,35 @@
 [
   {
     "date": "2026-09-02",
+    "title": "Een survey heeft nu één taal, en een leeg veld blijft leeg",
+    "details": [
+      "De taalkeuze staat voortaan bij Survey header, als eigenschap van de survey zelf — daar bepaal je of deelnemers Nederlands of Engels te zien krijgen.",
+      "De taalswitch in de vragenlijst is daarmee verdwenen: de teksten die je zelf schrijft staan toch in één taal. In Ranking the Values kunnen deelnemers nog wél wisselen.",
+      "Een veld op het welkomstscherm, het bedankscherm of de niveauvraag leegmaken laat die regel nu helemaal weg in plaats van de standaardtekst terug te zetten. Wil je de standaardtekst terug, gebruik dan \"Reset to default\".",
+      "Bestaande surveys houden hun taal; die is eenmalig vastgelegd op basis van de template waar ze uit komen."
+    ]
+  },
+  {
+    "date": "2026-09-02",
+    "title": "Bekijk een survey als deelnemer voordat je hem publiceert",
+    "details": [
+      "Nieuwe Preview-knop op een concept-sessie en in de content-editor — die opent de echte vragenlijst in een nieuw tabblad.",
+      "Je loopt hem helemaal door, van welkomstscherm tot bedankscherm, precies zoals een deelnemer hem krijgt.",
+      "Er wordt niets opgeslagen: geen inzending, geen antwoorden, en de status van de sessie blijft concept. Een balk bovenin herinnert je daaraan.",
+      "Alleen collega's die de sessie sowieso al mogen inzien kunnen de preview openen; voor iedereen anders blijft het een niet-gepubliceerde survey."
+    ]
+  },
+  {
+    "date": "2026-09-02",
+    "title": "Een survey dupliceren, ook naar een andere klant",
+    "details": [
+      "Kopieer-knop op elke survey in de lijst, en \"Duplicate survey\" in het menu op de surveypagina.",
+      "De kopie is een nieuwe draft met dezelfde inhoud, een eigen deellink en zonder inzendingen.",
+      "Kies bij het dupliceren een klant: bij een andere klant worden het Cultureel DNA, de niveaus en de waardevragen automatisch opnieuw ingevuld met de waarden van die klant."
+    ]
+  },
+  {
+    "date": "2026-09-02",
     "title": "Het eindscherm van een survey is nu volledig aan te passen",
     "details": [
       "Nieuw onderdeel \"Thank-you screen\" in de survey-editor, onder Closing question \u2014 voor zowel een template als een losse sessie.",

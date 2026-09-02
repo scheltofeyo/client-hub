@@ -12,9 +12,12 @@ import type { SaveState } from "@/components/surveys/SaveStateChip";
 import type { ArchetypeLite } from "@/components/surveys/ArchetypePill";
 import type { ShellQuestionAny } from "@/components/surveys/question-types";
 import type { SurveyQuestionType } from "@/lib/surveys/types";
+import type { Locale } from "@/lib/surveys/translations";
 import type { ISurveyWelcomeScreen } from "@/lib/surveys/welcome-screen";
 import type { IRespondentVariableCopy } from "@/lib/surveys/respondent-variable-copy";
 import type { ISurveyClosingScreen } from "@/lib/surveys/closing-screen";
+import { slugify } from "@/lib/slug";
+import { Eye } from "lucide-react";
 
 function uid() {
   return globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2);
@@ -127,6 +130,8 @@ interface ArchetypeSnapshot {
 interface Snapshot {
   name: string;
   description?: string;
+  /** The language the runner shows. Absent on sessions created before it existed. */
+  locale?: Locale;
   archetypes: ArchetypeSnapshot[];
   culturalValues?: { id: string; title: string }[];
   culturalLevels?: string[];
@@ -143,7 +148,8 @@ interface Snapshot {
 interface SessionRespondentVariable {
   enabled: boolean;
   key: string;
-  label: string;
+  /** Absent for the built-in question, `""` when the author cleared it. */
+  label?: string;
   helpText?: string;
   helpUrl?: string;
   required: boolean;
@@ -154,6 +160,7 @@ interface SessionDetail {
   id: string;
   clientId: string;
   clientName: string | null;
+  shareCode: string;
   title: string;
   status: string;
   createdBy: string;
@@ -234,6 +241,10 @@ export default function EditSnapshotPage() {
     patchSnapshot({ description });
     persist({ snapshotDescription: description });
   }
+  function handleChangeLocale(locale: Locale) {
+    patchSnapshot({ locale });
+    persist({ snapshotLocale: locale });
+  }
   function handleChangeClosing(co: { enabled: boolean; label: string }) {
     patchSnapshot({ closingOpenQuestion: co });
     persist({ snapshotClosingOpenQuestion: co });
@@ -262,7 +273,7 @@ export default function EditSnapshotPage() {
             ...prev,
             respondentVariable: {
               ...prev.respondentVariable,
-              label: copy.label ?? "",
+              label: copy.label,
               helpText: copy.helpText,
               helpUrl: copy.helpUrl,
               required: copy.required !== false,
@@ -442,18 +453,30 @@ export default function EditSnapshotPage() {
           { label: "Edit content" },
         ]}
         headerActions={
-          <button
-            onClick={() => router.push(`/tools/surveys/${id}`)}
-            className="btn-primary inline-flex items-center gap-1.5 px-3 py-1.5 rounded-button text-xs font-semibold"
-          >
-            Back to session
-          </button>
+          <div className="flex items-center gap-2">
+            <a
+              href={`/s/${slugify(data.clientName ?? "survey")}/${data.shareCode}?preview=1`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-border border inline-flex items-center gap-1.5 px-3 py-1.5 rounded-button text-xs font-semibold"
+            >
+              <Eye size={13} />
+              Preview
+            </a>
+            <button
+              onClick={() => router.push(`/tools/surveys/${id}`)}
+              className="btn-primary inline-flex items-center gap-1.5 px-3 py-1.5 rounded-button text-xs font-semibold"
+            >
+              Back to session
+            </button>
+          </div>
         }
         saveState={saveState}
         savedAt={savedAt}
         onRetrySave={undefined}
         name={snapshot.name}
         description={snapshot.description}
+        locale={snapshot.locale ?? "nl"}
         archetypes={archetypeLites}
         allArchetypes={archetypeLites}
         archetypeMutable={false}
@@ -467,9 +490,11 @@ export default function EditSnapshotPage() {
           data.respondentVariable
             ? {
                 copy: {
-                  label: data.respondentVariable.label || undefined,
-                  helpText: data.respondentVariable.helpText || undefined,
-                  helpUrl: data.respondentVariable.helpUrl || undefined,
+                  // Passed through rather than `|| undefined`: a stored "" is a
+                  // cleared field, not an unauthored one.
+                  label: data.respondentVariable.label,
+                  helpText: data.respondentVariable.helpText,
+                  helpUrl: data.respondentVariable.helpUrl,
                   required: data.respondentVariable.required,
                 },
                 options: data.respondentVariable.options.map((o) => o.label),
@@ -481,6 +506,7 @@ export default function EditSnapshotPage() {
         onSelect={setSelected}
         onChangeName={handleChangeName}
         onChangeDescription={handleChangeDescription}
+        onChangeLocale={handleChangeLocale}
         onChangeClosing={handleChangeClosing}
         onChangeWelcomeScreen={handleChangeWelcomeScreen}
         onChangeClosingScreen={handleChangeClosingScreen}

@@ -15,6 +15,7 @@
     "seed:cultural-assessment": "npx tsx scripts/seed-cultural-self-assessment.ts nl",
     "seed:cultural-assessment-en": "npx tsx scripts/seed-cultural-self-assessment.ts en",
     "backfill:project-status": "npx tsx scripts/backfill-project-status.ts",
+    "backfill:surveys": "npx tsx scripts/backfill-survey-copy.ts",
     "cleanup:orphaned-tasks": "npx tsx scripts/cleanup-orphaned-tasks.ts",
     "migrate:project-discounts": "npx tsx scripts/migrate-plan-discount-to-projects.ts"
   },

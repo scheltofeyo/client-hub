@@ -1,6 +1,7 @@
 import mongoose, { Schema, Document, Model } from "mongoose";
 import type { ICulturalBehavior, ICulturalDnaValue } from "./Client";
 import type { ISurveyClosingQuestion } from "./SurveyTemplate";
+import type { Locale } from "@/lib/surveys/translations";
 import type { ISurveyWelcomeScreen } from "@/lib/surveys/welcome-screen";
 import type { ISurveyClosingScreen } from "@/lib/surveys/closing-screen";
 import type { ISurveySectionOpenQuestion } from "./SurveyTemplateSection";
@@ -92,6 +93,12 @@ export interface ISurveySectionSnapshot {
 export interface ISurveyTemplateSnapshot {
   name: string;
   description?: string;
+  /**
+   * The language participants see. Copied from the template at session creation
+   * and editable while the session is a draft. Absent means Dutch — sessions that
+   * predate the field were all run in Dutch or had their copy authored outright.
+   */
+  locale?: Locale;
   archetypes: IArchetypeSnapshot[];
   /** Copied from `Client.culturalDna` at session creation. Empty for archetype surveys. */
   culturalValues: ICulturalValueSnapshot[];
@@ -163,7 +170,12 @@ export interface IRespondentVariable {
   enabled: boolean;
   /** Key under which the answer is stored in `SurveySubmission.cohortTags`. */
   key: string;
-  label: string;
+  /**
+   * Absent renders the built-in question, `""` shows no heading, text overrides
+   * it — the same three states the welcome and closing screens use. Optional, and
+   * that matters: a stored `""` used to mean "never authored".
+   */
+  label?: string;
   helpText?: string;
   /** Link to material where a respondent can look their level up. */
   helpUrl?: string;
@@ -411,6 +423,8 @@ const TemplateSnapshotSchema = new Schema<ISurveyTemplateSnapshot>(
   {
     name: { type: String, required: true },
     description: { type: String },
+    // Absent means Dutch — see the interface.
+    locale: { type: String, enum: ["nl", "en"], default: undefined },
     archetypes: { type: [ArchetypeSnapshotSchema], default: [] },
     culturalValues: { type: [CulturalValueSnapshotSchema], default: [] },
     culturalLevels: { type: [String], default: [] },
@@ -438,7 +452,8 @@ const RespondentVariableSchema = new Schema<IRespondentVariable>(
   {
     enabled: { type: Boolean, default: false },
     key: { type: String, default: "culturalLevel" },
-    label: { type: String, default: "" },
+    // No default: absent and "" are different answers now — see the interface.
+    label: { type: String },
     helpText: { type: String },
     helpUrl: { type: String },
     required: { type: Boolean, default: true },

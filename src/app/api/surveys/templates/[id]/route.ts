@@ -33,6 +33,7 @@ export async function GET(
     name: template.name,
     description: template.description ?? undefined,
     status: template.status,
+    defaultLocale: template.defaultLocale ?? "nl",
     archetypeIds: template.archetypeIds ?? [],
     defaultRankWeights: template.defaultRankWeights ?? [5, 4, 3, 2, 1],
     defaultTop3Weights: template.defaultTop3Weights ?? [5, 3, 1],
@@ -77,6 +78,14 @@ export async function PATCH(
   }
   if (body.description !== undefined) update.description = body.description?.trim() || undefined;
   if (body.status !== undefined) update.status = body.status;
+  // The language the survey runs in. Sessions copy it into their snapshot at
+  // creation, so changing it here only affects sessions made from now on.
+  if (body.defaultLocale !== undefined) {
+    if (body.defaultLocale !== "nl" && body.defaultLocale !== "en") {
+      return NextResponse.json({ error: "defaultLocale must be nl or en" }, { status: 400 });
+    }
+    update.defaultLocale = body.defaultLocale;
+  }
   if (body.archetypeIds !== undefined) {
     if (!Array.isArray(body.archetypeIds) || body.archetypeIds.length < 2) {
       return NextResponse.json({ error: "Pick at least 2 archetypes" }, { status: 400 });
@@ -131,7 +140,8 @@ export async function PATCH(
     update.defaultRespondentVariable = {
       enabled: true,
       key: current?.defaultRespondentVariable?.key || "culturalLevel",
-      label: copy.label ?? "",
+      // Absent and "" are different answers — see the session PATCH.
+      label: copy.label,
       helpText: copy.helpText,
       helpUrl: copy.helpUrl,
       required: copy.required !== false,
@@ -151,6 +161,7 @@ export async function PATCH(
     name: doc.name,
     description: doc.description ?? undefined,
     status: doc.status,
+    defaultLocale: doc.defaultLocale ?? "nl",
     archetypeIds: doc.archetypeIds ?? [],
     defaultRankWeights: doc.defaultRankWeights ?? [5, 4, 3, 2, 1],
     defaultTop3Weights: doc.defaultTop3Weights ?? [5, 3, 1],

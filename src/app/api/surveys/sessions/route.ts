@@ -117,6 +117,8 @@ export async function POST(req: NextRequest) {
       templateId: "",
       templateSnapshot: {
         name: title.trim(),
+        // No template to inherit from, so the house language it is.
+        locale: "nl",
         archetypes,
         culturalValues: cultural.culturalValues,
         culturalLevels: cultural.culturalLevels,
@@ -222,6 +224,9 @@ export async function POST(req: NextRequest) {
     templateSnapshot: {
       name: template.name,
       description: template.description ?? undefined,
+      // Frozen with the rest of the content: a template that switches language
+      // later must not change the survey people are already answering.
+      locale: template.defaultLocale ?? "nl",
       archetypes,
       culturalValues: cultural.culturalValues,
       culturalLevels: cultural.culturalLevels,

@@ -316,17 +316,32 @@ template**. Their `valueItems` are materialised at session creation from the cho
 what lets one template serve a client with three values and a client with eight. Never author
 `valueItems` into a template or a seed script.
 
+**One language per survey.** The runner has no language switch. A survey stores the language it runs
+in — `SurveyTemplate.defaultLocale`, copied into `templateSnapshot.locale` at session creation and
+editable while the session is a draft — and the participant page renders every built-in string in it.
+The switch made no sense once the copy became authorable: authored text is written in one language,
+so switching could only ever translate the chrome around it. The editor's language picker therefore
+lives on the *Survey header*, not on the welcome screen: it is one property of the survey that every
+screen's built-in copy is then previewed in. Absent means Dutch everywhere, and
+`scripts/backfill-survey-copy.ts` (`npm run backfill:surveys`) stamps existing templates and
+sessions so an already-open English survey does not switch to Dutch. **The ranking tool keeps its
+switcher** — `LocaleSwitcher` is still used by `/ranking/[shareCode]`, which has no authored copy to
+contradict.
+
 **Welcome and closing copy.** The participant welcome screen is authored per template
 (`SurveyTemplate.defaultWelcomeScreen`, copied into `templateSnapshot.welcomeScreen` at session
 creation) and edited under *Welcome screen* in the editor outline. `src/lib/surveys/welcome-screen.ts`
-owns the shape and both directions of the fallback: every field is an *override*, and an absent or
-blank one renders the built-in translation, which is what keeps an untouched survey bilingual under
-the runner's NL/EN switch. The editor prefills each field with `defaultWelcomeCopy()` and stores only
-text that actually differs, so "cleared" and "never set" are the same stored state. `bodyIntro` is one
-field carrying two default paragraphs; `welcomeParagraphs()` splits it on blank lines at render time,
-so authors are not made to count paragraph slots. The email field, the time estimate and the start
-button stay on the translations — mechanics rather than message, and they should follow the
-participant's own language even on a survey whose copy is authored in one.
+owns the shape and both directions of the fallback. Every field has **three** states, and the last two
+are what the editor's two controls mean: **absent** renders the built-in translation, an **empty
+string** leaves that line out of the page entirely, and **text** is an override shown as written.
+Typing over a field stores it; clearing it stores `""`; only *Reset to default* removes the key. That
+is why `normalizeWelcomeScreen()` keeps blank strings instead of dropping them, why the editor
+compares against a `UNSET` sentinel rather than `?? ""`, and why the runner guards each element on its
+resolved copy being non-empty. Silently refilling a field an author had just cleared was the bug this
+replaced. `bodyIntro` is one field carrying two default paragraphs; `welcomeParagraphs()` splits it on
+blank lines at render time, so authors are not made to count paragraph slots. The email field, the
+time estimate and the start button stay on the translations — mechanics rather than message, and they
+follow the survey's own language without anyone authoring them.
 
 `imageUrl` is the one field that is *not* an override: there is no built-in welcome image, so it
 lives outside `WELCOME_SCREEN_FIELDS` and empty simply means no image. The runner lays it out exactly
@@ -340,7 +355,8 @@ the toggle off and leaves a headline on its default would silently get the rotat
 lines survive toggling either way.
 
 The **closing screen** is the same arrangement again, in `closing-screen.ts`: `headline` and `body`
-are overrides of `done.headline` / `done.subline`, `imageUrl` is not an override, and the runner lays
+are overrides of `done.headline` / `done.subline` with the same three states, `imageUrl` is not an
+override, and the runner lays
 the image out exactly like the welcome screen's — except that with an image the whole column goes
 left-aligned, badge included, because centred copy beside a picture reads as neither. Both body
 fields split on blank lines through the shared `splitParagraphs()` (`paragraphs.ts`), which
@@ -351,7 +367,18 @@ there, so `resolveClosingCopy()` takes it as the body's fallback. The editor tre
 effective body and folds it into `closingScreen` on the first save, and the two editor pages clear
 the legacy field in that same PATCH — otherwise a second copy of the same sentence lingers and
 silently wins back whenever the body is cleared. That is also why both PATCH routes write `null`
-rather than `undefined` for it.
+rather than `undefined` for it, and why the editor folds the legacy text in only when `body` is
+`undefined` — a body cleared to `""` is a decision to show no message, and folding it back in would
+undo exactly that.
+
+The respondent-variable copy (`respondent-variable-copy.ts`) follows the same three states, which is
+why `IRespondentVariable.label` and `ISurveyRespondentVariableDefaults.label` are **optional and carry
+no `default: ""`** in their schemas: the `""` those fields used to store for "never authored" is now a
+cleared heading. Every write path passes `label` through verbatim rather than `?? ""` or
+`|| undefined` — collapsing the two states anywhere makes clearing the field a silent no-op — and the
+second pass of `npm run backfill:surveys` unsets the legacy blanks. `helpUrl` is the one field that
+cannot be hidden and needs no way to be: its built-in value is already empty, so clearing it lands in
+the "same as the default" branch and simply unsets it.
 
 **The respondent variable** is one attribute answered before the value questions that both *selects
 content* (which behaviours a participant sees for each value) and *slices results*. Stored on the

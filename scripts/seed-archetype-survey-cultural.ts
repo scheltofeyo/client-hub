@@ -358,6 +358,9 @@ async function main() {
       name: TEMPLATE_NAME,
       description: TEMPLATE_DESCRIPTION,
       status: "active",
+      // Each language is its own template, and this is the English one — the
+      // runner takes the survey's language from here.
+      defaultLocale: "en",
       archetypeIds,
       defaultRankWeights: [5, 4, 3, 2, 1],
       version: 1,
@@ -365,6 +368,10 @@ async function main() {
     });
     console.log(`Created template "${TEMPLATE_NAME}" (id=${template._id})`);
   } else {
+    // Set on every run: templates seeded before the field existed default to
+    // Dutch, which is the wrong language for this one.
+    template.defaultLocale = "en";
+    await template.save();
     console.log(`Found existing template "${TEMPLATE_NAME}" (id=${template._id}) — upserting`);
   }
   const templateId = String(template._id);

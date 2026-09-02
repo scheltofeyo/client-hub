@@ -4,12 +4,17 @@ import type { Greeting } from "./greetings";
 /**
  * Author-supplied copy for the welcome (identify) screen.
  *
- * Every field is optional and every field is an *override*: an absent or empty
- * value means "render the built-in translation". That is what keeps the
- * participant page bilingual for anyone who never touched this — the same
- * arrangement `thankYouText` already uses for the closing screen. Custom copy is
- * a single string, like every other authored string in a template, so it does not
- * follow the runner's NL/EN switch.
+ * Every field is optional and carries three states, not two:
+ *
+ * - **absent** — render the built-in translation. That is what keeps a survey
+ *   nobody touched readable in the language it is set to.
+ * - **empty string** — the author deliberately cleared it: leave the element out
+ *   of the page entirely. Without this state a cleared line silently filled
+ *   itself back in with the default, which is not what clearing a field means.
+ * - **text** — an override, rendered exactly as written.
+ *
+ * Custom copy is a single string, like every other authored string in a template,
+ * so it does not follow the survey's language — it is shown as typed.
  */
 export interface ISurveyWelcomeScreen {
   /** Small pill above the greeting. Supports `{company}`. */
@@ -22,9 +27,12 @@ export interface ISurveyWelcomeScreen {
    * switching back and forth does not lose it.
    */
   autoGreeting?: boolean;
-  /** Big first line. Only used when `autoGreeting` is `false`. */
+  /** Big first line. Only used when `autoGreeting` is `false`. Empty hides it. */
   headline?: string;
-  /** Smaller second line under the headline. Only used when `autoGreeting` is `false`. */
+  /**
+   * Smaller second line under the headline. Only used when `autoGreeting` is
+   * `false`. Empty hides it.
+   */
   subheadline?: string;
   /**
    * The main body — who is asking, what for, and what happens with the answers.
@@ -32,7 +40,7 @@ export interface ISurveyWelcomeScreen {
    * field can carry the two paragraphs the built-in copy has. Supports `{company}`.
    */
   bodyIntro?: string;
-  /** Closing, smaller body paragraph — why we ask for an email. */
+  /** Closing, smaller body paragraph — why we ask for an email. Empty hides it. */
   bodyEmail?: string;
   /**
    * Optional image beside the welcome copy, exactly like a section intro's.
@@ -46,8 +54,8 @@ export interface ISurveyWelcomeScreen {
 /*
  * The email field's label and placeholder and the start button are deliberately
  * *not* customisable. They are mechanics rather than message, and keeping them on
- * the translations means they follow the runner's NL/EN switch even on a survey
- * whose welcome copy is authored in one language.
+ * the translations means they follow the survey's own language without anyone
+ * having to author them.
  */
 
 export const WELCOME_SCREEN_FIELDS = [
@@ -68,7 +76,11 @@ export function usesAutoGreeting(custom: ISurveyWelcomeScreen | undefined): bool
   return custom?.autoGreeting !== false;
 }
 
-/** The resolved copy the runner actually renders — every field a real string. */
+/**
+ * The resolved copy the runner actually renders. Every field is a real string, and
+ * an empty one means "render nothing here" — either because the author cleared it
+ * or, for the greeting pair, because the automatic greeting owns those lines.
+ */
 export type ResolvedWelcomeCopy = Record<WelcomeScreenField, string>;
 
 function interpolate(raw: string, company?: string): string {
@@ -107,9 +119,10 @@ export function defaultWelcomeCopy(
 }
 
 /**
- * Merge authored overrides over the built-in copy. A blank override is treated as
- * absent rather than as an empty line — an author who clears a field wants the
- * default back, not a gap in the page.
+ * Merge authored copy over the built-in defaults. A stored empty string is not
+ * "nothing authored" but "authored to nothing": it resolves to an empty string so
+ * the runner leaves that element out, rather than quietly restoring the default an
+ * author just cleared.
  */
 export function resolveWelcomeCopy(
   locale: Locale,
@@ -128,16 +141,19 @@ export function resolveWelcomeCopy(
     // With the automatic greeting on, the rotating lines win over anything the
     // author left behind from a previous session with it switched off.
     if (autoGreeting && GREETING_FIELDS.includes(field)) continue;
-    const authored = custom?.[field]?.trim();
-    if (authored) resolved[field] = interpolate(authored, opts.company);
+    const authored = custom?.[field];
+    if (authored === undefined) continue;
+    const trimmed = authored.trim();
+    resolved[field] = trimmed ? interpolate(trimmed, opts.company) : "";
   }
   return resolved;
 }
 
 /**
  * Accept an arbitrary request body into a storable welcome-screen object. Unknown
- * keys are dropped and blank strings become `undefined`, so "cleared" and "never
- * set" end up as the same stored state and both mean "use the default".
+ * keys are dropped, but a blank string is *kept*: it is how the editor says "leave
+ * this line out". Only a key the editor never sent is absent, and absent is what
+ * means "use the built-in copy".
  *
  * Returns `undefined` when nothing is left, which lets the caller unset the field
  * entirely instead of storing an empty object.
@@ -159,9 +175,9 @@ export function normalizeWelcomeScreen(raw: unknown): ISurveyWelcomeScreen | und
   for (const field of WELCOME_SCREEN_FIELDS) {
     const value = input[field];
     if (typeof value !== "string") continue;
-    const trimmed = value.trim();
-    if (!trimmed) continue;
-    out[field] = trimmed;
+    // The trim can empty this, and that is a value in its own right — a cleared
+    // field is stored as "" so the page leaves the element out.
+    out[field] = value.trim();
     any = true;
   }
   return any ? out : undefined;

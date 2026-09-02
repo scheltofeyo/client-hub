@@ -354,6 +354,7 @@ async function main() {
       name: TEMPLATE_NAME,
       description: TEMPLATE_DESCRIPTION,
       status: "active",
+      defaultLocale: "nl",
       archetypeIds,
       defaultRankWeights: [5, 4, 3, 2, 1],
       version: 1,
@@ -361,6 +362,8 @@ async function main() {
     });
     console.log(`Created template "${TEMPLATE_NAME}" (id=${template._id})`);
   } else {
+    template.defaultLocale = "nl";
+    await template.save();
     console.log(`Found existing template "${TEMPLATE_NAME}" (id=${template._id}) — upserting`);
   }
   const templateId = String(template._id);

@@ -147,6 +147,7 @@ export async function PATCH(
   const snapshotEditsRequested =
     body.snapshotName !== undefined ||
     body.snapshotDescription !== undefined ||
+    body.snapshotLocale !== undefined ||
     body.snapshotSections !== undefined ||
     body.snapshotArchetypes !== undefined ||
     body.snapshotClosingOpenQuestion !== undefined ||
@@ -168,6 +169,12 @@ export async function PATCH(
   }
   if (body.snapshotDescription !== undefined) {
     update["templateSnapshot.description"] = String(body.snapshotDescription).trim() || undefined;
+  }
+  if (body.snapshotLocale !== undefined) {
+    if (body.snapshotLocale !== "nl" && body.snapshotLocale !== "en") {
+      return NextResponse.json({ error: "snapshotLocale must be nl or en" }, { status: 400 });
+    }
+    update["templateSnapshot.locale"] = body.snapshotLocale;
   }
   if (body.snapshotClosingOpenQuestion !== undefined) {
     update["templateSnapshot.closingOpenQuestion"] = body.snapshotClosingOpenQuestion;
@@ -218,7 +225,9 @@ export async function PATCH(
     const rebuilt = respondentVariableFromLevels(levels, {
       enabled: true,
       key: existing.respondentVariable?.key || "culturalLevel",
-      label: copy.label ?? "",
+      // Not `?? ""`: absent means "use the built-in question" and "" means "show
+      // no heading", and collapsing them would make clearing the field a no-op.
+      label: copy.label,
       helpText: copy.helpText,
       helpUrl: copy.helpUrl,
       required: copy.required !== false,

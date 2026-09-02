@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document, Model } from "mongoose";
+import type { Locale } from "@/lib/surveys/translations";
 import type { ISurveyWelcomeScreen } from "@/lib/surveys/welcome-screen";
 import type { ISurveyClosingScreen } from "@/lib/surveys/closing-screen";
 
@@ -15,7 +16,8 @@ export interface ISurveyClosingQuestion {
 export interface ISurveyRespondentVariableDefaults {
   enabled: boolean;
   key: string;
-  label: string;
+  /** Absent for the built-in question, `""` for no heading, text to override. */
+  label?: string;
   helpText?: string;
   helpUrl?: string;
   required: boolean;
@@ -25,6 +27,12 @@ export interface ISurveyTemplate extends Document {
   name: string;
   description?: string;
   status: "active" | "archived";
+  /**
+   * The language the survey runs in. Each language is its own template — the
+   * participant page translates its own chrome but never template content — so
+   * this is a property of the template rather than something a participant picks.
+   */
+  defaultLocale?: Locale;
   archetypeIds: string[];
   defaultRankWeights: number[];
   defaultTop3Weights: number[];
@@ -82,7 +90,8 @@ const RespondentVariableDefaultsSchema = new Schema<ISurveyRespondentVariableDef
   {
     enabled: { type: Boolean, default: false },
     key: { type: String, trim: true, default: "culturalLevel" },
-    label: { type: String, trim: true, default: "" },
+    // No default: absent and "" mean different things — see the interface.
+    label: { type: String, trim: true },
     helpText: { type: String, trim: true },
     helpUrl: { type: String, trim: true },
     required: { type: Boolean, default: true },
@@ -95,6 +104,9 @@ const SurveyTemplateSchema = new Schema<ISurveyTemplate>(
     name: { type: String, required: true, trim: true },
     description: { type: String, trim: true },
     status: { type: String, enum: ["active", "archived"], default: "active" },
+    // Absent means Dutch: templates that predate this field are the Dutch ones,
+    // and the English ones are re-seeded with it set.
+    defaultLocale: { type: String, enum: ["nl", "en"], default: undefined },
     archetypeIds: { type: [String], default: [] },
     defaultRankWeights: { type: [Number], default: [5, 4, 3, 2, 1] },
     defaultTop3Weights: { type: [Number], default: [5, 3, 1] },

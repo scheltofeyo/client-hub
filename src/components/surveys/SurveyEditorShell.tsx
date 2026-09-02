@@ -39,6 +39,13 @@ import {
 } from "@/lib/surveys/welcome-screen";
 import type { Locale } from "@/lib/surveys/translations";
 
+/**
+ * Stand-in for "no value stored", used when comparing authored copy. A plain `??
+ * ""` would treat a field the author cleared — which now means "leave this line
+ * out" — as identical to one nobody ever touched.
+ */
+const UNSET = "\u0000";
+
 // ── Data types passed by the parent ──────────────────────────────
 
 export type ShellQuestion = ShellQuestionAny;
@@ -73,6 +80,12 @@ export interface SurveyEditorShellProps {
    * no client, which is exactly why value-backed questions carry no items there.
    */
   culturalValues?: { id: string; title: string }[];
+  /**
+   * The language the survey runs in. It decides both what participants see around
+   * the authored copy and which built-in text every screen here starts from, which
+   * is why it lives on the header rather than on the welcome screen.
+   */
+  locale: Locale;
   closingOpenQuestion?: { enabled: boolean; label: string };
   /**
    * Authored overrides for the participant welcome screen. Absent fields fall
@@ -106,6 +119,7 @@ export interface SurveyEditorShellProps {
   // mutations
   onChangeName: (name: string) => void;
   onChangeDescription: (description: string) => void;
+  onChangeLocale?: (locale: Locale) => void;
   onToggleArchetype?: (archetypeId: string) => void;
   onChangeClosing: (co: { enabled: boolean; label: string }) => void;
   onChangeWelcomeScreen?: (welcomeScreen: ISurveyWelcomeScreen) => void;
@@ -337,7 +351,7 @@ function HeaderView(props: SurveyEditorShellProps) {
   return (
     <SectionCard
       title="Survey header"
-      helper="The title participants see at the top of the survey."
+      helper="The title participants see at the top of the survey, and the language it runs in."
     >
       <div className="space-y-4">
         <div>
@@ -368,6 +382,24 @@ function HeaderView(props: SurveyEditorShellProps) {
             className="input resize-none"
             placeholder="For colleagues only — appears in the results export, never in the survey"
           />
+        </div>
+        <div>
+          <label className="typo-label">Language</label>
+          <select
+            value={props.locale}
+            onChange={(e) => props.onChangeLocale?.(e.target.value as Locale)}
+            className="input"
+            style={{ width: 160 }}
+            disabled={!props.onChangeLocale}
+          >
+            <option value="nl">Nederlands</option>
+            <option value="en">English</option>
+          </select>
+          <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+            Everything participants see that is not authored here — buttons, labels,
+            the built-in welcome and thank-you copy — is shown in this language.
+            There is no language switch in the survey itself.
+          </p>
         </div>
       </div>
     </SectionCard>
@@ -404,30 +436,44 @@ const WELCOME_FIELDS: WelcomeFieldMeta[] = [
 ];
 
 /**
- * Every field starts out showing the built-in copy, so authoring is editing
- * rather than writing from scratch. Only text that actually *differs* from the
- * default is stored: that keeps the participant page bilingual for anything left
- * alone, and lets a cleared field fall straight back to the default.
+ * Every field starts out showing the built-in copy, so authoring is editing rather
+ * than writing from scratch. A field has three states, and the difference between
+ * the last two is the point: untouched keeps the built-in copy in the survey's
+ * language, cleared leaves the line out of the page, and typed text is shown as
+ * written. Only "Reset to default" puts a field back to untouched.
  */
 function WelcomeView(props: SurveyEditorShellProps) {
-  const { welcomeScreen, onChangeWelcomeScreen, clientCompany } = props;
-  const [defaultLocale, setDefaultLocale] = useState<Locale>("nl");
+  const { welcomeScreen, onChangeWelcomeScreen, clientCompany, locale } = props;
 
   const defaults = useMemo(
-    () => defaultWelcomeCopy(defaultLocale, { company: clientCompany }),
-    [defaultLocale, clientCompany]
+    () => defaultWelcomeCopy(locale, { company: clientCompany }),
+    [locale, clientCompany]
   );
 
   function commit(field: WelcomeScreenField, raw: string) {
     if (!onChangeWelcomeScreen) return;
     const value = raw.trim();
     const next: ISurveyWelcomeScreen = { ...welcomeScreen };
-    if (!value || value === defaults[field]) delete next[field];
+    // Typing the built-in copy back in is not authoring — dropping the field keeps
+    // it following the survey language instead of freezing today's wording.
+    // An empty value is kept: that is how "leave this line out" is stored.
+    if (value === defaults[field]) delete next[field];
     else next[field] = value;
     // Compare against the stored object so a blur that changed nothing does not
-    // fire a save on every field the author tabs through.
-    const changed = WELCOME_SCREEN_FIELDS.some((f) => (next[f] ?? "") !== (welcomeScreen?.[f] ?? ""));
+    // fire a save on every field the author tabs through. The sentinel keeps
+    // "cleared" and "never set" apart — they are different stored states now.
+    const changed = WELCOME_SCREEN_FIELDS.some(
+      (f) => (next[f] ?? UNSET) !== (welcomeScreen?.[f] ?? UNSET)
+    );
     if (changed) onChangeWelcomeScreen(next);
+  }
+
+  /** Back to untouched — the only way to get the built-in copy back. */
+  function resetToDefault(field: WelcomeScreenField) {
+    if (!onChangeWelcomeScreen || welcomeScreen?.[field] === undefined) return;
+    const next: ISurveyWelcomeScreen = { ...welcomeScreen };
+    delete next[field];
+    onChangeWelcomeScreen(next);
   }
 
   const autoGreeting = usesAutoGreeting(welcomeScreen);
@@ -462,9 +508,11 @@ function WelcomeView(props: SurveyEditorShellProps) {
   const visibleFields = WELCOME_FIELDS.filter(
     (f) => !autoGreeting || !GREETING_FIELDS.includes(f.field)
   );
-  const customCount = WELCOME_SCREEN_FIELDS.filter(
-    (f) => welcomeScreen?.[f] && !(autoGreeting && GREETING_FIELDS.includes(f))
-  ).length;
+  const authoredFields = WELCOME_SCREEN_FIELDS.filter(
+    (f) =>
+      welcomeScreen?.[f] !== undefined && !(autoGreeting && GREETING_FIELDS.includes(f))
+  );
+  const hiddenCount = authoredFields.filter((f) => welcomeScreen?.[f] === "").length;
 
   const greetingToggle = (
     <div>
@@ -488,38 +536,22 @@ function WelcomeView(props: SurveyEditorShellProps) {
   return (
     <SectionCard
       title="Welcome screen"
-      helper="The first thing participants see, before any question. Every field starts on the built-in copy — edit what you want to change, or clear a field to go back to the default."
-      action={
-        <div className="flex items-center gap-1.5">
-          <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-            Default copy
-          </span>
-          <select
-            value={defaultLocale}
-            onChange={(e) => setDefaultLocale(e.target.value as Locale)}
-            className="input input-sm"
-            style={{ width: 76 }}
-            aria-label="Language of the built-in copy"
-          >
-            <option value="nl">NL</option>
-            <option value="en">EN</option>
-          </select>
-        </div>
-      }
+      helper="The first thing participants see, before any question. Every field starts on the built-in copy — edit it, clear it to leave that line out, or reset it to the default."
     >
       <div className="space-y-4">
         {visibleFields.map(({ field, label, helper, multiline, rows }) => {
           const stored = welcomeScreen?.[field];
+          const hidden = stored === "";
           const value = stored ?? defaults[field];
           return (
-            <Fragment key={`${field}-${defaultLocale}-${stored ?? ""}`}>
+            <Fragment key={`${field}-${locale}-${stored ?? UNSET}`}>
               <div>
                 <div className="flex items-baseline justify-between gap-3">
                   <label className="typo-label">{label}</label>
-                  {stored && onChangeWelcomeScreen && (
+                  {stored !== undefined && onChangeWelcomeScreen && (
                     <button
                       type="button"
-                      onClick={() => commit(field, "")}
+                      onClick={() => resetToDefault(field)}
                       className="btn-link text-xs"
                     >
                       Reset to default
@@ -543,10 +575,16 @@ function WelcomeView(props: SurveyEditorShellProps) {
                     disabled={!onChangeWelcomeScreen}
                   />
                 )}
-                {helper && (
-                  <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
-                    {helper}
+                {hidden ? (
+                  <p className="text-xs mt-1" style={{ color: "var(--warning)" }}>
+                    Left out — participants do not see this line at all.
                   </p>
+                ) : (
+                  helper && (
+                    <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+                      {helper}
+                    </p>
+                  )
                 )}
               </div>
               {field === "tagline" && greetingToggle}
@@ -571,10 +609,12 @@ function WelcomeView(props: SurveyEditorShellProps) {
         </div>
       </div>
       <p className="text-xs mt-4" style={{ color: "var(--text-muted)", lineHeight: 1.5 }}>
-        {customCount === 0
-          ? "Nothing customised yet — participants see the built-in copy in their own language."
-          : `${customCount} field${customCount === 1 ? "" : "s"} customised. Customised text is shown as written, in both NL and EN.`}
-        {" The email field, the time estimate and the start button are not customisable — they stay in the participant\u2019s own language."}
+        {authoredFields.length === 0
+          ? "Nothing changed yet — participants see the built-in copy in the survey language."
+          : `${authoredFields.length} field${authoredFields.length === 1 ? "" : "s"} changed${
+              hiddenCount ? `, ${hiddenCount} of them left out entirely` : ""
+            }. Authored text is shown exactly as written, whichever language the survey is in.`}
+        {" The email field, the time estimate and the start button are not authorable — they follow the survey language."}
       </p>
     </SectionCard>
   );
@@ -603,15 +643,16 @@ const RESPONDENT_VARIABLE_FIELDS: RespondentVariableFieldMeta[] = [
     field: "helpUrl",
     label: "Look-it-up link (optional)",
     helper:
-      "Where someone can check which level fits them. Leave empty to show no link.",
+      "Where someone can check which level fits them. There is no built-in link, so empty simply means none.",
     placeholder: "https://…",
   },
 ];
 
 /**
- * The same arrangement as the welcome screen: every field starts on the built-in
- * copy and only text that actually differs is stored, so anything left alone
- * stays bilingual and a cleared field falls straight back to the default.
+ * The same three states as the welcome screen: untouched keeps the built-in
+ * question in the survey's language, cleared leaves that line out of the step,
+ * and typed text is shown as written. The link is the exception — its built-in
+ * value is empty, so clearing it simply unsets it and no link is shown.
  *
  * The options are shown but not editable. They are the client's cultural levels
  * and double as the join key onto each value's behaviours — a level typed here
@@ -619,12 +660,8 @@ const RESPONDENT_VARIABLE_FIELDS: RespondentVariableFieldMeta[] = [
  * Cultural DNA instead.
  */
 function RespondentVariableView(props: SurveyEditorShellProps) {
-  const { respondentVariable, onChangeRespondentVariable } = props;
-  const [defaultLocale, setDefaultLocale] = useState<Locale>("nl");
-  const defaults = useMemo(
-    () => defaultRespondentVariableCopy(defaultLocale),
-    [defaultLocale]
-  );
+  const { respondentVariable, onChangeRespondentVariable, locale } = props;
+  const defaults = useMemo(() => defaultRespondentVariableCopy(locale), [locale]);
   if (!respondentVariable) {
     return <EmptyState text="This survey does not ask for a level." />;
   }
@@ -635,52 +672,51 @@ function RespondentVariableView(props: SurveyEditorShellProps) {
     if (!onChangeRespondentVariable) return;
     const value = raw.trim();
     const next: IRespondentVariableCopy = { ...copy };
-    if (!value || value === defaults[field]) delete next[field];
+    // Empty is kept, which is what hides the line — except for the link, whose
+    // own default is empty, so clearing it lands in the branch above and unsets
+    // it instead. See `WelcomeView.commit`.
+    if (value === defaults[field]) delete next[field];
     else next[field] = value;
     // Compared against the stored copy so tabbing through without typing does
-    // not fire a save per field.
+    // not fire a save per field. The sentinel keeps "cleared" and "never set"
+    // apart — they are different stored states.
     const changed = RESPONDENT_VARIABLE_COPY_FIELDS.some(
-      (f) => (next[f] ?? "") !== (copy[f] ?? "")
+      (f) => (next[f] ?? UNSET) !== (copy[f] ?? UNSET)
     );
     if (changed) onChangeRespondentVariable(next);
   }
 
-  const customCount = RESPONDENT_VARIABLE_COPY_FIELDS.filter((f) => copy[f]).length;
+  /** Back to untouched — the only way to get the built-in copy back. */
+  function resetToDefault(field: RespondentVariableCopyField) {
+    if (!onChangeRespondentVariable || copy[field] === undefined) return;
+    const next: IRespondentVariableCopy = { ...copy };
+    delete next[field];
+    onChangeRespondentVariable(next);
+  }
+
+  const authoredFields = RESPONDENT_VARIABLE_COPY_FIELDS.filter(
+    (f) => copy[f] !== undefined
+  );
+  const hiddenCount = authoredFields.filter((f) => copy[f] === "").length;
 
   return (
     <SectionCard
       title="Level question"
       helper="Asked once, right before the first question whose content depends on it. The answer decides which behaviours a participant sees per value, and slices the results afterwards."
-      action={
-        <div className="flex items-center gap-1.5">
-          <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-            Default copy
-          </span>
-          <select
-            value={defaultLocale}
-            onChange={(e) => setDefaultLocale(e.target.value as Locale)}
-            className="input input-sm"
-            style={{ width: 76 }}
-            aria-label="Language of the built-in copy"
-          >
-            <option value="nl">NL</option>
-            <option value="en">EN</option>
-          </select>
-        </div>
-      }
     >
       <div className="space-y-4">
         {RESPONDENT_VARIABLE_FIELDS.map(({ field, label, helper, multiline, placeholder }) => {
           const stored = copy[field];
+          const hidden = stored === "";
           const value = stored ?? defaults[field];
           return (
-            <div key={`${field}-${defaultLocale}-${stored ?? ""}`}>
+            <div key={`${field}-${locale}-${stored ?? UNSET}`}>
               <div className="flex items-baseline justify-between gap-3">
                 <label className="typo-label">{label}</label>
-                {stored && editable && (
+                {stored !== undefined && editable && (
                   <button
                     type="button"
-                    onClick={() => commit(field, "")}
+                    onClick={() => resetToDefault(field)}
                     className="btn-link text-xs"
                   >
                     Reset to default
@@ -705,10 +741,16 @@ function RespondentVariableView(props: SurveyEditorShellProps) {
                   disabled={!editable}
                 />
               )}
-              {helper && (
-                <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
-                  {helper}
+              {hidden ? (
+                <p className="text-xs mt-1" style={{ color: "var(--warning)" }}>
+                  Left out — participants do not see this line at all.
                 </p>
+              ) : (
+                helper && (
+                  <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+                    {helper}
+                  </p>
+                )
               )}
             </div>
           );
@@ -766,9 +808,11 @@ function RespondentVariableView(props: SurveyEditorShellProps) {
       </div>
 
       <p className="text-xs mt-4" style={{ color: "var(--text-muted)", lineHeight: 1.5 }}>
-        {customCount === 0
-          ? "Nothing customised yet — participants see the built-in copy in their own language."
-          : `${customCount} field${customCount === 1 ? "" : "s"} customised. Customised text is shown as written, in both NL and EN.`}
+        {authoredFields.length === 0
+          ? "Nothing changed yet — participants see the built-in copy in the survey language."
+          : `${authoredFields.length} field${authoredFields.length === 1 ? "" : "s"} changed${
+              hiddenCount ? `, ${hiddenCount} of them left out entirely` : ""
+            }. Authored text is shown exactly as written, whichever language the survey is in.`}
       </p>
     </SectionCard>
   );
@@ -877,20 +921,27 @@ const CLOSING_FIELDS: ClosingFieldMeta[] = [
 ];
 
 /**
- * The closing counterpart of `WelcomeView`, with one wrinkle: a survey authored
- * before this screen existed carries its message in the legacy `thankYouText`.
- * That text is the effective body until something is saved, so it is folded into
- * the object every commit sends — otherwise editing only the headline would
- * hand over to `closingScreen` and drop the sentence participants were reading.
+ * The closing counterpart of `WelcomeView`, three states and all, with one
+ * wrinkle: a survey authored before this screen existed carries its message in
+ * the legacy `thankYouText`. That text is the effective body until something is
+ * saved, so it is folded into the object every commit sends — otherwise editing
+ * only the headline would hand over to `closingScreen` and drop the sentence
+ * participants were reading.
  */
 function ClosingScreenView(props: SurveyEditorShellProps) {
-  const { closingScreen, closingThankYouText, onChangeClosingScreen, clientCompany } = props;
-  const [defaultLocale, setDefaultLocale] = useState<Locale>("nl");
-  const defaults = useMemo(() => defaultClosingCopy(defaultLocale), [defaultLocale]);
+  // No `clientCompany` here: unlike the welcome copy, the built-in closing copy
+  // has no `{company}` in it, so there is nothing to interpolate for the preview.
+  const { closingScreen, closingThankYouText, onChangeClosingScreen, locale } = props;
+  const defaults = useMemo(() => defaultClosingCopy(locale), [locale]);
 
   const legacy = closingThankYouText?.trim();
   const current: ISurveyClosingScreen = useMemo(
-    () => (legacy && !closingScreen?.body ? { ...closingScreen, body: legacy } : { ...closingScreen }),
+    // `=== undefined`, not falsy: a body cleared to "" is an authored decision to
+    // show no message, and folding the legacy sentence back in would undo it.
+    () =>
+      legacy && closingScreen?.body === undefined
+        ? { ...closingScreen, body: legacy }
+        : { ...closingScreen },
     [closingScreen, legacy]
   );
 
@@ -898,10 +949,21 @@ function ClosingScreenView(props: SurveyEditorShellProps) {
     if (!onChangeClosingScreen) return;
     const value = raw.trim();
     const next: ISurveyClosingScreen = { ...current };
-    if (!value || value === defaults[field]) delete next[field];
+    // Empty is kept — see `WelcomeView.commit`.
+    if (value === defaults[field]) delete next[field];
     else next[field] = value;
-    const changed = CLOSING_SCREEN_FIELDS.some((f) => (next[f] ?? "") !== (current[f] ?? ""));
+    const changed = CLOSING_SCREEN_FIELDS.some(
+      (f) => (next[f] ?? UNSET) !== (current[f] ?? UNSET)
+    );
     if (changed) onChangeClosingScreen(next);
+  }
+
+  /** Back to untouched — the only way to get the built-in copy back. */
+  function resetToDefault(field: ClosingScreenField) {
+    if (!onChangeClosingScreen || current[field] === undefined) return;
+    const next: ISurveyClosingScreen = { ...current };
+    delete next[field];
+    onChangeClosingScreen(next);
   }
 
   /** Not an override of a default — empty simply means no image. */
@@ -915,42 +977,27 @@ function ClosingScreenView(props: SurveyEditorShellProps) {
     onChangeClosingScreen(next);
   }
 
-  const customCount = CLOSING_SCREEN_FIELDS.filter((f) => current[f]).length;
+  const authoredFields = CLOSING_SCREEN_FIELDS.filter((f) => current[f] !== undefined);
+  const hiddenCount = authoredFields.filter((f) => current[f] === "").length;
 
   return (
     <SectionCard
       title="Thank-you screen"
-      helper="The last thing participants see, after their final answer. Every field starts on the built-in copy — edit what you want to change, or clear a field to go back to the default."
-      action={
-        <div className="flex items-center gap-1.5">
-          <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-            Default copy
-          </span>
-          <select
-            value={defaultLocale}
-            onChange={(e) => setDefaultLocale(e.target.value as Locale)}
-            className="input input-sm"
-            style={{ width: 76 }}
-            aria-label="Language of the built-in copy"
-          >
-            <option value="nl">NL</option>
-            <option value="en">EN</option>
-          </select>
-        </div>
-      }
+      helper="The last thing participants see, after their final answer. Every field starts on the built-in copy — edit it, clear it to leave that line out, or reset it to the default."
     >
       <div className="space-y-4">
         {CLOSING_FIELDS.map(({ field, label, helper, multiline, rows }) => {
           const stored = current[field];
+          const hidden = stored === "";
           const value = stored ?? defaults[field];
           return (
-            <div key={`${field}-${defaultLocale}-${stored ?? ""}`}>
+            <div key={`${field}-${locale}-${stored ?? UNSET}`}>
               <div className="flex items-baseline justify-between gap-3">
                 <label className="typo-label">{label}</label>
-                {stored && onChangeClosingScreen && (
+                {stored !== undefined && onChangeClosingScreen && (
                   <button
                     type="button"
-                    onClick={() => commit(field, "")}
+                    onClick={() => resetToDefault(field)}
                     className="btn-link text-xs"
                   >
                     Reset to default
@@ -974,10 +1021,16 @@ function ClosingScreenView(props: SurveyEditorShellProps) {
                   disabled={!onChangeClosingScreen}
                 />
               )}
-              {helper && (
-                <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
-                  {helper}
+              {hidden ? (
+                <p className="text-xs mt-1" style={{ color: "var(--warning)" }}>
+                  Left out — participants do not see this line at all.
                 </p>
+              ) : (
+                helper && (
+                  <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+                    {helper}
+                  </p>
+                )
               )}
             </div>
           );
@@ -1000,9 +1053,11 @@ function ClosingScreenView(props: SurveyEditorShellProps) {
         </div>
       </div>
       <p className="text-xs mt-4" style={{ color: "var(--text-muted)", lineHeight: 1.5 }}>
-        {customCount === 0
-          ? "Nothing customised yet — participants see the built-in copy in their own language."
-          : `${customCount} field${customCount === 1 ? "" : "s"} customised. Customised text is shown as written, in both NL and EN.`}
+        {authoredFields.length === 0
+          ? "Nothing changed yet — participants see the built-in copy in the survey language."
+          : `${authoredFields.length} field${authoredFields.length === 1 ? "" : "s"} changed${
+              hiddenCount ? `, ${hiddenCount} of them left out entirely` : ""
+            }. Authored text is shown exactly as written, whichever language the survey is in.`}
       </p>
     </SectionCard>
   );

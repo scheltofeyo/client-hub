@@ -7,6 +7,8 @@ import { useSession } from "next-auth/react";
 import {
   Check,
   Copy,
+  Eye,
+  CopyPlus,
   Link2,
   MoreHorizontal,
   Pencil,
@@ -22,6 +24,7 @@ import {
   useShareQr,
 } from "@/components/ui/SharePanel";
 import SessionTabNav, { type SessionTab } from "@/components/surveys/SessionTabNav";
+import { DuplicateSessionModal } from "@/components/surveys/DuplicateSessionModal";
 import { ConfigureSheet } from "@/components/surveys/ConfigureSheet";
 import { ResultsTab } from "@/components/survey-results/ResultsTab";
 import type { ResultsData } from "@/components/survey-results/types";
@@ -109,6 +112,7 @@ export default function SurveyDetailPage() {
   const [refreshingDna, setRefreshingDna] = useState(false);
   const [showCloseModal, setShowCloseModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showDuplicateModal, setShowDuplicateModal] = useState(false);
   const [showShareLink, setShowShareLink] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -448,6 +452,15 @@ export default function SurveyDetailPage() {
                       </button>
                     </>
                   )}
+                  <div className="my-1 border-t" style={{ borderColor: "var(--border)" }} />
+                  <button
+                    onClick={() => { setShowDuplicateModal(true); setShowMenu(false); }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-left transition-colors hover-row"
+                    style={{ color: "var(--text-primary)" }}
+                  >
+                    <CopyPlus size={14} style={{ color: "var(--text-muted)" }} />
+                    Duplicate survey
+                  </button>
                   {canDelete && (
                     <>
                       <div className="my-1 border-t" style={{ borderColor: "var(--border)" }} />
@@ -513,17 +526,30 @@ export default function SurveyDetailPage() {
                   <p className="text-xs mb-4" style={{ color: "var(--text-muted)" }}>
                     {totalQuestions === 0
                       ? "Add at least one question in the editor before publishing."
-                      : "Publish the session to activate the share link and invite participants."}
+                      : "Preview it end to end first — nothing you answer there is saved."}
                   </p>
-                  {canEdit && (
-                    <button
-                      onClick={() => setShowPublishModal(true)}
-                      disabled={totalQuestions === 0}
-                      className="btn-primary rounded-lg text-sm px-5 py-2.5 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Publish session
-                    </button>
-                  )}
+                  <div className="flex items-center justify-center gap-2">
+                    {totalQuestions > 0 && (
+                      <a
+                        href={`${sharePath}?preview=1`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn-border border rounded-lg text-sm px-5 py-2.5 inline-flex items-center gap-1.5"
+                      >
+                        <Eye size={14} />
+                        Preview
+                      </a>
+                    )}
+                    {canEdit && (
+                      <button
+                        onClick={() => setShowPublishModal(true)}
+                        disabled={totalQuestions === 0}
+                        className="btn-primary rounded-lg text-sm px-5 py-2.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Publish session
+                      </button>
+                    )}
+                  </div>
                 </div>
               </>
             )}
@@ -714,6 +740,14 @@ export default function SurveyDetailPage() {
             </li>
           </ul>
         </ConfirmModal>
+      )}
+
+      {showDuplicateModal && (
+        <DuplicateSessionModal
+          source={{ id: data.id, title: data.title, clientId: data.clientId }}
+          onClose={() => setShowDuplicateModal(false)}
+          onDuplicated={(newId) => router.push(`/tools/surveys/${newId}`)}
+        />
       )}
 
       {showDeleteModal && (

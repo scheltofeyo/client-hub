@@ -232,6 +232,8 @@ async function main() {
       name: variant.name,
       description: variant.description,
       status: "active",
+      // De taal waarin de survey draait — de deelnemer kiest niets meer.
+      defaultLocale: locale,
       // Bewust leeg: deze template gebruikt geen archetypes.
       archetypeIds: [],
       defaultThankYouText: variant.thankYouText,
@@ -244,6 +246,7 @@ async function main() {
     const previousName = template.name;
     template.name = variant.name;
     template.description = variant.description;
+    template.defaultLocale = locale;
     template.defaultThankYouText = variant.thankYouText;
     template.defaultRespondentVariable = variant.respondentVariable;
     await template.save();

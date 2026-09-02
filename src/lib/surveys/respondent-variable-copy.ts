@@ -4,9 +4,15 @@ import { t, type Locale } from "./translations";
  * Author-supplied copy for the respondent-variable step — the one question asked
  * before the value questions ("Which level best fits your role?").
  *
- * Same arrangement as `welcome-screen.ts`: every text field is an *override*, and
- * an absent or blank one renders the built-in translation, which is what keeps an
- * untouched survey bilingual under the runner's NL/EN switch.
+ * The same three states as the welcome and closing screens: **absent** renders the
+ * built-in translation in the survey's language, an **empty string** leaves that
+ * line out of the step, and **text** is an override shown as written. `label` and
+ * `helpText` are therefore optional everywhere they are stored — the `""` that
+ * older documents carry for "never authored" is retired by
+ * `scripts/backfill-survey-copy.ts`.
+ *
+ * `helpUrl` is the one that cannot be hidden, and needs no way to be: its built-in
+ * value is already empty, so clearing it is the same as never setting it.
  *
  * Only the copy is authorable. The options are the client's cultural levels and
  * are deliberately not editable here — they are the join key onto
@@ -14,7 +20,9 @@ import { t, type Locale } from "./translations";
  * does not have would show that participant no behaviours at all.
  */
 export interface IRespondentVariableCopy {
+  /** Absent for the built-in question, `""` to show no heading at all. */
   label?: string;
+  /** Absent for the built-in explanation, `""` to show none. */
   helpText?: string;
   /** Link to material where a respondent can look their level up. No default. */
   helpUrl?: string;
@@ -27,7 +35,10 @@ export const RESPONDENT_VARIABLE_COPY_FIELDS = ["label", "helpText", "helpUrl"] 
 export type RespondentVariableCopyField =
   (typeof RESPONDENT_VARIABLE_COPY_FIELDS)[number];
 
-/** The resolved copy the runner actually renders — every field a real string. */
+/**
+ * The resolved copy the runner actually renders. Every field is a real string, and
+ * an empty one means "render nothing here".
+ */
 export type ResolvedRespondentVariableCopy = Record<RespondentVariableCopyField, string>;
 
 /**
@@ -47,9 +58,10 @@ export function defaultRespondentVariableCopy(
 }
 
 /**
- * Merge authored overrides over the built-in copy. A blank override is treated as
- * absent rather than as an empty line — an author who clears a field wants the
- * default back, not a heading with nothing under it.
+ * Merge authored copy over the built-in defaults. A stored empty string is not
+ * "nothing authored" but "authored to nothing": it resolves to an empty string so
+ * the runner leaves that line out, rather than restoring the default an author
+ * just cleared.
  */
 export function resolveRespondentVariableCopy(
   locale: Locale,
@@ -57,16 +69,17 @@ export function resolveRespondentVariableCopy(
 ): ResolvedRespondentVariableCopy {
   const resolved = defaultRespondentVariableCopy(locale);
   for (const field of RESPONDENT_VARIABLE_COPY_FIELDS) {
-    const authored = custom?.[field]?.trim();
-    if (authored) resolved[field] = authored;
+    const authored = custom?.[field];
+    if (authored === undefined) continue;
+    resolved[field] = authored.trim();
   }
   return resolved;
 }
 
 /**
- * Accept an arbitrary request body as authored copy. Unknown keys are dropped and
- * blank strings become absent, so "cleared" and "never set" end up as the same
- * stored state and both mean "use the built-in translation".
+ * Accept an arbitrary request body as authored copy. Unknown keys are dropped, but
+ * a blank string is *kept*: it is how the editor says "leave this line out", and
+ * only a key that was never sent means "use the built-in translation".
  *
  * `options`, `key` and `enabled` are deliberately not read here — they are
  * derived from the client's Cultural DNA and the survey's own content, never
@@ -79,8 +92,8 @@ export function normalizeRespondentVariableCopy(raw: unknown): IRespondentVariab
   for (const field of RESPONDENT_VARIABLE_COPY_FIELDS) {
     const value = input[field];
     if (typeof value !== "string") continue;
-    const trimmed = value.trim();
-    if (trimmed) out[field] = trimmed;
+    // A trimmed-empty value is stored as "" rather than dropped — see above.
+    out[field] = value.trim();
   }
   // Only `false` is worth storing — absent already means required.
   if (input.required === false) out.required = false;

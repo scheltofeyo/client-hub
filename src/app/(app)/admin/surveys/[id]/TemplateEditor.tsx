@@ -12,6 +12,7 @@ import type { ShellQuestionAny } from "@/components/surveys/question-types";
 import { isValueBackedType, type SurveyQuestionType } from "@/lib/surveys/types";
 import type { SerializedQuestion } from "@/lib/surveys/serializers";
 import type { Archetype } from "@/types";
+import type { Locale } from "@/lib/surveys/translations";
 import type { ISurveyWelcomeScreen } from "@/lib/surveys/welcome-screen";
 import type { IRespondentVariableCopy } from "@/lib/surveys/respondent-variable-copy";
 import type { ISurveyClosingScreen } from "@/lib/surveys/closing-screen";
@@ -23,6 +24,8 @@ interface TemplateData {
   name: string;
   description: string;
   status: string;
+  /** The language sessions made from this template run in. */
+  defaultLocale: Locale;
   archetypeIds: string[];
   defaultRankWeights: number[];
   defaultTop3Weights: number[];
@@ -176,6 +179,10 @@ export default function TemplateEditor({
   function handleChangeDescription(description: string) {
     setTemplate((prev) => ({ ...prev, description }));
     patchTemplate({ description });
+  }
+  function handleChangeLocale(defaultLocale: Locale) {
+    setTemplate((prev) => ({ ...prev, defaultLocale }));
+    patchTemplate({ defaultLocale });
   }
   function handleChangeClosing(co: ClosingOpenQuestion) {
     setTemplate((prev) => ({ ...prev, closingOpenQuestion: co }));
@@ -476,6 +483,7 @@ export default function TemplateEditor({
         onRetrySave={undefined}
         name={template.name}
         description={template.description}
+        locale={template.defaultLocale}
         archetypes={selectedArchetypes}
         allArchetypes={archetypes}
         archetypeMutable={true}
@@ -495,6 +503,7 @@ export default function TemplateEditor({
         onSelect={setSelected}
         onChangeName={handleChangeName}
         onChangeDescription={handleChangeDescription}
+        onChangeLocale={handleChangeLocale}
         onToggleArchetype={handleToggleArchetype}
         onChangeClosing={handleChangeClosing}
         onChangeWelcomeScreen={handleChangeWelcomeScreen}

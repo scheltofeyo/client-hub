@@ -4,14 +4,17 @@ import { t, type Locale } from "./translations";
  * Author-supplied copy for the closing screen — the last thing a participant
  * sees, after the final answer is in.
  *
- * The same arrangement as `welcome-screen.ts`: every text field is an *override*,
- * and an absent or blank one renders the built-in translation, which is what
- * keeps an untouched survey bilingual under the runner's NL/EN switch.
+ * The same three states as `welcome-screen.ts`: absent renders the built-in
+ * translation, an empty string leaves the element out because the author cleared
+ * it, and text is an override rendered as written.
  */
 export interface ISurveyClosingScreen {
-  /** The headline above the body. Supports `{company}`. */
+  /** The headline above the body. Supports `{company}`. Empty hides it. */
   headline?: string;
-  /** The message itself. Blank lines split it into paragraphs. Supports `{company}`. */
+  /**
+   * The message itself. Blank lines split it into paragraphs. Supports
+   * `{company}`. Empty hides it.
+   */
   body?: string;
   /**
    * Optional image beside the closing copy, exactly like the welcome screen's.
@@ -25,7 +28,10 @@ export const CLOSING_SCREEN_FIELDS = ["headline", "body"] as const;
 
 export type ClosingScreenField = (typeof CLOSING_SCREEN_FIELDS)[number];
 
-/** The resolved copy the runner actually renders — every field a real string. */
+/**
+ * The resolved copy the runner actually renders. Every field is a real string, and
+ * an empty one means "render nothing here".
+ */
 export type ResolvedClosingCopy = Record<ClosingScreenField, string>;
 
 function interpolate(raw: string, company?: string): string {
@@ -50,6 +56,8 @@ export function defaultClosingCopy(locale: Locale): ResolvedClosingCopy {
  * created before this screen was authorable carry their closing message there,
  * and it must keep rendering. It stands in for the body only — a survey that has
  * since authored a body wins over it, and the headline was never customisable.
+ * A body cleared to "" wins over it too: clearing the message has to be able to
+ * clear the legacy sentence as well, or it could never be removed.
  */
 export function resolveClosingCopy(
   locale: Locale,
@@ -60,16 +68,18 @@ export function resolveClosingCopy(
   const legacy = opts.legacyThankYouText?.trim();
   if (legacy) resolved.body = interpolate(legacy, opts.company);
   for (const field of CLOSING_SCREEN_FIELDS) {
-    const authored = custom?.[field]?.trim();
-    if (authored) resolved[field] = interpolate(authored, opts.company);
+    const authored = custom?.[field];
+    if (authored === undefined) continue;
+    const trimmed = authored.trim();
+    resolved[field] = trimmed ? interpolate(trimmed, opts.company) : "";
   }
   return resolved;
 }
 
 /**
  * Accept an arbitrary request body into a storable closing-screen object. Unknown
- * keys are dropped and blank strings become `undefined`, so "cleared" and "never
- * set" end up as the same stored state and both mean "use the default".
+ * keys are dropped, but a blank string is *kept*: it is how the editor says "leave
+ * this line out", and only a key that was never sent means "use the default".
  *
  * Returns `undefined` when nothing is left, which lets the caller unset the field
  * entirely instead of storing an empty object.
@@ -89,9 +99,8 @@ export function normalizeClosingScreen(raw: unknown): ISurveyClosingScreen | und
   for (const field of CLOSING_SCREEN_FIELDS) {
     const value = input[field];
     if (typeof value !== "string") continue;
-    const trimmed = value.trim();
-    if (!trimmed) continue;
-    out[field] = trimmed;
+    // A trimmed-empty value is stored as "" rather than dropped — see above.
+    out[field] = value.trim();
     any = true;
   }
   return any ? out : undefined;

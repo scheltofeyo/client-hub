@@ -83,8 +83,11 @@ export function respondentVariableFromLevels(
   return {
     enabled: true,
     key: defaults.key || "culturalLevel",
-    label: defaults.label || "",
-    helpText: defaults.helpText || undefined,
+    // Copied verbatim, `""` included: an empty string is the author's decision to
+    // show no heading, and `|| undefined` would quietly turn it back into the
+    // built-in question.
+    label: defaults.label,
+    helpText: defaults.helpText,
     helpUrl: defaults.helpUrl || undefined,
     required: defaults.required !== false,
     // The level string is its own id — see IRespondentVariableOption.
@@ -103,8 +106,8 @@ export function respondentVariableFromLevels(
  * broken enough to notice before a training.
  *
  * A stored, enabled config always wins, so the copy stays configurable. The
- * derived one carries an empty label; the runner substitutes a translated
- * default so it works in both languages.
+ * derived one carries no copy at all, so the runner renders the translated
+ * default — which is the whole point of leaving those fields absent.
  */
 export function effectiveRespondentVariable(session: {
   respondentVariable?: IRespondentVariable | null;
@@ -129,7 +132,7 @@ export function effectiveRespondentVariable(session: {
   return respondentVariableFromLevels(levels, {
     enabled: true,
     key: stored?.key || "culturalLevel",
-    label: stored?.label ?? "",
+    label: stored?.label,
     helpText: stored?.helpText,
     helpUrl: stored?.helpUrl,
     required: stored?.required !== false,

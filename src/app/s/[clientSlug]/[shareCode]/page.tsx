@@ -33,7 +33,7 @@ import {
   isTop3Type,
   type SurveyQuestionType,
 } from "@/lib/surveys/types";
-import LocaleSwitcher, { type Locale } from "@/components/ui/LocaleSwitcher";
+import type { Locale } from "@/lib/surveys/translations";
 import { t } from "@/lib/surveys/translations";
 import { pickGreeting, type Greeting } from "@/lib/surveys/greetings";
 import {
@@ -90,7 +90,8 @@ interface CulturalValue {
 interface RespondentVariable {
   enabled: boolean;
   key: string;
-  label: string;
+  /** Absent for the built-in question, `""` when the author cleared it. */
+  label?: string;
   helpText?: string;
   helpUrl?: string;
   required: boolean;
@@ -110,6 +111,14 @@ interface Section {
 interface SurveyData {
   status: string;
   title: string;
+  /**
+   * The language this survey runs in, set on the survey itself. There is no
+   * switcher: the authored copy is written in one language, so switching could
+   * only ever translate the chrome around it and leave the message behind.
+   */
+  locale?: Locale;
+  /** Server-granted read-only mode: a colleague walking a draft. Never set for participants. */
+  preview?: boolean;
   message?: string;
   clientCompany?: string;
   clientPrimaryColor?: string;
@@ -390,9 +399,19 @@ function SummLogoMark() {
 
 export default function PublicSurveyPage() {
   const { shareCode } = useParams<{ shareCode: string }>();
+  // Read straight off the URL rather than through useSearchParams, which would
+  // drag a Suspense boundary into a page that is already client-only. This only
+  // *asks* for preview; whether it is granted is the server's answer below.
+  const [previewRequested] = useState(
+    () => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("preview") === "1"
+  );
   const [survey, setSurvey] = useState<SurveyData | null>(null);
+  // Granted by the server, not claimed by the URL.
+  const preview = survey?.preview === true;
   const [loading, setLoading] = useState(true);
-  const [locale, setLocale] = useState<Locale>("en");
+  // Dutch until the survey says otherwise — that is also what the API falls back
+  // to, and it is the language the error screens are read in most often.
+  const locale: Locale = survey?.locale ?? "nl";
 
   const [step, setStep] = useState(0);
   const [direction, setDirection] = useState<1 | -1>(1);
@@ -445,7 +464,7 @@ export default function PublicSurveyPage() {
   );
 
   useEffect(() => {
-    fetch(`/api/public/surveys/${shareCode}`)
+    fetch(`/api/public/surveys/${shareCode}${previewRequested ? "?preview=1" : ""}`)
       .then((r) => r.json())
       .then((data: SurveyData) => {
         if (data?.template?.sections) {
@@ -479,7 +498,7 @@ export default function PublicSurveyPage() {
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, [shareCode]);
+  }, [shareCode, previewRequested]);
 
   const sections = useMemo(() => survey?.template?.sections ?? [], [survey]);
   const closingEnabled = !!survey?.template?.closingOpenQuestion?.enabled;
@@ -559,6 +578,14 @@ export default function PublicSurveyPage() {
     const trimmedEmail = email.trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
       setError(t(locale, "error.emailInvalid"));
+      return;
+    }
+
+    // The email is still typed and still validated — that screen is part of what
+    // a preview is for — it just identifies nobody.
+    if (preview) {
+      setDirection(1);
+      setStep((s) => s + 1);
       return;
     }
 
@@ -802,7 +829,9 @@ export default function PublicSurveyPage() {
   // the same email. Silent: failures aren't surfaced (the final /submit will
   // persist whatever the React state holds anyway).
   const autosave = useCallback(() => {
-    if (!submissionId) return;
+    // A preview has no submission to save into, and saying "saved" over answers
+    // that are about to be dropped would be a lie the header tells every step.
+    if (preview || !submissionId) return;
     const answers = buildAnswers();
     void fetch(`/api/public/surveys/${shareCode}/save`, {
       method: "POST",
@@ -820,7 +849,7 @@ export default function PublicSurveyPage() {
         }
       })
       .catch(() => {});
-  }, [submissionId, shareCode, buildAnswers, cohortKey, cohortChoice]);
+  }, [preview, submissionId, shareCode, buildAnswers, cohortKey, cohortChoice]);
 
   // Inverse of buildAnswers — used to restore saved state when a returning
   // participant identifies with the same email and /start replies with
@@ -903,6 +932,13 @@ export default function PublicSurveyPage() {
   );
 
   async function handleSubmit() {
+    if (preview) {
+      if (current.kind === "question" && !validateScreen(current)) return;
+      setError(null);
+      setDirection(1);
+      setStep(totalSteps - 1);
+      return;
+    }
     if (!submissionId) {
       setError(t(locale, "error.missingSubmission"));
       return;
@@ -947,7 +983,11 @@ export default function PublicSurveyPage() {
     );
   }
 
-  if (!survey || survey.status !== "open" || !survey.template) {
+  // The status gate is the server's; this one only mirrors it. Preview is the
+  // one case where a non-open session legitimately carries a full template, so
+  // it has to be exempt here too — otherwise the runner refuses to render what
+  // the route just went to the trouble of serving.
+  if (!survey || !survey.template || (survey.status !== "open" && !preview)) {
     const msgKey =
       survey?.status === "draft"
         ? "error.draft"
@@ -959,7 +999,6 @@ export default function PublicSurveyPage() {
     return (
       <PageShell
         locale={locale}
-        onLocaleChange={setLocale}
         clientCompany={survey?.clientCompany}
         primaryColor={survey?.clientPrimaryColor}
       >
@@ -1015,48 +1054,58 @@ export default function PublicSurveyPage() {
             }
           >
             <div>
-              {/* Survey context chip — personalized to client company */}
-              <div
-                className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full mb-6"
-                style={{
-                  background: "var(--primary-light)",
-                  color: "var(--primary)",
-                }}
-              >
-                <MessageCircle size={14} strokeWidth={2.2} />
-                <span className="text-[12px] font-semibold uppercase tracking-[0.06em]">
-                  {welcome.tagline}
-                </span>
-              </div>
+              {/* Every line here is left out when its copy resolves to empty: the
+                  author cleared it, and an empty pill or a heading with nothing in
+                  it reads as a bug rather than as a choice. */}
+              {welcome.tagline && (
+                <div
+                  className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full mb-6"
+                  style={{
+                    background: "var(--primary-light)",
+                    color: "var(--primary)",
+                  }}
+                >
+                  <MessageCircle size={14} strokeWidth={2.2} />
+                  <span className="text-[12px] font-semibold uppercase tracking-[0.06em]">
+                    {welcome.tagline}
+                  </span>
+                </div>
+              )}
 
               {/* Headline — time/day-aware greeting, split into welcome + thanks tiers */}
-              <h1
-                className="text-[28px] sm:text-[34px] md:text-[42px] font-semibold leading-[1.05]"
-                style={{ color: "var(--text-primary)", letterSpacing: "-0.022em" }}
-              >
-                {welcome.headline}
-              </h1>
-              <p
-                className="mt-2 sm:mt-3 text-[18px] sm:text-[22px] md:text-[26px] font-medium leading-[1.2]"
-                style={{ color: "var(--text-muted)", letterSpacing: "-0.012em" }}
-              >
-                {welcome.subheadline}
-              </p>
+              {welcome.headline && (
+                <h1
+                  className="text-[28px] sm:text-[34px] md:text-[42px] font-semibold leading-[1.05]"
+                  style={{ color: "var(--text-primary)", letterSpacing: "-0.022em" }}
+                >
+                  {welcome.headline}
+                </h1>
+              )}
+              {welcome.subheadline && (
+                <p
+                  className="mt-2 sm:mt-3 text-[18px] sm:text-[22px] md:text-[26px] font-medium leading-[1.2]"
+                  style={{ color: "var(--text-muted)", letterSpacing: "-0.012em" }}
+                >
+                  {welcome.subheadline}
+                </p>
+              )}
 
               {/* Body — organizer → anonymity → email rationale */}
-              <div
-                className="mt-5 max-w-[65ch] space-y-3 text-[16px] sm:text-[18px]"
-                style={{ color: "var(--text-muted)", lineHeight: 1.6 }}
-              >
-                {welcomeParagraphs(welcome.bodyIntro).map((para, i) => (
-                  <p key={i}>{para}</p>
-                ))}
-                {welcomeParagraphs(welcome.bodyEmail).map((para, i) => (
-                  <p key={i} className="text-[14px] sm:text-[15px]">
-                    {para}
-                  </p>
-                ))}
-              </div>
+              {(welcome.bodyIntro || welcome.bodyEmail) && (
+                <div
+                  className="mt-5 max-w-[65ch] space-y-3 text-[16px] sm:text-[18px]"
+                  style={{ color: "var(--text-muted)", lineHeight: 1.6 }}
+                >
+                  {welcomeParagraphs(welcome.bodyIntro).map((para, i) => (
+                    <p key={i}>{para}</p>
+                  ))}
+                  {welcomeParagraphs(welcome.bodyEmail).map((para, i) => (
+                    <p key={i} className="text-[14px] sm:text-[15px]">
+                      {para}
+                    </p>
+                  ))}
+                </div>
+              )}
 
             </div>
 
@@ -1122,23 +1171,28 @@ export default function PublicSurveyPage() {
     if (screen.kind === "respondent-variable" && respondentVariable) {
       // A derived — or simply untouched — variable carries no copy, so each field
       // falls back to its translation rather than rendering a heading with
-      // nothing under it.
+      // nothing under it. Copy the author cleared resolves to empty and is left
+      // out, exactly as on the welcome and closing screens.
       const copy = resolveRespondentVariableCopy(locale, respondentVariable);
       return (
         <div className="space-y-8 w-full">
           <div>
-            <h2
-              className="text-[24px] sm:text-[28px] md:text-[30px] font-semibold leading-[1.2]"
-              style={{ color: "var(--text-primary)", letterSpacing: "-0.015em" }}
-            >
-              {copy.label}
-            </h2>
-            <p
-              className="mt-3 text-[15px] sm:text-[16px] max-w-[65ch]"
-              style={{ color: "var(--text-muted)", lineHeight: 1.55 }}
-            >
-              {copy.helpText}
-            </p>
+            {copy.label && (
+              <h2
+                className="text-[24px] sm:text-[28px] md:text-[30px] font-semibold leading-[1.2]"
+                style={{ color: "var(--text-primary)", letterSpacing: "-0.015em" }}
+              >
+                {copy.label}
+              </h2>
+            )}
+            {copy.helpText && (
+              <p
+                className="mt-3 text-[15px] sm:text-[16px] max-w-[65ch]"
+                style={{ color: "var(--text-muted)", lineHeight: 1.55 }}
+              >
+                {copy.helpText}
+              </p>
+            )}
             {copy.helpUrl && (
               <a
                 href={copy.helpUrl}
@@ -1584,8 +1638,8 @@ export default function PublicSurveyPage() {
   return (
     <PageShell
       locale={locale}
-      onLocaleChange={setLocale}
       title={survey.title}
+      preview={preview}
       clientCompany={survey.clientCompany}
       primaryColor={survey.clientPrimaryColor}
       progress={progress}
@@ -1640,8 +1694,8 @@ export default function PublicSurveyPage() {
 
 function PageShell({
   locale,
-  onLocaleChange,
   title,
+  preview,
   clientCompany,
   primaryColor,
   progress,
@@ -1652,8 +1706,8 @@ function PageShell({
   children,
 }: {
   locale: Locale;
-  onLocaleChange: (l: Locale) => void;
   title?: string;
+  preview?: boolean;
   clientCompany?: string;
   primaryColor?: string;
   progress?: number | null;
@@ -1676,9 +1730,20 @@ function PageShell({
       className="min-h-dvh flex flex-col"
       style={themeStyle}
     >
-      {/* Sticky header: full-width progress + title row with locale switcher */}
+      {/* Sticky block: preview banner (if any) above the header, so a colleague
+          can never lose sight of the fact that nothing here is being recorded. */}
+      <div className="sticky top-0 z-30">
+      {preview && (
+        <div
+          className="px-6 md:px-[60px] lg:px-[120px] py-2 text-center text-[12px] font-semibold"
+          style={{ background: "var(--warning-light)", color: "var(--warning)" }}
+        >
+          {t(locale, "preview.banner")}
+        </div>
+      )}
+      {/* Header: full-width progress + title row with locale switcher */}
       <header
-        className="sticky top-0 z-30 border-b"
+        className="relative border-b"
         style={{
           background: "color-mix(in srgb, var(--bg-surface) 92%, transparent)",
           borderColor: "var(--border)",
@@ -1759,9 +1824,9 @@ function PageShell({
               </motion.div>
             )}
           </AnimatePresence>
-          <LocaleSwitcher locale={locale} onChange={onLocaleChange} />
         </div>
       </header>
+      </div>
 
       <main className="flex-1 flex flex-col w-full px-6 md:px-[60px] lg:px-[120px] py-8 sm:py-12 md:py-16 pb-[140px] sm:pb-[120px]">
         <div className="w-full">
@@ -3205,20 +3270,27 @@ function DoneState({
             </div>
           </div>
         </div>
-        <h2
-          className="text-[24px] sm:text-[28px] font-semibold mb-2"
-          style={{ color: "var(--text-primary)", letterSpacing: "-0.02em" }}
-        >
-          {headline}
-        </h2>
-        <div
-          className={`text-[15px] space-y-3 ${imageUrl ? "max-w-[65ch]" : "max-w-[36ch] mx-auto"}`}
-          style={{ color: "var(--text-muted)", lineHeight: 1.55 }}
-        >
-          {splitParagraphs(copy.body).map((para, i) => (
-            <p key={i}>{para}</p>
-          ))}
-        </div>
+        {/* Cleared copy is left out rather than defaulted back in — see the
+            welcome screen. The tick and its confetti always stay: they are the
+            confirmation, not the message. */}
+        {headline && (
+          <h2
+            className="text-[24px] sm:text-[28px] font-semibold mb-2"
+            style={{ color: "var(--text-primary)", letterSpacing: "-0.02em" }}
+          >
+            {headline}
+          </h2>
+        )}
+        {copy.body && (
+          <div
+            className={`text-[15px] space-y-3 ${imageUrl ? "max-w-[65ch]" : "max-w-[36ch] mx-auto"}`}
+            style={{ color: "var(--text-muted)", lineHeight: 1.55 }}
+          >
+            {splitParagraphs(copy.body).map((para, i) => (
+              <p key={i}>{para}</p>
+            ))}
+          </div>
+        )}
       </div>
 
       {imageUrl && (

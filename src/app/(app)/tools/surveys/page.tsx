@@ -2,9 +2,11 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { Plus, Trash2, ChevronRight } from "lucide-react";
+import { Plus, Trash2, ChevronRight, Copy } from "lucide-react";
 import UserAvatar from "@/components/ui/UserAvatar";
+import { DuplicateSessionModal } from "@/components/surveys/DuplicateSessionModal";
 import {
   SessionStatusBadge,
   SessionStatusFilterChips,
@@ -28,6 +30,7 @@ interface SessionSummary {
 }
 
 export default function ArchetypeAsIsSurveyListPage() {
+  const router = useRouter();
   const { data: authSession } = useSession();
   const currentUserId = authSession?.user?.id;
   const perms = authSession?.user?.permissions ?? [];
@@ -37,6 +40,7 @@ export default function ArchetypeAsIsSurveyListPage() {
   const [loading, setLoading] = useState(true);
   const [activeFilters, setActiveFilters] = useState<string[]>(["open", "draft"]);
   const [deleteTarget, setDeleteTarget] = useState<SessionSummary | null>(null);
+  const [duplicateTarget, setDuplicateTarget] = useState<SessionSummary | null>(null);
 
   useEffect(() => {
     fetch("/api/surveys/sessions")
@@ -155,6 +159,13 @@ export default function ArchetypeAsIsSurveyListPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-1 ml-4">
+                      <button
+                        onClick={(e) => { e.preventDefault(); setDuplicateTarget(s); }}
+                        className="btn-icon p-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                        title="Duplicate"
+                      >
+                        <Copy size={14} />
+                      </button>
                       {canDelete && (
                         <button
                           onClick={(e) => { e.preventDefault(); setDeleteTarget(s); }}
@@ -173,6 +184,14 @@ export default function ArchetypeAsIsSurveyListPage() {
           </div>
         )}
       </div>
+
+      {duplicateTarget && (
+        <DuplicateSessionModal
+          source={{ id: duplicateTarget.id, title: duplicateTarget.title, clientId: duplicateTarget.clientId }}
+          onClose={() => setDuplicateTarget(null)}
+          onDuplicated={(newId) => router.push(`/tools/surveys/${newId}`)}
+        />
+      )}
 
       {deleteTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">

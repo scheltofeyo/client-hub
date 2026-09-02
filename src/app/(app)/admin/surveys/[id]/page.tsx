@@ -35,6 +35,7 @@ export default async function EditSurveyTemplatePage({
           name: template.name,
           description: template.description ?? "",
           status: template.status,
+          defaultLocale: template.defaultLocale ?? "nl",
           archetypeIds: template.archetypeIds ?? [],
           defaultRankWeights: template.defaultRankWeights ?? [5, 4, 3, 2, 1],
           defaultTop3Weights: template.defaultTop3Weights ?? [5, 3, 1],
@@ -46,9 +47,11 @@ export default async function EditSurveyTemplatePage({
           defaultThankYouText: template.defaultThankYouText ?? undefined,
           defaultRespondentVariable: template.defaultRespondentVariable
             ? {
-                label: template.defaultRespondentVariable.label || undefined,
-                helpText: template.defaultRespondentVariable.helpText || undefined,
-                helpUrl: template.defaultRespondentVariable.helpUrl || undefined,
+                // Passed through, "" included: that is a cleared field, and
+                // `|| undefined` would show the author the built-in copy again.
+                label: template.defaultRespondentVariable.label,
+                helpText: template.defaultRespondentVariable.helpText,
+                helpUrl: template.defaultRespondentVariable.helpUrl,
                 required: template.defaultRespondentVariable.required,
               }
             : undefined,

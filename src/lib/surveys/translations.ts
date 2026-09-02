@@ -86,6 +86,13 @@ const translations = {
   "nav.start": { nl: "Start", en: "Start" },
   "nav.finalQuestion": { nl: "Laatste vraag", en: "Final question" },
 
+  // Preview mode — a colleague walking a draft. Shown to nobody who is actually
+  // answering, but written in the survey's own language like the rest of the chrome.
+  "preview.banner": {
+    nl: "Preview — je antwoorden worden niet opgeslagen.",
+    en: "Preview — your answers are not saved.",
+  },
+
   // Submit confirmation modal
   "confirm.title": {
     nl: "Antwoorden definitief versturen?",
