@@ -9,9 +9,11 @@ import SurveyEditorShell, {
 import type { OutlineSelection } from "@/components/surveys/EditorOutline";
 import type { SaveState } from "@/components/surveys/SaveStateChip";
 import type { ShellQuestionAny } from "@/components/surveys/question-types";
-import type { SurveyQuestionType } from "@/lib/surveys/types";
+import { isValueBackedType, type SurveyQuestionType } from "@/lib/surveys/types";
 import type { SerializedQuestion } from "@/lib/surveys/serializers";
 import type { Archetype } from "@/types";
+import type { ISurveyWelcomeScreen } from "@/lib/surveys/welcome-screen";
+import type { IRespondentVariableCopy } from "@/lib/surveys/respondent-variable-copy";
 
 type ClosingOpenQuestion = { enabled: boolean; label: string };
 type SectionOpenQuestion = { enabled: boolean; label: string };
@@ -24,6 +26,8 @@ interface TemplateData {
   defaultRankWeights: number[];
   defaultTop3Weights: number[];
   closingOpenQuestion: ClosingOpenQuestion;
+  defaultWelcomeScreen?: ISurveyWelcomeScreen;
+  defaultRespondentVariable?: IRespondentVariableCopy;
 }
 
 interface SectionRow {
@@ -172,6 +176,14 @@ export default function TemplateEditor({
   function handleChangeClosing(co: ClosingOpenQuestion) {
     setTemplate((prev) => ({ ...prev, closingOpenQuestion: co }));
     patchTemplate({ closingOpenQuestion: co });
+  }
+  function handleChangeWelcomeScreen(defaultWelcomeScreen: ISurveyWelcomeScreen) {
+    setTemplate((prev) => ({ ...prev, defaultWelcomeScreen }));
+    patchTemplate({ defaultWelcomeScreen });
+  }
+  function handleChangeRespondentVariable(defaultRespondentVariable: IRespondentVariableCopy) {
+    setTemplate((prev) => ({ ...prev, defaultRespondentVariable }));
+    patchTemplate({ defaultRespondentVariable });
   }
   function handleChangeStatus(status: string) {
     setTemplate((prev) => ({ ...prev, status }));
@@ -392,6 +404,13 @@ export default function TemplateEditor({
     [sections, questions]
   );
 
+  // The level step only makes sense next to a question whose content depends on
+  // it, which is the same condition the runner derives it from.
+  const hasValueBackedQuestion = useMemo(
+    () => shellSections.some((s) => s.questions.some((q) => isValueBackedType(q.type))),
+    [shellSections]
+  );
+
   const selectedArchetypes = useMemo(
     () => template.archetypeIds.map((id) => archetypes.find((a) => a.id === id)).filter(Boolean) as Archetype[],
     [template.archetypeIds, archetypes]
@@ -452,6 +471,14 @@ export default function TemplateEditor({
         allArchetypes={archetypes}
         archetypeMutable={true}
         closingOpenQuestion={template.closingOpenQuestion}
+        welcomeScreen={template.defaultWelcomeScreen}
+        respondentVariable={
+          // A template has no client, so it has no levels to show — only the copy
+          // is authored here, and the options are materialised per session.
+          hasValueBackedQuestion
+            ? { copy: template.defaultRespondentVariable ?? {}, options: [] }
+            : undefined
+        }
         sections={shellSections}
         selected={selected}
         onSelect={setSelected}
@@ -459,6 +486,8 @@ export default function TemplateEditor({
         onChangeDescription={handleChangeDescription}
         onToggleArchetype={handleToggleArchetype}
         onChangeClosing={handleChangeClosing}
+        onChangeWelcomeScreen={handleChangeWelcomeScreen}
+        onChangeRespondentVariable={handleChangeRespondentVariable}
         onAddSection={handleAddSection}
         onUpdateSection={handleUpdateSection}
         onDeleteSection={handleDeleteSection}

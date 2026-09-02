@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import Link from "next/link";
 import { ChevronRight, Trash2 } from "lucide-react";
 import SectionCard from "@/components/ui/SectionCard";
 import RichTextEditor from "@/components/ui/RichTextEditor";
 import ArchetypePill, { type ArchetypeLite } from "./ArchetypePill";
 import EditorOutline, {
+  type OutlineRespondentVariable,
   type OutlineSection,
   type OutlineSelection,
 } from "./EditorOutline";
@@ -15,7 +16,22 @@ import SaveStateChip, { type SaveState } from "./SaveStateChip";
 import QuestionForm, { type QuestionFormQuestion } from "./QuestionForm";
 import AddBlockMenu from "./AddBlockMenu";
 import { QUESTION_TYPE_META, type ShellQuestionAny } from "./question-types";
-import type { SurveyQuestionType } from "@/lib/surveys/types";
+import { isValueBackedType, type SurveyQuestionType } from "@/lib/surveys/types";
+import {
+  RESPONDENT_VARIABLE_COPY_FIELDS,
+  defaultRespondentVariableCopy,
+  type IRespondentVariableCopy,
+  type RespondentVariableCopyField,
+} from "@/lib/surveys/respondent-variable-copy";
+import {
+  GREETING_FIELDS,
+  WELCOME_SCREEN_FIELDS,
+  defaultWelcomeCopy,
+  usesAutoGreeting,
+  type ISurveyWelcomeScreen,
+  type WelcomeScreenField,
+} from "@/lib/surveys/welcome-screen";
+import type { Locale } from "@/lib/surveys/translations";
 
 // ── Data types passed by the parent ──────────────────────────────
 
@@ -52,6 +68,21 @@ export interface SurveyEditorShellProps {
    */
   culturalValues?: { id: string; title: string }[];
   closingOpenQuestion?: { enabled: boolean; label: string };
+  /**
+   * Authored overrides for the participant welcome screen. Absent fields fall
+   * back to the built-in translations, which is why this is a sparse object
+   * rather than a fully-populated one.
+   */
+  welcomeScreen?: ISurveyWelcomeScreen;
+  /** The client this survey runs for, used to preview `{company}` in the copy. */
+  clientCompany?: string;
+  /**
+   * Authored copy for the level step, plus the levels a participant will pick
+   * from. Absent means this survey does not ask it. The options are read-only —
+   * they come from the client's Cultural DNA, and an option typed here would be a
+   * level no behaviour is filed under.
+   */
+  respondentVariable?: { copy: IRespondentVariableCopy; options: string[] };
   sections: ShellSection[];
 
   // selection
@@ -63,6 +94,8 @@ export interface SurveyEditorShellProps {
   onChangeDescription: (description: string) => void;
   onToggleArchetype?: (archetypeId: string) => void;
   onChangeClosing: (co: { enabled: boolean; label: string }) => void;
+  onChangeWelcomeScreen?: (welcomeScreen: ISurveyWelcomeScreen) => void;
+  onChangeRespondentVariable?: (copy: IRespondentVariableCopy) => void;
 
   onAddSection?: () => void;
   onUpdateSection: (sectionId: string, updates: Partial<ShellSection>) => void;
@@ -73,6 +106,27 @@ export interface SurveyEditorShellProps {
   onUpdateQuestion: (sectionId: string, questionId: string, updates: Partial<ShellQuestion>) => void;
   onDeleteQuestion: (sectionId: string, questionId: string) => void;
   onReorderQuestionsInSection?: (sectionId: string, ids: string[]) => void;
+}
+
+/**
+ * Mirrors `buildScreens()` in the runner: the level step is asked right before the
+ * first question whose content depends on the answer, and up front when no
+ * question does. Derived here rather than taken from the parent, so the outline
+ * stays honest about where a participant will actually meet it.
+ */
+function buildOutlineRespondentVariable(
+  respondentVariable: SurveyEditorShellProps["respondentVariable"],
+  sections: ShellSection[]
+): OutlineRespondentVariable | undefined {
+  if (!respondentVariable) return undefined;
+  // A short stand-in rather than the built-in question itself: unauthored, the
+  // default label is a full sentence that reads badly in a 280px column.
+  const label = respondentVariable.copy.label?.trim() || "Level question";
+  for (const section of sections) {
+    const q = section.questions.find((x) => isValueBackedType(x.type));
+    if (q) return { label, anchor: { sectionId: section.id, questionId: q.id } };
+  }
+  return { label, anchor: null };
 }
 
 // ── Main shell ───────────────────────────────────────────────────
@@ -91,6 +145,7 @@ export default function SurveyEditorShell(props: SurveyEditorShellProps) {
     selected,
     onSelect,
     archetypeMutable,
+    respondentVariable,
   } = props;
 
   const hasArchetypeRanking = useMemo(
@@ -100,6 +155,9 @@ export default function SurveyEditorShell(props: SurveyEditorShellProps) {
       ),
     [sections]
   );
+
+  const outlineRespondentVariable: OutlineRespondentVariable | undefined =
+    buildOutlineRespondentVariable(respondentVariable, sections);
 
   const outlineSections: OutlineSection[] = useMemo(
     () =>
@@ -171,6 +229,7 @@ export default function SurveyEditorShell(props: SurveyEditorShellProps) {
             archetypeLocked={!archetypeMutable}
             showArchetypes={archetypeMutable && hasArchetypeRanking}
             showClosing={!!props.closingOpenQuestion?.enabled}
+            respondentVariable={outlineRespondentVariable}
           />
         </aside>
 
@@ -192,6 +251,10 @@ function RightPane(props: SurveyEditorShellProps) {
   switch (selected.kind) {
     case "header":
       return <HeaderView {...props} />;
+    case "welcome":
+      return <WelcomeView {...props} />;
+    case "respondent-variable":
+      return <RespondentVariableView {...props} />;
     case "archetypes":
       return <ArchetypesView {...props} />;
     case "closing":
@@ -257,7 +320,7 @@ function HeaderView(props: SurveyEditorShellProps) {
   return (
     <SectionCard
       title="Survey header"
-      helper="Shown to participants at the top of the survey."
+      helper="The title participants see at the top of the survey."
     >
       <div className="space-y-4">
         <div>
@@ -274,7 +337,9 @@ function HeaderView(props: SurveyEditorShellProps) {
           />
         </div>
         <div>
-          <label className="typo-label">Description (optional)</label>
+          <label className="typo-label">
+            Internal note (not visible to participants)
+          </label>
           <textarea
             defaultValue={props.description ?? ""}
             onBlur={(e) => {
@@ -284,10 +349,379 @@ function HeaderView(props: SurveyEditorShellProps) {
             }}
             rows={3}
             className="input resize-none"
-            placeholder="Context shown above the first section"
+            placeholder="For colleagues only — appears in the results export, never in the survey"
           />
         </div>
       </div>
+    </SectionCard>
+  );
+}
+
+// ── Right-pane: Welcome-screen view ──────────────────────────────
+
+interface WelcomeFieldMeta {
+  field: WelcomeScreenField;
+  label: string;
+  helper?: string;
+  multiline?: boolean;
+  rows?: number;
+}
+
+const WELCOME_FIELDS: WelcomeFieldMeta[] = [
+  {
+    field: "tagline",
+    label: "Tagline pill",
+    helper: "The small pill above the greeting. {company} is replaced with the client name.",
+  },
+  { field: "headline", label: "Headline", helper: "The big first line." },
+  { field: "subheadline", label: "Sub-headline", helper: "The smaller line right under it." },
+  {
+    field: "bodyIntro",
+    label: "Body",
+    helper:
+      "Who is asking, what for, and what happens with the answers. Leave a blank line between paragraphs. {company} is supported.",
+    multiline: true,
+    rows: 6,
+  },
+  { field: "bodyEmail", label: "Why we ask for an email", multiline: true },
+];
+
+/**
+ * Every field starts out showing the built-in copy, so authoring is editing
+ * rather than writing from scratch. Only text that actually *differs* from the
+ * default is stored: that keeps the participant page bilingual for anything left
+ * alone, and lets a cleared field fall straight back to the default.
+ */
+function WelcomeView(props: SurveyEditorShellProps) {
+  const { welcomeScreen, onChangeWelcomeScreen, clientCompany } = props;
+  const [defaultLocale, setDefaultLocale] = useState<Locale>("nl");
+
+  const defaults = useMemo(
+    () => defaultWelcomeCopy(defaultLocale, { company: clientCompany }),
+    [defaultLocale, clientCompany]
+  );
+
+  function commit(field: WelcomeScreenField, raw: string) {
+    if (!onChangeWelcomeScreen) return;
+    const value = raw.trim();
+    const next: ISurveyWelcomeScreen = { ...welcomeScreen };
+    if (!value || value === defaults[field]) delete next[field];
+    else next[field] = value;
+    // Compare against the stored object so a blur that changed nothing does not
+    // fire a save on every field the author tabs through.
+    const changed = WELCOME_SCREEN_FIELDS.some((f) => (next[f] ?? "") !== (welcomeScreen?.[f] ?? ""));
+    if (changed) onChangeWelcomeScreen(next);
+  }
+
+  const autoGreeting = usesAutoGreeting(welcomeScreen);
+
+  /**
+   * Switching the greeting back on keeps whatever was authored rather than
+   * clearing it, so someone toggling to compare the two does not lose their copy.
+   */
+  function commitAutoGreeting(enabled: boolean) {
+    if (!onChangeWelcomeScreen) return;
+    const next: ISurveyWelcomeScreen = { ...welcomeScreen };
+    if (enabled) delete next.autoGreeting;
+    else next.autoGreeting = false;
+    onChangeWelcomeScreen(next);
+  }
+
+  const visibleFields = WELCOME_FIELDS.filter(
+    (f) => !autoGreeting || !GREETING_FIELDS.includes(f.field)
+  );
+  const customCount = WELCOME_SCREEN_FIELDS.filter(
+    (f) => welcomeScreen?.[f] && !(autoGreeting && GREETING_FIELDS.includes(f))
+  ).length;
+
+  const greetingToggle = (
+    <div>
+      <label className="inline-flex items-center gap-2 text-sm">
+        <input
+          type="checkbox"
+          checked={autoGreeting}
+          disabled={!onChangeWelcomeScreen}
+          onChange={(e) => commitAutoGreeting(e.target.checked)}
+        />
+        <span style={{ color: "var(--text-primary)" }}>Automatic greeting</span>
+      </label>
+      <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+        {autoGreeting
+          ? "The headline and the line under it rotate with the time of day and the weekday. Switch this off to write them yourself."
+          : "Switched off — the two lines below are shown exactly as written."}
+      </p>
+    </div>
+  );
+
+  return (
+    <SectionCard
+      title="Welcome screen"
+      helper="The first thing participants see, before any question. Every field starts on the built-in copy — edit what you want to change, or clear a field to go back to the default."
+      action={
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+            Default copy
+          </span>
+          <select
+            value={defaultLocale}
+            onChange={(e) => setDefaultLocale(e.target.value as Locale)}
+            className="input input-sm"
+            style={{ width: 76 }}
+            aria-label="Language of the built-in copy"
+          >
+            <option value="nl">NL</option>
+            <option value="en">EN</option>
+          </select>
+        </div>
+      }
+    >
+      <div className="space-y-4">
+        {visibleFields.map(({ field, label, helper, multiline, rows }) => {
+          const stored = welcomeScreen?.[field];
+          const value = stored ?? defaults[field];
+          return (
+            <Fragment key={`${field}-${defaultLocale}-${stored ?? ""}`}>
+              <div>
+                <div className="flex items-baseline justify-between gap-3">
+                  <label className="typo-label">{label}</label>
+                  {stored && onChangeWelcomeScreen && (
+                    <button
+                      type="button"
+                      onClick={() => commit(field, "")}
+                      className="btn-link text-xs"
+                    >
+                      Reset to default
+                    </button>
+                  )}
+                </div>
+                {multiline ? (
+                  <textarea
+                    defaultValue={value}
+                    onBlur={(e) => commit(field, e.target.value)}
+                    rows={rows ?? 3}
+                    className="input resize-none"
+                    disabled={!onChangeWelcomeScreen}
+                  />
+                ) : (
+                  <input
+                    type="text"
+                    defaultValue={value}
+                    onBlur={(e) => commit(field, e.target.value)}
+                    className="input"
+                    disabled={!onChangeWelcomeScreen}
+                  />
+                )}
+                {helper && (
+                  <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+                    {helper}
+                  </p>
+                )}
+              </div>
+              {field === "tagline" && greetingToggle}
+            </Fragment>
+          );
+        })}
+      </div>
+      <p className="text-xs mt-4" style={{ color: "var(--text-muted)", lineHeight: 1.5 }}>
+        {customCount === 0
+          ? "Nothing customised yet — participants see the built-in copy in their own language."
+          : `${customCount} field${customCount === 1 ? "" : "s"} customised. Customised text is shown as written, in both NL and EN.`}
+        {" The email field, the time estimate and the start button are not customisable — they stay in the participant\u2019s own language."}
+      </p>
+    </SectionCard>
+  );
+}
+
+
+// ── Right-pane: Level (respondent-variable) view ─────────────────
+
+interface RespondentVariableFieldMeta {
+  field: RespondentVariableCopyField;
+  label: string;
+  helper?: string;
+  multiline?: boolean;
+  placeholder?: string;
+}
+
+const RESPONDENT_VARIABLE_FIELDS: RespondentVariableFieldMeta[] = [
+  { field: "label", label: "Question", helper: "The heading of the step." },
+  {
+    field: "helpText",
+    label: "Explanation",
+    helper: "Why you are asking and what the answer changes.",
+    multiline: true,
+  },
+  {
+    field: "helpUrl",
+    label: "Look-it-up link (optional)",
+    helper:
+      "Where someone can check which level fits them. Leave empty to show no link.",
+    placeholder: "https://…",
+  },
+];
+
+/**
+ * The same arrangement as the welcome screen: every field starts on the built-in
+ * copy and only text that actually differs is stored, so anything left alone
+ * stays bilingual and a cleared field falls straight back to the default.
+ *
+ * The options are shown but not editable. They are the client's cultural levels
+ * and double as the join key onto each value's behaviours — a level typed here
+ * would show that participant no behaviours at all. They follow the client's
+ * Cultural DNA instead.
+ */
+function RespondentVariableView(props: SurveyEditorShellProps) {
+  const { respondentVariable, onChangeRespondentVariable } = props;
+  const [defaultLocale, setDefaultLocale] = useState<Locale>("nl");
+  const defaults = useMemo(
+    () => defaultRespondentVariableCopy(defaultLocale),
+    [defaultLocale]
+  );
+  if (!respondentVariable) {
+    return <EmptyState text="This survey does not ask for a level." />;
+  }
+  const { copy, options } = respondentVariable;
+  const editable = !!onChangeRespondentVariable;
+
+  function commit(field: RespondentVariableCopyField, raw: string) {
+    if (!onChangeRespondentVariable) return;
+    const value = raw.trim();
+    const next: IRespondentVariableCopy = { ...copy };
+    if (!value || value === defaults[field]) delete next[field];
+    else next[field] = value;
+    // Compared against the stored copy so tabbing through without typing does
+    // not fire a save per field.
+    const changed = RESPONDENT_VARIABLE_COPY_FIELDS.some(
+      (f) => (next[f] ?? "") !== (copy[f] ?? "")
+    );
+    if (changed) onChangeRespondentVariable(next);
+  }
+
+  const customCount = RESPONDENT_VARIABLE_COPY_FIELDS.filter((f) => copy[f]).length;
+
+  return (
+    <SectionCard
+      title="Level question"
+      helper="Asked once, right before the first question whose content depends on it. The answer decides which behaviours a participant sees per value, and slices the results afterwards."
+      action={
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+            Default copy
+          </span>
+          <select
+            value={defaultLocale}
+            onChange={(e) => setDefaultLocale(e.target.value as Locale)}
+            className="input input-sm"
+            style={{ width: 76 }}
+            aria-label="Language of the built-in copy"
+          >
+            <option value="nl">NL</option>
+            <option value="en">EN</option>
+          </select>
+        </div>
+      }
+    >
+      <div className="space-y-4">
+        {RESPONDENT_VARIABLE_FIELDS.map(({ field, label, helper, multiline, placeholder }) => {
+          const stored = copy[field];
+          const value = stored ?? defaults[field];
+          return (
+            <div key={`${field}-${defaultLocale}-${stored ?? ""}`}>
+              <div className="flex items-baseline justify-between gap-3">
+                <label className="typo-label">{label}</label>
+                {stored && editable && (
+                  <button
+                    type="button"
+                    onClick={() => commit(field, "")}
+                    className="btn-link text-xs"
+                  >
+                    Reset to default
+                  </button>
+                )}
+              </div>
+              {multiline ? (
+                <textarea
+                  defaultValue={value}
+                  onBlur={(e) => commit(field, e.target.value)}
+                  rows={3}
+                  className="input resize-none"
+                  disabled={!editable}
+                />
+              ) : (
+                <input
+                  type="text"
+                  defaultValue={value}
+                  onBlur={(e) => commit(field, e.target.value)}
+                  className="input"
+                  placeholder={placeholder}
+                  disabled={!editable}
+                />
+              )}
+              {helper && (
+                <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+                  {helper}
+                </p>
+              )}
+            </div>
+          );
+        })}
+
+        <div>
+          <label className="inline-flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={copy.required !== false}
+              disabled={!editable}
+              onChange={(e) => {
+                if (!onChangeRespondentVariable) return;
+                const next: IRespondentVariableCopy = { ...copy };
+                if (e.target.checked) delete next.required;
+                else next.required = false;
+                onChangeRespondentVariable(next);
+              }}
+            />
+            <span style={{ color: "var(--text-primary)" }}>Answer required</span>
+          </label>
+          <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+            {copy.required === false
+              ? "Optional — someone who skips it sees every level's behaviours and lands outside the segments."
+              : "Participants cannot continue past this step without picking a level."}
+          </p>
+        </div>
+
+        <div>
+          <label className="typo-label">Options</label>
+          {options.length === 0 ? (
+            <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+              {editable
+                ? "This client has no cultural levels yet — add them to the client's Cultural DNA and the step will offer them here."
+                : "Levels come from the client's Cultural DNA once a session is created."}
+            </p>
+          ) : (
+            <div className="flex flex-wrap gap-1.5">
+              {options.map((option) => (
+                <span
+                  key={option}
+                  className="text-xs px-2 py-1 rounded-badge"
+                  style={{ background: "var(--bg-neutral)", color: "var(--text-muted)" }}
+                >
+                  {option}
+                </span>
+              ))}
+            </div>
+          )}
+          <p className="text-xs mt-1.5" style={{ color: "var(--text-muted)" }}>
+            Not editable here — the levels come from the client&rsquo;s Cultural DNA,
+            where each value&rsquo;s behaviours are filed under them.
+          </p>
+        </div>
+      </div>
+
+      <p className="text-xs mt-4" style={{ color: "var(--text-muted)", lineHeight: 1.5 }}>
+        {customCount === 0
+          ? "Nothing customised yet — participants see the built-in copy in their own language."
+          : `${customCount} field${customCount === 1 ? "" : "s"} customised. Customised text is shown as written, in both NL and EN.`}
+      </p>
     </SectionCard>
   );
 }

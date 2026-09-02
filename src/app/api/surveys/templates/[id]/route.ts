@@ -6,6 +6,8 @@ import { SurveyTemplateModel } from "@/lib/models/SurveyTemplate";
 import { SurveyTemplateSectionModel } from "@/lib/models/SurveyTemplateSection";
 import { SurveyTemplateQuestionModel } from "@/lib/models/SurveyTemplateQuestion";
 import { serializeQuestion } from "@/lib/surveys/serializers";
+import { normalizeWelcomeScreen } from "@/lib/surveys/welcome-screen";
+import { normalizeRespondentVariableCopy } from "@/lib/surveys/respondent-variable-copy";
 
 export async function GET(
   _req: NextRequest,
@@ -34,6 +36,8 @@ export async function GET(
     defaultRankWeights: template.defaultRankWeights ?? [5, 4, 3, 2, 1],
     defaultTop3Weights: template.defaultTop3Weights ?? [5, 3, 1],
     closingOpenQuestion: template.closingOpenQuestion ?? undefined,
+    defaultWelcomeScreen: template.defaultWelcomeScreen ?? undefined,
+    defaultRespondentVariable: template.defaultRespondentVariable ?? undefined,
     version: template.version ?? 1,
     sections: sections.map((s) => ({
       id: s._id.toString(),
@@ -96,10 +100,32 @@ export async function PATCH(
     update.defaultTop3Weights = body.defaultTop3Weights.map((w: unknown) => Number(w));
   }
   if (body.closingOpenQuestion !== undefined) update.closingOpenQuestion = body.closingOpenQuestion;
-  update.version = await (async () => {
-    const cur = await SurveyTemplateModel.findById(id).select("version").lean();
-    return (cur?.version ?? 1) + 1;
-  })();
+  // Normalizing here rather than storing the body verbatim is what makes a
+  // cleared field mean "fall back to the built-in copy" instead of an empty line.
+  if (body.defaultWelcomeScreen !== undefined) {
+    update.defaultWelcomeScreen = normalizeWelcomeScreen(body.defaultWelcomeScreen) ?? null;
+  }
+  const current = await SurveyTemplateModel.findById(id)
+    .select("version defaultRespondentVariable")
+    .lean();
+  // Copy only — the options come from the client's Cultural DNA at session
+  // creation, and a template has no client. `enabled` is set here rather than
+  // toggled: authoring this copy is what asks for the step, and leaving it false
+  // would drop the copy on the floor when a session materialises the template.
+  // The key is carried over, never rewritten: it is where the answer lands in
+  // `SurveySubmission.cohortTags`, so changing it would orphan the results filter.
+  if (body.defaultRespondentVariable !== undefined) {
+    const copy = normalizeRespondentVariableCopy(body.defaultRespondentVariable);
+    update.defaultRespondentVariable = {
+      enabled: true,
+      key: current?.defaultRespondentVariable?.key || "culturalLevel",
+      label: copy.label ?? "",
+      helpText: copy.helpText,
+      helpUrl: copy.helpUrl,
+      required: copy.required !== false,
+    };
+  }
+  update.version = (current?.version ?? 1) + 1;
 
   const doc = await SurveyTemplateModel.findByIdAndUpdate(
     id,
@@ -117,6 +143,8 @@ export async function PATCH(
     defaultRankWeights: doc.defaultRankWeights ?? [5, 4, 3, 2, 1],
     defaultTop3Weights: doc.defaultTop3Weights ?? [5, 3, 1],
     closingOpenQuestion: doc.closingOpenQuestion ?? undefined,
+    defaultWelcomeScreen: doc.defaultWelcomeScreen ?? undefined,
+    defaultRespondentVariable: doc.defaultRespondentVariable ?? undefined,
     version: doc.version ?? 1,
   });
 }

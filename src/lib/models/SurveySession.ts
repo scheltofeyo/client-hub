@@ -1,6 +1,7 @@
 import mongoose, { Schema, Document, Model } from "mongoose";
 import type { ICulturalBehavior, ICulturalDnaValue } from "./Client";
 import type { ISurveyClosingQuestion } from "./SurveyTemplate";
+import type { ISurveyWelcomeScreen } from "@/lib/surveys/welcome-screen";
 import type { ISurveySectionOpenQuestion } from "./SurveyTemplateSection";
 import type {
   ISurveyQuestionOption,
@@ -97,6 +98,8 @@ export interface ISurveyTemplateSnapshot {
   culturalLevels: string[];
   /** Custom closing screen copy. Falls back to the built-in translation when unset. */
   thankYouText?: string;
+  /** Custom welcome screen copy. Each field falls back to the built-in translation. */
+  welcomeScreen?: ISurveyWelcomeScreen;
   rankWeights: number[];
   top3Weights: number[];
   closingOpenQuestion?: ISurveyClosingQuestion;
@@ -336,6 +339,18 @@ const ClosingQuestionSchema = new Schema<ISurveyClosingQuestion>(
   { _id: false }
 );
 
+const WelcomeScreenSnapshotSchema = new Schema<ISurveyWelcomeScreen>(
+  {
+    tagline: { type: String },
+    autoGreeting: { type: Boolean },
+    headline: { type: String },
+    subheadline: { type: String },
+    bodyIntro: { type: String },
+    bodyEmail: { type: String },
+  },
+  { _id: false }
+);
+
 const AnalysisSideSchema = new Schema<ISurveyAnalysisSide>(
   {
     id: { type: String, required: true },
@@ -387,6 +402,7 @@ const TemplateSnapshotSchema = new Schema<ISurveyTemplateSnapshot>(
     culturalValues: { type: [CulturalValueSnapshotSchema], default: [] },
     culturalLevels: { type: [String], default: [] },
     thankYouText: { type: String },
+    welcomeScreen: { type: WelcomeScreenSnapshotSchema, default: undefined },
     rankWeights: { type: [Number], default: [5, 4, 3, 2, 1] },
     top3Weights: { type: [Number], default: [5, 3, 1] },
     closingOpenQuestion: { type: ClosingQuestionSchema, default: undefined },

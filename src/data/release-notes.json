@@ -1,5 +1,40 @@
 [
   {
+    "date": "2026-09-02",
+    "title": "Het beschrijvingsveld van een survey heet nu 'Internal note'",
+    "details": [
+      "Het veld heette 'Description' en suggereerde dat deelnemers de tekst te zien kregen; in werkelijkheid kwam die door een fout in de koppeling nergens in de vragenlijst terecht.",
+      "Het veld is nu duidelijk gelabeld als interne notitie voor collega's — je ziet de tekst terug in de resultaten-export en de deelnemer krijgt hem niet meer opgestuurd."
+    ]
+  },
+  {
+    "date": "2026-09-02",
+    "title": "Realistischere tijdschatting voor de culturele zelfscan",
+    "details": [
+      "Een zelfscan-vraag telde als één vraag, terwijl je er per cultuurwaarde een apart scherm doorloopt plus een terugblik op je eigen scores.",
+      "Een zelfscan over vijf waarden — de gebruikelijke opzet — rekent nu op zes minuten in plaats van ruim drie."
+    ]
+  },
+  {
+    "date": "2026-09-02",
+    "title": "Het welkomstscherm van een survey is nu volledig aan te passen",
+    "details": [
+      "Nieuw onderdeel \"Welcome screen\" in de survey-editor, boven Sections — voor zowel een template als een losse sessie.",
+      "De teksten staan er standaard ingevuld: de pill, de body (intro + anonimiteit, gescheiden door een witregel) en de alinea over het e-mailadres.",
+      "Met de schakelaar \"Automatic greeting\" kies je tussen de begroeting die meedraait met tijdstip en weekdag, of een headline en subkop die je zelf schrijft.",
+      "Pas aan wat je wilt; leeg laten of \"Reset to default\" zet een veld terug op de standaardtekst, die dan gewoon meebeweegt met de taalkeuze van de deelnemer.",
+      "In een template ingevulde teksten worden meegekopieerd naar elke nieuwe sessie die je ermee aanmaakt."
+    ]
+  },
+  {
+    "date": "2026-09-02",
+    "title": "Hoofdstukafbeeldingen in surveys zijn nu vierkant",
+    "details": [
+      "De afbeelding naast een hoofdstukintro werd op tablet- en kleinere laptopschermen een smalle, hoge strook waarin je nauwelijks nog zag wat er stond.",
+      "De afbeelding is nu altijd vierkant — net als op mobiel — en groeit mee met het scherm zonder ooit hoger te worden dan de viewport."
+    ]
+  },
+  {
     "date": "2026-08-28",
     "title": "Rangschikvragen zijn weer te slepen op mobiel",
     "details": [

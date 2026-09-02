@@ -36,6 +36,12 @@ import {
 import LocaleSwitcher, { type Locale } from "@/components/ui/LocaleSwitcher";
 import { t } from "@/lib/surveys/translations";
 import { pickGreeting, type Greeting } from "@/lib/surveys/greetings";
+import {
+  resolveWelcomeCopy,
+  welcomeParagraphs,
+  type ISurveyWelcomeScreen,
+} from "@/lib/surveys/welcome-screen";
+import { resolveRespondentVariableCopy } from "@/lib/surveys/respondent-variable-copy";
 import { estimateSurveyMinutes } from "@/lib/surveys/time-estimate";
 import DOMPurify from "dompurify";
 import { darkenHex, lightenHex, shouldUseLightText, isHexColor } from "@/lib/colors";
@@ -98,7 +104,6 @@ interface Section {
 interface SurveyData {
   status: string;
   title: string;
-  description?: string;
   message?: string;
   clientCompany?: string;
   clientPrimaryColor?: string;
@@ -106,8 +111,8 @@ interface SurveyData {
   respondentVariable?: RespondentVariable | null;
   template?: {
     name: string;
-    description?: string;
     thankYouText?: string;
+    welcomeScreen?: ISurveyWelcomeScreen;
     closingOpenQuestion?: { enabled: boolean; label: string };
     sections: Section[];
   };
@@ -963,6 +968,12 @@ export default function PublicSurveyPage() {
 
   const template = survey.template;
   const clientCompany = survey.clientCompany;
+  // Authored overrides win per field; anything untouched keeps the translated
+  // default, so a survey nobody customised still follows the NL/EN switch.
+  const welcome = resolveWelcomeCopy(locale, template.welcomeScreen, {
+    company: clientCompany,
+    greeting,
+  });
   const progress = isDoneStep ? null : step / Math.max(1, totalSteps - 1);
   const primaryLabel = isLastAnswerScreen()
     ? t(locale, "nav.submit")
@@ -994,9 +1005,7 @@ export default function PublicSurveyPage() {
             >
               <MessageCircle size={14} strokeWidth={2.2} />
               <span className="text-[12px] font-semibold uppercase tracking-[0.06em]">
-                {clientCompany
-                  ? t(locale, "identify.tag", { company: clientCompany })
-                  : t(locale, "identify.tagFallback")}
+                {welcome.tagline}
               </span>
             </div>
 
@@ -1005,13 +1014,13 @@ export default function PublicSurveyPage() {
               className="text-[28px] sm:text-[34px] md:text-[42px] font-semibold leading-[1.05]"
               style={{ color: "var(--text-primary)", letterSpacing: "-0.022em" }}
             >
-              {greeting.welcome[locale]}
+              {welcome.headline}
             </h1>
             <p
               className="mt-2 sm:mt-3 text-[18px] sm:text-[22px] md:text-[26px] font-medium leading-[1.2]"
               style={{ color: "var(--text-muted)", letterSpacing: "-0.012em" }}
             >
-              {greeting.thanks[locale]}
+              {welcome.subheadline}
             </p>
 
             {/* Body — organizer → anonymity → email rationale */}
@@ -1019,13 +1028,14 @@ export default function PublicSurveyPage() {
               className="mt-5 max-w-[65ch] space-y-3 text-[16px] sm:text-[18px]"
               style={{ color: "var(--text-muted)", lineHeight: 1.6 }}
             >
-              <p>
-                {clientCompany
-                  ? t(locale, "identify.bodyOrganizer", { company: clientCompany })
-                  : t(locale, "identify.bodyOrganizerNoCompany")}
-              </p>
-              <p>{t(locale, "identify.bodyAnonymous")}</p>
-              <p className="text-[14px] sm:text-[15px]">{t(locale, "identify.bodyEmail")}</p>
+              {welcomeParagraphs(welcome.bodyIntro).map((para, i) => (
+                <p key={i}>{para}</p>
+              ))}
+              {welcomeParagraphs(welcome.bodyEmail).map((para, i) => (
+                <p key={i} className="text-[14px] sm:text-[15px]">
+                  {para}
+                </p>
+              ))}
             </div>
 
           </div>
@@ -1059,6 +1069,10 @@ export default function PublicSurveyPage() {
     }
 
     if (screen.kind === "respondent-variable" && respondentVariable) {
+      // A derived — or simply untouched — variable carries no copy, so each field
+      // falls back to its translation rather than rendering a heading with
+      // nothing under it.
+      const copy = resolveRespondentVariableCopy(locale, respondentVariable);
       return (
         <div className="space-y-8 w-full">
           <div>
@@ -1066,23 +1080,17 @@ export default function PublicSurveyPage() {
               className="text-[24px] sm:text-[28px] md:text-[30px] font-semibold leading-[1.2]"
               style={{ color: "var(--text-primary)", letterSpacing: "-0.015em" }}
             >
-              {respondentVariable.label?.trim()
-                ? respondentVariable.label
-                : t(locale, "respondentVariable.defaultLabel")}
+              {copy.label}
             </h2>
-            {/* A derived variable carries no copy, so fall back to a translated
-                default rather than rendering a heading with nothing under it. */}
             <p
               className="mt-3 text-[15px] sm:text-[16px] max-w-[65ch]"
               style={{ color: "var(--text-muted)", lineHeight: 1.55 }}
             >
-              {respondentVariable.helpText?.trim()
-                ? respondentVariable.helpText
-                : t(locale, "respondentVariable.defaultHelp")}
+              {copy.helpText}
             </p>
-            {respondentVariable.helpUrl && (
+            {copy.helpUrl && (
               <a
-                href={respondentVariable.helpUrl}
+                href={copy.helpUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="mt-2 inline-block text-[15px] underline"
@@ -1183,7 +1191,10 @@ export default function PublicSurveyPage() {
             </div>
           )}
           {img && (
-            <div className="hidden md:block shrink-0 w-[45vw] md:max-w-[min(50%,100vh)] h-[90vh] md:max-h-[calc(100vh-260px)] rounded-card overflow-hidden">
+            <div
+              className="hidden md:block shrink-0 w-[45vw] aspect-square rounded-card overflow-hidden"
+              style={{ maxWidth: "min(50%, calc(100vh - 260px))" }}
+            >
               <img src={img} alt="" className="w-full h-full object-cover" />
             </div>
           )}
@@ -1518,7 +1529,6 @@ export default function PublicSurveyPage() {
       locale={locale}
       onLocaleChange={setLocale}
       title={survey.title}
-      description={survey.description}
       clientCompany={survey.clientCompany}
       primaryColor={survey.clientPrimaryColor}
       progress={progress}
@@ -1575,7 +1585,6 @@ function PageShell({
   locale,
   onLocaleChange,
   title,
-  description,
   clientCompany,
   primaryColor,
   progress,
@@ -1588,7 +1597,6 @@ function PageShell({
   locale: Locale;
   onLocaleChange: (l: Locale) => void;
   title?: string;
-  description?: string;
   clientCompany?: string;
   primaryColor?: string;
   progress?: number | null;
@@ -1649,14 +1657,12 @@ function PageShell({
                 {title}
               </h1>
             )}
-            {(clientCompany || description) && (
+            {clientCompany && (
               <p
                 className="text-[12px] sm:text-[13px] truncate"
                 style={{ color: "var(--text-muted)" }}
               >
                 {clientCompany}
-                {clientCompany && description ? " · " : null}
-                {description}
               </p>
             )}
           </div>

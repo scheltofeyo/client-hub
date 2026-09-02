@@ -99,7 +99,9 @@ function NewTemplateForm({
         />
       </div>
       <div>
-        <label className="typo-label">Description (optional)</label>
+        <label className="typo-label">
+          Internal note (not visible to participants)
+        </label>
         <textarea
           rows={2}
           value={description}

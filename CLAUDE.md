@@ -161,10 +161,10 @@ All in `src/lib/models/`. Models delete and recompile on hot reload (dev pattern
 | `OAuthAuthCode` | codeHash, userId, clientId, redirectUri, scopes[], codeChallenge, expiresAt (TTL), usedAt — single-use authorization code |
 | `RankingSession` | clientId, title, values[], culturalLevels[], status (`draft`\|`open`\|`closed`\|`archived`), shareCode — workshop value-ranking sessions |
 | `RankingSubmission` | sessionId, participantName, rankings[] — participant responses to ranking sessions |
-| `SurveyTemplate` | name, description, status, archetypeIds[], defaultRankWeights/Top3Weights, defaultThankYouText, defaultRespondentVariable — reusable survey blueprint |
+| `SurveyTemplate` | name, description, status, archetypeIds[], defaultRankWeights/Top3Weights, defaultThankYouText, defaultWelcomeScreen, defaultRespondentVariable — reusable survey blueprint |
 | `SurveyTemplateSection` | templateId, title, description, imageUrl, openQuestion, order — chapter inside a template |
 | `SurveyTemplateQuestion` | templateId, sectionId, type, title, options/rankingItems/choices/scale/assessmentPrompt/valueItems, order — one question block |
-| `SurveySession` | clientId, templateId, templateSnapshot (frozen copy of the whole template incl. `culturalValues`/`culturalLevels`), respondentVariable, analyses[], status (`draft`\|`open`\|`closed`\|`archived`), shareCode |
+| `SurveySession` | clientId, templateId, templateSnapshot (frozen copy of the whole template incl. `culturalValues`/`culturalLevels`/`welcomeScreen`), respondentVariable, analyses[], status (`draft`\|`open`\|`closed`\|`archived`), shareCode |
 | `SurveySubmission` | sessionId, email, answers[], cohortTags (Map — the respondent variable), completedAt — one participant response |
 
 Reference data models (Archetype, Service, LogSignal, EventType, ClientStatusOption, ClientPlatformOption, ProjectLabel) all support `rank` and a `/reorder` POST endpoint for drag-to-reorder in the admin UI.
@@ -315,6 +315,25 @@ template**. Their `valueItems` are materialised at session creation from the cho
 `culturalDna` (`src/lib/surveys/cultural-dna.ts`, `CULTURAL_SELECT` for the `.select()`). That is
 what lets one template serve a client with three values and a client with eight. Never author
 `valueItems` into a template or a seed script.
+
+**Welcome and closing copy.** The participant welcome screen is authored per template
+(`SurveyTemplate.defaultWelcomeScreen`, copied into `templateSnapshot.welcomeScreen` at session
+creation) and edited under *Welcome screen* in the editor outline. `src/lib/surveys/welcome-screen.ts`
+owns the shape and both directions of the fallback: every field is an *override*, and an absent or
+blank one renders the built-in translation, which is what keeps an untouched survey bilingual under
+the runner's NL/EN switch. The editor prefills each field with `defaultWelcomeCopy()` and stores only
+text that actually differs, so "cleared" and "never set" are the same stored state. `bodyIntro` is one
+field carrying two default paragraphs; `welcomeParagraphs()` splits it on blank lines at render time,
+so authors are not made to count paragraph slots. The email field, the time estimate and the start
+button stay on the translations — mechanics rather than message, and they should follow the
+participant's own language even on a survey whose copy is authored in one.
+
+`autoGreeting` is the one non-string field. Absent means the rotating greeting from `greetings.ts`
+is used and the two headline fields are hidden in the editor; `false` swaps in the authored pair.
+`resolveWelcomeCopy()` withholds the greeting entirely in that case, otherwise an author who turns
+the toggle off and leaves a headline on its default would silently get the rotation back. Authored
+lines survive toggling either way. `thankYouText` is the same arrangement for the closing screen,
+minus the per-field structure.
 
 **The respondent variable** is one attribute answered before the value questions that both *selects
 content* (which behaviours a participant sees for each value) and *slices results*. Stored on the

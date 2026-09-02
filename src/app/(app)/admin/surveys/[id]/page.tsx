@@ -41,6 +41,15 @@ export default async function EditSurveyTemplatePage({
           closingOpenQuestion: template.closingOpenQuestion
             ? { enabled: template.closingOpenQuestion.enabled, label: template.closingOpenQuestion.label }
             : { enabled: false, label: "" },
+          defaultWelcomeScreen: template.defaultWelcomeScreen ?? undefined,
+          defaultRespondentVariable: template.defaultRespondentVariable
+            ? {
+                label: template.defaultRespondentVariable.label || undefined,
+                helpText: template.defaultRespondentVariable.helpText || undefined,
+                helpUrl: template.defaultRespondentVariable.helpUrl || undefined,
+                required: template.defaultRespondentVariable.required,
+              }
+            : undefined,
         }}
         initialSections={sections.map((s) => ({
           id: s._id.toString(),

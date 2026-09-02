@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document, Model } from "mongoose";
+import type { ISurveyWelcomeScreen } from "@/lib/surveys/welcome-screen";
 
 export interface ISurveyClosingQuestion {
   enabled: boolean;
@@ -28,6 +29,7 @@ export interface ISurveyTemplate extends Document {
   defaultTop3Weights: number[];
   closingOpenQuestion?: ISurveyClosingQuestion;
   defaultThankYouText?: string;
+  defaultWelcomeScreen?: ISurveyWelcomeScreen;
   defaultRespondentVariable?: ISurveyRespondentVariableDefaults;
   version: number;
   createdBy: string;
@@ -39,6 +41,22 @@ const ClosingOpenQuestionSchema = new Schema<ISurveyClosingQuestion>(
   {
     enabled: { type: Boolean, default: false },
     label: { type: String, trim: true, default: "" },
+  },
+  { _id: false }
+);
+
+/**
+ * Every field is optional and empty means "use the built-in translation", so a
+ * template that never touches this keeps the bilingual default welcome screen.
+ */
+const WelcomeScreenSchema = new Schema<ISurveyWelcomeScreen>(
+  {
+    tagline: { type: String, trim: true },
+    autoGreeting: { type: Boolean },
+    headline: { type: String, trim: true },
+    subheadline: { type: String, trim: true },
+    bodyIntro: { type: String, trim: true },
+    bodyEmail: { type: String, trim: true },
   },
   { _id: false }
 );
@@ -65,6 +83,7 @@ const SurveyTemplateSchema = new Schema<ISurveyTemplate>(
     defaultTop3Weights: { type: [Number], default: [5, 3, 1] },
     closingOpenQuestion: { type: ClosingOpenQuestionSchema, default: undefined },
     defaultThankYouText: { type: String, trim: true },
+    defaultWelcomeScreen: { type: WelcomeScreenSchema, default: undefined },
     defaultRespondentVariable: { type: RespondentVariableDefaultsSchema, default: undefined },
     version: { type: Number, default: 1 },
     createdBy: { type: String, required: true },

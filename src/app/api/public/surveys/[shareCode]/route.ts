@@ -51,8 +51,10 @@ export async function GET(
     respondentVariable: effectiveRespondentVariable(doc) ?? null,
     template: {
       name: doc.templateSnapshot.name,
-      description: doc.templateSnapshot.description ?? undefined,
+      // `description` is deliberately not sent: it is an internal note for
+      // colleagues, shown in the editor and the results export only.
       thankYouText: doc.templateSnapshot.thankYouText ?? undefined,
+      welcomeScreen: doc.templateSnapshot.welcomeScreen ?? undefined,
       // legacy section + closing open-question fields kept for pre-migration sessions
       closingOpenQuestion: doc.templateSnapshot.closingOpenQuestion ?? undefined,
       sections: (doc.templateSnapshot.sections ?? []).map((s) => ({

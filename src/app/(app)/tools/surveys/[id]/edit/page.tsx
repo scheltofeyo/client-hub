@@ -12,6 +12,8 @@ import type { SaveState } from "@/components/surveys/SaveStateChip";
 import type { ArchetypeLite } from "@/components/surveys/ArchetypePill";
 import type { ShellQuestionAny } from "@/components/surveys/question-types";
 import type { SurveyQuestionType } from "@/lib/surveys/types";
+import type { ISurveyWelcomeScreen } from "@/lib/surveys/welcome-screen";
+import type { IRespondentVariableCopy } from "@/lib/surveys/respondent-variable-copy";
 
 function uid() {
   return globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2);
@@ -129,7 +131,19 @@ interface Snapshot {
   culturalLevels?: string[];
   rankWeights: number[];
   closingOpenQuestion?: { enabled: boolean; label: string };
+  welcomeScreen?: ISurveyWelcomeScreen;
   sections: ShellSection[];
+}
+
+/** The effective config, as the runner would ask it — see the session GET route. */
+interface SessionRespondentVariable {
+  enabled: boolean;
+  key: string;
+  label: string;
+  helpText?: string;
+  helpUrl?: string;
+  required: boolean;
+  options: { id: string; label: string }[];
 }
 
 interface SessionDetail {
@@ -140,6 +154,7 @@ interface SessionDetail {
   status: string;
   createdBy: string;
   templateSnapshot: Snapshot;
+  respondentVariable: SessionRespondentVariable | null;
 }
 
 export default function EditSnapshotPage() {
@@ -218,6 +233,32 @@ export default function EditSnapshotPage() {
   function handleChangeClosing(co: { enabled: boolean; label: string }) {
     patchSnapshot({ closingOpenQuestion: co });
     persist({ snapshotClosingOpenQuestion: co });
+  }
+
+  function handleChangeWelcomeScreen(welcomeScreen: ISurveyWelcomeScreen) {
+    patchSnapshot({ welcomeScreen });
+    persist({ snapshotWelcomeScreen: welcomeScreen });
+  }
+
+  function handleChangeRespondentVariable(copy: IRespondentVariableCopy) {
+    // The options are rebuilt server-side from the snapshot's cultural levels, so
+    // only the copy travels; what comes back is echoed into local state to keep
+    // the outline label in step with the field.
+    setData((prev) =>
+      prev?.respondentVariable
+        ? {
+            ...prev,
+            respondentVariable: {
+              ...prev.respondentVariable,
+              label: copy.label ?? "",
+              helpText: copy.helpText,
+              helpUrl: copy.helpUrl,
+              required: copy.required !== false,
+            },
+          }
+        : prev
+    );
+    persist({ respondentVariable: copy });
   }
 
   function patchSections(sections: ShellSection[]) {
@@ -406,12 +447,29 @@ export default function EditSnapshotPage() {
         archetypeMutable={false}
       culturalValues={snapshot.culturalValues ?? []}
         closingOpenQuestion={snapshot.closingOpenQuestion}
+        welcomeScreen={snapshot.welcomeScreen}
+        clientCompany={data.clientName ?? undefined}
+        respondentVariable={
+          data.respondentVariable
+            ? {
+                copy: {
+                  label: data.respondentVariable.label || undefined,
+                  helpText: data.respondentVariable.helpText || undefined,
+                  helpUrl: data.respondentVariable.helpUrl || undefined,
+                  required: data.respondentVariable.required,
+                },
+                options: data.respondentVariable.options.map((o) => o.label),
+              }
+            : undefined
+        }
         sections={snapshot.sections}
         selected={selected}
         onSelect={setSelected}
         onChangeName={handleChangeName}
         onChangeDescription={handleChangeDescription}
         onChangeClosing={handleChangeClosing}
+        onChangeWelcomeScreen={handleChangeWelcomeScreen}
+        onChangeRespondentVariable={handleChangeRespondentVariable}
         onAddSection={handleAddSection}
         onUpdateSection={handleUpdateSection}
         onDeleteSection={handleDeleteSection}

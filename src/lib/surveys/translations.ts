@@ -24,6 +24,15 @@ const translations = {
   },
   "identify.tag": { nl: "Hoi {company} teamlid", en: "Hi {company} team member" },
 
+  // Sample greeting shown in the editor. The runner rotates a time-of-day
+  // greeting instead (see greetings.ts), which would make a moving target of the
+  // prefilled field, so the editor shows this fixed pair as representative copy.
+  "identify.sampleHeadline": { nl: "Welkom!", en: "Welcome!" },
+  "identify.sampleSubheadline": {
+    nl: "Bedankt dat je dit invult.",
+    en: "Thanks for filling this in.",
+  },
+
   // Respondent variable (Cultural Level) step
   "respondentVariable.defaultLabel": {
     nl: "Welk niveau past het best bij jouw functie?",

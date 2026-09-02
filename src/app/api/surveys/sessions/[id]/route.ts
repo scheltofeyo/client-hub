@@ -10,9 +10,12 @@ import { enrichArchetypes } from "@/lib/surveys/enrich-archetypes";
 import {
   CULTURAL_SELECT,
   culturalSnapshotFromClient,
+  effectiveRespondentVariable,
   respondentVariableFromLevels,
 } from "@/lib/surveys/cultural-dna";
+import { normalizeRespondentVariableCopy } from "@/lib/surveys/respondent-variable-copy";
 import { isValueBackedType } from "@/lib/surveys/types";
+import { normalizeWelcomeScreen } from "@/lib/surveys/welcome-screen";
 import { randomUUID } from "node:crypto";
 
 export async function GET(
@@ -52,7 +55,10 @@ export async function GET(
       archetypes: enrichedArchetypes,
       top3Weights: doc.templateSnapshot?.top3Weights ?? [5, 3, 1],
     },
-    respondentVariable: doc.respondentVariable ?? null,
+    // The effective one rather than the stored one: a session with value-backed
+    // questions is asked the level even when nothing was ever stored, and the
+    // editor has to show that step for the same reason the runner renders it.
+    respondentVariable: effectiveRespondentVariable(doc) ?? null,
     title: doc.title,
     status: doc.status,
     shareCode: doc.shareCode,
@@ -144,6 +150,7 @@ export async function PATCH(
     body.snapshotArchetypes !== undefined ||
     body.snapshotClosingOpenQuestion !== undefined ||
     body.snapshotThankYouText !== undefined ||
+    body.snapshotWelcomeScreen !== undefined ||
     body.respondentVariable !== undefined ||
     body.refreshCulturalDna === true;
   if (snapshotEditsRequested && existing.status !== "draft") {
@@ -181,8 +188,31 @@ export async function PATCH(
     update["templateSnapshot.thankYouText"] =
       String(body.snapshotThankYouText).trim() || undefined;
   }
+  if (body.snapshotWelcomeScreen !== undefined) {
+    // Explicit null rather than undefined: Mongoose drops undefined from a $set,
+    // which would leave previously authored copy in place when it was cleared.
+    update["templateSnapshot.welcomeScreen"] =
+      normalizeWelcomeScreen(body.snapshotWelcomeScreen) ?? null;
+  }
   if (body.respondentVariable !== undefined) {
-    update.respondentVariable = body.respondentVariable ?? undefined;
+    // Only the copy is taken from the body. The options are the client's cultural
+    // levels — accepting them from the editor would let a typo create a level no
+    // behaviour is filed under, which shows that participant nothing at all.
+    const copy = normalizeRespondentVariableCopy(body.respondentVariable);
+    const rebuilt = respondentVariableFromLevels(
+      existing.templateSnapshot?.culturalLevels ?? [],
+      {
+        enabled: true,
+        key: existing.respondentVariable?.key || "culturalLevel",
+        label: copy.label ?? "",
+        helpText: copy.helpText,
+        helpUrl: copy.helpUrl,
+        required: copy.required !== false,
+      }
+    );
+    // Explicit null: Mongoose drops undefined from a $set, which would leave
+    // stale copy in place when every field was cleared.
+    update.respondentVariable = rebuilt ?? null;
   }
   // Re-copy the client's Cultural DNA into the snapshot. Draft-only via the guard
   // above: re-materialising values under answers that already reference them would

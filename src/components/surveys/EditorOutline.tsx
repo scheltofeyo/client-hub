@@ -1,10 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import {
   ChevronDown,
   ChevronRight,
   GripVertical,
+  Hand,
+  Layers,
   Plus,
   Search,
   Settings,
@@ -34,6 +36,8 @@ import type { SurveyQuestionType } from "@/lib/surveys/types";
 
 export type OutlineSelection =
   | { kind: "header" }
+  | { kind: "welcome" }
+  | { kind: "respondent-variable" }
   | { kind: "archetypes" }
   | { kind: "closing" }
   | { kind: "section"; id: string }
@@ -50,6 +54,17 @@ export interface OutlineSection {
   }[];
 }
 
+/**
+ * The level step, when the survey asks one. `anchor` is the question the runner
+ * puts it in front of — the first one whose content depends on the answer — so
+ * the outline shows it exactly where a participant will meet it. A null anchor
+ * means no question depends on it and it is asked up front instead.
+ */
+export interface OutlineRespondentVariable {
+  label: string;
+  anchor: { sectionId: string; questionId: string } | null;
+}
+
 export interface EditorOutlineProps {
   sections: OutlineSection[];
   selected: OutlineSelection;
@@ -62,6 +77,8 @@ export interface EditorOutlineProps {
   showArchetypes?: boolean;
   /** Whether to show the legacy Closing question row (only when enabled on existing templates) */
   showClosing?: boolean;
+  /** The level step, positioned where the runner will ask it. Absent means it is not asked. */
+  respondentVariable?: OutlineRespondentVariable;
 }
 
 function sameSelection(a: OutlineSelection, b: OutlineSelection): boolean {
@@ -81,6 +98,7 @@ export default function EditorOutline({
   archetypeLocked,
   showArchetypes = true,
   showClosing = true,
+  respondentVariable,
 }: EditorOutlineProps) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -179,6 +197,22 @@ export default function EditorOutline({
         label="Header"
         bold
       />
+      <OutlineRow
+        selected={sameSelection(selected, { kind: "welcome" })}
+        onClick={() => onSelect({ kind: "welcome" })}
+        icon={<Hand size={14} />}
+        label="Welcome screen"
+        bold
+      />
+      {respondentVariable && !respondentVariable.anchor && (
+        <OutlineRow
+          selected={sameSelection(selected, { kind: "respondent-variable" })}
+          onClick={() => onSelect({ kind: "respondent-variable" })}
+          icon={<Layers size={14} />}
+          label={respondentVariable.label}
+          bold
+        />
+      )}
       {showArchetypes && (
         <OutlineRow
           selected={sameSelection(selected, { kind: "archetypes" })}
@@ -228,16 +262,33 @@ export default function EditorOutline({
                       {s.questions.map((q) => {
                         const qSelected =
                           selected.kind === "question" && selected.id === q.id;
+                        const anchor = respondentVariable?.anchor;
+                        // Not sortable: the runner derives its position from the
+                        // questions, so dragging it would promise an order the
+                        // survey cannot keep.
+                        const levelRow =
+                          anchor && anchor.sectionId === s.id && anchor.questionId === q.id ? (
+                            <OutlineRow
+                              key={`${q.id}-respondent-variable`}
+                              selected={sameSelection(selected, { kind: "respondent-variable" })}
+                              onClick={() => onSelect({ kind: "respondent-variable" })}
+                              indent={20}
+                              icon={<Layers size={14} style={{ color: "var(--info)" }} />}
+                              label={respondentVariable!.label}
+                            />
+                          ) : null;
                         return (
-                          <SortableOutlineQuestion
-                            key={q.id}
-                            id={q.id}
-                            title={q.title}
-                            type={q.type}
-                            incomplete={q.incomplete}
-                            selected={qSelected}
-                            onSelect={() => onSelect({ kind: "question", sectionId: s.id, id: q.id })}
-                          />
+                          <Fragment key={q.id}>
+                            {levelRow}
+                            <SortableOutlineQuestion
+                              id={q.id}
+                              title={q.title}
+                              type={q.type}
+                              incomplete={q.incomplete}
+                              selected={qSelected}
+                              onSelect={() => onSelect({ kind: "question", sectionId: s.id, id: q.id })}
+                            />
+                          </Fragment>
                         );
                       })}
                     </SortableContext>

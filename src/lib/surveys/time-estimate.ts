@@ -16,6 +16,11 @@ export interface EstimableSection {
   questions?: EstimableQuestion[];
 }
 
+/** Read the mantra and the level's behaviours, then place a score. */
+const VALUE_ASSESSMENT_SECONDS_PER_VALUE = 65;
+/** The recap screen that closes a value-assessment — a skim of your own scores. */
+const VALUE_ASSESSMENT_RECAP_SECONDS = 35;
+
 /**
  * Per-question time estimates in seconds. Tuned for typical participants —
  * not exact. Used by both the welcome screen ("ongeveer X minuten van je tijd")
@@ -40,10 +45,16 @@ export function estimateQuestionSeconds(q: EstimableQuestion): number {
       return q.multiline ? 90 : 40;
     case "scale":
       return 15;
-    case "value-assessment":
-      // One screen per value, each with a mantra and the level's behaviours to
-      // read before scoring — far more than a bare Likert.
-      return (q.valueItems?.length ?? 0) * 35;
+    case "value-assessment": {
+      // The heaviest block by far: one screen per value, each with a mantra and
+      // the level's behaviours to read before scoring, then a recap of your own
+      // scores at the end. Counting it as a single question badly undersold it.
+      //
+      // Calibrated so the usual five-value assessment lands on six minutes.
+      const items = q.valueItems?.length ?? 0;
+      if (items === 0) return 0;
+      return items * VALUE_ASSESSMENT_SECONDS_PER_VALUE + VALUE_ASSESSMENT_RECAP_SECONDS;
+    }
     case "value-ranking":
       return 15 + (q.valueItems?.length ?? 0) * 6;
     default:
