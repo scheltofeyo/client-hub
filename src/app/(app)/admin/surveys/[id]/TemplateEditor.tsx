@@ -14,6 +14,7 @@ import type { SerializedQuestion } from "@/lib/surveys/serializers";
 import type { Archetype } from "@/types";
 import type { ISurveyWelcomeScreen } from "@/lib/surveys/welcome-screen";
 import type { IRespondentVariableCopy } from "@/lib/surveys/respondent-variable-copy";
+import type { ISurveyClosingScreen } from "@/lib/surveys/closing-screen";
 
 type ClosingOpenQuestion = { enabled: boolean; label: string };
 type SectionOpenQuestion = { enabled: boolean; label: string };
@@ -28,6 +29,9 @@ interface TemplateData {
   closingOpenQuestion: ClosingOpenQuestion;
   defaultWelcomeScreen?: ISurveyWelcomeScreen;
   defaultRespondentVariable?: IRespondentVariableCopy;
+  defaultClosingScreen?: ISurveyClosingScreen;
+  /** Superseded by `defaultClosingScreen`; still the effective message until one is saved. */
+  defaultThankYouText?: string;
 }
 
 interface SectionRow {
@@ -180,6 +184,11 @@ export default function TemplateEditor({
   function handleChangeWelcomeScreen(defaultWelcomeScreen: ISurveyWelcomeScreen) {
     setTemplate((prev) => ({ ...prev, defaultWelcomeScreen }));
     patchTemplate({ defaultWelcomeScreen });
+  }
+  function handleChangeClosingScreen(defaultClosingScreen: ISurveyClosingScreen) {
+    // Retiring the legacy text in the same PATCH — see the session editor.
+    setTemplate((prev) => ({ ...prev, defaultClosingScreen, defaultThankYouText: undefined }));
+    patchTemplate({ defaultClosingScreen, defaultThankYouText: "" });
   }
   function handleChangeRespondentVariable(defaultRespondentVariable: IRespondentVariableCopy) {
     setTemplate((prev) => ({ ...prev, defaultRespondentVariable }));
@@ -472,6 +481,8 @@ export default function TemplateEditor({
         archetypeMutable={true}
         closingOpenQuestion={template.closingOpenQuestion}
         welcomeScreen={template.defaultWelcomeScreen}
+        closingScreen={template.defaultClosingScreen}
+        closingThankYouText={template.defaultThankYouText}
         respondentVariable={
           // A template has no client, so it has no levels to show — only the copy
           // is authored here, and the options are materialised per session.
@@ -487,6 +498,7 @@ export default function TemplateEditor({
         onToggleArchetype={handleToggleArchetype}
         onChangeClosing={handleChangeClosing}
         onChangeWelcomeScreen={handleChangeWelcomeScreen}
+        onChangeClosingScreen={handleChangeClosingScreen}
         onChangeRespondentVariable={handleChangeRespondentVariable}
         onAddSection={handleAddSection}
         onUpdateSection={handleUpdateSection}

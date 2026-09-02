@@ -1,5 +1,6 @@
 import mongoose, { Schema, Document, Model } from "mongoose";
 import type { ISurveyWelcomeScreen } from "@/lib/surveys/welcome-screen";
+import type { ISurveyClosingScreen } from "@/lib/surveys/closing-screen";
 
 export interface ISurveyClosingQuestion {
   enabled: boolean;
@@ -30,6 +31,7 @@ export interface ISurveyTemplate extends Document {
   closingOpenQuestion?: ISurveyClosingQuestion;
   defaultThankYouText?: string;
   defaultWelcomeScreen?: ISurveyWelcomeScreen;
+  defaultClosingScreen?: ISurveyClosingScreen;
   defaultRespondentVariable?: ISurveyRespondentVariableDefaults;
   version: number;
   createdBy: string;
@@ -62,6 +64,20 @@ const WelcomeScreenSchema = new Schema<ISurveyWelcomeScreen>(
   { _id: false }
 );
 
+/**
+ * Same override semantics as the welcome screen: empty means "use the built-in
+ * translation". `defaultThankYouText` is the field this supersedes and is kept
+ * as the body's fallback, so seeded templates keep their closing message.
+ */
+const ClosingScreenSchema = new Schema<ISurveyClosingScreen>(
+  {
+    headline: { type: String, trim: true },
+    body: { type: String, trim: true },
+    imageUrl: { type: String, trim: true },
+  },
+  { _id: false }
+);
+
 const RespondentVariableDefaultsSchema = new Schema<ISurveyRespondentVariableDefaults>(
   {
     enabled: { type: Boolean, default: false },
@@ -85,6 +101,7 @@ const SurveyTemplateSchema = new Schema<ISurveyTemplate>(
     closingOpenQuestion: { type: ClosingOpenQuestionSchema, default: undefined },
     defaultThankYouText: { type: String, trim: true },
     defaultWelcomeScreen: { type: WelcomeScreenSchema, default: undefined },
+    defaultClosingScreen: { type: ClosingScreenSchema, default: undefined },
     defaultRespondentVariable: { type: RespondentVariableDefaultsSchema, default: undefined },
     version: { type: Number, default: 1 },
     createdBy: { type: String, required: true },

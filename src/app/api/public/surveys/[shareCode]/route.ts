@@ -55,6 +55,7 @@ export async function GET(
       // colleagues, shown in the editor and the results export only.
       thankYouText: doc.templateSnapshot.thankYouText ?? undefined,
       welcomeScreen: doc.templateSnapshot.welcomeScreen ?? undefined,
+      closingScreen: doc.templateSnapshot.closingScreen ?? undefined,
       // legacy section + closing open-question fields kept for pre-migration sessions
       closingOpenQuestion: doc.templateSnapshot.closingOpenQuestion ?? undefined,
       sections: (doc.templateSnapshot.sections ?? []).map((s) => ({

@@ -14,6 +14,7 @@ import type { ShellQuestionAny } from "@/components/surveys/question-types";
 import type { SurveyQuestionType } from "@/lib/surveys/types";
 import type { ISurveyWelcomeScreen } from "@/lib/surveys/welcome-screen";
 import type { IRespondentVariableCopy } from "@/lib/surveys/respondent-variable-copy";
+import type { ISurveyClosingScreen } from "@/lib/surveys/closing-screen";
 
 function uid() {
   return globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2);
@@ -132,6 +133,9 @@ interface Snapshot {
   rankWeights: number[];
   closingOpenQuestion?: { enabled: boolean; label: string };
   welcomeScreen?: ISurveyWelcomeScreen;
+  closingScreen?: ISurveyClosingScreen;
+  /** Superseded by `closingScreen`; still the effective message until one is saved. */
+  thankYouText?: string;
   sections: ShellSection[];
 }
 
@@ -238,6 +242,14 @@ export default function EditSnapshotPage() {
   function handleChangeWelcomeScreen(welcomeScreen: ISurveyWelcomeScreen) {
     patchSnapshot({ welcomeScreen });
     persist({ snapshotWelcomeScreen: welcomeScreen });
+  }
+
+  function handleChangeClosingScreen(closingScreen: ISurveyClosingScreen) {
+    // The legacy text is retired in the same PATCH: the shell has already folded
+    // it into the body, so leaving it behind would keep a second copy of the same
+    // sentence that silently wins whenever the body is cleared.
+    patchSnapshot({ closingScreen, thankYouText: undefined });
+    persist({ snapshotClosingScreen: closingScreen, snapshotThankYouText: "" });
   }
 
   function handleChangeRespondentVariable(copy: IRespondentVariableCopy) {
@@ -448,6 +460,8 @@ export default function EditSnapshotPage() {
       culturalValues={snapshot.culturalValues ?? []}
         closingOpenQuestion={snapshot.closingOpenQuestion}
         welcomeScreen={snapshot.welcomeScreen}
+        closingScreen={snapshot.closingScreen}
+        closingThankYouText={snapshot.thankYouText}
         clientCompany={data.clientName ?? undefined}
         respondentVariable={
           data.respondentVariable
@@ -469,6 +483,7 @@ export default function EditSnapshotPage() {
         onChangeDescription={handleChangeDescription}
         onChangeClosing={handleChangeClosing}
         onChangeWelcomeScreen={handleChangeWelcomeScreen}
+        onChangeClosingScreen={handleChangeClosingScreen}
         onChangeRespondentVariable={handleChangeRespondentVariable}
         onAddSection={handleAddSection}
         onUpdateSection={handleUpdateSection}

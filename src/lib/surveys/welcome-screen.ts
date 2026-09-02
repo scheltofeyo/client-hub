@@ -168,13 +168,7 @@ export function normalizeWelcomeScreen(raw: unknown): ISurveyWelcomeScreen | und
 }
 
 /**
- * Split an authored body field into paragraphs on blank lines. Single newlines
- * are left inside a paragraph, so a soft wrap someone typed does not become a
- * paragraph break on the participant page.
+ * Splitting the body into paragraphs. Kept under this name because the runner and
+ * the docs call it that; the implementation is shared with the closing screen.
  */
-export function welcomeParagraphs(text: string): string[] {
-  return text
-    .split(/\n\s*\n/)
-    .map((part) => part.trim())
-    .filter(Boolean);
-}
+export { splitParagraphs as welcomeParagraphs } from "./paragraphs";

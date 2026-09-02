@@ -42,6 +42,8 @@ export default async function EditSurveyTemplatePage({
             ? { enabled: template.closingOpenQuestion.enabled, label: template.closingOpenQuestion.label }
             : { enabled: false, label: "" },
           defaultWelcomeScreen: template.defaultWelcomeScreen ?? undefined,
+          defaultClosingScreen: template.defaultClosingScreen ?? undefined,
+          defaultThankYouText: template.defaultThankYouText ?? undefined,
           defaultRespondentVariable: template.defaultRespondentVariable
             ? {
                 label: template.defaultRespondentVariable.label || undefined,

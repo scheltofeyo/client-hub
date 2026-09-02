@@ -42,6 +42,12 @@ import {
   type ISurveyWelcomeScreen,
 } from "@/lib/surveys/welcome-screen";
 import { resolveRespondentVariableCopy } from "@/lib/surveys/respondent-variable-copy";
+import {
+  resolveClosingCopy,
+  type ISurveyClosingScreen,
+  type ResolvedClosingCopy,
+} from "@/lib/surveys/closing-screen";
+import { splitParagraphs } from "@/lib/surveys/paragraphs";
 import { estimateSurveyMinutes } from "@/lib/surveys/time-estimate";
 import DOMPurify from "dompurify";
 import { darkenHex, lightenHex, shouldUseLightText, isHexColor } from "@/lib/colors";
@@ -113,6 +119,7 @@ interface SurveyData {
     name: string;
     thankYouText?: string;
     welcomeScreen?: ISurveyWelcomeScreen;
+    closingScreen?: ISurveyClosingScreen;
     closingOpenQuestion?: { enabled: boolean; label: string };
     sections: Section[];
   };
@@ -1560,7 +1567,13 @@ export default function PublicSurveyPage() {
         <DoneState
           locale={locale}
           participantFirstName=""
-          customText={template.thankYouText}
+          copy={resolveClosingCopy(locale, template.closingScreen, {
+            company: clientCompany,
+            // Pre-`closingScreen` surveys — every seeded template — carry their
+            // closing message here, and it has to keep rendering.
+            legacyThankYouText: template.thankYouText,
+          })}
+          imageUrl={template.closingScreen?.imageUrl?.trim() || undefined}
         />
       );
     }
@@ -3103,12 +3116,15 @@ function UnderlineTextarea({
 function DoneState({
   locale,
   participantFirstName,
-  customText,
+  copy,
+  imageUrl,
 }: {
   locale: Locale;
   participantFirstName: string;
-  /** Per-survey closing copy; falls back to the built-in translation. */
-  customText?: string;
+  /** Resolved closing copy — authored where set, the built-in translation otherwise. */
+  copy: ResolvedClosingCopy;
+  /** Optional image beside the copy, exactly like the welcome screen's. */
+  imageUrl?: string;
 }) {
   const [confettiSeed] = useState(() => Math.random());
 
@@ -3129,59 +3145,95 @@ function DoneState({
     });
   }, [confettiSeed]);
 
+  // With an image the screen becomes a two-column layout like the welcome screen,
+  // and centred copy beside a picture reads as neither one thing nor the other —
+  // so the whole column goes left-aligned, badge included. Without an image the
+  // centred arrangement stands.
+  const headline =
+    participantFirstName && copy.headline === t(locale, "done.headline")
+      ? t(locale, "done.headlinePersonal", { name: participantFirstName })
+      : copy.headline;
+
   return (
-    <div className="text-center py-8 sm:py-12 relative">
-      {/* Confetti overlay */}
-      <div
-        className="absolute inset-x-0 top-12 flex justify-center pointer-events-none"
-        aria-hidden="true"
-      >
-        <div className="relative">
-          {particles.map((p) => (
-            <span
-              key={p.key}
-              className="survey-confetti-particle absolute block rounded-full"
-              style={
-                {
-                  width: 8,
-                  height: 8,
-                  background: p.color,
-                  left: 0,
-                  top: 0,
-                  ["--confetti-tx" as string]: `${p.tx}px`,
-                  ["--confetti-ty" as string]: `${p.ty}px`,
-                  ["--confetti-r" as string]: `${p.r}deg`,
-                  animation: `survey-confetti-drift 900ms ease-out ${p.delay}ms forwards`,
-                } as React.CSSProperties
-              }
-            />
+    <div
+      className={
+        imageUrl
+          ? "w-full md:flex md:items-center md:gap-8 py-4 sm:py-8"
+          : "w-full py-8 sm:py-12"
+      }
+    >
+      <div className={imageUrl ? "flex-1 min-w-0 text-left" : "text-center"}>
+        {/* The confetti sits in a wrapper hugging the badge rather than in the
+            page, so it follows the badge when the layout goes left-aligned — and
+            stays outside the element the pop animation scales. */}
+        <div className={`flex mb-6${imageUrl ? "" : " justify-center"}`}>
+          <div className="relative">
+            <div
+              className="absolute inset-0 flex items-center justify-center pointer-events-none"
+              aria-hidden="true"
+            >
+              <div className="relative">
+                {particles.map((p) => (
+                  <span
+                    key={p.key}
+                    className="survey-confetti-particle absolute block rounded-full"
+                    style={
+                      {
+                        width: 8,
+                        height: 8,
+                        background: p.color,
+                        left: 0,
+                        top: 0,
+                        ["--confetti-tx" as string]: `${p.tx}px`,
+                        ["--confetti-ty" as string]: `${p.ty}px`,
+                        ["--confetti-r" as string]: `${p.r}deg`,
+                        animation: `survey-confetti-drift 900ms ease-out ${p.delay}ms forwards`,
+                      } as React.CSSProperties
+                    }
+                  />
+                ))}
+              </div>
+            </div>
+            <div
+              className="survey-check-icon w-16 h-16 rounded-full flex items-center justify-center"
+              style={{
+                background: "var(--primary)",
+                animation: "survey-check-pop 500ms cubic-bezier(0.34, 1.56, 0.64, 1) both",
+              }}
+            >
+              <Check size={32} strokeWidth={3} color="#fff" />
+            </div>
+          </div>
+        </div>
+        <h2
+          className="text-[24px] sm:text-[28px] font-semibold mb-2"
+          style={{ color: "var(--text-primary)", letterSpacing: "-0.02em" }}
+        >
+          {headline}
+        </h2>
+        <div
+          className={`text-[15px] space-y-3 ${imageUrl ? "max-w-[65ch]" : "max-w-[36ch] mx-auto"}`}
+          style={{ color: "var(--text-muted)", lineHeight: 1.55 }}
+        >
+          {splitParagraphs(copy.body).map((para, i) => (
+            <p key={i}>{para}</p>
           ))}
         </div>
       </div>
 
-      <div
-        className="survey-check-icon w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6"
-        style={{
-          background: "var(--primary)",
-          animation: "survey-check-pop 500ms cubic-bezier(0.34, 1.56, 0.64, 1) both",
-        }}
-      >
-        <Check size={32} strokeWidth={3} color="#fff" />
-      </div>
-      <h2
-        className="text-[24px] sm:text-[28px] font-semibold mb-2"
-        style={{ color: "var(--text-primary)", letterSpacing: "-0.02em" }}
-      >
-        {participantFirstName
-          ? t(locale, "done.headlinePersonal", { name: participantFirstName })
-          : t(locale, "done.headline")}
-      </h2>
-      <p
-        className="text-[15px] max-w-[36ch] mx-auto"
-        style={{ color: "var(--text-muted)", lineHeight: 1.55 }}
-      >
-        {customText?.trim() ? customText : t(locale, "done.subline")}
-      </p>
+      {imageUrl && (
+        <div className="md:hidden mt-7 w-full aspect-square rounded-card overflow-hidden">
+          <img src={imageUrl} alt="" className="w-full h-full object-cover" />
+        </div>
+      )}
+      {imageUrl && (
+        <div
+          className="hidden md:block shrink-0 w-[45vw] aspect-square rounded-card overflow-hidden"
+          style={{ maxWidth: "min(50%, calc(100vh - 260px))" }}
+        >
+          <img src={imageUrl} alt="" className="w-full h-full object-cover" />
+        </div>
+      )}
     </div>
   );
 }

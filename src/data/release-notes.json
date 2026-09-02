@@ -1,6 +1,16 @@
 [
   {
     "date": "2026-09-02",
+    "title": "Het eindscherm van een survey is nu volledig aan te passen",
+    "details": [
+      "Nieuw onderdeel \"Thank-you screen\" in de survey-editor, onder Closing question \u2014 voor zowel een template als een losse sessie.",
+      "Je past de kop en de boodschap aan (witregel = nieuwe alinea, {company} wordt vervangen door de klantnaam); leeg laten of \"Reset to default\" zet een veld terug op de standaardtekst, die meebeweegt met de taalkeuze van de deelnemer.",
+      "Er kan nu ook een afbeelding naast het eindscherm staan, net als bij het welkomstscherm. Met afbeelding schuift de tekst naar links en wordt hij links uitgelijnd; zonder afbeelding blijft alles gecentreerd.",
+      "Bestaande bedanktteksten blijven staan: die verschijnen als de ingevulde boodschap en verhuizen bij de eerste bewerking mee naar het nieuwe scherm."
+    ]
+  },
+  {
+    "date": "2026-09-02",
     "title": "Het welkomstscherm van een survey kan nu een afbeelding tonen",
     "details": [
       "Onder \u201cWelcome screen\u201d in de survey-editor staat een veld \u201cImage URL\u201d, net als bij een sectie-intro.",

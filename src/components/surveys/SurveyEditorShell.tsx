@@ -24,6 +24,12 @@ import {
   type RespondentVariableCopyField,
 } from "@/lib/surveys/respondent-variable-copy";
 import {
+  CLOSING_SCREEN_FIELDS,
+  defaultClosingCopy,
+  type ClosingScreenField,
+  type ISurveyClosingScreen,
+} from "@/lib/surveys/closing-screen";
+import {
   GREETING_FIELDS,
   WELCOME_SCREEN_FIELDS,
   defaultWelcomeCopy,
@@ -74,6 +80,14 @@ export interface SurveyEditorShellProps {
    * rather than a fully-populated one.
    */
   welcomeScreen?: ISurveyWelcomeScreen;
+  /**
+   * Authored overrides for the closing screen, on the same terms as the welcome
+   * screen. `closingThankYouText` is the field it supersedes: surveys authored
+   * before this screen existed keep their message there, so it stands in as the
+   * body until the first save folds it in.
+   */
+  closingScreen?: ISurveyClosingScreen;
+  closingThankYouText?: string;
   /** The client this survey runs for, used to preview `{company}` in the copy. */
   clientCompany?: string;
   /**
@@ -95,6 +109,7 @@ export interface SurveyEditorShellProps {
   onToggleArchetype?: (archetypeId: string) => void;
   onChangeClosing: (co: { enabled: boolean; label: string }) => void;
   onChangeWelcomeScreen?: (welcomeScreen: ISurveyWelcomeScreen) => void;
+  onChangeClosingScreen?: (closingScreen: ISurveyClosingScreen) => void;
   onChangeRespondentVariable?: (copy: IRespondentVariableCopy) => void;
 
   onAddSection?: () => void;
@@ -259,6 +274,8 @@ function RightPane(props: SurveyEditorShellProps) {
       return <ArchetypesView {...props} />;
     case "closing":
       return <ClosingView {...props} />;
+    case "closing-screen":
+      return <ClosingScreenView {...props} />;
     case "section": {
       const section = props.sections.find((s) => s.id === selected.id);
       if (!section) return <EmptyState text="Section not found. Pick another item from the outline." />;
@@ -829,6 +846,164 @@ function ClosingView(props: SurveyEditorShellProps) {
           className="input"
         />
       )}
+    </SectionCard>
+  );
+}
+
+// ── Right-pane: Thank-you screen view ────────────────────────────
+
+interface ClosingFieldMeta {
+  field: ClosingScreenField;
+  label: string;
+  helper?: string;
+  multiline?: boolean;
+  rows?: number;
+}
+
+const CLOSING_FIELDS: ClosingFieldMeta[] = [
+  {
+    field: "headline",
+    label: "Headline",
+    helper: "The big line above the message. {company} is replaced with the client name.",
+  },
+  {
+    field: "body",
+    label: "Message",
+    helper:
+      "What happens next, who to thank, where results go. Leave a blank line between paragraphs. {company} is supported.",
+    multiline: true,
+    rows: 5,
+  },
+];
+
+/**
+ * The closing counterpart of `WelcomeView`, with one wrinkle: a survey authored
+ * before this screen existed carries its message in the legacy `thankYouText`.
+ * That text is the effective body until something is saved, so it is folded into
+ * the object every commit sends — otherwise editing only the headline would
+ * hand over to `closingScreen` and drop the sentence participants were reading.
+ */
+function ClosingScreenView(props: SurveyEditorShellProps) {
+  const { closingScreen, closingThankYouText, onChangeClosingScreen, clientCompany } = props;
+  const [defaultLocale, setDefaultLocale] = useState<Locale>("nl");
+  const defaults = useMemo(() => defaultClosingCopy(defaultLocale), [defaultLocale]);
+
+  const legacy = closingThankYouText?.trim();
+  const current: ISurveyClosingScreen = useMemo(
+    () => (legacy && !closingScreen?.body ? { ...closingScreen, body: legacy } : { ...closingScreen }),
+    [closingScreen, legacy]
+  );
+
+  function commit(field: ClosingScreenField, raw: string) {
+    if (!onChangeClosingScreen) return;
+    const value = raw.trim();
+    const next: ISurveyClosingScreen = { ...current };
+    if (!value || value === defaults[field]) delete next[field];
+    else next[field] = value;
+    const changed = CLOSING_SCREEN_FIELDS.some((f) => (next[f] ?? "") !== (current[f] ?? ""));
+    if (changed) onChangeClosingScreen(next);
+  }
+
+  /** Not an override of a default — empty simply means no image. */
+  function commitImageUrl(raw: string) {
+    if (!onChangeClosingScreen) return;
+    const value = raw.trim();
+    if (value === (current.imageUrl ?? "")) return;
+    const next: ISurveyClosingScreen = { ...current };
+    if (value) next.imageUrl = value;
+    else delete next.imageUrl;
+    onChangeClosingScreen(next);
+  }
+
+  const customCount = CLOSING_SCREEN_FIELDS.filter((f) => current[f]).length;
+
+  return (
+    <SectionCard
+      title="Thank-you screen"
+      helper="The last thing participants see, after their final answer. Every field starts on the built-in copy — edit what you want to change, or clear a field to go back to the default."
+      action={
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+            Default copy
+          </span>
+          <select
+            value={defaultLocale}
+            onChange={(e) => setDefaultLocale(e.target.value as Locale)}
+            className="input input-sm"
+            style={{ width: 76 }}
+            aria-label="Language of the built-in copy"
+          >
+            <option value="nl">NL</option>
+            <option value="en">EN</option>
+          </select>
+        </div>
+      }
+    >
+      <div className="space-y-4">
+        {CLOSING_FIELDS.map(({ field, label, helper, multiline, rows }) => {
+          const stored = current[field];
+          const value = stored ?? defaults[field];
+          return (
+            <div key={`${field}-${defaultLocale}-${stored ?? ""}`}>
+              <div className="flex items-baseline justify-between gap-3">
+                <label className="typo-label">{label}</label>
+                {stored && onChangeClosingScreen && (
+                  <button
+                    type="button"
+                    onClick={() => commit(field, "")}
+                    className="btn-link text-xs"
+                  >
+                    Reset to default
+                  </button>
+                )}
+              </div>
+              {multiline ? (
+                <textarea
+                  defaultValue={value}
+                  onBlur={(e) => commit(field, e.target.value)}
+                  rows={rows ?? 3}
+                  className="input resize-none"
+                  disabled={!onChangeClosingScreen}
+                />
+              ) : (
+                <input
+                  type="text"
+                  defaultValue={value}
+                  onBlur={(e) => commit(field, e.target.value)}
+                  className="input"
+                  disabled={!onChangeClosingScreen}
+                />
+              )}
+              {helper && (
+                <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+                  {helper}
+                </p>
+              )}
+            </div>
+          );
+        })}
+        <div>
+          <label className="typo-label">Image URL (optional)</label>
+          <input
+            key={`closing-imageUrl-${current.imageUrl ?? ""}`}
+            type="url"
+            defaultValue={current.imageUrl ?? ""}
+            onBlur={(e) => commitImageUrl(e.target.value)}
+            placeholder="https://…"
+            className="input"
+            disabled={!onChangeClosingScreen}
+          />
+          <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+            Shown beside the message, like the welcome screen&rsquo;s. With an image the
+            copy moves to the left and is left-aligned; without one it stays centred.
+          </p>
+        </div>
+      </div>
+      <p className="text-xs mt-4" style={{ color: "var(--text-muted)", lineHeight: 1.5 }}>
+        {customCount === 0
+          ? "Nothing customised yet — participants see the built-in copy in their own language."
+          : `${customCount} field${customCount === 1 ? "" : "s"} customised. Customised text is shown as written, in both NL and EN.`}
+      </p>
     </SectionCard>
   );
 }

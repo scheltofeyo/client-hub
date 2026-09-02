@@ -16,6 +16,7 @@ import {
 import { normalizeRespondentVariableCopy } from "@/lib/surveys/respondent-variable-copy";
 import { isValueBackedType } from "@/lib/surveys/types";
 import { normalizeWelcomeScreen } from "@/lib/surveys/welcome-screen";
+import { normalizeClosingScreen } from "@/lib/surveys/closing-screen";
 import { randomUUID } from "node:crypto";
 
 export async function GET(
@@ -151,6 +152,7 @@ export async function PATCH(
     body.snapshotClosingOpenQuestion !== undefined ||
     body.snapshotThankYouText !== undefined ||
     body.snapshotWelcomeScreen !== undefined ||
+    body.snapshotClosingScreen !== undefined ||
     body.respondentVariable !== undefined ||
     body.refreshCulturalDna === true;
   if (snapshotEditsRequested && existing.status !== "draft") {
@@ -185,8 +187,15 @@ export async function PATCH(
       .map((a: { id: string }) => ({ id: a.id }));
   }
   if (body.snapshotThankYouText !== undefined) {
+    // `null`, not `undefined`: Mongoose drops undefined from a $set, and this
+    // field is now retired in favour of `closingScreen` — the editor sends an
+    // empty value to hand over, with the old text already folded into the body.
     update["templateSnapshot.thankYouText"] =
-      String(body.snapshotThankYouText).trim() || undefined;
+      String(body.snapshotThankYouText).trim() || null;
+  }
+  if (body.snapshotClosingScreen !== undefined) {
+    update["templateSnapshot.closingScreen"] =
+      normalizeClosingScreen(body.snapshotClosingScreen) ?? null;
   }
   if (body.snapshotWelcomeScreen !== undefined) {
     // Explicit null rather than undefined: Mongoose drops undefined from a $set,

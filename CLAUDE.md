@@ -337,8 +337,21 @@ moves the footer into the text column so the tall image does not push it off scr
 is used and the two headline fields are hidden in the editor; `false` swaps in the authored pair.
 `resolveWelcomeCopy()` withholds the greeting entirely in that case, otherwise an author who turns
 the toggle off and leaves a headline on its default would silently get the rotation back. Authored
-lines survive toggling either way. `thankYouText` is the same arrangement for the closing screen,
-minus the per-field structure.
+lines survive toggling either way.
+
+The **closing screen** is the same arrangement again, in `closing-screen.ts`: `headline` and `body`
+are overrides of `done.headline` / `done.subline`, `imageUrl` is not an override, and the runner lays
+the image out exactly like the welcome screen's — except that with an image the whole column goes
+left-aligned, badge included, because centred copy beside a picture reads as neither. Both body
+fields split on blank lines through the shared `splitParagraphs()` (`paragraphs.ts`), which
+`welcomeParagraphs` is now a re-export of.
+
+`thankYouText` is what it supersedes, and every seeded template still carries its closing message
+there, so `resolveClosingCopy()` takes it as the body's fallback. The editor treats it as the
+effective body and folds it into `closingScreen` on the first save, and the two editor pages clear
+the legacy field in that same PATCH — otherwise a second copy of the same sentence lingers and
+silently wins back whenever the body is cleared. That is also why both PATCH routes write `null`
+rather than `undefined` for it.
 
 **The respondent variable** is one attribute answered before the value questions that both *selects
 content* (which behaviours a participant sees for each value) and *slices results*. Stored on the

@@ -7,6 +7,7 @@ import { SurveyTemplateSectionModel } from "@/lib/models/SurveyTemplateSection";
 import { SurveyTemplateQuestionModel } from "@/lib/models/SurveyTemplateQuestion";
 import { serializeQuestion } from "@/lib/surveys/serializers";
 import { normalizeWelcomeScreen } from "@/lib/surveys/welcome-screen";
+import { normalizeClosingScreen } from "@/lib/surveys/closing-screen";
 import { normalizeRespondentVariableCopy } from "@/lib/surveys/respondent-variable-copy";
 
 export async function GET(
@@ -37,6 +38,8 @@ export async function GET(
     defaultTop3Weights: template.defaultTop3Weights ?? [5, 3, 1],
     closingOpenQuestion: template.closingOpenQuestion ?? undefined,
     defaultWelcomeScreen: template.defaultWelcomeScreen ?? undefined,
+    defaultClosingScreen: template.defaultClosingScreen ?? undefined,
+    defaultThankYouText: template.defaultThankYouText ?? undefined,
     defaultRespondentVariable: template.defaultRespondentVariable ?? undefined,
     version: template.version ?? 1,
     sections: sections.map((s) => ({
@@ -105,6 +108,15 @@ export async function PATCH(
   if (body.defaultWelcomeScreen !== undefined) {
     update.defaultWelcomeScreen = normalizeWelcomeScreen(body.defaultWelcomeScreen) ?? null;
   }
+  if (body.defaultClosingScreen !== undefined) {
+    update.defaultClosingScreen = normalizeClosingScreen(body.defaultClosingScreen) ?? null;
+  }
+  // Retired by `defaultClosingScreen`, which the editor sends alongside with the
+  // old text already folded into its body. Kept writable so that hand-off can
+  // happen in one PATCH rather than leaving two sources of the same sentence.
+  if (body.defaultThankYouText !== undefined) {
+    update.defaultThankYouText = String(body.defaultThankYouText).trim() || null;
+  }
   const current = await SurveyTemplateModel.findById(id)
     .select("version defaultRespondentVariable")
     .lean();
@@ -144,6 +156,8 @@ export async function PATCH(
     defaultTop3Weights: doc.defaultTop3Weights ?? [5, 3, 1],
     closingOpenQuestion: doc.closingOpenQuestion ?? undefined,
     defaultWelcomeScreen: doc.defaultWelcomeScreen ?? undefined,
+    defaultClosingScreen: doc.defaultClosingScreen ?? undefined,
+    defaultThankYouText: doc.defaultThankYouText ?? undefined,
     defaultRespondentVariable: doc.defaultRespondentVariable ?? undefined,
     version: doc.version ?? 1,
   });

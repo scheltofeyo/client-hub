@@ -227,6 +227,7 @@ export async function POST(req: NextRequest) {
       culturalLevels: cultural.culturalLevels,
       thankYouText: template.defaultThankYouText || undefined,
       welcomeScreen: template.defaultWelcomeScreen ?? undefined,
+      closingScreen: template.defaultClosingScreen ?? undefined,
       rankWeights: template.defaultRankWeights ?? [5, 4, 3, 2, 1],
       top3Weights: template.defaultTop3Weights ?? [5, 3, 1],
       closingOpenQuestion: template.closingOpenQuestion ?? undefined,

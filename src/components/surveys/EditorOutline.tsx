@@ -7,6 +7,7 @@ import {
   GripVertical,
   Hand,
   Layers,
+  PartyPopper,
   Plus,
   Search,
   Settings,
@@ -38,6 +39,7 @@ export type OutlineSelection =
   | { kind: "header" }
   | { kind: "welcome" }
   | { kind: "respondent-variable" }
+  | { kind: "closing-screen" }
   | { kind: "archetypes" }
   | { kind: "closing" }
   | { kind: "section"; id: string }
@@ -232,6 +234,14 @@ export default function EditorOutline({
           bold
         />
       )}
+
+      <OutlineRow
+        selected={sameSelection(selected, { kind: "closing-screen" })}
+        onClick={() => onSelect({ kind: "closing-screen" })}
+        icon={<PartyPopper size={14} />}
+        label="Thank-you screen"
+        bold
+      />
 
       {/* Sections group */}
       <GroupHeader label="Sections" />
