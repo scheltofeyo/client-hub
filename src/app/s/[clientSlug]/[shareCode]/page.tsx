@@ -2901,9 +2901,13 @@ function CultureValueCard({
 
         <div className="mt-6 rounded-card px-4 py-4" style={{ background: panelBg }}>
           <p className="typo-section-header mb-2" style={{ color: muted }}>
-            {level
-              ? `${t(locale, "assessment.behaviorsTitle")} · ${level}`
-              : t(locale, "assessment.behaviorsTitle")}
+            {t(locale, "assessment.behaviorsTitle")}
+            {level && (
+              <>
+                {" · "}
+                <span className="font-bold">{level}</span>
+              </>
+            )}
           </p>
           {behaviors.length === 0 ? (
             <p className="text-[15px] italic" style={{ color: muted }}>
