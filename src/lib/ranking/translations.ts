@@ -18,6 +18,10 @@ const translations = {
     en: "This session is closed. You can no longer participate.",
   },
   "error.generic": { nl: "Er ging iets mis.", en: "Something went wrong." },
+  "error.submissionRemoved": {
+    nl: "Je inzending is verwijderd door de begeleider. Vul je ranking opnieuw in.",
+    en: "Your submission was removed by the facilitator. Please fill in your ranking again.",
+  },
 
   // Step 2
   "ranking.instruction": {

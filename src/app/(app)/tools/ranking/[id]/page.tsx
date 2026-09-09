@@ -4,14 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
-import { Copy, Check, Users, Pencil, ChevronDown, QrCode, Link2, MoreHorizontal } from "lucide-react";
-import {
-  findGreedyPairs,
-  findBalancedPairs,
-  normalizeDistance,
-  findBestDuoForUnmatched,
-} from "@/lib/ranking/matching";
-import type { Submission as MatchSubmission } from "@/lib/ranking/matching";
+import { Copy, Check, Users, Pencil, ChevronDown, QrCode, Link2, MoreHorizontal, Trash2, AlertTriangle } from "lucide-react";
 import { SessionStatusBadge } from "@/components/ui/SessionStatusBadge";
 import {
   HiddenQrCanvas,
@@ -53,6 +46,19 @@ interface Submission {
   submittedAt?: string;
 }
 
+/**
+ * The matching as the server resolved it. Computed nowhere in the browser: the
+ * participant results page reads the same pairing from the same resolver, and
+ * working it out here as well is exactly how the two used to disagree.
+ */
+interface SessionMatching {
+  pairs: { participant1Id: string; participant2Id: string; opposition: number }[];
+  unmatchedId: string | null;
+  bestDuo: { participant1Id: string; participant2Id: string; avgOpposition: number } | null;
+  participants: { id: string; participantName: string; rankings: string[] }[];
+  invalid: { id: string; participantName: string; reason: string }[];
+}
+
 export default function RankingSessionDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -64,6 +70,7 @@ export default function RankingSessionDetailPage() {
 
   const [session, setSession] = useState<Session | null>(null);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
+  const [matching, setMatching] = useState<SessionMatching | null>(null);
   const [loading, setLoading] = useState(true);
 
   // Modals
@@ -91,6 +98,11 @@ export default function RankingSessionDetailPage() {
     if (res.ok) setSubmissions(await res.json());
   }, [id]);
 
+  const loadMatching = useCallback(async () => {
+    const res = await fetch(`/api/ranking-sessions/${id}/matches`);
+    if (res.ok) setMatching(await res.json());
+  }, [id]);
+
   useEffect(() => {
     async function load() {
       await Promise.all([loadSession(), loadSubmissions()]);
@@ -98,6 +110,16 @@ export default function RankingSessionDetailPage() {
     }
     load();
   }, [loadSession, loadSubmissions]);
+
+  // Matches only exist once the session has closed, which is also the moment
+  // they are frozen — so this is fetched once, not polled.
+  useEffect(() => {
+    if (session?.status !== "closed" && session?.status !== "archived") return;
+    async function load() {
+      await loadMatching();
+    }
+    load();
+  }, [session?.status, loadMatching]);
 
   // Poll submissions when session is open
   useEffect(() => {
@@ -325,7 +347,7 @@ export default function RankingSessionDetailPage() {
                   </div>
                 )}
 
-                <MatchResultsPanel submissions={submissions} values={session.values} />
+                <MatchResultsPanel matching={matching} values={session.values} />
               </>
             )}
           </div>
@@ -334,7 +356,13 @@ export default function RankingSessionDetailPage() {
           {!isDraft && (
             <div className="lg:col-span-1">
               <div className="lg:sticky lg:top-6">
-                <SubmissionsSection submissions={submissions} values={session.values} />
+                <SubmissionsSection
+                  sessionId={id}
+                  submissions={submissions}
+                  values={session.values}
+                  canRemove={isOpen && canEdit}
+                  onRemoved={loadSubmissions}
+                />
               </div>
             </div>
           )}
@@ -437,177 +465,258 @@ function ConfirmModal({
 
 // ── Submissions list (expandable) ───────────────────────────────────
 
-function SubmissionsSection({ submissions, values }: { submissions: Submission[]; values: RankingValue[] }) {
+function SubmissionsSection({
+  sessionId,
+  submissions,
+  values,
+  canRemove,
+  onRemoved,
+}: {
+  sessionId: string;
+  submissions: Submission[];
+  values: RankingValue[];
+  canRemove: boolean;
+  onRemoved: () => void;
+}) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [confirmRemove, setConfirmRemove] = useState<Submission | null>(null);
+  const [removing, setRemoving] = useState(false);
+  const [removeError, setRemoveError] = useState<string | null>(null);
   const valueMap = Object.fromEntries(values.map((v) => [v.id, v]));
 
+  async function removeSubmission(sub: Submission) {
+    setRemoving(true);
+    setRemoveError(null);
+    const res = await fetch(`/api/ranking-sessions/${sessionId}/submissions/${sub.id}`, {
+      method: "DELETE",
+    });
+    setRemoving(false);
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setRemoveError(data.error ?? "Something went wrong.");
+      return;
+    }
+    setConfirmRemove(null);
+    onRemoved();
+  }
+
   return (
-    <div className="p-4 rounded-xl border" style={{ borderColor: "var(--border)", background: "white" }}>
-      <div className="flex items-center gap-2 mb-3">
-        <Users size={14} style={{ color: "var(--text-muted)" }} />
-        <h3 className="typo-section-header" style={{ color: "var(--text-muted)" }}>
-          Participants ({submissions.length})
-        </h3>
-      </div>
-      {submissions.length === 0 ? (
-        <p className="text-sm py-4" style={{ color: "var(--text-muted)" }}>
-          No submissions received yet.
-        </p>
-      ) : (
-        <div className="space-y-2">
-          {submissions.map((sub) => {
-            const isInProgress = sub.status === "in_progress";
-            const isExpanded = expandedId === sub.id && !isInProgress;
-            return (
-              <div key={sub.id} className="border rounded-xl overflow-hidden" style={{ borderColor: "var(--border)" }}>
-                <button
-                  onClick={() => !isInProgress && setExpandedId(isExpanded ? null : sub.id)}
-                  className="w-full flex items-center justify-between px-4 py-3 text-left transition-colors"
-                  style={{ cursor: isInProgress ? "default" : "pointer" }}
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div
-                      className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold shrink-0"
-                      style={{
-                        background: isInProgress ? "var(--warning-light)" : "var(--primary-light)",
-                        color: isInProgress ? "var(--warning)" : "var(--primary)",
-                      }}
+    <>
+      <div className="p-4 rounded-xl border" style={{ borderColor: "var(--border)", background: "white" }}>
+        <div className="flex items-center gap-2 mb-3">
+          <Users size={14} style={{ color: "var(--text-muted)" }} />
+          <h3 className="typo-section-header" style={{ color: "var(--text-muted)" }}>
+            Participants ({submissions.length})
+          </h3>
+        </div>
+        {submissions.length === 0 ? (
+          <p className="text-sm py-4" style={{ color: "var(--text-muted)" }}>
+            No submissions received yet.
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {submissions.map((sub) => {
+              const isInProgress = sub.status === "in_progress";
+              const isExpanded = expandedId === sub.id && !isInProgress;
+              return (
+                <div key={sub.id} className="border rounded-xl overflow-hidden" style={{ borderColor: "var(--border)" }}>
+                  <div className="flex items-stretch">
+                    <button
+                      onClick={() => !isInProgress && setExpandedId(isExpanded ? null : sub.id)}
+                      className="flex-1 min-w-0 flex items-center justify-between px-4 py-3 text-left transition-colors"
+                      style={{ cursor: isInProgress ? "default" : "pointer" }}
                     >
-                      {sub.participantName.charAt(0).toUpperCase()}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium truncate" style={{ color: "var(--text-primary)" }}>
-                          {sub.participantName}
-                        </p>
-                        {isInProgress ? (
-                          <span
-                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium shrink-0"
-                            style={{ background: "var(--warning-light)", color: "var(--warning)" }}
-                          >
-                            <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "var(--warning)" }} />
-                            In progress...
-                          </span>
-                        ) : (
-                          <span
-                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium shrink-0"
-                            style={{ background: "var(--success-light)", color: "var(--success)" }}
-                          >
-                            <Check size={10} strokeWidth={3} />
-                            Completed
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div
+                          className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold shrink-0"
+                          style={{
+                            background: isInProgress ? "var(--warning-light)" : "var(--primary-light)",
+                            color: isInProgress ? "var(--warning)" : "var(--primary)",
+                          }}
+                        >
+                          {sub.participantName.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-medium truncate" style={{ color: "var(--text-primary)" }}>
+                              {sub.participantName}
+                            </p>
+                            {isInProgress ? (
+                              <span
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium shrink-0"
+                                style={{ background: "var(--warning-light)", color: "var(--warning)" }}
+                              >
+                                <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "var(--warning)" }} />
+                                In progress...
+                              </span>
+                            ) : (
+                              <span
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium shrink-0"
+                                style={{ background: "var(--success-light)", color: "var(--success)" }}
+                              >
+                                <Check size={10} strokeWidth={3} />
+                                Completed
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs truncate" style={{ color: "var(--text-muted)" }}>{sub.participantEmail}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0 ml-4">
+                        {!isInProgress && sub.submittedAt && (
+                          <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                            {new Date(sub.submittedAt).toLocaleString("en-GB", {
+                              day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
+                            })}
                           </span>
                         )}
+                        {!isInProgress && (
+                          <ChevronDown
+                            size={16}
+                            className="transition-transform"
+                            style={{
+                              color: "var(--text-muted)",
+                              transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)",
+                            }}
+                          />
+                        )}
                       </div>
-                      <p className="text-xs truncate" style={{ color: "var(--text-muted)" }}>{sub.participantEmail}</p>
-                    </div>
+                    </button>
+                    {canRemove && (
+                      <button
+                        onClick={() => setConfirmRemove(sub)}
+                        className="btn-icon shrink-0 self-center mr-2 p-1.5 rounded-lg"
+                        title="Remove submission"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
                   </div>
-                  <div className="flex items-center gap-3 shrink-0 ml-4">
-                    {!isInProgress && sub.submittedAt && (
-                      <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-                        {new Date(sub.submittedAt).toLocaleString("en-GB", {
-                          day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
+                  {isExpanded && sub.rankings && (
+                    <div className="px-4 pb-3 border-t" style={{ borderColor: "var(--border)" }}>
+                      <ol className="mt-2 space-y-1">
+                        {sub.rankings.map((valueId, i) => {
+                          const v = valueMap[valueId];
+                          if (!v) return null;
+                          return (
+                            <li key={valueId} className="flex items-center gap-2 text-sm">
+                              <span className="w-5 text-xs text-right tabular-nums" style={{ color: "var(--text-muted)" }}>{i + 1}.</span>
+                              <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: v.color }} />
+                              <span style={{ color: "var(--text-primary)" }}>{v.title}</span>
+                            </li>
+                          );
                         })}
-                      </span>
-                    )}
-                    {!isInProgress && (
-                      <ChevronDown
-                        size={16}
-                        className="transition-transform"
-                        style={{
-                          color: "var(--text-muted)",
-                          transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)",
-                        }}
-                      />
-                    )}
-                  </div>
-                </button>
-                {isExpanded && sub.rankings && (
-                  <div className="px-4 pb-3 border-t" style={{ borderColor: "var(--border)" }}>
-                    <ol className="mt-2 space-y-1">
-                      {sub.rankings.map((valueId, i) => {
-                        const v = valueMap[valueId];
-                        if (!v) return null;
-                        return (
-                          <li key={valueId} className="flex items-center gap-2 text-sm">
-                            <span className="w-5 text-xs text-right tabular-nums" style={{ color: "var(--text-muted)" }}>{i + 1}.</span>
-                            <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: v.color }} />
-                            <span style={{ color: "var(--text-primary)" }}>{v.title}</span>
-                          </li>
-                        );
-                      })}
-                    </ol>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
+                      </ol>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {confirmRemove && (
+        <ConfirmModal
+          title="Remove submission?"
+          onClose={() => { setConfirmRemove(null); setRemoveError(null); }}
+          onConfirm={() => { if (!removing) removeSubmission(confirmRemove); }}
+          confirmLabel={removing ? "Removing..." : "Remove"}
+          confirmStyle="danger"
+        >
+          <p className="text-sm leading-relaxed" style={{ color: "var(--text-muted)" }}>
+            {confirmRemove.participantName}&apos;s ranking is permanently removed. They can open the
+            share link again and submit a new one with the same email address.
+          </p>
+          {removeError && (
+            <p className="text-sm mt-3" style={{ color: "var(--danger)" }}>{removeError}</p>
+          )}
+        </ConfirmModal>
       )}
-    </div>
+    </>
   );
 }
 
-// ── Match results panel (expandable pairs, algorithm toggle, progress bars) ──
+// ── Match results panel (expandable pairs, progress bars) ──
 
-function MatchResultsPanel({ submissions, values }: { submissions: Submission[]; values: RankingValue[] }) {
+function MatchResultsPanel({
+  matching,
+  values,
+}: {
+  matching: SessionMatching | null;
+  values: RankingValue[];
+}) {
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
-  const [algorithm, setAlgorithm] = useState<"greedy" | "balanced">("balanced");
 
-  const completed = submissions.filter((s) => s.status === "completed" && s.rankings);
-  if (completed.length < 2) {
-    return (
-      <div className="p-4 rounded-xl border" style={{ borderColor: "var(--primary)", background: "white" }}>
-        <h3 className="typo-section-header mb-2" style={{ color: "var(--primary)" }}>Match results</h3>
+  const shell = (children: React.ReactNode) => (
+    <div className="p-4 rounded-xl border" style={{ borderColor: "var(--primary)", background: "white" }}>
+      <h3 className="typo-section-header mb-3" style={{ color: "var(--primary)" }}>Match results</h3>
+      {children}
+    </div>
+  );
+
+  if (!matching) {
+    return shell(
+      <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+        Loading matches…
+      </p>
+    );
+  }
+
+  const byId = new Map(matching.participants.map((p) => [p.id, p]));
+  const nameOf = (id: string) => byId.get(id)?.participantName ?? "Unknown";
+  const valueMap = Object.fromEntries(values.map((v) => [v.id, v]));
+
+  const invalidNotice = matching.invalid.length > 0 && (
+    <div
+      className="rounded-xl p-4 flex items-start gap-3"
+      style={{ background: "var(--warning-light)", border: "1px solid var(--warning)" }}
+    >
+      <AlertTriangle size={16} className="shrink-0 mt-0.5" style={{ color: "var(--warning)" }} />
+      <div className="space-y-1">
+        <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
+          {matching.invalid.length === 1
+            ? "One submission could not be matched"
+            : `${matching.invalid.length} submissions could not be matched`}
+        </p>
+        <ul className="space-y-0.5">
+          {matching.invalid.map((entry) => (
+            <li key={entry.id} className="text-sm" style={{ color: "var(--text-muted)" }}>
+              <strong style={{ color: "var(--text-primary)" }}>{entry.participantName}</strong>{" "}
+              {entry.reason}
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  );
+
+  if (matching.pairs.length === 0 && !matching.unmatchedId) {
+    return shell(
+      <div className="space-y-2">
         <p className="text-sm" style={{ color: "var(--text-muted)" }}>
           At least 2 completed submissions are needed to calculate matches.
         </p>
+        {invalidNotice}
       </div>
     );
   }
 
-  const mapped: MatchSubmission[] = completed.map((s) => ({
-    id: s.id,
-    participantName: s.participantName,
-    participantEmail: s.participantEmail,
-    rankings: s.rankings!,
-  }));
-
-  const findPairs = algorithm === "greedy" ? findGreedyPairs : findBalancedPairs;
-  const { pairs, unmatched } = findPairs(mapped);
-  const valueMap = Object.fromEntries(values.map((v) => [v.id, v]));
-
-  function switchAlgorithm(alg: "greedy" | "balanced") {
-    setAlgorithm(alg);
-    setExpandedIndex(null);
-  }
-
   return (
     <div className="p-4 rounded-xl border" style={{ borderColor: "var(--primary)", background: "white" }}>
-      {/* Header + algorithm toggle */}
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="typo-section-header" style={{ color: "var(--primary)" }}>Match results</h3>
-        <div className="flex items-center gap-1 p-1 rounded-button" style={{ background: "var(--bg-neutral)" }}>
-          {(["greedy", "balanced"] as const).map((alg) => (
-            <button
-              key={alg}
-              onClick={() => switchAlgorithm(alg)}
-              className="px-2.5 py-1 text-xs font-medium rounded-button transition-colors"
-              style={{
-                background: algorithm === alg ? "var(--bg-surface)" : "transparent",
-                color: algorithm === alg ? "var(--text-primary)" : "var(--text-muted)",
-                boxShadow: algorithm === alg ? "var(--shadow-subtle)" : "none",
-              }}
-            >
-              {alg === "greedy" ? "Greedy" : "Balanced"}
-            </button>
-          ))}
-        </div>
-      </div>
+      <h3 className="typo-section-header mb-3" style={{ color: "var(--primary)" }}>Match results</h3>
 
       <div className="space-y-2">
-        {pairs.map((pair, i) => {
-          const oppositionPct = normalizeDistance(pair.distance, values.length);
+        {invalidNotice}
+
+        {matching.pairs.map((pair, i) => {
+          const oppositionPct = pair.opposition;
           const isExpanded = expandedIndex === i;
+          const members = [pair.participant1Id, pair.participant2Id].map((pid) => ({
+            id: pid,
+            participantName: nameOf(pid),
+            rankings: byId.get(pid)?.rankings ?? [],
+          }));
           return (
             <div key={i} className="border rounded-xl overflow-hidden" style={{ borderColor: "var(--border)", background: "var(--bg-surface)" }}>
               {/* Compact clickable row */}
@@ -618,16 +727,16 @@ function MatchResultsPanel({ submissions, values }: { submissions: Submission[];
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="flex -space-x-2 shrink-0">
                     <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold ring-2 ring-white" style={{ background: "var(--primary-light)", color: "var(--primary)" }}>
-                      {pair.participant1.participantName.charAt(0).toUpperCase()}
+                      {members[0].participantName.charAt(0).toUpperCase()}
                     </div>
                     <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold ring-2 ring-white" style={{ background: "var(--bg-neutral)", color: "var(--text-primary)" }}>
-                      {pair.participant2.participantName.charAt(0).toUpperCase()}
+                      {members[1].participantName.charAt(0).toUpperCase()}
                     </div>
                   </div>
                   <div className="text-sm min-w-0 truncate">
-                    <span className="font-medium" style={{ color: "var(--text-primary)" }}>{pair.participant1.participantName}</span>
+                    <span className="font-medium" style={{ color: "var(--text-primary)" }}>{members[0].participantName}</span>
                     <span className="mx-1.5" style={{ color: "var(--text-muted)" }}>&</span>
-                    <span className="font-medium" style={{ color: "var(--text-primary)" }}>{pair.participant2.participantName}</span>
+                    <span className="font-medium" style={{ color: "var(--text-primary)" }}>{members[1].participantName}</span>
                   </div>
                 </div>
                 <div className="flex items-center gap-3 shrink-0 ml-4">
@@ -661,7 +770,7 @@ function MatchResultsPanel({ submissions, values }: { submissions: Submission[];
 
                   {/* Side-by-side rankings */}
                   <div className="grid grid-cols-2 gap-4">
-                    {[pair.participant1, pair.participant2].map((participant) => (
+                    {members.map((participant) => (
                       <div key={participant.id}>
                         <p className="text-xs font-medium mb-2" style={{ color: "var(--text-muted)" }}>
                           {participant.participantName}
@@ -689,26 +798,23 @@ function MatchResultsPanel({ submissions, values }: { submissions: Submission[];
         })}
 
         {/* Unmatched participant with trio suggestion */}
-        {unmatched && (() => {
-          const suggestedDuo = findBestDuoForUnmatched(unmatched, pairs, values.length);
-          return (
-            <div className="rounded-xl p-4 space-y-2" style={{ background: "var(--warning-light)", border: "1px solid var(--warning)" }}>
-              <p className="text-sm" style={{ color: "var(--text-primary)" }}>
-                <strong>{unmatched.participantName}</strong> has no match (odd number of participants).
+        {matching.unmatchedId && (
+          <div className="rounded-xl p-4 space-y-2" style={{ background: "var(--warning-light)", border: "1px solid var(--warning)" }}>
+            <p className="text-sm" style={{ color: "var(--text-primary)" }}>
+              <strong>{nameOf(matching.unmatchedId)}</strong> has no match (odd number of participants).
+            </p>
+            {matching.bestDuo && (
+              <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+                Suggestion: have {nameOf(matching.unmatchedId)} join{" "}
+                <strong>{nameOf(matching.bestDuo.participant1Id)}</strong> &{" "}
+                <strong>{nameOf(matching.bestDuo.participant2Id)}</strong>{" "}
+                <span style={{ color: "var(--text-muted)" }}>
+                  (average {matching.bestDuo.avgOpposition}% opposition)
+                </span>
               </p>
-              {suggestedDuo && (
-                <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-                  Suggestion: have {unmatched.participantName} join{" "}
-                  <strong>{suggestedDuo.pair.participant1.participantName}</strong> &{" "}
-                  <strong>{suggestedDuo.pair.participant2.participantName}</strong>{" "}
-                  <span style={{ color: "var(--text-muted)" }}>
-                    (average {suggestedDuo.avgOpposition}% opposition)
-                  </span>
-                </p>
-              )}
-            </div>
-          );
-        })()}
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

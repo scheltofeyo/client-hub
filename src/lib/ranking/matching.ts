@@ -1,10 +1,16 @@
 /**
  * Ranking the Values — matching algorithm
  *
- * Pairs participants with the most opposing value rankings using
- * Spearman's d² distance metric and a balanced 2-opt local search.
+ * Pairs participants with the most opposing value rankings using Spearman's d²
+ * distance metric, maximising the total opposition across every pair at once.
  *
- * Ported from summ-tools/src/tools/ranking-the-values/utils/matching.js
+ * Every function here is a pure function of its input array, and the *order* of
+ * that array is part of the input: ties are broken by index. Callers must hand
+ * in a canonically ordered list — `match-session.ts` sorts by submission id —
+ * or two callers reading the same session will disagree about who pairs with
+ * whom. That was a real bug, not a hypothetical one.
+ *
+ * Originally ported from summ-tools/src/tools/ranking-the-values/utils/matching.js
  */
 
 export interface Submission {
@@ -32,6 +38,11 @@ export interface MatchResult {
  * Using d² (Spearman) instead of |d| (footrule) gives a more
  * nuanced opposition score — large position swaps weigh heavier,
  * so only a true reversal reaches 100%.
+ *
+ * Throws when the two rankings do not cover the same values. This used to
+ * default a missing value to position 0, which turned a mismatched submission
+ * into a plausible-looking but wrong opposition score — the worst way to fail.
+ * Callers validate first: `collectRankings()` in `match-session.ts`.
  */
 export function calculateSquaredDistance(ranking1: string[], ranking2: string[]): number {
   const positionMap = new Map<string, number>();
@@ -39,7 +50,11 @@ export function calculateSquaredDistance(ranking1: string[], ranking2: string[])
 
   let distance = 0;
   ranking1.forEach((valueId, index) => {
-    const diff = index - (positionMap.get(valueId) ?? 0);
+    const other = positionMap.get(valueId);
+    if (other === undefined) {
+      throw new Error(`Cannot compare rankings: "${valueId}" appears in one but not the other`);
+    }
+    const diff = index - other;
     distance += diff * diff;
   });
   return distance;
@@ -75,47 +90,124 @@ function buildDistanceMatrix(submissions: Submission[]): number[][] {
 }
 
 /**
- * Greedy matching: picks the highest-distance pair first, then the next, etc.
- * Fast but can leave "leftover" people with poor matches.
+ * Largest group we solve exactly. The search is O(2^size · size) over an
+ * even-sized set, so 18 costs ~5M operations and 2 MB — a few milliseconds,
+ * and comfortably above any workshop that fits in one room.
  */
-export function findGreedyPairs(submissions: Submission[]): MatchResult {
-  if (submissions.length < 2) {
-    return { pairs: [], unmatched: submissions[0] || null };
-  }
+const EXACT_MATCHING_LIMIT = 18;
 
-  const n = submissions.length;
-  const dist = buildDistanceMatrix(submissions);
-
-  const allPairs: { i: number; j: number; distance: number }[] = [];
-  for (let i = 0; i < n; i++) {
-    for (let j = i + 1; j < n; j++) {
-      allPairs.push({ i, j, distance: dist[i][j] });
-    }
-  }
-  allPairs.sort((a, b) => b.distance - a.distance);
-
-  const matched = new Set<number>();
-  const pairs: MatchPair[] = [];
-
-  for (const { i, j, distance } of allPairs) {
-    if (matched.has(i) || matched.has(j)) continue;
-    pairs.push({ participant1: submissions[i], participant2: submissions[j], distance });
-    matched.add(i);
-    matched.add(j);
-  }
-
-  let unmatched: Submission | null = null;
-  for (let i = 0; i < n; i++) {
-    if (!matched.has(i)) { unmatched = submissions[i]; break; }
-  }
-
-  return { pairs, unmatched };
+/** Order pairs strongest-opposition first, breaking ties on id so it is reproducible. */
+function sortPairs(pairs: MatchPair[]): MatchPair[] {
+  return pairs.sort(
+    (a, b) =>
+      b.distance - a.distance ||
+      a.participant1.id.localeCompare(b.participant1.id)
+  );
 }
 
 /**
- * Balanced matching: starts greedy, then uses 2-opt local search to
- * swap partners until total opposition across ALL pairs is maximized.
- * Produces a fairer spread of scores — no 5% leftovers.
+ * The entry point: exact where that is affordable, heuristic beyond it.
+ */
+export function findPairs(submissions: Submission[]): MatchResult {
+  if (submissions.length < 2) {
+    return { pairs: [], unmatched: submissions[0] || null };
+  }
+  const padded = submissions.length + (submissions.length % 2);
+  return padded <= EXACT_MATCHING_LIMIT
+    ? findOptimalPairs(submissions)
+    : findBalancedPairs(submissions);
+}
+
+/**
+ * Maximum-weight perfect matching, solved exactly by dynamic programming over
+ * subsets. `best[mask]` is the highest total opposition obtainable by pairing
+ * up exactly the people in `mask`; each step pairs the lowest-numbered person
+ * still in the mask with each of the others in turn. Because that first person
+ * is determined by the mask alone, `choice[mask]` records an unambiguous
+ * partner and the matching can be walked back out at the end.
+ *
+ * An odd group is padded with a dummy participant who opposes everyone by 0.
+ * Whoever the dummy ends up "paired" with is the person left over — chosen so
+ * that the remaining pairs are as strong as possible, rather than by guessing
+ * in advance who is least matchable.
+ *
+ * This replaces a 2-opt hill climb that settled below the true optimum in
+ * roughly a fifth of sessions, and whose result depended on the input order.
+ */
+export function findOptimalPairs(submissions: Submission[]): MatchResult {
+  const n = submissions.length;
+  if (n < 2) return { pairs: [], unmatched: submissions[0] || null };
+
+  const dist = buildDistanceMatrix(submissions);
+  const size = n + (n % 2);
+  const dummy = size > n ? n : -1;
+  const weightOf = (a: number, b: number) => (a === dummy || b === dummy ? 0 : dist[a][b]);
+
+  const full = (1 << size) - 1;
+  const best = new Float64Array(full + 1);
+  const choice = new Int8Array(full + 1).fill(-1);
+
+  for (let mask = 1; mask <= full; mask++) {
+    // Only even-sized groups can be paired up completely.
+    let count = 0;
+    for (let i = 0; i < size; i++) count += (mask >> i) & 1;
+    if (count % 2 !== 0) continue;
+
+    let first = 0;
+    while (!((mask >> first) & 1)) first++;
+
+    let topTotal = -1;
+    let topPartner = -1;
+    for (let other = first + 1; other < size; other++) {
+      if (!((mask >> other) & 1)) continue;
+      const rest = mask ^ (1 << first) ^ (1 << other);
+      const total = best[rest] + weightOf(first, other);
+      // Strict `>` keeps the lowest-numbered partner on a tie, so equally good
+      // matchings always resolve the same way.
+      if (total > topTotal) {
+        topTotal = total;
+        topPartner = other;
+      }
+    }
+
+    if (topPartner >= 0) {
+      best[mask] = topTotal;
+      choice[mask] = topPartner;
+    }
+  }
+
+  const pairs: MatchPair[] = [];
+  let unmatched: Submission | null = null;
+
+  for (let mask = full; mask > 0; ) {
+    let first = 0;
+    while (!((mask >> first) & 1)) first++;
+    const other = choice[mask];
+    if (other < 0) break;
+
+    if (first === dummy) unmatched = submissions[other];
+    else if (other === dummy) unmatched = submissions[first];
+    else {
+      pairs.push({
+        participant1: submissions[first],
+        participant2: submissions[other],
+        distance: dist[first][other],
+      });
+    }
+
+    mask ^= (1 << first) | (1 << other);
+  }
+
+  return { pairs: sortPairs(pairs), unmatched };
+}
+
+/**
+ * Fallback for groups too large to solve exactly: seed greedily, then 2-opt
+ * local search until no single partner swap improves the total.
+ *
+ * Kept only for that case. It reaches a local optimum, not the best possible
+ * split, and its answer depends on the order of `submissions` — which is why
+ * callers must pass a canonically ordered array.
  */
 export function findBalancedPairs(submissions: Submission[]): MatchResult {
   if (submissions.length < 2) {
@@ -178,15 +270,16 @@ export function findBalancedPairs(submissions: Submission[]): MatchResult {
     }
   }
 
-  const pairs = pairsList
-    .map(([a, b]) => ({
-      participant1: submissions[active[a]],
-      participant2: submissions[active[b]],
-      distance: dist[active[a]][active[b]],
-    }))
-    .sort((a, b) => b.distance - a.distance);
+  const pairs = pairsList.map(([a, b]) => ({
+    participant1: submissions[active[a]],
+    participant2: submissions[active[b]],
+    distance: dist[active[a]][active[b]],
+  }));
 
-  return { pairs, unmatched: unmatchedIdx !== null ? submissions[unmatchedIdx] : null };
+  return {
+    pairs: sortPairs(pairs),
+    unmatched: unmatchedIdx !== null ? submissions[unmatchedIdx] : null,
+  };
 }
 
 /**

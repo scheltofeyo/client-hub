@@ -325,20 +325,37 @@ export default function PublicRankingPage() {
       });
   }, [shareCode]);
 
+  // ── Start over after the facilitator removed this submission ──
+  function resetToStart() {
+    setSubmissionId(null);
+    setExistingSubmission(null);
+    setMatchData(null);
+    setCurrentStep(1);
+    setError(t(locale, "error.submissionRemoved"));
+  }
+
   // Poll for session close (step 3)
+  const waitingSubmissionId = existingSubmission?.id ?? submissionId;
   useEffect(() => {
     if (currentStep !== 3 || !session || session.status === "closed" || session.status === "archived") return;
     const interval = setInterval(async () => {
-      const res = await fetch(`/api/public/ranking/${shareCode}/status`);
+      const query = waitingSubmissionId ? `?submission=${waitingSubmissionId}` : "";
+      const res = await fetch(`/api/public/ranking/${shareCode}/status${query}`);
       if (!res.ok) return;
       const data = await res.json();
+      // Facilitator removed this submission — send the participant back to fill it in again
+      if (data.submissionExists === false) {
+        clearInterval(interval);
+        resetToStart();
+        return;
+      }
       if (data.status === "closed" || data.status === "archived") {
         setSession((prev) => prev ? { ...prev, status: data.status } : prev);
         clearInterval(interval);
       }
     }, 3000);
     return () => clearInterval(interval);
-  }, [currentStep, session?.status, shareCode]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [currentStep, session?.status, shareCode, waitingSubmissionId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fetch results when session closes
   useEffect(() => {
@@ -402,7 +419,11 @@ export default function PublicRankingPage() {
     const data = await res.json();
     setSubmitting(false);
 
-    if (!res.ok) { setError(data.error ?? t(locale, "error.generic")); return; }
+    if (!res.ok) {
+      if (res.status === 404) { resetToStart(); return; }
+      setError(data.error ?? t(locale, "error.generic"));
+      return;
+    }
     setExistingSubmission({ id: data.id, rankings: data.rankings });
     setCurrentStep(3);
   }
