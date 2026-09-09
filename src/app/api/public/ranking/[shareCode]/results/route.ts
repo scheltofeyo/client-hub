@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import { RankingSessionModel } from "@/lib/models/RankingSession";
-import { RankingSubmissionModel } from "@/lib/models/RankingSubmission";
-import { findBalancedPairs, findBestDuoForUnmatched, normalizeDistance } from "@/lib/ranking/matching";
-import type { Submission } from "@/lib/ranking/matching";
+import { resolveSessionMatching } from "@/lib/ranking/match-session";
 
-/** Public: when session is closed, returns all submissions + computed match pairs. */
+/**
+ * Public: when the session is closed, returns all submissions + the match pairs.
+ *
+ * The pairing comes from `resolveSessionMatching()`, the same call the admin
+ * overview makes, so a participant and the facilitator can never be looking at
+ * different duos.
+ */
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ shareCode: string }> }
@@ -20,46 +24,29 @@ export async function GET(
     return NextResponse.json({ error: "Results not available yet" }, { status: 400 });
   }
 
-  const submissions = await RankingSubmissionModel.find({
-    sessionId: session._id.toString(),
-    status: "completed",
-  })
-    .sort({ submittedAt: 1 })
-    .lean();
-
-  const mapped: Submission[] = submissions.map((s) => ({
-    id: s._id.toString(),
-    participantName: s.participantName,
-    participantEmail: s.participantEmail,
-    rankings: s.rankings ?? [],
-  }));
-
-  const numValues = session.values.length;
-  const { pairs, unmatched } = findBalancedPairs(mapped);
-
-  const bestDuo = unmatched ? findBestDuoForUnmatched(unmatched, pairs, numValues) : null;
+  const matching = await resolveSessionMatching(session);
+  const nameOf = (id: string) =>
+    matching.participants.find((p) => p.id === id)?.participantName ?? "";
 
   return NextResponse.json({
-    pairs: pairs.map((p) => ({
-      participant1: { id: p.participant1.id, participantName: p.participant1.participantName },
-      participant2: { id: p.participant2.id, participantName: p.participant2.participantName },
-      opposition: normalizeDistance(p.distance, numValues),
+    pairs: matching.pairs.map((p) => ({
+      participant1: { id: p.participant1Id, participantName: nameOf(p.participant1Id) },
+      participant2: { id: p.participant2Id, participantName: nameOf(p.participant2Id) },
+      opposition: p.opposition,
     })),
-    unmatched: unmatched ? { id: unmatched.id, participantName: unmatched.participantName } : null,
-    bestDuo: bestDuo
+    unmatched: matching.unmatchedId
+      ? { id: matching.unmatchedId, participantName: nameOf(matching.unmatchedId) }
+      : null,
+    bestDuo: matching.bestDuo
       ? {
-          pairParticipant1: bestDuo.pair.participant1.participantName,
-          pairParticipant1Id: bestDuo.pair.participant1.id,
-          pairParticipant2: bestDuo.pair.participant2.participantName,
-          pairParticipant2Id: bestDuo.pair.participant2.id,
-          avgOpposition: bestDuo.avgOpposition,
+          pairParticipant1: nameOf(matching.bestDuo.participant1Id),
+          pairParticipant1Id: matching.bestDuo.participant1Id,
+          pairParticipant2: nameOf(matching.bestDuo.participant2Id),
+          pairParticipant2Id: matching.bestDuo.participant2Id,
+          avgOpposition: matching.bestDuo.avgOpposition,
         }
       : null,
-    submissions: mapped.map((s) => ({
-      id: s.id,
-      participantName: s.participantName,
-      rankings: s.rankings,
-    })),
+    submissions: matching.participants,
     values: session.values,
   });
 }

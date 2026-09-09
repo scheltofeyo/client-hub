@@ -7,6 +7,7 @@ import { RankingSubmissionModel } from "@/lib/models/RankingSubmission";
 import { UserModel } from "@/lib/models/User";
 import { ClientModel } from "@/lib/models/Client";
 import { hasPermission } from "@/lib/auth-helpers";
+import { resolveSessionMatching } from "@/lib/ranking/match-session";
 
 export async function GET(
   _req: NextRequest,
@@ -127,6 +128,13 @@ export async function PATCH(
     { new: true }
   ).lean();
   if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  // Freeze the pairing at the moment of closing rather than leaving it to
+  // whoever opens a page first — the facilitator and the participants must be
+  // given the same duos, and those duos must not move afterwards.
+  if (doc.status === "closed" && existing.status !== "closed") {
+    await resolveSessionMatching(doc);
+  }
 
   return NextResponse.json({
     id: doc._id.toString(),

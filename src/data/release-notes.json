@@ -1,5 +1,26 @@
 [
   {
+    "date": "2026-09-09",
+    "title": "Jij en je deelnemers zien nu dezelfde matches",
+    "details": [
+      "Het matchoverzicht in de tool en het scherm van de deelnemers rekenden de koppeling elk apart uit, en konden daardoor andere duo's laten zien. Dat gebeurt nu op één plek: wat jij in de zaal aankondigt, is wat zij op hun telefoon zien.",
+      "De koppeling zelf is beter geworden. Hij zoekt nu de best mogelijke verdeling in plaats van een benadering, en bij een oneven aantal deelnemers valt degene buiten wie het minst oplevert om te koppelen.",
+      "Zodra je een sessie sluit staat de koppeling vast. Daarna verschuift niemands duo nog.",
+      "De keuze tussen Greedy en Balanced is verdwenen — er is nu één manier van koppelen, en dat is de beste.",
+      "Een inzending die niet bij de waarden van de sessie past wordt nu bij naam gemeld in plaats van stil meegerekend.",
+      "Let op: bij sessies die al gesloten waren wordt de koppeling opnieuw vastgelegd zodra je het overzicht opent. Die kan afwijken van wat er destijds op het scherm stond."
+    ]
+  },
+  {
+    "date": "2026-09-09",
+    "title": "Een foute inzending in Ranking the Values kun je nu verwijderen",
+    "details": [
+      "Zolang een sessie open staat kun je bij Participants een inzending verwijderen met het prullenbakje — handig als iemand zich vergist of onder de verkeerde naam is begonnen.",
+      "De deelnemer kan daarna met hetzelfde e-mailadres opnieuw invullen; zit die persoon nog op het wachtscherm, dan springt die vanzelf terug naar het begin.",
+      "Na het sluiten van een sessie kan het niet meer: de matches zijn dan al gemaakt en gedeeld."
+    ]
+  },
+  {
     "date": "2026-09-03",
     "title": "Het niveau in een waardekaart valt nu op",
     "details": [
