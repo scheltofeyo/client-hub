@@ -1,5 +1,13 @@
 [
   {
+    "date": "2026-09-22",
+    "title": "Een gekopieerde grafiek komt niet meer met een schuifbalk mee",
+    "details": [
+      "Grafieken die op het scherm kunnen schuiven namen die schuifbalk mee in de PNG, en de balk dekte net de kolom met gemiddelde en SD af. Die balk zit er nu niet meer in.",
+      "Staat een grafiek echt breder dan zijn kaart, dan kopieert hij voortaan helemaal mee in plaats van alleen het stuk dat je op dat moment ziet."
+    ]
+  },
+  {
     "date": "2026-09-09",
     "title": "Jij en je deelnemers zien nu dezelfde matches",
     "details": [
