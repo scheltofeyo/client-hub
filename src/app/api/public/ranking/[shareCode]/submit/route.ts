@@ -64,11 +64,13 @@ export async function POST(
     return NextResponse.json({ error: "Session is not accepting submissions" }, { status: 400 });
   }
 
+  const email = participantEmail.trim().toLowerCase();
+
   try {
     const doc = await RankingSubmissionModel.create({
       sessionId,
       participantName: participantName.trim(),
-      participantEmail: participantEmail.trim().toLowerCase(),
+      participantEmail: email,
       rankings: null,
       status: "in_progress",
     });
@@ -85,12 +87,22 @@ export async function POST(
       { status: 201 }
     );
   } catch (err: unknown) {
-    // Unique constraint violation — duplicate email
+    // Unique constraint violation: this email already has a submission in *this*
+    // session (the index is per session). That is the same participant arriving
+    // twice — a double tap, a second tab — so hand back the submission that won,
+    // exactly as check-email would have, rather than calling the address taken.
     if (err && typeof err === "object" && "code" in err && (err as { code: number }).code === 11000) {
-      return NextResponse.json(
-        { error: "A submission with this email address already exists." },
-        { status: 409 }
-      );
+      const existing = await RankingSubmissionModel.findOne({ sessionId, participantEmail: email }).lean();
+      if (existing) {
+        return NextResponse.json({
+          id: existing._id.toString(),
+          sessionId: existing.sessionId,
+          participantName: existing.participantName,
+          participantEmail: existing.participantEmail,
+          rankings: existing.rankings,
+          status: existing.status,
+        });
+      }
     }
     throw err;
   }

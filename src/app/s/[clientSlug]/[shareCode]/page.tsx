@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from "motion/react";
 import {
@@ -417,6 +417,7 @@ export default function PublicSurveyPage() {
   const [direction, setDirection] = useState<1 | -1>(1);
   const [email, setEmail] = useState("");
   const [submissionId, setSubmissionId] = useState<string | null>(null);
+  const identifyingRef = useRef(false);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [saveState, setSaveState] = useState<"saved" | "unsaved" | null>(null);
   const markDirty = useCallback(() => {
@@ -713,7 +714,13 @@ export default function PublicSurveyPage() {
   function goNext() {
     if (current.kind === "identity") {
       if (!submissionId) {
-        void handleIdentify();
+        // A second tap while the first is still on its way would start the same
+        // submission twice, and the slower reply would advance a second screen.
+        if (identifyingRef.current) return;
+        identifyingRef.current = true;
+        void handleIdentify().finally(() => {
+          identifyingRef.current = false;
+        });
         return;
       }
       setDirection(1);

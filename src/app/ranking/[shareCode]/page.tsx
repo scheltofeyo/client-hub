@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams } from "next/navigation";
 import {
   DndContext,
@@ -290,6 +290,8 @@ export default function PublicRankingPage() {
   const [order, setOrder] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [submissionId, setSubmissionId] = useState<string | null>(null);
+  const [identifying, setIdentifying] = useState(false);
+  const identifyingRef = useRef(false);
 
   // Step 3
   const [existingSubmission, setExistingSubmission] = useState<{ id: string; rankings: string[] } | null>(null);
@@ -366,7 +368,32 @@ export default function PublicRankingPage() {
   }, [session?.status, currentStep, shareCode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Step 1 handler ──
+  // A second tap while the first is still on its way would race it: both find no
+  // submission, both create one, and the loser used to tell the participant their
+  // email was already taken. The ref closes the gap before the re-render does.
   async function handleIdentify() {
+    if (identifyingRef.current) return;
+    identifyingRef.current = true;
+    setIdentifying(true);
+    try {
+      await identify();
+    } finally {
+      identifyingRef.current = false;
+      setIdentifying(false);
+    }
+  }
+
+  function continueWith(submission: { id: string; status: string; rankings: string[] | null }) {
+    if (submission.status === "completed" && submission.rankings) {
+      setExistingSubmission({ id: submission.id, rankings: submission.rankings });
+      setCurrentStep(3);
+    } else {
+      setSubmissionId(submission.id);
+      setCurrentStep(2);
+    }
+  }
+
+  async function identify() {
     setError(null);
     if (!name.trim() || !email.trim()) { setError(t(locale, "error.nameEmail")); return; }
 
@@ -379,13 +406,7 @@ export default function PublicRankingPage() {
     const checkData = await checkRes.json();
 
     if (checkData.exists) {
-      if (checkData.submission.status === "in_progress") {
-        setSubmissionId(checkData.submission.id);
-        setCurrentStep(2);
-      } else {
-        setExistingSubmission(checkData.submission);
-        setCurrentStep(3);
-      }
+      continueWith(checkData.submission);
       return;
     }
 
@@ -402,8 +423,7 @@ export default function PublicRankingPage() {
     });
     const data = await res.json();
     if (!res.ok) { setError(data.error ?? t(locale, "error.generic")); return; }
-    setSubmissionId(data.id);
-    setCurrentStep(2);
+    continueWith(data);
   }
 
   // ── Step 2 handler ──
@@ -532,7 +552,7 @@ export default function PublicRankingPage() {
               </div>
             </div>
             {error && <div className="p-3 rounded-button text-sm" style={{ background: "var(--danger-light)", color: "var(--danger)" }}>{error}</div>}
-            <button onClick={handleIdentify} className="btn-primary w-full py-3 rounded-button text-sm font-semibold">
+            <button onClick={handleIdentify} disabled={identifying} className="btn-primary w-full py-3 rounded-button text-sm font-semibold disabled:opacity-50">
               {t(locale, "btn.next")}
             </button>
           </div>

@@ -1,5 +1,14 @@
 [
   {
+    "date": "2026-10-02",
+    "title": "Twee keer op Volgende tikken geeft geen 'e-mailadres al gebruikt' meer",
+    "details": [
+      "Wie bij Ranking the Values op Volgende tikte terwijl de eerste tik nog onderweg was, kreeg de melding dat er al een inzending met dat e-mailadres bestond — terwijl dat hun eigen inzending van een tel eerder was. De knop wacht nu tot hij klaar is, en een dubbele aanmelding pakt gewoon de inzending op die er al staat.",
+      "In een survey kon dezelfde dubbele tik een foutmelding geven of een scherm overslaan. Ook dat is opgelost.",
+      "Een e-mailadres telt nog steeds alleen binnen de eigen sessie: wie eerder een survey of een andere ranking invulde, kan met hetzelfde adres gewoon meedoen."
+    ]
+  },
+  {
     "date": "2026-09-22",
     "title": "Een gekopieerde grafiek komt niet meer met een schuifbalk mee",
     "details": [
